@@ -61,6 +61,19 @@ FUNCTION recoverEngine():
 
 读取/事件投递可重试，已登记安全工具按目标回执重放；未知外部副作用暂停对账。Watch 提交通知去重与实际效果去重均需实现，不能以“事件看起来重复可忽略”代替业务幂等。
 
+## M0-05 分支验证映射
+
+| 分支 | 当前可执行证据 | 尚缺业务证据 |
+| --- | --- | --- |
+| B07-01 | agent-runtime 集成：scope/session/mode/canvas ID 校验与跨工具拒绝 | 窗口 owner、模型能力及真实上下文 |
+| B07-02、B07-04～05 | agent-runtime 集成：效果+回执同事务、写后退出恢复、异 hash/陈旧 revision 拒绝 | ProjectCoordinator/配置/任务真实回执 |
+| B07-03、B07-07 | 本地审批重启再批准、跨 scope 决策拒绝；原 approval/steer 回归 | 完整变更单/逐项批准/交互 UI |
+| B07-06、B07-10 | SQLite seq 重启回放、Worker 退出、原模型/压缩失败回归 | 错误映射、事件分页补洞、脱敏诊断 |
+| B07-08 | 原 durable-tools/recovery/code-mode 回归 | 真实任务提交未知与外部对账 |
+| B07-09 | 原 engine-watch/recovery fixture 回归 | 本地 JobRuntime/taskStates 接入 |
+
+命令统一为 `pnpm test:agent`，准确结果见 [实施基线](../../../04-技术架构/实施基线与开发批次.md#11-m0-05-实测记录)。Worker client 当前仅供受信内部 harness；单 owner、命令输入及通用验证入口不能直接作为正式 IPC。原 `canceled` 等状态保留在引擎中，面向产品的状态/错误 union 在 S3/S4 业务适配时冻结，不把 UI 词汇反向强改上游存储。
+
 ## 外部调用与补偿
 
 模型调用走 Host，资料抓取独立受控；取消 engine 不等于供应商任务取消。SQLite 恢复先于工具调度，关闭先禁止新写并 flush；无法恢复的运行保留可诊断 interrupted 状态。

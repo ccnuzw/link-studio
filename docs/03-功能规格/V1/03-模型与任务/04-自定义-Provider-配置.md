@@ -188,13 +188,17 @@ Then 操作被拒绝；用户批准必须绑定所审阅的插件版本/hash，�
 
 ### 工程落点
 
-待确认 Electron Main、SecretStore 和 Provider Adapter 目录。
+已建 `packages/provider-runtime/src/{runner,plugin,host}.ts`、独立 Go runner 与 `resources/provider-plugins/` 固定样本；Main Registry、SecretStore、IPC 和设置/Agent 工具尚待接入。
 
 ### 当前差距
 
-详见 [Provider 插件与 Agent 配置设计](../../../04-技术架构/Provider-插件与-Agent-配置设计.md)。插件 API 兼容测试、沙箱实现、Agent 工具、localhost/LAN 授权及安全存储平台策略仍待验证；当前均为 Draft。
+详见 [Provider 插件与 Agent 配置设计](../../../04-技术架构/Provider-插件与-Agent-配置设计.md#8-m0-02-实现范围与兼容缺口)。M0-02 仅覆盖本机 mock、部分清单/钩子、隔离与 hash 检查；尚未覆盖任何完整配置用户 AC，表中正式资产保留未创建。人工/Agent 草拟、启用审批持久化、localhost/LAN 授权和 safeStorage 仍须后续验证，规格保持 Draft。
 
 ### 验证记录
+
+#### 2026-11-19 M0-02 Runtime 切片
+
+macOS arm64、Go 1.26.4；`pnpm test:provider`，18/18 本地通过。涵盖 AC01/02/03/05/06 的底层部分路径，未验证完整用户流程、系统凭证存储或生产网络。目录包内 runner 复跑相同测试通过，固定源/hash 与准确命令见 [M0-02 实测记录](../../../04-技术架构/实施基线与开发批次.md#9-m0-02-实测记录)。样本为本地合成 mock，不等于真实供应商验证。
 
 #### 2026-11-19 规格基线核验
 
@@ -204,4 +208,5 @@ Then 操作被拒绝；用户批准必须绑定所审阅的插件版本/hash，�
 
 | 日期 | 变更 | 关联决策 |
 | --- | --- | --- |
+| 2026-11-19 | 回写 M0-02 插件兼容切片及待建业务验收路径 | D002、D004、D005 |
 | 2026-11-19 | 初始 Draft | D002、D003、D004 |

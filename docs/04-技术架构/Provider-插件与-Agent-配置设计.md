@@ -1,6 +1,6 @@
 # Provider 插件与 Agent 配置设计
 
-本文件聚焦 Provider 插件子流程；完整设置与画布助手、共享引擎和工具机制见 [内置 Agent 完整迁移设计](内置Agent完整迁移设计.md)。D005/D011 为产品依据；插件本身验收见 FR004/005，Agent 验收另见 FR007～009。SDK/沙箱仍待实现验证。
+本文件聚焦 Provider 插件子流程；完整设置与画布助手、共享引擎和工具机制见 [内置 Agent 完整迁移设计](内置Agent完整迁移设计.md)。D005/D011 为产品依据；插件本身验收见 FR004/005，Agent 验收另见 FR007～009。M0 本机 mock 与兼容缺口见第 8 节，不代表业务接入已完成。
 
 ## 1. 从上游吸收的能力
 
@@ -40,7 +40,7 @@ flowchart TB
 | Provider 设置 | 插件、端点、凭证和模型的人工配置；显示 Agent 差异 | React/TypeScript，桌面 typed IPC |
 | Registry | 草稿、不可变版本、源码 hash、启用引用与兼容记录 | Main 协调、本地原子持久化 |
 | Plugin Contract | manifest、hook 输入输出、请求描述及错误 schema | TypeScript 公共契约，匹配上游 API v1 |
-| Plugin Runtime | 运行不可信 JS，限制资源和可用全局对象 | M0 比较最小 Goja sidecar 与独立隔离 JS 引擎 |
+| Plugin Runtime | 运行不可信 JS，限制资源和可用全局对象 | M0 采用独立 Goja sidecar；macOS 沙箱和限制见第 8 节，其他平台待验证 |
 | Provider Host | 解析资产句柄、验证请求、注入凭证、HTTP、下载 | 本地受控工作进程；Main 管理授权与 SecretStore |
 | Job Runtime | 队列、轮询时间、持久化、恢复、取消与输出绑定 | TypeScript，独立于插件脚本 |
 | 设置 Agent | 当前页上下文、模型诊断、变更单、插件接入、密钥/试跑 | 共享 Pi Durable 的 settings scope；与画布助手共用机制、工具分离 |
@@ -126,4 +126,35 @@ Agent 工具范围建议为读取用户选定资料、读取非秘密配置、�
 4. M2 在同一套配置 API 上增加 Provider Agent 工具、草稿差异和启用动作，人工与 Agent 使用相同校验规则。
 5. V1 同步完成核心画布 Agent 的理解/编辑/生成审批/watch/恢复/撤销；专业域工具随 V2，官方计费和组织按独立阶段。见 [完整 Agent 设计](内置Agent完整迁移设计.md)。
 
-以上为待实现的验证要求，目前没有插件兼容测试或桌面运行证据。
+以上为完整迁移要求，当前 M0 覆盖范围如下；配置与持久任务仍按后续批次实现。
+
+## 8. M0-02 实现范围与兼容缺口
+
+实现落点为 `packages/provider-runtime/src/` 和 `packages/provider-runtime/runner/`；复现命令、版本、结果和打包证据统一见 [M0-02 实测记录](实施基线与开发批次.md#9-m0-02-实测记录)。采用与基线相同的 Goja 版本，减少 JS 语义差异；本轮未另行实现或压测 QuickJS/V8，不能宣称跨引擎比较已经完成。
+
+### 执行与宿主边界
+
+- 每次 hook 创建新 runner/VM，通过 stdin/stdout 传受限 JSON，不起 Go HTTP 后端，不加载 Node 插件，不继承桌面环境变量。`module/exports/utils` 及标准 JS 内建对象可用，动态 Function/eval、Promise、网络/文件/定时器/进程 API 不暴露；原型在加载源码之前锁定。
+- macOS 使用 sandbox-exec 拒绝网络、文件写入和 fork；Goja 未暴露文件读取接口，但 OS profile 当前仍允许文件读取，不能视为原生引擎漏洞下的完整文件机密保护。非 macOS 明确返回 `SANDBOX_UNAVAILABLE`；跨平台沙箱与签名分发是后续门禁。
+- 单次从初始化至结果编码的 VM 预算 200ms；进程启动/总墙钟 5s。堆使用超过 48 MiB 发出中断，GOMEMLIMIT=64MiB 仅为软目标；宿主每 25ms 采样 RSS，超过 128 MiB 杀进程。采样可能超调，不宣称严格内核内存配额。每个 runner 实例最多同时执行 2 个子进程。
+- 源码 512 KiB、meta 64 KiB、单个输入/结果 1 MiB、state/prepared 64 KiB。getter、hook、toJSON 和顶层执行均纳入时限；异常只返回稳定 code，丢弃原文与 stderr。取消等待进程关闭后返回。
+- 批准校验绑定 sourceHash，但当前 Binding 是受信内部输入；Registry、用户批准持久化、Renderer IPC 授权和 safeStorage 尚未实现，不能将此检查冒充完整审批系统。
+- Host 验证请求描述、同源注入 bearer/header/query、解析文件引用、调用 prepare/submit/query/cancel 与错误分类。响应回显的宿主凭证在传回钩子前遮盖；没有 Renderer 接口或密钥持久化实现。
+- mock transport 只允许明确列出的 `http://127.0.0.1:<port>`，不使用 DNS、代理和自动重定向；外部 URL、localhost 别名和未授权端口均不发出。正式公网/LAN 授权、DNS/IP 绑定与多跳策略尚未实现，不能换成裸 fetch 后声称生产网络边界成立。
+- submit 发送后失败/取消返回 `PROVIDER_OUTCOME_UNKNOWN`；429/5xx 分类而不自动重发 submit。查询由调用方使用原 handle/state 重试；取消返回 requested/local_only，不能宣布供应商已取消。任务 journal、自动轮询、崩溃恢复和真实资产入库属于后续 Job Runtime。
+
+### 样本与缺口
+
+| 样本/能力 | 本地 mock 证据 | 尚未覆盖 |
+| --- | --- | --- |
+| openai 1.2.0 | 原文件未修改；Responses/Chat 请求及文本/usage 解析 | 真实网关、视觉公网 URL 和流式 Agent 模型 |
+| openai-image 1.3.0 | 原文件未修改；生成 URL、参考图片 multipart 编辑 | image_json 内联 base64 到真实资产的转换、媒体探测 |
+| sora 1.1.0 | 原文件未修改；multipart、task handle、ready state、二次二进制查询与解析 | mock 二进制为合成字节，asset 回执不入库；真实 MP4 下载/取消语义 |
+| doubao-video 1.1.0 | 原文件未修改；文本 submit/query 到视频 URL | 参考媒体需要公网 URL；无上传配置时发送前明确拒绝 |
+| 合成 audio 插件 | prepare→submit→query→cancel，JSON 重建 state | 不代表上游音频插件或供应商兼容 |
+| 文件引用 | multipart/base64/dataUrl；槽位与大小校验 | multipart 当前缓冲编码，未实现流式大文件上传；不自动上传官方存储 |
+| utils | uuid/unixNow/base64/base64URL/base64Decode/sha256/hmacSHA256/hmacSHA256Hex | jwtSignHS256/jwtSignRS256 未实现；utils.log 当前丢弃，不返回追踪日志 |
+| manifest | 单类型、模式、认证、必需/成对钩子、协议设置、poll 基础校验 | 非完整上游预检器；未知导出警告、弃用 import.args 全量规则与表单补默认仍待接入 |
+| custom auth | 明确拒绝 `PLUGIN_CUSTOM_AUTH_UNSUPPORTED`，凭证不进入钩子 | 原自定义签名插件需另做宿主签名能力，不能直接传 credentials |
+
+四份样本的固定提交/hash、MIT 与 Apache 来源说明保存在 `resources/provider-plugins/`。Apache 衍生代码的具体上游版权/NOTICE 和 Go 依赖清单仍须正式分发前审计；本机目录包不是正式发布。

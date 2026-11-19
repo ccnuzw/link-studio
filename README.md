@@ -16,9 +16,28 @@
 
 ## 当前阶段
 
-当前已建立产品、架构、迁移及验收设计，尚无应用代码。可以启动 **M0 工程搭建与技术验证**；后续功能按批次补齐契约和证据后开发，当前不宣称已实现或通过运行验收。
+当前处于 **M0 工程搭建与技术验证**，M0-01～05 已完成 macOS arm64 本机范围验证，包含桌面工程、项目存储、Provider mock、媒体导出与小灵共享引擎。上述服务尚未接入完整用户流程；当前界面关闭后不会保存节点。素材导入、真实模型生成和小灵双入口界面仍待实现。
 
-技术方向为 Electron + React + TypeScript、typed IPC、本地项目与资产服务、Provider 插件运行时和持久 Agent 引擎。具体依赖版本与兼容性在 M0 验证后锁定。
+技术栈为 Electron + React + TypeScript、typed IPC；小灵保留原 Pi Durable engine/store，以独立 Worker、SQLite 和 QuickJS 运行，后续接入真实业务服务。版本和验证范围见实施基线。
+
+## 本地运行
+
+使用 Node.js 22（最低 22.19.0）、pnpm 10.26.2；构建和集成测试另需 Go 1.26 或更高版本，用于编译独立 Goja 插件 runner：
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+检查命令为 `pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build`、`pnpm test:integration` 和 `pnpm test:e2e`。构建集成测试读取 `out/`，需先构建。
+
+`pnpm test:provider` 编译 runner 并运行 Provider mock 测试；`pnpm provider:build` 仅编译 runner。当前隔离执行仅开放 macOS，其他平台返回 `SANDBOX_UNAVAILABLE`。测试网络仅允许明确列出的 `127.0.0.1` origin，不代表正式公网/LAN 模型适配已经接通；运行已打包应用不要求用户安装 Go。
+
+`pnpm media:build` 从 SHA-256 固定的 FFmpeg 7.1.3 源码构建无 GPL/nonfree 的最小 LGPL 媒体程序，首次构建需要网络与 macOS Command Line Tools（clang/make/tar），后续使用 `.cache/media/` 缓存；`pnpm test:media` 运行真实合成测试。当前构建仅验证 macOS arm64，使用系统 H.264 VideoToolbox 和原生 AAC；二进制、源码、许可与构建清单随应用复制，运行不依赖 Homebrew。
+
+`pnpm package:mac` 生成 `release/mac-arm64/灵可.app`（当前 Apple Silicon 主机）；这是未签名的本地目录包，已验证启动，不是正式分发安装包。Windows 与 macOS Intel 尚未验证。
+
+`pnpm test:agent` 验证小灵共享引擎：9 项本地集成与 144 项迁入上游回归；`pnpm agent:build` 构建包内 Worker/QuickJS。使用回环 mock 模型与合成目标，不要求云服务或真实凭证；审批、插话、watch 和恢复的证据边界见 [Agent runtime 说明](packages/agent-runtime/README.md)。
 
 ## 开发入口
 
@@ -29,4 +48,4 @@
 - [版本进入开发门禁](docs/02-产品与版本/版本进入开发门禁.md)
 - [V1 实现状态](docs/02-产品与版本/当前版本/V1-实现状态.md)
 
-工程脚手架和应用运行命令将在 M0 建立。复用上游代码、媒体、字体及 3D 资源时，逐项记录来源并保留适用的许可声明。
+复用上游代码、媒体、字体及 3D 资源时，逐项记录来源并保留适用的许可声明。
