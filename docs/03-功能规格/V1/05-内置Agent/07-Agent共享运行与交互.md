@@ -1,0 +1,157 @@
+---
+title: "07 Agent 共享运行与交互"
+version: V1
+feature_id: V1-FR-007
+domain: 内置Agent
+spec_status: Draft
+risk: 高风险
+track: 内置Agent
+updated: 2026-11-19
+---
+# 07 Agent 共享运行与交互
+
+## 功能卡
+
+| 项目 | 内容 |
+| --- | --- |
+| 编号 | V1-FR-007 |
+| 领域 | 内置Agent |
+| 规格状态 | Draft |
+| 风险等级 | 高风险（持久运行、工具副作用、跨会话授权和恢复） |
+| 上游依赖 | V1-FR-004（可用模型绑定）；项目 scope 另依赖 V1-FR-001 |
+| 下游影响 | V1-FR-008、V1-FR-009 |
+| 规格负责人 | 桌面/Agent 工程 |
+| 实现状态 | 见 [V1 实现状态](../../../02-产品与版本/当前版本/V1-实现状态.md) |
+
+## 目标
+
+用户在设置和画布中使用同一套可恢复 Agent 会话机制，保留上游的工具交互、上下文、审批和运行反馈，不依赖官方登录。
+
+## 功能边界
+
+包含：Pi Durable 会话/运行/历史、事件回放、模型与工具能力过滤、插话/停止/继续、计划/卡片/活动摘要、审批基础、上下文压缩、附件、技能渐进读取、受限 code-mode、watch 与观测基础。
+
+不包含：具体设置/画布领域写入（V1-FR-008/009），官方积分账本，任意终端/脚本执行，未迁移专业域工具。
+
+## 来源与追踪
+
+- 需求来源：[V1 产品需求](../../../02-产品与版本/当前版本/V1-产品需求.md)。
+- 相关决策：D002、D005、D007、D009、D011。
+- 跨功能验收：V1-E2E-02、V1-NFR-001、V1-NFR-003。
+- 源码事实与平台工具映射：[完整设计](../../../04-技术架构/内置Agent完整迁移设计.md)。
+
+## 需求说明
+
+### 用户故事
+
+作为创作者，我希望收起面板、插话或重启后仍能理解和继续助手的工作，且不会重复执行已完成动作。
+
+### 业务规则
+
+1. 一个共享 engine，各 session 显式 scope；同 scope 活跃写运行排他，工具不只靠提示词限制。
+2. 设置与画布 UI 共用 controller/事件/审批组件，面板收起不停止 engine；关闭项目/退出按显式生命周期处理。
+3. durable task ID 映射目标侧 operationId；目标效果和 receipt 先提交，Agent 收据后确认，重复调用返回原结果。
+4. SQLite 保存助手状态，不取代项目权威源；目标快照与 engine 无共同事务，需恢复对账。
+5. 插话稳定 ID 去重且可见读取状态；待审批消息不自动批准。停止不承诺取消外部生成。
+6. 仅向模型公布当前 scope/mode/能力允许的工具，执行端复核。code-mode 仅调用 scriptable 工具，权限/审批不能在脚本中绕过。
+7. 模型调用覆盖 main/summary/title/activity，用途与用量可观测；使用宿主凭证边界，流/tool-call/多模态要明确支持。
+8. 附件/技能/网页内容作为不可信资料，资源有授权与上限；秘密不进入模型上下文/trace。
+
+### 主流程
+
+选择可用模型 → 以 scope 创建/恢复会话 → 显示上下文标签并发送 → engine 调工具/更新计划 → 必要时等待审批/回答 → 继续运行或等待外部任务 → 显示结果/摘要和历史。
+
+### 异常与边界
+
+无可用模型引导人工配置；模型缺 tool calling/视觉能力时明确提示；数据库不可用不得回退到丢失审批的无状态模式；事件缺口补快照/历史；旧 scope、已失效 owner、过期审批不自动恢复写入；未知 replay policy 默认不安全。
+
+### 页面与交互
+
+保留会话选择、模型选择、消息/活动分组、计划、结果卡、审批、插话、停止/继续、上下文/压缩状态和待生成区。输入失败保留原文，历史分页，窗口与项目切换正确清理订阅；无隐藏推理内容时不虚构思考显示。
+
+## 接口契约
+
+typed IPC `agent.sessions.create/list/open`、`agent.runs.start/steer/stop/continue`、`agent.history.get`、`agent.events.subscribe`、`agent.approvals.decide`、`agent.watches.list`、`agent.diagnostics.export`。调用携带 requestId、scope/sessionId、messageId/decisionId 等幂等标识；不暴露通用工具任意执行 API。
+
+返回 session/run 状态与可回放事件 seq；错误 code 为 AGENT_MODEL_UNAVAILABLE、AGENT_MODEL_CAPABILITY_UNSUPPORTED、AGENT_SCOPE_DENIED、AGENT_RUN_BUSY、AGENT_STORE_UNAVAILABLE、AGENT_APPROVAL_STALE、AGENT_INTERRUPTED。完整输入 union/原上游状态映射在 M0 adapter 实测后冻结。
+
+## 数据与事务
+
+AgentSession/Run/Event/Approval/Watch/ToolReceipt 保存本机 SQLite，带 scope、版本和稳定调用 ID。SkillVersion 不可变，运行固定版本。项目变更 receipt 在 ProjectState，配置变更 receipt 在配置存储；事件投递用可重试 outbox/seq，不假设 IPC 与 DB 原子。
+
+运行可 paused/stopped/interrupted/failed/completed，watch 是独立持久状态；完成主 run 不代表外部生成结束。关闭先停止接写、flush、失效 owner；重启在目标恢复后校验 scope 再调度。
+
+## 验收标准
+
+#### AC01 两入口共用会话机制且 scope 隔离
+
+Given 设置会话和两个项目会话存在。
+
+When 切换入口、收起面板并重新展开。
+
+Then 历史/运行/订阅恢复正确，不串上下文，收起不停止工作，未授权 scope 工具被拒绝。
+
+#### AC02 工具重放不重复生效
+
+Given 目标服务已提交一次工具效果但 Agent 尚未保存成功结果。
+
+When 强制终止后重启并恢复同 durable 调用。
+
+Then 读取目标 receipt 返回原效果，不重复改配置、画布或生成；不安全/未知调用标 interrupted。
+
+#### AC03 插话、审批和停止语义明确
+
+Given run 运行中或等待批准/提问。
+
+When 用户发送插话、回答/拒绝，或停止后继续。
+
+Then 消息去重且状态可见，不绕过未批准动作，不把停止等同远端已取消。
+
+#### AC04 上下文与工具能力不越界
+
+Given 包含附件/网页/技能的上下文，模型缺某能力，或脚本试图调用非 scriptable 工具。
+
+When 构造请求与执行工具/code-mode。
+
+Then 仅提供允许工具和受限资料，秘密不发送；违规脚本/能力调用拒绝，压缩后可追溯资料引用。
+
+#### AC05 后台等待可恢复且只交付一次
+
+Given 一批已批准任务存在 watch，通知丢失或 engine 重启。
+
+When 原任务完成并补查询。
+
+Then 结果回同一会话，不重发生成、不重复追加唤醒；失效 scope 不自动写入。
+
+#### AC06 运行故障与观测不伪装成功
+
+Given 模型/DB 不可用、事件断线或压缩/内部模型调用失败。
+
+When 运行终止/恢复并查看诊断。
+
+Then 显示真实状态，历史缺口可补，main/summary/title/activity 关联和用量可诊断，导出默认脱敏。
+
+#### AC 逐项测试设计
+
+| AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
+| --- | --- | --- | --- | --- | --- |
+| AC01 | scope/UI 生命周期 | 集成 | `tests/integration/agentScopes.test.ts` | `pnpm test:integration -- tests/integration/agentScopes.test.ts` | 未创建 |
+| AC02 | 目标 receipt 与恢复 | 集成 | `tests/integration/agentRecovery.test.ts` | `pnpm test:integration -- tests/integration/agentRecovery.test.ts` | 未创建 |
+| AC03 | 插话/审批/停止 | 集成 | `packages/agent-runtime/src/interaction.test.ts` | `pnpm test -- packages/agent-runtime/src/interaction.test.ts` | 未创建 |
+| AC04 | 资料/脚本/模型边界 | 集成 | `tests/integration/agentCapabilities.test.ts` | `pnpm test:integration -- tests/integration/agentCapabilities.test.ts` | 未创建 |
+| AC05 | watch 补查去重 | 集成 | `packages/agent-runtime/src/watch.test.ts` | `pnpm test -- packages/agent-runtime/src/watch.test.ts` | 未创建 |
+| AC06 | 失败/观测/历史 | 集成 | `tests/integration/agentDiagnostics.test.ts` | `pnpm test:integration -- tests/integration/agentDiagnostics.test.ts` | 未创建 |
+
+## 技术设计
+
+见 [技术设计](07-Agent共享运行与交互-技术设计.md)。
+
+## 实现与验证
+
+工程落点：`packages/agent-runtime/`、Main Tool Gateway、preload agent 域、Renderer 共用 controller。当前差距：SDK/SQLite/QuickJS/流模型适配、API union 和故障恢复待 M0 实测；没有应用或测试运行证据。
+
+## 变更记录
+
+| 日期 | 变更 | 关联决策 |
+| --- | --- | --- |
+| 2026-11-19 | 登记共享运行与交互主线，不以简化聊天循环替代 | D011 |
