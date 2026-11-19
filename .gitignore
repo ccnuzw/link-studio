@@ -9,6 +9,7 @@ release/
 coverage/
 playwright-report/
 test-results/
+.cache/
 *.log
 *.tsbuildinfo
 .env
