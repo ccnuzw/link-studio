@@ -1,0 +1,68 @@
+{
+  "repository": "https://github.com/zaylora/video-canvas",
+  "commit": "f0b8ced3687b22de6af0358c682c5e768001ff4f",
+  "sha256": {
+    "src/activity-summary.ts": "dd80e84c977dd48dcc997ca0b3781ee9a6f03f311cfa2b1bd7b3d23e7788ca14",
+    "src/attachments.ts": "c48aae86364bd041dc977c72c407378f438239eeb8c23a092880696acca8a2e8",
+    "src/card.ts": "a017641533b098af41247bf8eac70b04f7fb1a962cbb389cd52385ed7fbba4d8",
+    "src/codemode.ts": "3d9db0a0e0e8daf7fee60031404ebe651b19a2dc8c738b8988fe6fc6015169a8",
+    "src/compaction.ts": "a558af88d8c11b2fa469bf6cb11c3c214d2d614ee6b434e36a1ab5f176a2452e",
+    "src/context.ts": "f64be106ae44bf3d689598dc962eff3febfabfed3c39b8294558bd8b07d73909",
+    "src/durable-tools.ts": "f40abac4f07e33dd1c8c93706b65c80e7f53341179362493f4b793d4b857958d",
+    "src/engine/engine.ts": "8d28225f67a56b0036113622f23671d4f21c0be05a3fbb219cd32ac05b364faf",
+    "src/engine/errors.ts": "14b2740e4e8f3a501418f142b33d94c48404442e4e42b49ff511da2863a6372d",
+    "src/engine/status.ts": "060ba49cd2a27d8482d051ee14fcf9917593e0e3481b7dca08207fa955f57e0d",
+    "src/engine/watch.ts": "0df92c010cc65bafe20267fe1a9a42e6b2d744a5485ff8e796726311b36d47e8",
+    "src/event-pusher.ts": "68af0687b2c0368bf6285a5e4f8b3f6f75dad49cc7ed79e619a26b23ece3977b",
+    "src/ids.ts": "be1ce9b21694a3818eb1688276414ba00eaaccb66b15be32ddea214d312b660b",
+    "src/model-provider.ts": "cacba99fb3189ffd44fdecf370214315f1f4d155d91a39119fae26ccef14da34",
+    "src/platform-client.ts": "2df13db62b51090da4f8a78805546fec6c42a68a69d37d4fcacf995b451b151d",
+    "src/platform-wait.ts": "da49ed0ad4fe6cb3a8e3a796f3be7ff0f19131b99e3de015da67f28e0060ae3a",
+    "src/store/errors.ts": "11cdc16e0e80b853995b0011658ac805b743b59fd54af905cf8b02c10ec745e5",
+    "src/store/migrations.ts": "8cfba1dbdaad557b6311edf728c1b65701c1af3eaca2dd596e43c6fe56f231c2",
+    "src/store/store.ts": "95cddae60be16836b49f33f2d453d58754becfda9021522152f97f8077ca0390",
+    "src/store/types.ts": "69256095fa6a62a8a4d84c3492a0f7936b99ff34ef5a78e7fdda73ae5e2ecbe8",
+    "src/title.ts": "25cd2264f070b29b08508eee361fbb755a8574d65e0b9dbb4a5cf6d483245921",
+    "src/tools.ts": "d62fbfd2f234f3f43c0a231ebfeef55c8e147102ceaffcf801f0ec760c9b1bf4",
+    "src/web-access.ts": "e690d88b8d0ea5f16e2c7667c6c22b385fa8bb2a16af3272192b2e6028360fed",
+    "src/web-tools.ts": "b93b5296cdefb62196d022657cba269f7337e8f7ec2292153e208b1286921000",
+    "test/durable-helpers.ts": "eb1958b20b5ba3d4cbb8973f6f35decf682edb09c8d35e351994500ca245ad1a",
+    "test/durable-tools.test.ts": "2e7f9149a016db4cc94905213ae1d3358d2ef30c0a6f93b0d38f4fcd4e8a5631",
+    "test/engine-approval.test.ts": "d08cfcfea3217fcef7d9770d26910dbbaa3d082125aee0b0f77206f007cc99a3",
+    "test/engine-compaction.test.ts": "4d3cb3b64c1ad515f9edda3f433e4defa23b6e274fb7aeaedb39db33c8fd5d33",
+    "test/engine-helpers.ts": "803c2aa32862d5e975d1d476fd3fbb6a1ae2af4cce6ef88f56210da1313408ce",
+    "test/engine-recovery.test.ts": "fb6510f9847e2919e5ccba5b8cae8b4dcd8966effdb76d1542452dd4341192d7",
+    "test/engine-steer.test.ts": "58d6e2a06be834fb9a567855b7aecda16b3f73d70c8421456c4a233cbf715fc1",
+    "test/engine-watch.test.ts": "afbfdf2fe99680e219ef0acd0dfe43a3a62c88a283caf438e516cb5045bddc2e",
+    "test/engine.test.ts": "638483663a4242847f5d9f7b42d1f0e217ed323782ddd35eefd13aa7c98e3aae",
+    "test/fake-go.ts": "d7832ab18dc281c4483f7aae0195b0aa44828d3acbc7b9727e0ace29ce3fed2c",
+    "test/fixtures/engine-child.ts": "20804d9c7cb469c8da7d8d39de3e9abc26111fefeb8db3cbe9bf7586257c81a6",
+    "test/model-provider.test.ts": "349d766171edefab898e9b4f5576cf31141c39acc0f22f5676053fb8a3fc85c4",
+    "test/model-proxy-fake.ts": "fdf85564194b3aebb898ef9d8d0af8ff3d011787e7f82fd3c7a78a3fdb0cae04",
+    "test/platform-fake.ts": "2886ab04495796b2a69aba235adf65f2f472c03b4632313da62accb5db50deee",
+    "test/store.test.ts": "1258759dd265c20a800db53df24f0977cc509bd9e1747788d82b3e5cad619fbe"
+  },
+  "hashMeaning": "sha256 records original upstream bytes; localPatches records adapted bytes. Tests keep original assertions.",
+  "localPatches": {
+    "src/codemode.ts": {
+      "sha256": "4067ac1001b40e94237f7fb40c2fc5a5f9ed24e684486b786e7bfd91e0b1e823",
+      "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
+    },
+    "src/compaction.ts": {
+      "sha256": "248ea1b623012af5c632a459f11e76b2b9c14d82a4f586735c620ca790097410",
+      "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
+    },
+    "src/engine/engine.ts": {
+      "sha256": "db9ca89907a86870c42278e77a0a2f4db5fd2eb9316c49d16be47f5811b623e5",
+      "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
+    },
+    "src/store/migrations.ts": {
+      "sha256": "3f17eb515e9872a38f11e8e3fd467138cb7824453f683d0c407645e861590667",
+      "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
+    },
+    "test/fake-go.ts": {
+      "sha256": "bace906bcf8e8f8c7027524b76aeaa519294d1cc5bdaade8d2ae7b9e731bedc3",
+      "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
+    }
+  }
+}
