@@ -1,0 +1,26 @@
+appId: studio.linkstudio.desktop
+productName: 灵可
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: out/agent-runtime
+    to: agent-runtime
+  - from: out/media-runtime
+    to: media-runtime
+  - from: out/media
+    to: media
+  - from: resources/icons/icon.png
+    to: icons/icon.png
+  - from: out/provider-runtime
+    to: provider-runtime
+  - from: resources/provider-plugins
+    to: provider-plugins
+mac:
+  icon: resources/icons/icon.icns
+  category: public.app-category.video
+win:
+  icon: resources/icons/icon.ico
+  target: dir

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>灵可 Link Studio 应用图标</title>
+  <defs>
+    <linearGradient id="tile" x1="180" y1="80" x2="824" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#293657"/>
+      <stop offset=".48" stop-color="#171F38"/>
+      <stop offset="1" stop-color="#0E1529"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(365 245) rotate(55) scale(670 600)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#788AC9" stop-opacity=".23"/>
+      <stop offset="1" stop-color="#788AC9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="250" y1="64" x2="700" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DCE7FF" stop-opacity=".35"/>
+      <stop offset=".45" stop-color="#A8BEF4" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#A8BEF4" stop-opacity=".16"/>
+    </linearGradient>
+    <linearGradient id="loop" x1="320" y1="290" x2="610" y2="749" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3E8FF"/>
+      <stop offset=".35" stop-color="#B5C4FF"/>
+      <stop offset=".72" stop-color="#8D9FEA"/>
+      <stop offset="1" stop-color="#CFD8FF"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="407" y1="338" x2="689" y2="574" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C1FFF0"/>
+      <stop offset=".42" stop-color="#7EEBD8"/>
+      <stop offset="1" stop-color="#3BB7CA"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="422" y1="584" x2="505" y2="645" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#286D96"/>
+      <stop offset="1" stop-color="#68D8D2"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#040B1B" flood-opacity=".28"/>
+    </filter>
+    <filter id="mark-shadow" x="180" y="174" width="670" height="680" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="17" flood-color="#030B21" flood-opacity=".48"/>
+    </filter>
+  </defs>
+  <g filter="url(#tile-shadow)">
+    <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#tile)"/>
+    <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#light)"/>
+    <rect x="65.5" y="65.5" width="893" height="893" rx="200.5" stroke="url(#rim)" stroke-width="3"/>
+  </g>
+  <g filter="url(#mark-shadow)">
+    <path d="M429 279C371 245 300 286 300 353V681C300 748 372 789 430 755L587 663L481 601L420 637V398L429 403L535 341L429 279Z" fill="url(#loop)"/>
+    <path d="M429 279L733 456C790 489 790 571 733 604L587 689L481 627L663 521L429 385C409 373 397 353 397 332C397 311 409 291 429 279Z" fill="url(#ribbon)"/>
+    <path d="M481 627L587 689L587 663L481 601V627Z" fill="url(#fold)"/>
+    <path d="M420 637L481 601L587 663L430 755C372 789 300 748 300 681V648C300 715 372 756 430 722L535 661L481 629L420 665V637Z" fill="url(#loop)"/>
+    <path d="M430 281L733 458C759 473 773 498 775 523" stroke="#E0FFF7" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>
+    <path d="M302 354V680C302 745 371 785 428 753" stroke="#F0F3FF" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

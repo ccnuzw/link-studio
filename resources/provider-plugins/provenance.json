@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/zaylora/video-canvas",
+  "commit": "f0b8ced3687b22de6af0358c682c5e768001ff4f",
+  "license": "MIT; sora/doubao-video also declare Apache-2.0-derived origins; resolve notices before distribution",
+  "sha256": {
+    "resources/provider-plugins/openai.js": "5940844f396be48576301e9727bdf7a3122a3e59e26a288ff6b4953b7ca4cd38",
+    "resources/provider-plugins/openai-image.js": "7444ed89115192a4e55f4b31fd68ad8aecfc8b932f6e54845e29c37d3fd27dc6",
+    "resources/provider-plugins/sora.js": "9b931d5ae69eecb8a2c493d4edf67973f94efdd7f1f88542ffc4302f80ca2ab9",
+    "resources/provider-plugins/doubao-video.js": "798a217827e9806903e93691a7f15ebefee846103c44c5fc17d1f407c68c71af",
+    "resources/provider-plugins/UPSTREAM-LICENSE": "8bb70702420ee56a5842b67f89aab6df1275a5fb9f68537c682c9c70f9a3d3cf"
+  }
+}

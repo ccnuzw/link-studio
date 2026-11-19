@@ -123,7 +123,7 @@ Preload `subscribe` 返回 unsubscribe 函数；销毁窗口、关闭项目或�
 
 ### 导出（S5）
 
-`exports.start/cancel/get/list`；start 带 MutationContext、按序视频 assetIds、可选 bgmAssetId、受限 audioMix/profile 和 outputTargetToken。服务保存不可变配方并 pin 输入，调用受控 FFmpeg；schema 与音频基线见 [导出规格](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出.md)。首期 MP4 固定，profile 在 M0-04 结果后确定。
+`exports.start/cancel/get/list`；start 带 MutationContext、按序视频 assetIds、可选 bgmAssetId、受限 audioMix/profile 和 outputTargetToken。服务保存不可变配方并 pin 输入，调用受控 FFmpeg；schema 与音频基线见 [导出规格](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出.md)。M0 已验证 macOS H.264 VideoToolbox/AAC 的 `hd-720p` 和测试用 `m0-360p`；完整参数及限制以 [媒体技术设计](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出-技术设计.md#m0-04-实现基线与待接入边界)为准。内部路径接口不得直接暴露给 Renderer；持久任务、Asset ID 映射和覆盖确认仍待 S5 接入。
 
 ## 7. 官方与未来同步边界
 

@@ -156,3 +156,13 @@ code-mode 保留 QuickJS 限时限内存执行和 scriptable 工具集；模型�
 | V2 | 专业域功能和对应工具/技能/上下文同步迁移 | 每域至少一条 Agent 辅助主任务与人工路径对照验收 |
 
 以上不要求 V1 提前实现所有专业域，但核心助手不是可选项。详细规格见 V1-FR-007～009；所有原始工具按去向追踪，任何缺失能力必须在例外台账中注明原因与处理。
+
+## M0-05 本地迁移落点
+
+已将固定上游版本的 Pi Durable engine/store 及依赖闭包迁入 `packages/agent-runtime/upstream/`，本地适配位于同包 `src/`。设置与项目会话使用同一引擎，稳定 scope 映射保存在目标库，工具声明与执行端均校验 scope；保留上游 `admin` 模式及 settings 的 canvas ID `0`，本地执行工具沿用上游 `executor: server` 枚举，由本地 Gateway 执行，不要求 Go 平台 HTTP 服务。
+
+Agent Worker 持有引擎与 SQLite，Main 通过受信 client 调度；QuickJS 内部 Worker/WASM 独立复制到包内，避免 bundle 后丢失相对资源。合成目标在单 SQLite 事务内提交 revision、效果和 operation receipt，另一 Agent 数据库随后确认工具结果。写后退出注入验证相同 durable 调用恢复读取回执，不重复产生目标效果。
+
+测试映射见 [运行时说明](../../packages/agent-runtime/README.md)，实际版本/命令/数量见 [M0-05 实测记录](实施基线与开发批次.md#11-m0-05-实测记录)。迁入九组原回归测试验证审批、插话、watch、恢复和压缩；本地新增测试验证 Gateway、scope 与打包。上游类型适配只做可追踪窄化/边界断言，不删减回归断言。
+
+待 S3/S4 落实：真实 Provider 流式请求及秘密边界、完整设置变更单/密钥/试跑、画布结构/生成/撤销工具、真实任务 taskStates/watch、窗口与项目所有权、typed IPC、共用 controller/UI、状态错误映射及事件补洞。当前合成目标和 mock 模型不作为 V1-FR-008/009 已实现的依据；没有把原功能移除或重新划为可选项。

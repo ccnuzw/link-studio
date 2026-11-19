@@ -135,12 +135,12 @@ Then 显示真实状态，历史缺口可补，main/summary/title/activity 关�
 
 | AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
 | --- | --- | --- | --- | --- | --- |
-| AC01 | scope/UI 生命周期 | 集成 | `tests/integration/agentScopes.test.ts` | `pnpm test:integration -- tests/integration/agentScopes.test.ts` | 未创建 |
-| AC02 | 目标 receipt 与恢复 | 集成 | `tests/integration/agentRecovery.test.ts` | `pnpm test:integration -- tests/integration/agentRecovery.test.ts` | 未创建 |
-| AC03 | 插话/审批/停止 | 集成 | `packages/agent-runtime/src/interaction.test.ts` | `pnpm test -- packages/agent-runtime/src/interaction.test.ts` | 未创建 |
-| AC04 | 资料/脚本/模型边界 | 集成 | `tests/integration/agentCapabilities.test.ts` | `pnpm test:integration -- tests/integration/agentCapabilities.test.ts` | 未创建 |
-| AC05 | watch 补查去重 | 集成 | `packages/agent-runtime/src/watch.test.ts` | `pnpm test -- packages/agent-runtime/src/watch.test.ts` | 未创建 |
-| AC06 | 失败/观测/历史 | 集成 | `tests/integration/agentDiagnostics.test.ts` | `pnpm test:integration -- tests/integration/agentDiagnostics.test.ts` | 未创建 |
+| AC01 | scope/UI 生命周期 | 集成/E2E | `tests/integration/agent-runtime.test.ts`、`tests/e2e/agent-runtime.spec.ts`；双入口生命周期用例待建 | `pnpm test:agent`、`pnpm exec playwright test tests/e2e/agent-runtime.spec.ts` | 已创建 |
+| AC02 | 目标 receipt 与恢复 | 集成 | `tests/integration/agent-runtime.test.ts`；真实项目/任务回执用例待建 | `pnpm test:agent` | 已创建 |
+| AC03 | 插话/审批/停止 | 集成 | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/engine-steer.test.ts`；UI 用例待建 | `pnpm test:agent` | 已创建 |
+| AC04 | 资料/脚本/模型边界 | 集成 | `tests/integration/agent-runtime.test.ts`；附件/秘密/能力桥用例待建 | `pnpm test:agent` | 已创建 |
+| AC05 | watch 补查去重 | 集成 | `packages/agent-runtime/upstream/test/engine-watch.test.ts`；本地真实任务接入用例待建 | `pnpm test:agent:upstream` | 已创建 |
+| AC06 | 失败/观测/历史 | 集成 | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/engine-compaction.test.ts`；诊断/分页用例待建 | `pnpm test:agent` | 已创建 |
 
 ## 技术设计
 
@@ -148,10 +148,15 @@ Then 显示真实状态，历史缺口可补，main/summary/title/activity 关�
 
 ## 实现与验证
 
-工程落点：`packages/agent-runtime/`、Main Tool Gateway、preload agent 域、Renderer 共用 controller。当前差距：SDK/SQLite/QuickJS/流模型适配、API union 和故障恢复待 M0 实测；没有应用或测试运行证据。
+工程落点：`packages/agent-runtime/` 已建立原引擎/本地 Gateway/SQLite/QuickJS Worker 验证切片；Main Tool Gateway 的业务接入、preload agent 域与 Renderer 共用 controller 仍待实现。
+
+### 验证记录
+
+2026-11-19，macOS arm64/APFS：`pnpm agent:build` 后本地 9 项集成、`pnpm test:agent:upstream` 的 144 项迁入回归、源码/目录包各 3 项 Electron 测试通过。完整命令与版本见 [M0-05 实测记录](../../../04-技术架构/实施基线与开发批次.md#11-m0-05-实测记录)。覆盖双 scope 执行端校验、合成目标 receipt/恢复、审批重启、插话/取消、事件回放、code-mode 子工具与 QuickJS 限制；watch/压缩仅具迁入引擎 fixture 证据。上表保守标“已创建”，因为每条完整业务 AC 仍缺 UI、真实项目/任务或宿主模型桥证据，不将部分断言通过升级为整条 AC 通过。
 
 ## 变更记录
 
 | 日期 | 变更 | 关联决策 |
 | --- | --- | --- |
 | 2026-11-19 | 登记共享运行与交互主线，不以简化聊天循环替代 | D011 |
+| 2026-11-19 | 回写 M0-05 原引擎迁入、本地测试与打包证据；保留业务 AC 缺口 | D011 |
