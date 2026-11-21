@@ -16,16 +16,17 @@
     "--disable-nonfree",
     "--disable-version3",
     "--enable-pthreads",
+    "--enable-zlib",
     "--enable-videotoolbox",
     "--enable-ffmpeg",
     "--enable-ffprobe",
     "--enable-protocol=file,pipe",
-    "--enable-demuxer=mov,matroska,wav,mp3,ogg,flac,image2",
+    "--enable-demuxer=mov,matroska,wav,mp3,ogg,flac,image2,image_png_pipe,image_jpeg_pipe,image_webp_pipe",
     "--enable-decoder=h264,hevc,vp8,vp9,av1,aac,mp3,pcm_s16le,pcm_f32le,png,mjpeg,webp,opus,vorbis,flac,wrapped_avframe,rawvideo",
     "--enable-encoder=h264_videotoolbox,aac,pcm_s16le,rawvideo,png,wrapped_avframe",
     "--enable-muxer=mp4,mov,null,rawvideo,wav,image2,pcm_s16le",
     "--enable-parser=h264,hevc,vp8,vp9,av1,aac,mpegaudio,opus,vorbis,png,mjpeg,flac",
-    "--enable-filter=aformat,aresample,atrim,asetpts,apad,anullsrc,volume,amix,concat,scale,pad,setsar,fps,format,setpts,trim,color,sine,testsrc2,astats,silencedetect,anull,null",
+    "--enable-filter=aformat,aresample,atrim,asetpts,apad,anullsrc,volume,amix,concat,scale,crop,pad,setsar,fps,format,setpts,trim,color,sine,testsrc2,astats,silencedetect,anull,null",
     "--enable-indev=lavfi"
   ]
 }

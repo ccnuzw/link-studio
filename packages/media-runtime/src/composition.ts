@@ -38,6 +38,7 @@ export interface ExportOptions {
   timeoutMs?: number;
   onStage?: (stage: "prepared" | "encoding" | "validated") => void | Promise<void>;
   onProgress?: (seconds: number) => void;
+  onRecipe?: (recipe: CompositionRecipe) => void | Promise<void>;
 }
 const PROFILES = {
   "m0-360p": { id: "m0-360p", width: 640, height: 360, fps: 30, bitrate: 1_200_000 },
@@ -247,6 +248,7 @@ export class MediaComposer {
         })),
         ...(bgm ? { bgm: { sha256: bgm.sha256, bytes: bgm.bytes } } : {}),
       };
+      await options.onRecipe?.(recipe);
       await options.onStage?.("prepared");
       checkCancelled(signal);
       const output = join(temporary, "output.mp4");
