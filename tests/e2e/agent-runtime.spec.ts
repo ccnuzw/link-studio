@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
+import { projectAction } from "./workspace-actions";
 
 test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/IPC 可响应", async () => {
   const directory = await mkdtemp(join(tmpdir(), "link-studio-agent-e2e-"));
@@ -32,10 +33,16 @@ test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/I
   delete environment.ELECTRON_RUN_AS_NODE;
   const application = await electron.launch({
     ...(executablePath ? { executablePath, args: [] } : { args: ["."] }),
-    env: { ...environment, LINK_STUDIO_TEST_USER_DATA: join(directory, "userData") },
+    env: {
+      ...environment,
+      LINK_STUDIO_TEST_USER_DATA: join(directory, "userData"),
+      LINK_STUDIO_TEST_PROJECT_PARENT: directory,
+    },
   });
   try {
     const page = await application.firstWindow();
+    await page.getByRole("button", { name: "新建项目" }).click();
+    await expect(page.getByRole("heading", { name: "从一个想法开始" })).toBeVisible();
     await application.evaluate(
       async ({ app }, input) => {
         const root = app.isPackaged ? `${process.resourcesPath}/agent-runtime` : input.runtime;
@@ -65,9 +72,9 @@ test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/I
         ),
       )
       .toBe(true);
-    await page.getByRole("button", { name: "图片", exact: true }).click();
-    await expect(page.locator(".react-flow__node")).toHaveCount(2);
-    await page.getByRole("button", { name: "运行环境", exact: true }).last().click();
+    await page.getByRole("button", { name: /^图片生成 从描述/ }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    await projectAction(page, "运行环境");
     await expect(page.getByText("桌面连接正常")).toBeVisible();
     const result = await application.evaluate(async () => {
       const state = Reflect.get(globalThis, "linkStudioAgentSpike");

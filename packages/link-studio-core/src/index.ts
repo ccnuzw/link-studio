@@ -52,8 +52,25 @@ export type DesktopResult<Data> =
   | { ok: false; error: { code: "INVALID_ARGUMENT" | "FORBIDDEN" | "INTERNAL"; message: string } };
 
 export interface DesktopAPI {
+  settings: SettingsAPI;
+  skills: SkillsAPI;
   app: { getInfo(): Promise<DesktopResult<AppInfo>> };
+  dialogs: ProjectDialogsAPI;
+  projects: ProjectsAPI;
+  projectEvents: {
+    onExportProgress(listener: (event: ProjectExportProgress) => void): () => void;
+  };
+  canvasWindow: {
+    setPending(pending: boolean): void;
+    onSaveBeforeClose(save: () => Promise<boolean>): () => void;
+  };
 }
+
+export type ProjectExportProgress = {
+  operationId: string;
+  stage: "preparing" | "encoding" | "validating" | "importing" | "completed";
+  progress: number;
+};
 
 export function isAppInfoRequest(value: unknown): value is AppInfoRequest {
   return Value.Check(AppInfoRequestSchema, value);
