@@ -124,7 +124,7 @@ export function inputContent(
     { type: "text", text: full },
     ...images.map((a) => ({
       type: "image" as const,
-      data: (a.image!.url ?? a.image!.data) as string,
+      data: (a.image!.data ?? a.image!.url) as string,
       mimeType: a.image!.mime_type,
     })),
   ];

@@ -127,7 +127,7 @@ export interface ToolDecl {
 }
 
 export interface RunSetup {
-  model: { name: string; context_window: number; max_tokens: number; vision: boolean };
+  model: Omit<import("./model-provider.ts").ModelSpec, "key">;
   system_prompt: string;
   tools: ToolDecl[];
   disabled_tools?: string[];
@@ -226,6 +226,7 @@ export const TERMINAL_TASK_STATUSES = [
   "expired",
   "canceled",
   "missing",
+  "outcome_unknown",
 ] as const;
 
 export interface AgentModel {
@@ -395,7 +396,12 @@ export function createPlatform({ baseUrl, serviceToken, fetchImpl = fetch }: Pla
     /** 运行准备：模型规格、系统提示词、工具声明、版本；带 message 时还有第一条用户消息。不带 message 是续跑 */
     prepare: (
       rc: RunContext,
-      req: { message?: string; max_steps?: number; page_context?: unknown } = {},
+      req: {
+        message?: string;
+        max_steps?: number;
+        page_context?: unknown;
+        allow_web_research?: boolean;
+      } = {},
       signal?: AbortSignal,
     ) => call<RunSetup>("POST", "/runs/prepare", rc, req, { signal }),
     /** 审批预估：工具参数 → 审批内容和预估积分，不落库 */
@@ -468,6 +474,7 @@ export function createPlatform({ baseUrl, serviceToken, fetchImpl = fetch }: Pla
       userId: string,
       taskIds: string[],
       signal?: AbortSignal,
+      _sessionId?: string,
     ): Promise<TaskState[]> => {
       for (const [name, v] of [
         ["user_id", userId],

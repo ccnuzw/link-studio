@@ -7,7 +7,7 @@
 - `src/gateway.ts`：scope 工具集、执行端校验、审批与目标回执适配。
 - `src/targets.ts`：独立 SQLite 合成目标，事务内写入效果及回执，验证跨存储恢复边界。
 - `src/worker.ts`：命令调度、事件传递、QuickJS 验证入口和故障注入。
-- `upstream/`：固定原引擎及回归测试；`provenance.json` 区分原始 hash 与五处严格类型适配，构建时验证指纹。
+- `upstream/`：固定原引擎及回归测试。`provenance.json` 记录原始 hash 与本地适配，构建时验证指纹。
 
 `pnpm test:agent` 构建后运行本地 9 项与上游 144 项测试；模型端点由测试启动的 loopback SSE 服务提供。`pnpm agent:build` 输出独立 Worker、CommonJS client、Pi code-mode Worker 与 QuickJS WASM，以及依赖/许可清单；目录包从 `Resources/agent-runtime` 加载。
 

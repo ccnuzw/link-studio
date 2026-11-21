@@ -635,15 +635,19 @@ test("崩溃：进程被 SIGKILL 杀掉后重新打开，已经确认的事件�
     );
     let confirmed = 0;
     let buf = "";
+    let requestedKill = false;
     await new Promise<void>((resolve, reject) => {
       child.stdout.on("data", (d: Buffer) => {
         buf += d.toString();
         const lines = buf.split("\n");
         buf = lines.pop() ?? "";
         for (const l of lines) confirmed = Number(l);
-        if (confirmed >= 300) child.kill("SIGKILL");
+        if (confirmed >= 300 && !requestedKill) requestedKill = child.kill("SIGKILL");
       });
-      child.on("exit", () => resolve());
+      child.on("close", (code, signal) => {
+        if (requestedKill && signal === "SIGKILL" && confirmed >= 300) resolve();
+        else reject(new Error(`Fixture exited before confirmed SIGKILL (${code}, ${signal})`));
+      });
       child.on("error", reject);
     });
     const reopened = openStore(p, { workerId: 1 });

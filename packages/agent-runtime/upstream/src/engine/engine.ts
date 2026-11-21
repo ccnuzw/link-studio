@@ -81,6 +81,7 @@ import { AgentError, Err, OVER_BUDGET_CODE } from "./errors.ts";
 import { ACTIVE_STATUSES, isActive, statusEvent } from "./status.ts";
 import {
   Watches,
+  WATCH_KEEP_MS,
   allSettled,
   createWatchExtension,
   isClosed,
@@ -159,6 +160,7 @@ export interface EngineOptions {
   /** 对外 ID 的编码，事件内容里的审批 id、运行 id 用它（和 Go 的 idcodec 一致） */
   codec: IdCodec;
   onEvent?: (ev: PublishedEvent) => void;
+  modelDiagnostics?: boolean;
   now?: () => number;
   approvalTtlMs?: number;
   defaultMaxSteps?: number;
@@ -176,6 +178,7 @@ export interface EngineOptions {
   watchGraceMs?: number;
   /** 后台等待生成：整批结束但没交付成（画布被占、Go 暂时不可用）后隔多久再试（默认 60 秒） */
   watchPollMs?: number;
+  canvasWatchEnabled?: (canvasId: string) => boolean;
   /** 传给 Pi Harness 的时钟和定时器；生产不用传，测试用它控制「睡一会儿」的任务 */
   harness?: { now?: () => number; setTimer?: SetTimer };
   /** Agent 自己管理联网 MCP；未传时兼容旧的平台联网工具。 */
@@ -197,6 +200,7 @@ export interface StartRunRequest {
   budgetCredits?: number;
   maxSteps?: number;
   pageContext?: unknown;
+  allowWebResearch?: boolean;
 }
 
 /** 一个正在进行的运行片段 */
@@ -346,6 +350,11 @@ export class AgentEngine {
         const a = this.#active.get(this.#contexts.conversationOf(sessionId ?? "") ?? "");
         // 摘要、命名不是助手的话，没有对应的 message.done：它们的调用 id 单独放，免得错配到下一条对话消息上
         if (a) (purpose === "main" ? a.callIds : a.summaryCallIds).push(callId);
+      },
+      onResponseStatus: ({ sessionId, purpose, status }) => {
+        if (!this.#o.modelDiagnostics) return;
+        const active = this.#active.get(this.#contexts.conversationOf(sessionId ?? "") ?? "");
+        if (active) this.#emit(this.#ev(active), "model.call", { purpose, status });
       },
       onError: ({ sessionId, status, code, purpose }) => {
         const a = this.#active.get(this.#contexts.conversationOf(sessionId ?? "") ?? "");
@@ -833,6 +842,7 @@ export class AgentEngine {
       prepare: {
         message,
         max_steps: maxSteps,
+        ...(req.allowWebResearch === true && { allow_web_research: true }),
         ...(mode === "admin" && { page_context: req.pageContext }),
       },
       recordHarness: true,
@@ -888,11 +898,8 @@ export class AgentEngine {
       keepRecentTokens: limits.keepRecent,
     });
     this.#models.ensure({
+      ...setup.model,
       key: rc.model_key!,
-      name: setup.model.name,
-      context_window: setup.model.context_window,
-      max_tokens: setup.model.max_tokens,
-      vision: setup.model.vision,
     });
     const tools = this.#o.web
       ? prepareWebTools(setup.tools).filter((t) => !setup.disabled_tools?.includes(t.name))
@@ -986,7 +993,7 @@ export class AgentEngine {
     sess: Session,
     o: {
       selection: string[];
-      prepare: { message?: string; max_steps?: number };
+      prepare: { message?: string; max_steps?: number; allow_web_research?: boolean };
       /** 第一段才记版本；之后沿用，运行中途发版也不会让同一次运行有两个版本 */
       recordHarness?: boolean;
       /** 新发起的运行：还没有任何事件，不用去找没读到的插话 */
@@ -1001,6 +1008,7 @@ export class AgentEngine {
     let kickoff: () => Promise<Submission | undefined>;
     try {
       const setup = await this.#o.platform.prepare(rc, o.prepare);
+      if (store.getRun(run.userId, run.id).status !== run.status) throw Err.state();
       if (o.recordHarness)
         store.updateRunIf(run.id, ["queued"], {
           promptVersion: setup.harness.prompt_version,
@@ -1360,10 +1368,9 @@ export class AgentEngine {
     }
     this.#emit(ev, "approval.decided", this.#approvalView(final));
     // 用户在试跑期间停止运行，终态仍可回放，但不得重新启动模型对话。
-    if (approval.kind === "admin_test_run" && store.getRun(userId, run.id).status !== "running")
-      return this.#approvalView(final);
     // 批准的生成已经提交：登记要等的任务（先于续跑，任务结束的门铃来得再早也找得到）
     await this.#registerWatch(fresh, sess, approval, exec).catch(() => {});
+    if (store.getRun(userId, run.id).status !== "running") return this.#approvalView(final);
 
     // 让运行接着往下走；起不来就标为中断，用户可以稍后点「继续」
     try {
@@ -1677,6 +1684,20 @@ export class AgentEngine {
   }
 
   // ---- 后台等待生成 ----
+
+  async recoverGenerationWatch(userId: string, approvalId: string): Promise<void> {
+    const store = this.#o.store;
+    const approval = store.getApproval(userId, approvalId);
+    if (
+      approval.status !== "executed" || !approval.decidedAt ||
+      this.#now() - approval.decidedAt >= WATCH_KEEP_MS
+    ) return;
+    const run = store.getRun(userId, approval.runId);
+    const session = store.getSession(userId, approval.sessionId);
+    await this.#registerWatch(run, session, approval, {
+      status: "executed", result: approval.result, outcome_text: "",
+    });
+  }
   //
   // 批准生成后本轮照常结束。这批任务在会话文档 app.watches 里登记，并建一个 Pi 后台任务兜底；
   // 任务结束时 Go 的门铃（taskSettled）记账，整批结束就把结果交回同一个会话：
@@ -1745,7 +1766,7 @@ export class AgentEngine {
     const batch: WatchBatch = {
       runId: run.id,
       watcherTaskId: "",
-      createdAt: now,
+      createdAt: approval.decidedAt ?? now,
       state: "waiting",
       tasks: Object.fromEntries(
         created.map((t) => [
@@ -1759,8 +1780,11 @@ export class AgentEngine {
       ),
     };
     // 文档和监听任务在同一次提交里：不会出现登记了没人守，或者有人守没登记
+    let registered = false;
     await conv.commit(async (tx) => {
+      registered = false;
       const doc = await tx.doc(Watches, conv.id);
+      if (doc.batches[approval.id]) return;
       const task = await tx.createTask(
         this.#watchTask,
         {
@@ -1772,8 +1796,9 @@ export class AgentEngine {
       batch.watcherTaskId = String(task);
       doc.batches[approval.id] = JSON.parse(JSON.stringify(batch));
       pruneBatches(doc, now);
+      registered = true;
     }, context);
-    this.#emitWatch(sess, approval.id, batch);
+    if (registered) this.#emitWatch(sess, approval.id, batch);
   }
 
   /** 把这些任务记成已结束；这批全部结束就改成待交付。返回这些任务是否在某个还没关闭的批里（重复通知也算在里面） */
@@ -1881,7 +1906,7 @@ export class AgentEngine {
       .map(([id]) => id);
     if (pending.length > 0) {
       try {
-        const states = await this.#o.platform.taskStates(sess.userId, pending);
+        const states = await this.#o.platform.taskStates(sess.userId, pending, undefined, sess.id);
         const done = states.filter((st) =>
           (TERMINAL_TASK_STATUSES as readonly string[]).includes(st.status),
         );
@@ -1911,11 +1936,30 @@ export class AgentEngine {
   }
 
   async #wakeOnce(stale: Session, o: WakeOptions): Promise<void> {
-    if (this.#closing || !stale.conversationId) return;
+    if (
+      this.#closing || !stale.conversationId ||
+      this.#o.canvasWatchEnabled?.(stale.canvasId) === false
+    ) return;
     const sess = this.#session(stale.userId, stale.id); // 模型、模式可能在这期间改过
-    const ready = Object.entries((await this.#watchDoc(sess.conversationId)).batches)
+    let ready = Object.entries((await this.#watchDoc(sess.conversationId)).batches)
       .filter(([, b]) => b.state === "deliverable")
       .sort(([, a], [, b]) => a.createdAt - b.createdAt);
+    if (this.#o.canvasWatchEnabled) {
+      const stopped = ready.filter(([, batch]) => this.#stoppedWatch(batch));
+      const first = stopped[0];
+      if (first) {
+        const message = await this.#wakeMessage(sess, stopped);
+        if (!message) return;
+        const batchIds = stopped.map(([id]) => id);
+        await this.#markBatches(sess, batchIds, "delivered", undefined, o);
+        this.#emit(
+          { id: first[1].runId, userId: sess.userId, sessionId: sess.id, canvasId: sess.canvasId },
+          "tasks.settled",
+          { batch_ids: batchIds, steer: false, tasks: message.tasks },
+        );
+        ready = ready.filter(([id]) => !batchIds.includes(id));
+      }
+    }
     if (ready.length === 0) return;
     const active = this.#o.store.activeRun(sess.canvasId, sess.userId);
     if (active) {
@@ -1926,6 +1970,10 @@ export class AgentEngine {
       return;
     }
     return this.#wakeNewRun(sess, ready, o);
+  }
+
+  #stoppedWatch(batch: WatchBatch): boolean {
+    return !!this.#o.canvasWatchEnabled && this.#o.store.getRunById(batch.runId).status === "canceled";
   }
 
   /** 向 Go 取这批任务的最新结果，写成交给模型的那条消息；取不到返回 undefined（留给下一次） */
@@ -1943,10 +1991,11 @@ export class AgentEngine {
     const ids = ready.flatMap(([, b]) => Object.keys(b.tasks));
     let states;
     try {
-      states = await this.#o.platform.taskStates(sess.userId, ids);
+      states = await this.#o.platform.taskStates(sess.userId, ids, undefined, sess.id);
     } catch {
       return undefined;
     }
+    if (this.#o.canvasWatchEnabled?.(sess.canvasId) === false) return undefined;
     const byId = new Map(states.map((st) => [st.task_id, st.status]));
     return {
       text: wakeText(
@@ -2006,7 +2055,7 @@ export class AgentEngine {
   ): Promise<void> {
     if (!sess.modelKey) return; // 会话没有选过模型，没法开新一轮
     const msg = await this.#wakeMessage(sess, ready);
-    if (!msg) return;
+    if (!msg || ready.some(([, batch]) => this.#stoppedWatch(batch))) return;
     const store = this.#o.store;
     const maxSteps = this.#o.defaultMaxSteps ?? DEFAULT_MAX_STEPS;
     let run: Run;
@@ -2054,7 +2103,7 @@ export class AgentEngine {
     o: WakeOptions,
   ): Promise<void> {
     const msg = await this.#wakeMessage(sess, ready);
-    if (!msg) return;
+    if (!msg || ready.some(([, batch]) => this.#stoppedWatch(batch))) return;
     const batchIds = ready.map(([id]) => id);
     const delivered = await this.#locked(a, async () => {
       // 刚好在收尾、或进入等回答 / 等审批：这一轮不会再读了，留给运行结束后的交付
@@ -2208,6 +2257,11 @@ export class AgentEngine {
   async #onAssistant(convId: string, msg: AssistantMessage): Promise<void> {
     const a = this.#active.get(convId);
     if (!a) return;
+    if (this.#o.modelDiagnostics)
+      this.#emit(this.#ev(a), "model.usage", {
+        input_tokens: msg.usage.input + msg.usage.cacheRead + msg.usage.cacheWrite,
+        output_tokens: msg.usage.output,
+      });
     // 这条回答已经定稿：watcher 里还没处理完的它的增量作废（见 #watch），否则会排在 message.done 之后，前端残留成重复文字
     this.#answered.set(convId, (this.#answered.get(convId) ?? 0) + 1);
     this.#dropDeltas.get(convId)?.();

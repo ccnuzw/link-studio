@@ -49,6 +49,11 @@ const URL_AS_DATA = /^data:[^;,]+;base64,(https?:\/\/.+)$/;
 /** 发给 OpenAI 兼容接口的请求体里，这里用到的部分 */
 interface ChatPayload {
   messages?: { content?: unknown }[];
+  input?: string | { content?: unknown }[];
+}
+
+function responseMessages(payload: ChatPayload | undefined) {
+  return Array.isArray(payload?.input) ? payload.input : [];
 }
 
 /** 更早的图片被省略后，模型看到的说明：告诉它怎么重新看（附件图片的素材 id 在那条消息的「附件图片」一行里） */
@@ -61,6 +66,15 @@ export const IMAGE_OMITTED =
  * 图片很占上下文和带宽，每一轮都原样重发是浪费。就地修改并返回请求体。
  */
 export function pruneOldImages<P>(payload: P, keep: number): P {
+  const responses = responseMessages(payload as ChatPayload | undefined).filter(
+    (message) => Array.isArray(message.content) && message.content.some((part) => part?.type === "input_image"),
+  );
+  for (const message of responses.slice(0, Math.max(0, responses.length - keep))) {
+    if (Array.isArray(message.content))
+      message.content = message.content.map((part) =>
+        part?.type === "input_image" ? { type: "input_text", text: IMAGE_OMITTED } : part,
+      );
+  }
   const messages = (payload as ChatPayload | undefined)?.messages ?? [];
   const hasImage = (m: { content?: unknown }) =>
     Array.isArray(m.content) &&
@@ -75,6 +89,14 @@ export function pruneOldImages<P>(payload: P, keep: number): P {
 }
 
 export function restoreImageUrls<P>(payload: P): P {
+  for (const message of responseMessages(payload as ChatPayload | undefined)) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part?.type !== "input_image" || typeof part.image_url !== "string") continue;
+      const match = URL_AS_DATA.exec(part.image_url);
+      if (match) part.image_url = match[1];
+    }
+  }
   for (const m of (payload as ChatPayload | undefined)?.messages ?? []) {
     if (!Array.isArray(m.content)) continue;
     for (const part of m.content as { type?: string; image_url?: { url?: unknown } }[]) {

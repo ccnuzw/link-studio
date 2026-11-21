@@ -16,7 +16,13 @@ import {
 } from "@earendil-works/pi-durable";
 import type { TaskState } from "../platform-client.ts";
 
-export type WatchTaskStatus = "succeeded" | "failed" | "expired" | "canceled" | "missing";
+export type WatchTaskStatus =
+  | "succeeded"
+  | "failed"
+  | "expired"
+  | "canceled"
+  | "missing"
+  | "outcome_unknown";
 
 /** 一个生成任务的等待记录 */
 export type WatchedTask = {
@@ -112,6 +118,8 @@ function taskLine(
       return `${head} ${kind} 成功${outs ? `，${outs} 个产物` : ""}`;
     case "failed":
       return `${head} ${kind} 失败${s?.error ? `：${s.error}` : ""}`;
+    case "outcome_unknown":
+      return `${head} ${kind} 供应商受理结果未知，请先人工核对，避免重复提交。`;
     case "expired":
       return `${head} ${kind} 超时没有完成${s?.error ? `：${s.error}` : ""}`;
     case "canceled":
