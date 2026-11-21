@@ -801,10 +801,12 @@ test("S4 设置与画布小灵隔离，审批生成和结果跨重启保留", as
     ).toBeVisible();
     await expect(assistant.getByText(/@小灵分镜组（已缺失）/)).toBeVisible();
     await expect(welcome).toHaveValue("人工保留的开场");
-    await reopened
+    await reopened.getByRole("button", { name: "适应视图", exact: true }).click();
+    const opening = reopened
       .locator('[data-id="fixture-s4-opening"]')
-      .getByText("从一个想法开始", { exact: true })
-      .click();
+      .getByText("从一个想法开始", { exact: true });
+    await expect(opening).toBeInViewport();
+    await opening.click();
     await assistant.getByRole("button", { name: "从引用剧本拆分镜" }).click();
     await expect(assistant.getByLabel("画布消息")).toHaveValue(/请读取我引用的剧本/);
     await assistant.getByLabel("画布消息").fill("切换面板后保留的草稿");
