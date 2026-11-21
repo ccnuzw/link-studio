@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
+import { projectAction } from "./workspace-actions";
 
 test("M0 媒体 spike：Main 中转码期间界面和受限 IPC 可响应取消", async () => {
   test.skip(process.platform !== "darwin" || process.arch !== "arm64");
@@ -38,10 +39,16 @@ test("M0 媒体 spike：Main 中转码期间界面和受限 IPC 可响应取消"
   delete environment.ELECTRON_RUN_AS_NODE;
   const application = await electron.launch({
     ...(executablePath ? { executablePath, args: [] } : { args: ["."] }),
-    env: { ...environment, LINK_STUDIO_TEST_USER_DATA: join(temporary, "userData") },
+    env: {
+      ...environment,
+      LINK_STUDIO_TEST_USER_DATA: join(temporary, "userData"),
+      LINK_STUDIO_TEST_PROJECT_PARENT: temporary,
+    },
   });
   try {
     const page = await application.firstWindow();
+    await page.getByRole("button", { name: "新建项目" }).click();
+    await expect(page.getByRole("heading", { name: "从一个想法开始" })).toBeVisible();
     await application.evaluate(
       async ({ app }, input) => {
         const runtime = app.isPackaged
@@ -99,9 +106,9 @@ test("M0 媒体 spike：Main 中转码期间界面和受限 IPC 可响应取消"
     expect(
       await application.evaluate(() => Reflect.get(globalThis, "linkStudioMediaSpike").active),
     ).toBe(true);
-    await page.getByRole("button", { name: "图片", exact: true }).click();
-    await expect(page.locator(".react-flow__node")).toHaveCount(2);
-    await page.getByRole("button", { name: "运行环境", exact: true }).last().click();
+    await page.getByRole("button", { name: /^图片生成 从描述/ }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    await projectAction(page, "运行环境");
     await expect(page.getByText("桌面连接正常")).toBeVisible();
     await application.evaluate(() =>
       Reflect.get(globalThis, "linkStudioMediaSpike").controller.abort(),

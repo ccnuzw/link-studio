@@ -673,6 +673,17 @@ export class AgentStore {
     ).map(approvalOf);
   }
 
+  recentGenerationApprovals(userId: string, canvasId: string, since: number): Approval[] {
+    return this.#all(
+      `SELECT * FROM agent_approvals WHERE user_id = ? AND canvas_id = ?
+       AND kind = 'generate' AND decided_at > ?
+       AND status IN ('approved', 'partially_approved', 'executed') ORDER BY id ASC`,
+      dec(userId),
+      dec(canvasId),
+      since,
+    ).map(approvalOf);
+  }
+
   /** 审批状态迁移的 CAS：只有当前状态在 from 里才更新，返回更新后的审批；没命中抛 StateConflictError（重复点击、已过期、本轮已停止） */
   updateApprovalIf(approvalId: string, from: readonly string[], patch: ApprovalPatch): Approval {
     if (from.length === 0) throw new Error("updateApprovalIf 的 from 不能为空");

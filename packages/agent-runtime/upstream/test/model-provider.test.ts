@@ -10,6 +10,7 @@ import {
   runContextExtension,
   type ModelSpec,
 } from "../src/model-provider.ts";
+import { inputContent } from "../src/attachments.ts";
 import { fakeModelProxy } from "./model-proxy-fake.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -252,6 +253,32 @@ test("对象存储里的图片：工具把地址放在 data 里，发给上游�
   } finally {
     await s.close();
   }
+});
+
+test("附件图片优先使用经 Main 校验的本地 data，不把 asset 标识误当成图片地址", () => {
+  assert.deepEqual(
+    inputContent("看图", [
+      {
+        asset_id: "asset-local",
+        name: "本地.png",
+        mime_type: "image/png",
+        url: "asset:asset-local",
+        image: { mime_type: "image/png", data: "QUJD" },
+      },
+      {
+        asset_id: "asset-remote",
+        name: "远端.png",
+        mime_type: "image/png",
+        url: "https://cdn.example/remote.png",
+        image: { mime_type: "image/png", url: "https://cdn.example/remote.png" },
+      },
+    ]),
+    [
+      { type: "text", text: "看图\n\n附件图片：图1（asset:asset-local）、图2（asset:asset-remote）" },
+      { type: "image", data: "QUJD", mimeType: "image/png" },
+      { type: "image", data: "https://cdn.example/remote.png", mimeType: "image/png" },
+    ],
+  );
 });
 
 test("模型代理回错误：HTTP 状态和业务错误码（响应头）交给 onError，不会当成一次成功的调用", async () => {

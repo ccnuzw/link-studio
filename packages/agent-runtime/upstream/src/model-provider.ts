@@ -16,9 +16,11 @@ import {
   type Model,
   type Provider,
   type ProviderResponse,
+  type ProviderStreams,
   type StreamOptions,
 } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import {
   GenerationTask,
   ProviderDoc,
@@ -48,6 +50,7 @@ export interface ModelSpec {
   context_window: number;
   max_tokens: number;
   vision: boolean;
+  api?: "openai-completions" | "openai-responses";
 }
 
 export interface RunContexts {
@@ -115,6 +118,7 @@ export interface ModelRegistryOptions {
   contexts: RunContexts;
   /** 每次模型请求收到响应头时调用，带上 Go 给的调用 id */
   onCall?: (info: ModelCallInfo) => void;
+  onResponseStatus?: (info: { sessionId: string | undefined; purpose: ModelPurpose; status: number }) => void;
   /** 模型代理回了错误（HTTP 4xx/5xx）时调用。OpenAI 格式的错误体只有文字，业务错误码在响应头里 */
   onError?: (info: ModelErrorInfo) => void;
 }
@@ -127,7 +131,6 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
   const models = createModels();
   const specs = new Map<string, ModelSpec>();
   const baseUrl = opts.baseUrl.replace(/\/+$/, "") + "/internal/platform/v1/model";
-  const inner = openAICompletionsApi();
 
   /** 按会话加运行上下文，并从响应头取模型调用 id */
   const wrap = (o: StreamOptions = {}): StreamOptions => {
@@ -141,6 +144,7 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
       // 错误响应不会走 onResponse（SDK 直接抛错），所以在 fetch 这一层看状态码和业务错误码
       fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
         const res = await (o.fetch ?? fetch)(input, init);
+        opts.onResponseStatus?.({ sessionId: o.sessionId, purpose: purposeOf(o.headers?.[PURPOSE_HEADER]), status: res.status });
         if (res.status >= 400) {
           const code = Number(res.headers.get(ERROR_CODE_HEADER));
           opts.onError?.({
@@ -169,7 +173,7 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
       },
     };
   };
-  const api = {
+  const api = (inner: ProviderStreams): ProviderStreams => ({
     ...inner,
     stream: (m: Model<Api>, c: Parameters<typeof inner.stream>[1], o?: StreamOptions) =>
       inner.stream(m, c, wrap(o)),
@@ -178,7 +182,7 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
       c: Parameters<typeof inner.streamSimple>[1],
       o?: Parameters<typeof inner.streamSimple>[2],
     ) => inner.streamSimple(m, c, wrap(o) as typeof o),
-  };
+  });
 
   const build = (): Provider =>
     createProvider({
@@ -197,7 +201,7 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
       models: [...specs.values()].map((s) => ({
         id: s.key,
         name: s.name,
-        api: "openai-completions" as const,
+        api: s.api ?? "openai-completions",
         provider: PROVIDER_ID,
         baseUrl,
         reasoning: false,
@@ -206,14 +210,17 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
         contextWindow: s.context_window,
         maxTokens: s.max_tokens,
         // 去掉 store 和 max_completion_tokens 等较新的字段，老的 OpenAI 兼容网关不一定认
-        compat: {
+        compat: s.api === "openai-responses" ? { supportsDeveloperRole: false } : {
           maxTokensField: "max_tokens" as const,
           supportsStore: false,
           supportsDeveloperRole: false,
           supportsReasoningEffort: false,
         },
       })),
-      api,
+      api: {
+        "openai-completions": api(openAICompletionsApi()),
+        "openai-responses": api(openAIResponsesApi()),
+      },
     } as never);
 
   return {

@@ -9,6 +9,7 @@ export default defineConfig({
   },
   renderer: {
     root: fileURLToPath(new URL("./src/renderer", import.meta.url)),
+    assetsInclude: ["**/*.glb"],
     plugins: [
       react(),
       {

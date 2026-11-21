@@ -7,8 +7,9 @@ export interface PluginInfo {
   key: string;
   kind: Kind;
   mode: "sync" | "async";
-  auth: { type: "none" | "bearer" | "header" | "query"; name?: string };
+  auth: { type: "none" | "bearer" | "header" | "query" | "custom"; name?: string };
   hooks: string[];
+  unknownHooks?: string[];
   meta: Record<string, unknown>;
 }
 
@@ -19,20 +20,23 @@ function validateSettings(value: unknown): void {
       !/^[A-Za-z_][A-Za-z0-9_]{0,31}$/.test(key) ||
       !["string", "number", "boolean", "enum"].includes(String(setting.type)) ||
       typeof setting.label !== "string" ||
-      !setting.label.trim()
+      !setting.label.trim() ||
+      (setting.required !== undefined && typeof setting.required !== "boolean") ||
+      (setting.description !== undefined && typeof setting.description !== "string")
     )
       throw new ProviderError("PLUGIN_MANIFEST_INVALID");
     if (
       setting.type === "enum" &&
       (!Array.isArray(setting.options) ||
         !setting.options.length ||
-        !setting.options.every((entry) => typeof entry === "string"))
+        !setting.options.every((entry) => typeof entry === "string" && entry.trim()))
     )
       throw new ProviderError("PLUGIN_MANIFEST_INVALID");
     if (
       setting.default !== undefined &&
       (setting.type === "enum"
-        ? !(setting.options as string[]).includes(String(setting.default))
+        ? typeof setting.default !== "string" ||
+          !(setting.options as string[]).includes(setting.default)
         : typeof setting.default !== setting.type)
     )
       throw new ProviderError("PLUGIN_MANIFEST_INVALID");
@@ -79,6 +83,10 @@ export async function inspectPlugin(runner: PluginRunner, source: string): Promi
   )
     throw new ProviderError("PLUGIN_MANIFEST_INVALID");
   if (meta.channelSettings !== undefined) validateSettings(meta.channelSettings);
+  if (meta.import !== undefined) {
+    const args = record(meta.import).args;
+    if (args !== undefined) validateSettings(args);
+  }
   if (meta.poll !== undefined) {
     for (const [key, value] of Object.entries(record(meta.poll))) {
       if (
@@ -92,8 +100,7 @@ export async function inspectPlugin(runner: PluginRunner, source: string): Promi
   }
   if (endpoint.mode !== "sync" && endpoint.mode !== "async")
     throw new ProviderError("PLUGIN_MANIFEST_INVALID");
-  if (auth.type === "custom") throw new ProviderError("PLUGIN_CUSTOM_AUTH_UNSUPPORTED");
-  if (!["none", "bearer", "header", "query"].includes(String(auth.type)))
+  if (!["none", "bearer", "header", "query", "custom"].includes(String(auth.type)))
     throw new ProviderError("PLUGIN_MANIFEST_INVALID");
   if (
     (auth.type === "header" || auth.type === "query") &&
@@ -118,6 +125,7 @@ export async function inspectPlugin(runner: PluginRunner, source: string): Promi
     mode: endpoint.mode,
     auth: auth as PluginInfo["auth"],
     hooks,
+    unknownHooks: Array.isArray(inspected.unknownHooks) ? inspected.unknownHooks : [],
     meta,
   };
 }
@@ -141,7 +149,7 @@ export function validateContext(context: unknown): Record<string, unknown> {
 
 export function validateResult(value: unknown, kind: Kind): Record<string, unknown> {
   const result = record(value);
-  if (!["queued", "running", "succeeded", "failed"].includes(String(result.status)))
+  if (!["queued", "running", "succeeded", "failed", "cancelled"].includes(String(result.status)))
     throw new ProviderError("PLUGIN_RESULT_INVALID");
   if (result.state !== undefined) encoded(result.state, LIMITS.state);
   if (result.progress !== undefined) {

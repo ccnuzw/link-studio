@@ -1,12 +1,41 @@
 {
   "repository": "https://github.com/zaylora/video-canvas",
-  "commit": "f0b8ced3687b22de6af0358c682c5e768001ff4f",
+  "commit": "58ce6b79f5472edd92117cd725d429d1abf2a755",
   "license": "MIT; sora/doubao-video also declare Apache-2.0-derived origins; resolve notices before distribution",
   "sha256": {
-    "resources/provider-plugins/openai.js": "5940844f396be48576301e9727bdf7a3122a3e59e26a288ff6b4953b7ca4cd38",
+    "resources/provider-plugins/agnes-image.js": "dcb16649dc29613548a734dde2fc964e18ca6ba97c1fb95d39f6d0417074d44b",
+    "resources/provider-plugins/agnes-video.js": "489ffe5395d04cc99235d5ac1ae15a14cfea9a9960dfbc4f6912300d002139d4",
+    "resources/provider-plugins/alibaba-image.js": "e7ec846149c0481e878d054bc97ba9860b36b5918708f73d8f3821ade5d9ec90",
+    "resources/provider-plugins/alibaba-video.js": "42496fb918878ed10d4e4b426bcde3d44f9e110d8409d19b7faeda030e9ce460",
+    "resources/provider-plugins/anthropic.js": "bc78c532b0e681148ed957e83d0abfd15bad5497818bcafdc4ac98711348fe1a",
+    "resources/provider-plugins/doubao-audio.js": "2958d0add8a8abe71b936d196ae737b27c00589280b2f475b81676a7ce39524a",
+    "resources/provider-plugins/doubao-image.js": "7ecfdb5d464302103f4c98e633d01aadc1c02f91765ac59e233deb0fdbe9dfd0",
+    "resources/provider-plugins/doubao-video.js": "f0ff8b4e2a91462d7dff577946e53b1a1067727c1ad264c01ad0ccb01ee79f9a",
+    "resources/provider-plugins/google.js": "32c86d7345baf33e72b32192adaf09b5177a0e9a5e5a9020e0e9b30e70861a22",
+    "resources/provider-plugins/hailuo.js": "6c5b19ba289265dbbe72837809808b8f0255d97f881efbad3f6109ac519757bb",
+    "resources/provider-plugins/incho.js": "9a35cdba38e7579995f117fb2a8aea078050005e0b112c4021a02d35943ea257",
+    "resources/provider-plugins/jimeng.js": "a782367713cb52b153d4fec81a27d221534c27f330042fc864067d599a58dbb4",
+    "resources/provider-plugins/kling.js": "a1f6f8c2bb6b23925441a88305a8a68981b9a326305096a5f4738cc9340d1e0c",
+    "resources/provider-plugins/new-api-video.js": "7578bbb9f461d895c00d8b6b583d61b6c2f97cc310a81e77df2c39530676f2bf",
+    "resources/provider-plugins/openai-chat-image.js": "f9c189b9c6362c697541f96b01c5a010c092706859ea21edfeb58f7962a54ad5",
     "resources/provider-plugins/openai-image.js": "7444ed89115192a4e55f4b31fd68ad8aecfc8b932f6e54845e29c37d3fd27dc6",
+    "resources/provider-plugins/openai.js": "40fa5d2ee48fc8154b714d58c70f0c91b0a25dc1ec7450a62487a4c59f1a3a70",
     "resources/provider-plugins/sora.js": "9b931d5ae69eecb8a2c493d4edf67973f94efdd7f1f88542ffc4302f80ca2ab9",
-    "resources/provider-plugins/doubao-video.js": "798a217827e9806903e93691a7f15ebefee846103c44c5fc17d1f407c68c71af",
+    "resources/provider-plugins/sunoapi-lyrics.js": "6f7966973a8c6e942c4cebef089fed8852702dbd7ccfcdc0f287d2c2f836eb28",
+    "resources/provider-plugins/sunoapi-music.js": "32e18b13183fc016c64056e52e95109b6ed45a2c5474d7d96b09dba7a1b10b64",
+    "resources/provider-plugins/vertex-ai.js": "9f6e5af71013580a60845ba5c1b76543493f13c3e2d5cdf84c947d26fafbd6e4",
+    "resources/provider-plugins/vidu.js": "ed6dc87897caf385db0c3c128adc31138422072aad10dde7599414b81083f1d6",
+    "resources/provider-plugins/xai.js": "a5d7d1ad88fd6e49329f458331b4d61ad9870a03e5528085432114699817c9a3",
     "resources/provider-plugins/UPSTREAM-LICENSE": "8bb70702420ee56a5842b67f89aab6df1275a5fb9f68537c682c9c70f9a3d3cf"
+  },
+  "localPatches": {
+    "resources/provider-plugins/doubao-video.js": {
+      "sha256": "2b962fbf3a042520a30c2725250bed621eb2727c6ec27f6e9ae8171bab82f8a4",
+      "reason": "Preserve supplier-confirmed cancellation as a distinct terminal status."
+    },
+    "resources/provider-plugins/sora.js": {
+      "sha256": "1af5278f1c3ce0b6f1b5708b4b4deac3031f51a64996f49b76622946c59cd1bb",
+      "reason": "Preserve supplier-confirmed cancellation as a distinct terminal status."
+    }
   }
 }

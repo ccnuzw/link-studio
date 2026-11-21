@@ -1,17 +1,30 @@
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { APP_INFO_CHANNEL, type AppInfo } from "@link-studio/core";
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import { getAppInfo } from "./app-info";
+import { ProjectIpc } from "./project/ipc";
 import { isTrustedDocument } from "./security";
+import { SettingsIpc } from "./settings/ipc";
+import { SkillsIpc } from "./skills/ipc";
 
 const mainDirectory = fileURLToPath(new URL(".", import.meta.url));
 const iconPath = app.isPackaged
   ? join(process.resourcesPath, "icons/icon.png")
   : join(mainDirectory, "../../resources/icons/icon.png");
 let mainWindow: BrowserWindow | null = null;
+let projectIpc: ProjectIpc;
+let settingsIpc: SettingsIpc;
+let skillsIpc: SkillsIpc;
 
 app.setName("灵可");
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "link-media",
+    privileges: { standard: true, secure: true, stream: true, corsEnabled: true },
+  },
+]);
 if (process.env.LINK_STUDIO_TEST_USER_DATA) {
   app.setPath("userData", process.env.LINK_STUDIO_TEST_USER_DATA);
 }
@@ -38,9 +51,17 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: true,
       webviewTag: false,
+      partition: `workspace-${randomUUID()}`,
     },
   });
   mainWindow = window;
+  window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) =>
+    callback(false),
+  );
+  window.webContents.session.setPermissionCheckHandler(() => false);
+  projectIpc.registerWindow(window, rendererUrl);
+  settingsIpc.registerWindow(window, rendererUrl);
+  skillsIpc.registerWindow(window, rendererUrl);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, destination) => {
     if (!isTrustedDocument(destination, rendererUrl)) event.preventDefault();
@@ -76,17 +97,37 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  if (process.platform === "darwin" && !app.isPackaged) app.dock?.setIcon(iconPath);
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
-    callback(false);
+const primaryInstance = app.requestSingleInstanceLock();
+if (!primaryInstance) app.quit();
+else
+  app.on("second-instance", () => {
+    if (mainWindow?.isMinimized()) mainWindow.restore();
+    if (mainWindow) mainWindow.focus();
+    else if (app.isReady()) createWindow();
   });
-  session.defaultSession.setPermissionCheckHandler(() => false);
-  createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+
+if (primaryInstance)
+  app.whenReady().then(() => {
+    const runtimeRoot = app.isPackaged ? process.resourcesPath : join(mainDirectory, "..");
+    skillsIpc = new SkillsIpc(join(app.getPath("userData"), "skills"));
+    settingsIpc = new SettingsIpc(
+      join(app.getPath("userData"), "settings"),
+      app.isPackaged
+        ? join(process.resourcesPath, "provider-plugins")
+        : join(mainDirectory, "../../resources/provider-plugins"),
+      join(runtimeRoot, "provider-runtime", process.platform === "win32" ? "runner.exe" : "runner"),
+      join(runtimeRoot, "agent-runtime/worker.mjs"),
+      (command, args) => projectIpc.canvasCommand(command, args),
+    );
+    projectIpc = new ProjectIpc(app.getPath("userData"), join(mainDirectory, "../media"), () =>
+      settingsIpc.open(),
+    );
+    if (process.platform === "darwin" && !app.isPackaged) app.dock?.setIcon(iconPath);
+    createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

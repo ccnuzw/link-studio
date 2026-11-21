@@ -1,14 +1,16 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync, verify } from "node:crypto";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { checkDraft } from "../../packages/provider-runtime/src/draft";
 import {
   type Binding,
   buildHostRequest,
   mockLoopbackTransport,
   ProviderHost,
+  type ReferenceMedia,
 } from "../../packages/provider-runtime/src/host";
 import { inspectPlugin, validateResult } from "../../packages/provider-runtime/src/plugin";
 import { PluginRunner, sourceHash } from "../../packages/provider-runtime/src/runner";
@@ -46,9 +48,12 @@ function fixture(hook: string, extra = "", kind = "text", mode = "sync", auth = 
 }
 
 beforeAll(async () => {
-  for (const name of ["openai", "openai-image", "sora", "doubao-video"]) {
-    plugins[name] = await readFile(
-      join(process.cwd(), `resources/provider-plugins/${name}.js`),
+  for (const name of (await readdir("resources/provider-plugins"))
+    .filter((entry) => entry.endsWith(".js"))
+    .sort()) {
+    const key = name.slice(0, -3);
+    plugins[key] = await readFile(
+      join(process.cwd(), `resources/provider-plugins/${name}`),
       "utf8",
     );
   }
@@ -95,9 +100,9 @@ beforeAll(async () => {
       );
     else if (path === "/v1/chat/completions")
       response.end(JSON.stringify({ choices: [{ message: { content: "兼容 Chat" } }] }));
-    else if (path === "/v1/videos") response.end(JSON.stringify({ id: "video-mock" }));
     else if (path === "/v1/videos/video-mock")
       response.end(JSON.stringify({ status: "completed", progress: 100 }));
+    else if (path === "/v1/videos") response.end(JSON.stringify({ id: "video-mock" }));
     else if (path.endsWith("/tasks")) response.end(JSON.stringify({ id: "ark-mock" }));
     else if (path.endsWith("/tasks/ark-mock"))
       response.end(
@@ -127,7 +132,10 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
       await readFile("resources/provider-plugins/provenance.json", "utf8"),
     );
     for (const [name, source] of Object.entries(plugins)) {
-      expect(sourceHash(source)).toBe(provenance.sha256[`resources/provider-plugins/${name}.js`]);
+      const path = `resources/provider-plugins/${name}.js`;
+      const original = provenance.sha256[path];
+      expect(original).toMatch(/^[a-f0-9]{64}$/);
+      expect(sourceHash(source)).toBe(provenance.localPatches?.[path]?.sha256 ?? original);
       const plugin = await inspectPlugin(runner, source);
       expect(plugin.key).toBe(name);
       expect(plugin.hooks).toContain("buildSubmitRequest");
@@ -153,6 +161,99 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     expect(chat).toMatchObject({ immediate: { outputs: [{ text: "兼容 Chat" }] } });
   });
 
+  const imageUrl = "https://media.example/sample.png";
+  const operation = "models/veo-test/operations/mock-task";
+  const mockTask = "mock-task";
+  const submissions = [
+    ["agnes-image", "fixture", { data: [{ url: imageUrl }] }],
+    ["agnes-video", "fixture", { video_id: mockTask }],
+    ["alibaba-image", "wan2.6-t2i", { output: { task_id: mockTask } }],
+    ["alibaba-video", "wan2.6-t2v", { output: { task_id: mockTask } }],
+    ["anthropic", "fixture", { content: [{ type: "text", text: "测试" }] }],
+    ["doubao-audio", "fixture", { url: "https://media.example/sample.mp3" }],
+    ["doubao-image", "fixture", { data: [{ url: imageUrl }] }],
+    ["doubao-video", "fixture", { id: mockTask }],
+    ["google", "veo-test", { name: operation }],
+    ["hailuo", "fixture", { task_id: mockTask }],
+    ["incho", "fixture", { id: mockTask }],
+    ["new-api-video", "fixture", { id: mockTask }],
+    ["openai-chat-image", "fixture", { choices: [{ message: { images: [imageUrl] } }] }],
+    ["sunoapi-lyrics", "fixture", { code: "success", data: mockTask }],
+    ["sunoapi-music", "fixture", { code: "success", data: mockTask }],
+    ["xai", "grok-imagine-video", { request_id: mockTask }],
+  ] as const;
+
+  it.each(submissions)("%s 构造提交并解析代表性响应", async (key, model, body) => {
+    const selected = binding(plugins[key] ?? "");
+    const input = context();
+    input.model.upstreamModel = model;
+    let submissions = 0;
+    const offline = new ProviderHost(runner, async (request) => {
+      submissions++;
+      expect(request.method).toBe("POST");
+      expect(new URL(request.url).origin).toBe(baseUrl);
+      expect(request.body?.length).toBeGreaterThan(0);
+      return { status: 200, headers: {}, body, text: JSON.stringify(body) };
+    });
+    const result = await offline.invoke(selected, "submit", input);
+    expect(submissions).toBe(1);
+    if (result.providerTaskId)
+      expect(result.providerTaskId).toBe(key === "google" ? operation : mockTask);
+    else expect(result).toMatchObject({ immediate: { status: "succeeded" } });
+  });
+
+  it("离线检查规范化媒体并报告执行覆盖、日志和未知钩子", async () => {
+    const source = fixture(
+      "utils.log('离线示例'); return {method:'POST',path:'/offline',json:{attachment:{__fileRef:ctx.input.images[0]}}};",
+      ", mysteryHook:function(){ throw new Error('should not run'); }",
+    );
+    const count = requests.length;
+    expect(
+      await checkDraft(
+        runner,
+        source,
+        JSON.stringify({ input: { images: [1] }, responses: { submit: {} } }),
+      ),
+    ).toEqual({
+      ok: true,
+      inputMedia: { images: 1, videos: 0, audios: 0 },
+      checkedHooks: ["buildSubmitRequest", "parseSubmitResponse"],
+      unknownHooks: ["mysteryHook"],
+      logs: ["离线示例"],
+      issues: [],
+    });
+    expect(
+      await checkDraft(runner, source, '{"input":{"images":["input:images.2"]}}'),
+    ).toMatchObject({ ok: false, checkedHooks: [], issues: ["PLUGIN_SAMPLE_INVALID"] });
+    expect(requests.length).toBe(count);
+  });
+
+  it("自定义凭证只能用于已授权的请求目标，错误分类失效时回退", async () => {
+    const custom = fixture(
+      "return {method:'POST',url:'https://foreign.invalid',json:{key:ctx.credentials.apiKey}};",
+      "",
+      "text",
+      "sync",
+      "custom",
+    );
+    const offline = new ProviderHost(runner, async () => ({
+      status: 403,
+      headers: {},
+      body: null,
+      text: "credit exhausted",
+    }));
+    await expect(offline.invoke(binding(custom), "submit", context())).rejects.toMatchObject({
+      code: "PROVIDER_ENDPOINT_BLOCKED",
+    });
+    const source = fixture(
+      "return {method:'POST',path:'/offline'};",
+      ", classifyError:function(){return {class:'unrecognized'};}",
+    );
+    await expect(offline.invoke(binding(source), "submit", context())).rejects.toMatchObject({
+      code: "PROVIDER_PROVIDER_BALANCE",
+    });
+  });
+
   it("OpenAI 图片生成和参考图片编辑走 image_json 与 multipart", async () => {
     const selected = binding(plugins["openai-image"] ?? "");
     expect(await host.invoke(selected, "submit", context())).toMatchObject({
@@ -173,6 +274,39 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     expect(requests.at(-1)?.body).toContain("synthetic-image-bytes");
     expect(requests.at(-1)?.body).toContain('name="image[]"');
     expect(requests.at(-1)?.type).toContain("multipart/form-data; boundary=");
+  });
+
+  it("Veo 按宿主参考图的实际 MIME 构造内联数据", async () => {
+    const input = context({ images: ["input:images.0"] });
+    input.model.upstreamModel = "veo-test";
+    const upstream = new ProviderHost(runner, async (request) => {
+      expect(JSON.parse(Buffer.from(request.body ?? []).toString())).toMatchObject({
+        instances: [{ image: { inlineData: { mimeType: "image/jpeg", data: "/9j/" } } }],
+      });
+      return {
+        status: 200,
+        headers: {},
+        body: { name: "models/veo-test/operations/fixture" },
+        text: "",
+      };
+    });
+    expect(
+      await upstream.invoke(
+        {
+          ...binding(plugins.google ?? ""),
+          builtin: true,
+          media: {
+            "input:images.0": {
+              bytes: Buffer.from([255, 216, 255]),
+              mime: "image/jpeg",
+              filename: "reference.jpg",
+            },
+          },
+        },
+        "submit",
+        input,
+      ),
+    ).toMatchObject({ providerTaskId: "models/veo-test/operations/fixture" });
   });
 
   it("Sora 参考素材直传、任务 ID 和跨调用 state 恢复，不重复 submit", async () => {
@@ -224,29 +358,59 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     ).toEqual({ cancellation: "local_only" });
   });
 
-  it("异步视频插件 submit/query 闭环；需要公网素材 URL 时在发送前明确拒绝", async () => {
-    const selected = binding(plugins["doubao-video"] ?? "");
+  it("异步视频插件 submit/query 闭环；媒体 URL 缺失时明确拒绝", async () => {
+    const selected = binding(plugins.sora ?? "");
     const submitted = await host.invoke(selected, "submit", context());
-    expect(submitted.providerTaskId).toBe("ark-mock");
+    expect(submitted.providerTaskId).toBe("video-mock");
+    const ready = await host.invoke(
+      selected,
+      "query",
+      context({}, { providerTaskId: submitted.providerTaskId }),
+    );
+    expect(ready).toMatchObject({ status: "running", state: { ready: true } });
     expect(
       await host.invoke(
         selected,
         "query",
-        context({}, { providerTaskId: submitted.providerTaskId }),
+        context({}, { providerTaskId: submitted.providerTaskId, state: ready.state }),
       ),
-    ).toMatchObject({ status: "succeeded", outputs: [{ url: "https://media.example/video.mp4" }] });
+    ).toMatchObject({ status: "succeeded", outputs: [{ type: "asset" }] });
     const count = requests.length;
-    selected.media = {
-      "input:images.0": {
-        bytes: Buffer.from("image"),
-        mime: "image/png",
-        filename: "reference.png",
-      },
+    const reference: ReferenceMedia = {
+      bytes: Buffer.from("image"),
+      mime: "image/png",
+      filename: "reference.png",
     };
+    selected.media = {
+      "input:images.0": reference,
+    };
+    const plugin = await inspectPlugin(runner, selected.source);
     await expect(
-      host.invoke(selected, "submit", context({ images: ["input:images.0"] })),
+      buildHostRequest(
+        {
+          method: "POST",
+          path: "/v1/videos",
+          json: { image: { __fileRef: "input:images.0", as: "url" } },
+        },
+        plugin,
+        selected,
+        context({ images: ["input:images.0"] }),
+      ),
     ).rejects.toMatchObject({ code: "MEDIA_TRANSPORT_UNAVAILABLE" });
     expect(requests.length).toBe(count);
+    reference.url = "https://media.example/reference.png";
+    expect(
+      await buildHostRequest(
+        {
+          method: "POST",
+          path: "/v1/videos",
+          json: { image: { __fileRef: "input:images.0", as: "url" } },
+        },
+        plugin,
+        selected,
+        context({ images: ["input:images.0"] }),
+      ),
+    ).toMatchObject({ method: "POST" });
   });
 
   it("prepare、audio、query 和 cancel 用同一 Host，state 通过 JSON 重建", async () => {
@@ -279,7 +443,7 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     expect(requests.at(-1)?.method).toBe("DELETE");
   });
 
-  it("密钥只在宿主同源注入，钩子无 Node/网络/进程/动态构造器能力", async () => {
+  it("密钥只由宿主注入，钩子无 Node/网络/进程/动态构造器能力", async () => {
     const source = fixture(`return {method:'POST',path:'/secrets',json:{
       credentials:typeof ctx.credentials, secret:typeof ctx.channel.secret,
       require:typeof require, process:typeof process, fetch:typeof fetch,
@@ -308,6 +472,157 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
       host.invoke(binding(source), "submit", { ...context(), credentials: { apiKey: "no" } }),
     ).rejects.toMatchObject({ code: "PLUGIN_CONTEXT_INVALID" });
     expect(requests.length).toBe(count);
+  });
+
+  it("custom 鉴权把凭证交给插件，并支持 HS256 签名工具", async () => {
+    const source = fixture(
+      "var token=utils.jwtSignHS256({sub:ctx.credentials.apiKey},'signing-secret');return {method:'POST',path:'/custom',json:{key:ctx.credentials.apiKey,token:token}};",
+      ",parseSubmitResponse:function(ctx,resp){return {immediate:{status:'succeeded',outputs:[{type:'text',text:'ok'}]}};}",
+      "text",
+      "sync",
+      "custom",
+    );
+    const result = await host.invoke(binding(source), "submit", context());
+    expect(result).toMatchObject({ immediate: { status: "succeeded" } });
+    const body = JSON.parse(requests.at(-1)?.body ?? "{}");
+    expect(body.key).toBe("fake-host-only-key");
+    const [header, payload, signature] = String(body.token).split(".");
+    if (!header || !payload || !signature) throw new Error("JWT 结构无效");
+    expect(JSON.parse(Buffer.from(header, "base64url").toString())).toEqual({
+      alg: "HS256",
+      typ: "JWT",
+    });
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString())).toEqual({
+      sub: "fake-host-only-key",
+    });
+    expect(signature).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it.each(["kling", "jimeng", "vidu"])("%s 的真实鉴权头进入请求", async (key) => {
+    const secret = key === "vidu" ? "mock-vidu-token" : "mock-access|mock-signing-key";
+    const selected = { ...binding(plugins[key] ?? ""), secret };
+    const upstream = new ProviderHost(runner, async (request) => {
+      if (key === "kling") {
+        const [header, claims, signature] = (request.headers.authorization ?? "")
+          .replace(/^Bearer /, "")
+          .split(".");
+        expect(signature).toBe(
+          createHmac("sha256", "mock-signing-key")
+            .update(`${header}.${claims}`)
+            .digest("base64url"),
+        );
+        expect(JSON.parse(Buffer.from(claims ?? "", "base64url").toString())).toMatchObject({
+          iss: "mock-access",
+          exp: 1760001800,
+        });
+      } else if (key === "jimeng") {
+        expect(request.headers.authorization).toMatch(/^HMAC-SHA256 Credential=mock-access\//);
+        expect(request.headers["x-content-sha256"]).toBe(
+          createHash("sha256")
+            .update(request.body ?? "")
+            .digest("hex"),
+        );
+        expect(Buffer.from(request.body ?? []).toString()).toContain("\\u003c");
+      } else expect(request.headers.authorization).toBe(`Token ${secret}`);
+      return {
+        status: 200,
+        headers: {},
+        text: "",
+        body: {
+          code: key === "jimeng" ? 10000 : 0,
+          task_id: "mock-job",
+          data: { task_id: "mock-job" },
+        },
+      };
+    });
+    await expect(
+      upstream.invoke(selected, "submit", context({ prompt: "<测试>&" })),
+    ).resolves.toMatchObject({
+      providerTaskId: "mock-job",
+    });
+  });
+
+  it("Vertex 用服务账号换取令牌，重建轮询上下文并下载资产", async () => {
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const selected = {
+      ...binding(plugins["vertex-ai"] ?? ""),
+      builtin: true,
+      secret: JSON.stringify({
+        client_email: "fixture@example.test",
+        private_key: privateKey.export({ type: "pkcs8", format: "pem" }),
+        project_id: "fixture-project",
+      }),
+    };
+    const calls: string[] = [];
+    const operation =
+      "projects/fixture-project/locations/us-central1/publishers/google/models/veo-test/operations/task";
+    const upstream = new ProviderHost(runner, async (request) => {
+      const url = new URL(request.url);
+      calls.push(url.hostname === "127.0.0.1" ? request.method : url.hostname);
+      let body: unknown;
+      if (url.hostname === "oauth2.googleapis.com") {
+        expect(request.headers.authorization).toBeUndefined();
+        const assertion = new URLSearchParams(Buffer.from(request.body ?? []).toString()).get(
+          "assertion",
+        );
+        const [header, claims, signature] = assertion?.split(".") ?? [];
+        expect(
+          verify(
+            "RSA-SHA256",
+            Buffer.from(`${header}.${claims}`),
+            publicKey,
+            Buffer.from(signature ?? "", "base64url"),
+          ),
+        ).toBe(true);
+        expect(JSON.parse(Buffer.from(claims ?? "", "base64url").toString())).toMatchObject({
+          aud: "https://oauth2.googleapis.com/token",
+          iat: 1760000000,
+          exp: 1760003600,
+        });
+        body = { access_token: "mock-oauth-token", expires_in: 3600 };
+      } else {
+        expect(request.headers.authorization).toBe("Bearer mock-oauth-token");
+        if (url.hostname === "storage.googleapis.com") {
+          expect(request.responseType).toBe("binary");
+          return { status: 200, headers: {}, body: null, text: "", asset: { id: "0" } };
+        }
+        body = { name: operation };
+        if (url.pathname.endsWith(":fetchPredictOperation"))
+          body = {
+            name: operation,
+            done: true,
+            response: { videos: [{ gcsUri: "gs://fixture/video.mp4" }] },
+          };
+      }
+      return { status: 200, headers: {}, text: "", body };
+    });
+    const input = context({}, {}, { storageUri: "gs://fixture/" });
+    input.model.upstreamModel = "veo-test";
+    const submitted = await upstream.invoke(selected, "submit", input);
+    expect(JSON.stringify(submitted)).not.toContain("mock-oauth-token");
+    expect(submitted.providerTaskId).toBe(operation);
+    const ready = await upstream.invoke(selected, "query", {
+      ...input,
+      task: { providerTaskId: operation, state: submitted.state },
+    });
+    expect(ready.state).toEqual({
+      ready: true,
+      url: "https://storage.googleapis.com/fixture/video.mp4",
+    });
+    await expect(
+      upstream.invoke(selected, "query", {
+        ...input,
+        task: { providerTaskId: operation, state: ready.state },
+      }),
+    ).resolves.toMatchObject({ status: "succeeded", outputs: [{ type: "asset" }] });
+    expect(calls).toEqual([
+      "oauth2.googleapis.com",
+      "POST",
+      "oauth2.googleapis.com",
+      "POST",
+      "oauth2.googleapis.com",
+      "storage.googleapis.com",
+    ]);
   });
 
   it("危险请求描述、metadata、越界媒体和非法输出都被拒绝", async () => {
@@ -435,17 +750,21 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     ).rejects.toMatchObject({ message: "PLUGIN_EXECUTION_FAILED" });
   });
 
-  it("async 缺 query、prepare 不成对、custom auth 和多类型清单明确拒绝", async () => {
+  it("async 缺 query、prepare 不成对和多类型清单明确拒绝，custom auth 可用", async () => {
     for (const source of [
       fixture("return {};", "", "video", "async"),
       fixture("return {};", ",buildPrepareRequests:function(){return [];}", "text"),
-      fixture("return {};", "", "text", "sync", "custom"),
       fixture("return {};").replace(
         "text: {mode: 'sync'}",
         "text: {mode: 'sync'},image:{mode:'sync'}",
       ),
     ])
       await expect(inspectPlugin(runner, source)).rejects.toThrow();
+    const custom = await inspectPlugin(
+      runner,
+      fixture("return {auth: 'custom'};", "", "text", "sync", "custom"),
+    );
+    expect(custom.auth.type).toBe("custom");
   });
 
   it("超大内存分配受到 RSS 监测终止，宿主仍可继续调用", async () => {

@@ -3,6 +3,7 @@ import { constants, createReadStream, createWriteStream } from "node:fs";
 import { link, lstat, mkdir, mkdtemp, open, realpath, rm, stat, statfs } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
+import { isLocalApfs } from "./local-filesystem.ts";
 import { type MediaProbe, probeMedia } from "./probe.ts";
 import { MediaError, runMediaProcess } from "./process.ts";
 
@@ -38,6 +39,7 @@ export interface ExportOptions {
   timeoutMs?: number;
   onStage?: (stage: "prepared" | "encoding" | "validated") => void | Promise<void>;
   onProgress?: (seconds: number) => void;
+  onRecipe?: (recipe: CompositionRecipe) => void | Promise<void>;
 }
 const PROFILES = {
   "m0-360p": { id: "m0-360p", width: 640, height: 360, fps: 30, bitrate: 1_200_000 },
@@ -187,8 +189,8 @@ export class MediaComposer {
         })
       )
         throw new MediaError("EXPORT_TARGET_EXISTS");
+      if (!(await isLocalApfs(parent))) throw new MediaError("EXPORT_FILESYSTEM_UNSUPPORTED");
       const filesystem = await statfs(parent);
-      if (filesystem.type !== 26) throw new MediaError("EXPORT_FILESYSTEM_UNSUPPORTED");
       const freeBytes = filesystem.bavail * filesystem.bsize;
       let sourceBytes = 0;
       for (const path of [...request.videos, ...(request.bgm ? [request.bgm] : [])]) {
@@ -247,6 +249,7 @@ export class MediaComposer {
         })),
         ...(bgm ? { bgm: { sha256: bgm.sha256, bytes: bgm.bytes } } : {}),
       };
+      await options.onRecipe?.(recipe);
       await options.onStage?.("prepared");
       checkCancelled(signal);
       const output = join(temporary, "output.mp4");

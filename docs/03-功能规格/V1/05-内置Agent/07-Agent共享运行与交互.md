@@ -36,7 +36,7 @@ updated: 2026-11-19
 ## 来源与追踪
 
 - 需求来源：[V1 产品需求](../../../02-产品与版本/当前版本/V1-产品需求.md)。
-- 相关决策：D002、D005、D007、D009、D011。
+- 相关决策：D002、D005、D007、D009、D011、D016。
 - 跨功能验收：V1-E2E-02、V1-NFR-001、V1-NFR-003。
 - 源码事实与平台工具映射：[完整设计](../../../04-技术架构/内置Agent完整迁移设计.md)。
 
@@ -68,6 +68,8 @@ updated: 2026-11-19
 ### 页面与交互
 
 保留会话选择、模型选择、消息/活动分组、计划、结果卡、审批、插话、停止/继续、上下文/压缩状态和待生成区。输入失败保留原文，历史分页，窗口与项目切换正确清理订阅；无隐藏推理内容时不虚构思考显示。
+
+两个入口都显示读取、运行、等待审批和操作处理状态。同作用域的其他会话正在运行时，可直接返回该会话。草稿保存在当前助手面板的内存中，按会话区分；画布切换侧栏时保留草稿。阅读旧消息时保持滚动位置，并提供「回到最新」。回车发送，Shift＋回车换行。输入法组字期间的回车用于确认选词。
 
 ## 接口契约
 
@@ -135,12 +137,12 @@ Then 显示真实状态，历史缺口可补，main/summary/title/activity 关�
 
 | AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
 | --- | --- | --- | --- | --- | --- |
-| AC01 | scope/UI 生命周期 | 集成/E2E | `tests/integration/agent-runtime.test.ts`、`tests/e2e/agent-runtime.spec.ts`；双入口生命周期用例待建 | `pnpm test:agent`、`pnpm exec playwright test tests/e2e/agent-runtime.spec.ts` | 已创建 |
-| AC02 | 目标 receipt 与恢复 | 集成 | `tests/integration/agent-runtime.test.ts`；真实项目/任务回执用例待建 | `pnpm test:agent` | 已创建 |
-| AC03 | 插话/审批/停止 | 集成 | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/engine-steer.test.ts`；UI 用例待建 | `pnpm test:agent` | 已创建 |
-| AC04 | 资料/脚本/模型边界 | 集成 | `tests/integration/agent-runtime.test.ts`；附件/秘密/能力桥用例待建 | `pnpm test:agent` | 已创建 |
-| AC05 | watch 补查去重 | 集成 | `packages/agent-runtime/upstream/test/engine-watch.test.ts`；本地真实任务接入用例待建 | `pnpm test:agent:upstream` | 已创建 |
-| AC06 | 失败/观测/历史 | 集成 | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/engine-compaction.test.ts`；诊断/分页用例待建 | `pnpm test:agent` | 已创建 |
+| AC01 | scope/UI 生命周期 | 集成/E2E | `tests/integration/agent-runtime.test.ts`、`tests/e2e/agent-runtime.spec.ts`、`src/main/settings/agent.ts` | `pnpm check:package` | 本地通过 |
+| AC02 | 目标 receipt 与恢复 | 集成 | `tests/integration/agent-runtime.test.ts`、`tests/integration/settings.test.ts` | `pnpm check:package` | 本地通过 |
+| AC03 | 插话/审批/停止 | 集成/E2E | `packages/agent-runtime/upstream/test/engine-steer.test.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC04 | 资料/脚本/模型边界 | 集成 | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/durable-tools.test.ts` | `pnpm test:agent` | 已创建 |
+| AC05 | watch 补查去重 | 集成/E2E | `tests/integration/generation.test.ts`、`tests/e2e/generation.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC06 | 失败/观测/历史 | 集成/E2E | `tests/integration/agent-runtime.test.ts`、`packages/agent-runtime/upstream/test/engine-compaction.test.ts` | `pnpm check:package` | 已创建 |
 
 ## 技术设计
 
@@ -148,9 +150,27 @@ Then 显示真实状态，历史缺口可补，main/summary/title/activity 关�
 
 ## 实现与验证
 
-工程落点：`packages/agent-runtime/` 已建立原引擎/本地 Gateway/SQLite/QuickJS Worker 验证切片；Main Tool Gateway 的业务接入、preload agent 域与 Renderer 共用 controller 仍待实现。
+`packages/agent-runtime/` 保留原引擎、本地 Gateway、SQLite 和 QuickJS Worker。设置域和画布域已接入各自的 Main 工具、受限 preload API 及会话交互。画布 watch 使用原任务 ID 查询，恢复范围绑定项目和会话。
 
 ### 验证记录
+
+#### 2026-11-20 双入口交互回归
+
+macOS arm64 的 `pnpm exec playwright test tests/e2e/settings.spec.ts tests/e2e/generation.spec.ts --reporter=line` 通过 3/3。覆盖切换会话后草稿隔离、回到待审批会话、切换画布侧栏后草稿保留，以及 1024×700 窗口中的键盘发送、长消息阅读位置和回到最新。已有审批、插话、停止、重启恢复和画布撤销同步回归。发布前仍需验证长会话性能、辅助技术实际操作及真实 Provider 的工具和恢复链路。
+
+#### 2026-11-20 Responses 流式模型
+
+设置和画布共享的模型桥按已保存修订选择 Responses 或 Chat Completions。`pnpm exec playwright test tests/e2e/settings.spec.ts --reporter=line` 2/2 通过，Responses 回环服务验证设置小灵从流式工具调用到 `admin_query` 结果回送和文本回复。真实 `magpie` 的证据覆盖短文本流。真实服务的工具、视觉、审批后恢复与画布任务继续按 V1-E2E-02 验收。
+
+#### 2026-11-20 S4 画布域补充验证
+
+macOS arm64/APFS 的 `env -u ELECTRON_RUN_AS_NODE pnpm check:package` 验证了双入口隔离、审批任务落盘后 Worker 中止、混合结果回原会话和停止后仅补交结果。修复 SQLite 崩溃夹具后实际确认至少 300 条事件写入，再强杀子进程验证序号连续。
+
+`tests/e2e/generation.spec.ts` 验证指定技能读取、回环资料地址拒绝，以及画布诊断导出保留模型用途、用量事件和工具活动元数据，并排除提示词、端点及凭证。`tests/integration/agent-reference.test.ts` 通过替身传输验证 HTTPS 文本成功响应、稳定引用、脱敏和响应限制。正式门禁尚缺桌面联网资料成功读取及压缩后溯源、桌面摘要/标题/活动模型调用关联验证。详见 [V1-E2E-02](../../../05-测试与发布/V1-Agent端到端验收规范.md#v1-e2e-02-设置画布双入口-agent-辅助与恢复)。
+
+#### 2026-11-20 S3 设置域本地验收
+
+`pnpm check:package` 的集成 90/90、上游 144/144、源码版与未签名目录包 E2E 各 9/9 通过。上游 store 崩溃测试报告中引用的 `test/fixtures/append-events.ts` 当前缺失，虽总报告为 144/144，不能把该子进程路径作为额外证据；设置回执恢复由 `tests/integration/settings.test.ts` 覆盖。FR-007 整体仍为开发中，等待 S4 接入画布工具、真实 watch 和完整双入口 E2E。
 
 2026-11-19，macOS arm64/APFS：`pnpm agent:build` 后本地 9 项集成、`pnpm test:agent:upstream` 的 144 项迁入回归、源码/目录包各 3 项 Electron 测试通过。完整命令与版本见 [M0-05 实测记录](../../../04-技术架构/实施基线与开发批次.md#11-m0-05-实测记录)。覆盖双 scope 执行端校验、合成目标 receipt/恢复、审批重启、插话/取消、事件回放、code-mode 子工具与 QuickJS 限制；watch/压缩仅具迁入引擎 fixture 证据。上表保守标“已创建”，因为每条完整业务 AC 仍缺 UI、真实项目/任务或宿主模型桥证据，不将部分断言通过升级为整条 AC 通过。
 
@@ -158,5 +178,7 @@ Then 显示真实状态，历史缺口可补，main/summary/title/activity 关�
 
 | 日期 | 变更 | 关联决策 |
 | --- | --- | --- |
+| 2026-11-20 | 补充双入口会话状态、草稿隔离与滚动交互验证 | D011 |
+| 2026-11-20 | 登记 Responses 流式协议和设置助手工具回环证据 | D014 |
 | 2026-11-19 | 登记共享运行与交互主线，不以简化聊天循环替代 | D011 |
 | 2026-11-19 | 回写 M0-05 原引擎迁入、本地测试与打包证据；保留业务 AC 缺口 | D011 |

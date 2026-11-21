@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export const NODE_KINDS = ["script", "image", "video", "audio"] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
-export type SidePanel = "assistant" | "runtime";
+export type SidePanel = "assistant" | "runtime" | "jobs" | "assets" | "properties" | null;
 
 export const NODE_LABELS: Record<NodeKind, string> = {
   script: "文本",
@@ -17,6 +17,6 @@ type WorkspaceState = {
 };
 
 export const useWorkspace = create<WorkspaceState>((set) => ({
-  sidePanel: "assistant",
+  sidePanel: null,
   setSidePanel: (sidePanel) => set({ sidePanel }),
 }));

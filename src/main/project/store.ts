@@ -2,25 +2,46 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, mkdir, open, readdir, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { Value } from "@sinclair/typebox/value";
+import {
+  type CanvasOperation,
+  CanvasOperations,
+} from "../../../packages/link-studio-core/src/canvas.ts";
 import {
   isOperationId,
   isProjectState,
   normalizeProjectName,
-  type ProjectReceipt,
   type ProjectState,
 } from "../../../packages/link-studio-core/src/project.ts";
+import { applyCanvas, projectCanvas } from "./canvas.ts";
 import { canonicalJson, contentHash } from "./encoding.ts";
 import { ProjectError } from "./errors.ts";
 import { ProjectOwnership, requireDirectory } from "./ownership.ts";
 
 const MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024;
 const SNAPSHOT_FILE = /^(\d{12,16})-([0-9a-f]{64})\.json$/;
+
+export function containsAssetReference(value: unknown, assetId: string): boolean {
+  if (Array.isArray(value)) return value.some((item) => containsAssetReference(item, assetId));
+  if (!value || typeof value !== "object") return false;
+  for (const [key, item] of Object.entries(value)) {
+    if (["assetId", "bgmAssetId", "audioAssetId"].includes(key) && item === assetId) return true;
+    if (
+      (key === "assetIds" || key.endsWith("AssetIds")) &&
+      Array.isArray(item) &&
+      item.includes(assetId)
+    )
+      return true;
+    if (containsAssetReference(item, assetId)) return true;
+  }
+  return false;
+}
 export type CommitStage = "temporary-synced" | "snapshot-published" | "directory-synced";
 export interface StoreOptions {
   onStage?: (stage: CommitStage) => Promise<void>;
 }
 
-async function syncDirectory(directory: string): Promise<void> {
+export async function syncDirectory(directory: string): Promise<void> {
   const descriptor = await open(directory, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     await descriptor.sync();
@@ -51,6 +72,13 @@ function verifySnapshot(value: unknown, filename: string): value is ProjectState
     (value.revision === 1 ? value.parentHash === null : value.parentHash !== null) &&
     Number.isFinite(Date.parse(value.createdAt)) &&
     Number.isFinite(Date.parse(value.updatedAt)) &&
+    Object.entries(value.assets).every(
+      ([id, asset]) =>
+        id === asset.assetId &&
+        (asset.importMode === "copy"
+          ? asset.storage.kind === "blob" && asset.storage.hash === asset.sha256
+          : asset.storage.kind === "external"),
+    ) &&
     Object.values(value.operationReceipts).every((receipt) => receipt.revision <= value.revision)
   );
 }
@@ -126,12 +154,16 @@ export class ProjectStore {
     return this.owner.directory;
   }
 
+  get projectId() {
+    return this.state.projectId;
+  }
+
   get snapshot(): ProjectState {
     return structuredClone(this.state);
   }
 
   rename(input: { operationId: string; expectedRevision: number; name: string }) {
-    return this.enqueue(async (): Promise<ProjectReceipt> => {
+    return this.enqueue(async () => {
       await this.owner.assertCurrent();
       if (this.faulted) {
         throw new ProjectError("PROJECT_SAVE_FAILED", "上次提交中断，请关闭并重新打开以核对结果");
@@ -168,6 +200,268 @@ export class ProjectStore {
     });
   }
 
+  replayAssetImport(operationId: string, requestHash: string) {
+    const previous = this.state.operationReceipts[operationId];
+    if (!previous) return;
+    if (previous.requestHash !== requestHash)
+      throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
+    const { assetId } = previous.result as { assetId: string };
+    const saved = this.state.assets[assetId];
+    if (!saved) throw new ProjectError("PROJECT_CORRUPT", "导入回执对应资产不存在");
+    const { deletedAt: _deletedAt, ...asset } = saved;
+    return { asset: { ...asset, availability: "ready" as const }, revision: previous.revision };
+  }
+
+  replayAssetBatch(operationId: string, requestHash: string) {
+    const previous = this.state.operationReceipts[operationId];
+    if (!previous) return;
+    if (previous.requestHash !== requestHash)
+      throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
+    const assetIds = (previous.result as { assetIds?: string[] }).assetIds;
+    if (!assetIds?.length) throw new ProjectError("PROJECT_CORRUPT", "批量资产回执无效");
+    const assets = assetIds.map((assetId) => this.state.assets[assetId]);
+    if (assets.some((asset) => !asset)) throw new ProjectError("PROJECT_CORRUPT", "批量资产不存在");
+    return { assets: structuredClone(assets), revision: previous.revision };
+  }
+
+  commitAsset(
+    input: {
+      operationId: string;
+      expectedRevision: number;
+      requestHash: string;
+      signal?: AbortSignal;
+      composition?: { id: string; value: ProjectState["compositions"][string] };
+    } & (
+      | { asset: ProjectState["assets"][string]; reuseAssetId?: never }
+      | { reuseAssetId: string; asset?: never }
+    ),
+  ) {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      if (!isOperationId(input.operationId) || !Number.isSafeInteger(input.expectedRevision))
+        throw new ProjectError("PROJECT_SCHEMA_INVALID", "无效的资产提交请求");
+      const { requestHash } = input;
+      const previous = this.replayAssetImport(input.operationId, requestHash);
+      if (previous) return previous;
+      if (input.expectedRevision !== this.state.revision)
+        throw new ProjectError("PROJECT_CONFLICT", "项目修订号已变化，请刷新后重试");
+      const asset = input.asset ?? this.state.assets[input.reuseAssetId];
+      if (asset?.availability !== "ready")
+        throw new ProjectError("ASSET_NOT_FOUND", "资产不存在或已移除");
+      if (input.asset && this.state.assets[asset.assetId])
+        throw new ProjectError("PROJECT_CONFLICT", "资产 ID 已存在");
+      const revision = this.state.revision + 1;
+      const result = { assetId: asset.assetId };
+      const receipt = { requestHash, revision, result };
+      const { commitHash: parentHash, ...current } = this.state;
+      const body = {
+        ...current,
+        revision,
+        parentHash,
+        updatedAt: new Date().toISOString(),
+        assets: input.asset ? { ...current.assets, [asset.assetId]: asset } : current.assets,
+        compositions: input.composition
+          ? { ...current.compositions, [input.composition.id]: input.composition.value }
+          : current.compositions,
+        operationReceipts: { ...current.operationReceipts, [input.operationId]: receipt },
+      };
+      await this.publish({ ...body, commitHash: contentHash(body) }, input.signal);
+      return { asset: { ...structuredClone(asset), availability: "ready" as const }, revision };
+    });
+  }
+
+  commitAssets(input: {
+    operationId: string;
+    expectedRevision: number;
+    requestHash: string;
+    assets: ProjectState["assets"][string][];
+    signal?: AbortSignal;
+  }) {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      if (
+        !isOperationId(input.operationId) ||
+        !Number.isSafeInteger(input.expectedRevision) ||
+        input.assets.length < 1 ||
+        input.assets.length > 25 ||
+        new Set(input.assets.map(({ assetId }) => assetId)).size !== input.assets.length
+      )
+        throw new ProjectError("PROJECT_SCHEMA_INVALID", "无效的批量资产提交请求");
+      const previous = this.state.operationReceipts[input.operationId];
+      if (previous) {
+        if (previous.requestHash !== input.requestHash)
+          throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
+        const replay = this.replayAssetBatch(input.operationId, input.requestHash);
+        if (!replay) throw new ProjectError("PROJECT_CORRUPT", "批量资产回执无效");
+        return replay;
+      }
+      await this.recoverFailedCommit();
+      if (input.expectedRevision !== this.state.revision)
+        throw new ProjectError("PROJECT_CONFLICT", "项目已更新，请刷新后重试");
+      if (
+        input.assets.some(
+          (asset) =>
+            asset.availability !== "ready" ||
+            asset.origin !== "derived" ||
+            this.state.assets[asset.assetId],
+        )
+      )
+        throw new ProjectError("PROJECT_CONFLICT", "批量派生资产无效或已存在");
+      const revision = this.state.revision + 1;
+      const assetIds = input.assets.map(({ assetId }) => assetId);
+      const receipt = { requestHash: input.requestHash, revision, result: { assetIds } };
+      const { commitHash: parentHash, ...current } = this.state;
+      const body = {
+        ...current,
+        revision,
+        parentHash,
+        updatedAt: new Date().toISOString(),
+        assets: {
+          ...current.assets,
+          ...Object.fromEntries(input.assets.map((asset) => [asset.assetId, asset])),
+        },
+        operationReceipts: { ...current.operationReceipts, [input.operationId]: receipt },
+      };
+      await this.publish({ ...body, commitHash: contentHash(body) }, input.signal);
+      return { assets: structuredClone(input.assets), revision };
+    });
+  }
+
+  removeAsset(input: { operationId: string; expectedRevision: number; assetId: string }) {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      if (!isOperationId(input.operationId) || !Number.isSafeInteger(input.expectedRevision))
+        throw new ProjectError("PROJECT_SCHEMA_INVALID", "无效的资产移除请求");
+      const requestHash = contentHash({ kind: "asset-remove", assetId: input.assetId });
+      const previous = this.state.operationReceipts[input.operationId];
+      if (previous) {
+        if (previous.requestHash !== requestHash)
+          throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
+        return structuredClone(previous);
+      }
+      const asset = this.state.assets[input.assetId];
+      if (!asset || asset.availability === "deleted")
+        throw new ProjectError("ASSET_NOT_FOUND", "资产不存在或已移除");
+      if (
+        containsAssetReference(this.state.canvas, input.assetId) ||
+        containsAssetReference(this.state.compositions, input.assetId) ||
+        containsAssetReference(this.state.jobs, input.assetId)
+      )
+        throw new ProjectError("ASSET_IN_USE", "资产仍被项目内容引用");
+      if (input.expectedRevision !== this.state.revision)
+        throw new ProjectError("PROJECT_CONFLICT", "项目修订号已变化，请刷新后重试");
+      const revision = this.state.revision + 1;
+      const receipt = {
+        requestHash,
+        revision,
+        result: { assetId: input.assetId, removed: true },
+      };
+      const { commitHash: parentHash, ...current } = this.state;
+      const body = {
+        ...current,
+        revision,
+        parentHash,
+        updatedAt: new Date().toISOString(),
+        assets: {
+          ...current.assets,
+          [input.assetId]: {
+            ...asset,
+            availability: "deleted" as const,
+            deletedAt: new Date().toISOString(),
+          },
+        },
+        operationReceipts: { ...current.operationReceipts, [input.operationId]: receipt },
+      };
+      await this.publish({ ...body, commitHash: contentHash(body) });
+      return structuredClone(receipt);
+    });
+  }
+
+  getCanvas() {
+    const { canvas, revision } = this.state;
+    return { canvas: projectCanvas(canvas), canvasRevision: canvas.revision, revision };
+  }
+
+  readCanvas() {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      await this.recoverFailedCommit();
+      return this.getCanvas();
+    });
+  }
+
+  updateGeneration<Result>(
+    update: (
+      state: ProjectState,
+    ) => { result: Result; changed: boolean } | Promise<{ result: Result; changed: boolean }>,
+    signal?: AbortSignal,
+  ) {
+    return this.enqueue(async () => {
+      signal?.throwIfAborted();
+      await this.owner.assertCurrent();
+      await this.recoverFailedCommit();
+      const state = this.snapshot;
+      const { result, changed } = await update(state);
+      if (!changed) return result;
+      const { commitHash: parentHash, ...body } = state;
+      body.parentHash = parentHash;
+      body.revision++;
+      body.updatedAt = new Date().toISOString();
+      await this.publish({ ...body, commitHash: contentHash(body) }, signal);
+      return result;
+    });
+  }
+
+  applyCanvasOperations(input: {
+    operationId: string;
+    expectedCanvasRevision: number;
+    operations: CanvasOperation[];
+  }): Promise<{ revision: number; canvasRevision: number }> {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      if (
+        !isOperationId(input.operationId) ||
+        !Number.isSafeInteger(input.expectedCanvasRevision) ||
+        input.expectedCanvasRevision < 1 ||
+        !Value.Check(CanvasOperations, input.operations) ||
+        Buffer.byteLength(JSON.stringify(input.operations), "utf8") > 8 * 1024 * 1024
+      )
+        throw new ProjectError("CANVAS_OPERATION_INVALID", "画布操作结构或大小无效");
+      await this.recoverFailedCommit();
+      const requestHash = contentHash({ kind: "canvas", ...input });
+      const previous = this.state.operationReceipts[input.operationId];
+      if (previous) {
+        if (previous.requestHash !== requestHash)
+          throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
+        return { revision: previous.revision, canvasRevision: previous.result as number };
+      }
+      if (input.expectedCanvasRevision !== this.state.canvas.revision)
+        throw new ProjectError("CANVAS_REVISION_CONFLICT", "画布已更新，请检查本地更改");
+      const { commitHash: parentHash, ...current } = this.state;
+      const canvas = applyCanvas(this.state, input.operations);
+      const revision = current.revision + 1;
+      const receipt = { requestHash, revision, result: canvas.revision };
+      const body = {
+        ...current,
+        revision,
+        parentHash,
+        updatedAt: new Date().toISOString(),
+        canvas,
+        operationReceipts: { ...current.operationReceipts, [input.operationId]: receipt },
+      };
+      await this.publish({ ...body, commitHash: contentHash(body) });
+      return { revision, canvasRevision: canvas.revision };
+    });
+  }
+
+  flush(): Promise<number> {
+    return this.enqueue(async () => {
+      await this.owner.assertCurrent();
+      if (this.faulted) throw new ProjectError("PROJECT_SAVE_FAILED", "请重新打开项目核对提交结果");
+      return this.state.revision;
+    });
+  }
+
   async close(): Promise<void> {
     this.closing = true;
     await this.tail;
@@ -186,6 +480,11 @@ export class ProjectStore {
       const directory = join(this.directory, name);
       await mkdir(directory, { recursive: true });
       await requireDirectory(directory);
+    }
+    const temporary = join(this.directory, "tmp");
+    for (const entry of await readdir(temporary)) {
+      if (/^[a-f0-9-]{36}\.asset$/.test(entry))
+        await unlink(join(temporary, entry)).catch(() => undefined);
     }
     await syncDirectory(this.directory);
   }
@@ -249,7 +548,18 @@ export class ProjectStore {
     this.state = current;
   }
 
-  private async publish(next: ProjectState): Promise<void> {
+  private async recoverFailedCommit() {
+    if (!this.faulted) return;
+    const stateDirectory = join(this.directory, "state");
+    await requireDirectory(stateDirectory);
+    await syncDirectory(stateDirectory);
+    await this.recover();
+    this.faulted = false;
+    await this.rebuildManifest();
+  }
+
+  private async publish(next: ProjectState, signal?: AbortSignal): Promise<void> {
+    if (this.faulted) throw new ProjectError("PROJECT_SAVE_FAILED", "请重新打开项目核对提交结果");
     const serialized = canonicalJson(next);
     if (
       !verifySnapshot(next, `${String(next.revision).padStart(12, "0")}-${next.commitHash}.json`)
@@ -278,12 +588,14 @@ export class ProjectStore {
       }
       await this.options.onStage?.("temporary-synced");
       await this.owner.assertCurrent();
+      if (signal?.aborted) throw new ProjectError("ASSET_IMPORT_CANCELLED", "导入已取消");
       await link(temporary, destination);
       await this.options.onStage?.("snapshot-published");
       await syncDirectory(stateDirectory);
       await this.options.onStage?.("directory-synced");
       this.state = next;
     } catch (cause) {
+      if (cause instanceof ProjectError && cause.code === "ASSET_IMPORT_CANCELLED") throw cause;
       this.faulted = true;
       throw new ProjectError("PROJECT_SAVE_FAILED", "快照保存中断，请重新打开核对结果", { cause });
     } finally {

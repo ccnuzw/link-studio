@@ -1,7 +1,8 @@
 import { constants } from "node:fs";
-import { type FileHandle, lstat, mkdir, open, realpath, statfs } from "node:fs/promises";
+import { type FileHandle, lstat, mkdir, open, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tryLock, unlock } from "fs-native-extensions";
+import { isLocalApfs } from "../../../packages/media-runtime/src/local-filesystem.ts";
 import { ProjectError } from "./errors.ts";
 
 export async function requireDirectory(path: string): Promise<void> {
@@ -22,11 +23,9 @@ export class ProjectOwnership {
 
   static async acquire(directory: string): Promise<ProjectOwnership> {
     const canonical = await realpath(directory);
-    const filesystem = await statfs(canonical);
     if (
-      process.platform !== "darwin" ||
-      filesystem.type !== 26 ||
-      /\/(?:Library\/CloudStorage|Library\/Mobile Documents)(?:\/|$)/.test(canonical)
+      /\/(?:Library\/CloudStorage|Library\/Mobile Documents)(?:\/|$)/.test(canonical) ||
+      !(await isLocalApfs(canonical))
     ) {
       throw new ProjectError(
         "PROJECT_FILESYSTEM_UNSUPPORTED",

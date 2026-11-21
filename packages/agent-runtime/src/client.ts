@@ -9,6 +9,8 @@ export interface AgentWorkerOptions {
   modelBridgeUrl: string;
   crashAfterEffect?: boolean;
   onEvent?: (event: PublishedEvent) => void;
+  serviceToken?: string;
+  settings?: (command: string, args: unknown) => Promise<unknown>;
 }
 
 export class AgentWorkerClient {
@@ -30,6 +32,8 @@ export class AgentWorkerClient {
         directory: options.directory,
         modelBridgeUrl: options.modelBridgeUrl,
         crashAfterEffect: options.crashAfterEffect,
+        serviceToken: options.serviceToken,
+        desktopSettings: Boolean(options.settings),
       },
     });
     const client = new AgentWorkerClient(worker);
@@ -56,6 +60,17 @@ export class AgentWorkerClient {
     worker.on("error", fail);
     worker.on("exit", fail);
     worker.on("message", (message) => {
+      if (message.settingsId && options.settings) {
+        void options.settings(message.command, message.args).then(
+          (result) => worker.postMessage({ settingsId: message.settingsId, result }),
+          (error: { code?: string }) =>
+            worker.postMessage({
+              settingsId: message.settingsId,
+              error: error.code ?? "SETTINGS_ACTION_FAILED",
+            }),
+        );
+        return;
+      }
       if (message.ready) {
         clearTimeout(timer);
         readyResolve();

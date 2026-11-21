@@ -52,21 +52,40 @@ export class PluginRunner {
   }
 
   async call(source: string, hook: string, args: unknown[] = [], signal?: AbortSignal) {
+    return (await this.run(source, hook, args, false, signal)).result;
+  }
+
+  trace(source: string, hook: string, args: unknown[]) {
+    return this.run(source, hook, args, true);
+  }
+
+  private async run(
+    source: string,
+    hook: string,
+    args: unknown[],
+    trace: boolean,
+    signal?: AbortSignal,
+  ) {
     if (process.platform !== "darwin") throw new ProviderError("SANDBOX_UNAVAILABLE");
     if (Buffer.byteLength(source) > LIMITS.source) throw new ProviderError("PLUGIN_SOURCE_LIMIT");
+    if (args.length > (hook === "parseImportResponse" ? 3 : 2))
+      throw new ProviderError("PLUGIN_INPUT_LIMIT");
     for (const argument of args) encoded(argument, LIMITS.payload);
-    if (args.length > 2) throw new ProviderError("PLUGIN_INPUT_LIMIT");
+    encoded(args, 2 * LIMITS.payload);
     if (signal?.aborted) throw new ProviderError("PLUGIN_CANCELLED");
     if (this.active >= 2) throw new ProviderError("PLUGIN_BUSY");
     this.active++;
     try {
-      return await this.execute({ source, hook, args }, signal);
+      return await this.execute({ source, hook, args, trace }, signal);
     } finally {
       this.active--;
     }
   }
 
-  private execute(input: object, signal?: AbortSignal): Promise<unknown> {
+  private execute(
+    input: { source: string; hook: string; args: unknown[]; trace: boolean },
+    signal?: AbortSignal,
+  ): Promise<{ result: unknown; logs: string[] }> {
     return new Promise((accept, reject) => {
       const profile =
         "(version 1)(allow default)(deny network*)(deny file-write*)(deny process-fork)";
@@ -102,7 +121,7 @@ export class PluginRunner {
       if (signal?.aborted) cancel();
       child.stdout.on("data", (chunk: Buffer) => {
         bytes += chunk.length;
-        if (bytes > LIMITS.payload + 1024) stop("PLUGIN_OUTPUT_LIMIT");
+        if (bytes > LIMITS.payload + (input.trace ? 310 * 1024 : 1024)) stop("PLUGIN_OUTPUT_LIMIT");
         else chunks.push(chunk);
       });
       child.stderr.on("data", () => undefined);
@@ -122,7 +141,12 @@ export class PluginRunner {
           const response = record(JSON.parse(Buffer.concat(chunks).toString("utf8")));
           if (response.ok !== true)
             throw new ProviderError(String(response.code ?? "PLUGIN_EXECUTION_FAILED"));
-          accept(response.result);
+          accept({
+            result: response.result,
+            logs: Array.isArray(response.logs)
+              ? response.logs.filter((entry) => typeof entry === "string")
+              : [],
+          });
         } catch (error) {
           reject(
             error instanceof ProviderError ? error : new ProviderError("PLUGIN_OUTPUT_INVALID"),

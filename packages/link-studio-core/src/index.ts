@@ -1,5 +1,26 @@
 import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
+import type { ProjectDialogsAPI, ProjectsAPI } from "./projects-api.ts";
+import type { SettingsAPI } from "./settings-api.ts";
+import type { SkillsAPI } from "./skills-api.ts";
+
+export * from "./canvas.ts";
+export type * from "./canvas-agent.ts";
+export {
+  canvasAgentMediaModels,
+  isCanvasAgentAnswerValue,
+  isCanvasAgentQuestionnaire,
+} from "./canvas-agent.ts";
+export * from "./canvas-exchange.ts";
+export * from "./director.ts";
+export * from "./generation.ts";
+export * from "./grid-split.ts";
+export * from "./media-generation.ts";
+export * from "./model-config.ts";
+export * from "./projects-api.ts";
+export type * from "./settings-api.ts";
+export { providerPluginSourceLimit } from "./settings-api.ts";
+export * from "./skills-api.ts";
 
 export const APP_INFO_CHANNEL = "link-studio:app:get-info";
 
@@ -31,8 +52,25 @@ export type DesktopResult<Data> =
   | { ok: false; error: { code: "INVALID_ARGUMENT" | "FORBIDDEN" | "INTERNAL"; message: string } };
 
 export interface DesktopAPI {
+  settings: SettingsAPI;
+  skills: SkillsAPI;
   app: { getInfo(): Promise<DesktopResult<AppInfo>> };
+  dialogs: ProjectDialogsAPI;
+  projects: ProjectsAPI;
+  projectEvents: {
+    onExportProgress(listener: (event: ProjectExportProgress) => void): () => void;
+  };
+  canvasWindow: {
+    setPending(pending: boolean): void;
+    onSaveBeforeClose(save: () => Promise<boolean>): () => void;
+  };
 }
+
+export type ProjectExportProgress = {
+  operationId: string;
+  stage: "preparing" | "encoding" | "validating" | "importing" | "completed";
+  progress: number;
+};
 
 export function isAppInfoRequest(value: unknown): value is AppInfoRequest {
   return Value.Check(AppInfoRequestSchema, value);

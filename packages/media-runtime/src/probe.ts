@@ -22,7 +22,7 @@ export interface MediaProbe {
 export async function probeMedia(
   ffprobe: string,
   path: string,
-  options: ProcessOptions = {},
+  options: ProcessOptions & { inputFormat?: string } = {},
 ): Promise<MediaProbe> {
   const raw = await runMediaProcess(
     ffprobe,
@@ -37,6 +37,7 @@ export async function probeMedia(
       "-show_format",
       "-of",
       "json",
+      ...(options.inputFormat ? ["-f", options.inputFormat] : []),
       path,
     ],
     { ...options, timeoutMs: Math.min(options.timeoutMs ?? 30_000, 30_000) },

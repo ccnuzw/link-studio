@@ -102,7 +102,10 @@ module.exports = {
     var raw = String(body.status === undefined || body.status === null ? "" : body.status).toLowerCase();
     var progress = parseProgress(body.progress);
 
-    if (raw === "failed" || raw === "cancelled" || raw === "canceled" || raw === "expired") {
+    if (raw === "cancelled" || raw === "canceled") {
+      return { status: "cancelled" };
+    }
+    if (raw === "failed" || raw === "expired") {
       var r = failed(errorMessageOf(body) || "Sora 任务失败：" + raw, body.error);
       return r;
     }
