@@ -32,7 +32,7 @@ Result 不返回 stack、明文密钥、任意文件系统路径或供应商原�
 | --- | --- | --- |
 | `dialogs.selectProjectParent` | 无 | `{ cancelled }` 或 `{ directoryToken, displayPath }` |
 | `dialogs.selectProject` | 无 | 选定项目的 directoryToken |
-| `projects.create` | operationId、directoryToken、name | ProjectSession；独占创建，不覆盖已有目录 |
+| `projects.create` | operationId、directoryToken、name | ProjectSession；独占创建，不覆盖已有目录。原会话关闭后重放返回 `PROJECT_NOT_OPEN`，用打开项目入口恢复 |
 | `projects.open` | directoryToken | `{ disposition: opened, session }` 或 `{ disposition: focusedExisting }`；别实例占用返回错误 |
 | `projects.listRecent` | 无 | displayName、displayPath、recentEntryId、lastOpenedAt；无目录读写权限 |
 | `projects.openRecent` | recentEntryId | 由 Main 已知目录重新校验后 open；路径丢失提示重新选择 |
@@ -46,20 +46,21 @@ ProjectSession：`projectHandle/projectId/name/schemaVersion/revision/recoveredF
 
 ## 3. S1 资产 API
 
+S1-02 的工作区使用后台导入会话，通过 `window.desktop.projects` 调用项目与资产方法。旧 `importAsset` 保留原 copy 请求与回执语义。
+
 | 方法 | 请求业务字段 | 成功结果/行为 |
 | --- | --- | --- |
 | `dialogs.selectMedia` | projectHandle、multiSelect | `{ cancelled }` 或 fileToken 列表与安全展示名 |
-| `assets.import` | MutationContext、fileToken、importMode? | `{ importSessionId }`；创建长任务，不代表资产已提交 |
-| `assets.getImport` | projectHandle、importSessionId | 当前阶段、进度；终态为 imported/reused/cancelled/failed，或等待用户的 duplicate/conflict |
-| `assets.resolveDuplicate` | MutationContext、importSessionId、choice: reuse/independent | 完成导入；reuse 必须匹配候选 hash；新变更 revision 不一致先刷新重试 |
-| `assets.commitImport` | MutationContext、importSessionId | 对已复制且等待提交的会话重新校验/提交，返回 asset 与 revision；不得绕过去重选择 |
+| `assets.startImport` | MutationContext、fileToken、importMode? | `{ importSessionId }`，启动校验和暂存 |
+| `assets.getImport` | projectHandle、importSessionId | 阶段及 `copiedBytes/totalBytes`。终态为 `imported/cancelled/failed`，`duplicate/conflict` 等待提交 |
+| `assets.commitImport` | MutationContext、importSessionId、choice? | 重新校验修订与候选后提交同一暂存文件。存在重复时需显式选择 `reuse/independent` |
 | `assets.cancelImport` | projectHandle、importSessionId | 最终取消状态；若已经提交返回已完成，不能伪称取消 |
-| `assets.list` | projectHandle、mediaType?、cursor?、limit? | 可分页资产 DTO，limit 默认 100、最大 500 |
+| `assets.list` | projectHandle | 未移除资产与当前设备上的可用状态 |
 | `assets.getPreview` | projectHandle、assetId | 窗口绑定、仅本会话可用的本地媒体 URL 和类型；支持视频 range 请求，不接收磁盘路径 |
-| `assets.relocate` | MutationContext、assetId、fileToken | hash 一致后更新设备 locator，返回可用状态；不一致返回错误 |
+| `assets.relocate` | projectHandle、assetId、fileToken | hash 一致后原子更新设备 locator。项目修订号和资产 ID 保持原值 |
 | `assets.remove` | MutationContext、assetId | 无引用时 tombstone + revision；有引用返回 ASSET_IN_USE |
 
-长导入用单独 importSessionId 与进度事件，不阻塞 Renderer。`assets.getImport` 在 imported/reused 时返回 `{ asset, revision }`，duplicate 时返回 candidateAssetIds，failed 时返回安全错误。会话进度存在于 runtime，只有入库提交才改变项目 revision。提交时 revision 已变化则进入 conflict，刷新后调用 `assets.commitImport`（MutationContext + importSessionId）重新校验并提交同一暂存文件；不重新复制。`resolveDuplicate` 按同一规则提交。开始复制的 operationId 和最终提交的 operationId 分开，成功结果持久化去重回执；取消若已越过快照提交点则返回 imported，不回滚既有提交。
+Renderer 轮询运行时会话。`imported` 返回资产和修订号，`duplicate` 返回候选，`failed` 返回错误码。首次导入可自动提交。遇到冲突或重复项时，用新的提交操作 ID 调用 `commitImport`。已提交回执可重放，取消请求在提交点之后返回 `imported`。`discardMedia` 用于释放尚未进入导入会话的文件授权。
 
 ## 4. 事件与一致性
 
@@ -93,37 +94,47 @@ Preload `subscribe` 返回 unsubscribe 函数；销毁窗口、关闭项目或�
 
 ### 画布（S2）
 
-`canvas.read`、`canvas.applyOperations`、`canvas.undo`、`canvas.redo`；apply 带 MutationContext 和原子操作列表，首批操作是 add/update/removeNode、add/removeEdge、setGroup、setViewport。update 仅允许该节点 schema 字段，不能写任意 JSON 路径。节点输出引用由任务服务追加；用户选择当前输出是独立操作。
+使用 `projects.getCanvas`（`link-studio:canvas:get`）及 `projects.applyCanvasOperations`（`link-studio:canvas:applyOperations`）。接口字段、限制和错误码见 [FR-003 接口契约](../03-功能规格/V1/02-画布创作/03-创作画布与节点保存.md#接口契约)。移除素材前先保存当前画布，以已提交引用为准执行删除保护。
 
-首批 script/image/video/audio，group 是结构容器，不冒充供应商能力。position、parentId、连线端口与兼容规则沿用上游后写明确 mapper；UI 状态如 selected/dragging/uploadProgress 不落盘。未知节点以不可编辑占位保留原始 data/关联；保存其他节点不能删除它。S2 进入 Ready 前补充各操作 union、端口规则、undo 合并和快照样例；这些不是 S1 的阻塞。
+操作包括 `putNode`、`removeNode`、`putEdge`、`removeEdge`、`setViewport`。分组通过组节点和成员 `parentId` 在同批操作内调整。撤销重做由 Renderer 生成逆向或正向操作并复用该入口。节点生成输出及选择当前输出的契约由 S4 定义。
 
+核心节点为 `script`、`image`、`video`、`audio`，`group` 提供单层结构容器。UI 状态如 `selected`、`dragging`、`uploadProgress` 留在 Renderer。未知节点及其关联连线通过只读投影呈现，原始记录保留在项目快照。
+
+<a id="provideragent-s3"></a>
 ### Provider/Agent（S3）
 
-`providers.list/bind/setSecret/test`、`plugins.list/draft/validate/activate/disable`、`providerAssistant.start/send/stop`。具体上下文、钩子兼容和权限见 [插件设计](Provider-插件与-Agent-配置设计.md)。setSecret 只接受一次输入，返回 hasSecret；本机安全存储不可用时拒绝密钥写入，不落明文。激活绑定精确 sourceHash；普通任务不重复审批。
+`desktop.settings` 使用 `link-studio:settings:<method>`，仅接受注册窗口的受信主框架；输入 schema 和输出 DTO 见 `packages/link-studio-core/src/settings-api.ts`。`list` 返回配置与插件版本；`draft` 静态校验并保存草稿；`save/disable` 携带 `expectedRevision`，`test` 仅对已启用的同步文本配置试跑。凭证只接受写入，读取返回 `hasSecret`。激活绑定源码 hash、端点和本地网络授权。
 
-设置 Agent 不限插件草拟：当前页上下文、模型/配置诊断、变更单、逐项决定、安全密钥和真实试跑均纳入 FR008；人工路径独立。共享 API 的 scope、流模型、durable receipt/审批/watch 以 [完整设计](内置Agent完整迁移设计.md)和 FR007～009 为准。S3 前落实工具 schema、费用提示和引擎/认证兼容。
+`agentList/agentCreate/agentState/agentSend/agentStop/agentContinue` 固定设置作用域，`agentState` 按 `after` 分页读取持久事件并返回待审批和内存流式文本；`agentSend` 用可选 `runId` 插话。`agentDecide` 仅提交审批 ID、所选索引或试跑确认，专用 `agentConfigureSecret` 在 Main 存凭证，Worker 只接收 `configured`。失败返回稳定错误码（如 `SETTINGS_REVISION_CONFLICT`、`AGENT_APPROVAL_STALE`、`PROVIDER_OUTCOME_UNKNOWN`）。项目作用域和真实生成 watch 在 S4 接入。
 
 ### 生成（S4）
 
-`jobs.submit/cancel/retry/get/list`。submit 保存 projectHandle、operationId、nodeId?、modelBindingId、输入资产和参数快照；网络请求前持久化 attempt 状态。客户端不得提交 plugin 代码/endpoint/密钥绕过已启用绑定。
+`projects.listJobs/submitJob/cancelJob/recheckJob`。submit 保存 projectHandle、operationId、nodeId、Provider revision/plugin hash、输入资产和参数快照；网络请求前持久化 job 状态。客户端不得提交 plugin 代码/endpoint/密钥绕过已启用绑定。
 
 | 状态 | 允许后继与依据 |
 | --- | --- |
 | queued | submitting / cancelled / failed；仅明确未发送可自动恢复提交 |
 | submitting | running / downloading / succeeded（文本）/ failed / outcome_unknown；同步错误不等于未受理 |
-| running | running / downloading / succeeded（文本）/ cancelling / failed / outcome_unknown |
-| cancelling | cancelled（供应商确认）/ running / downloading / outcome_unknown；本地停止轮询不能宣布供应商已取消 |
+| running | running / downloading / cancelled / failed / outcome_unknown。取消请求保存在 `cancelRequested`，供应商确认后才标记 `cancelled` |
 | downloading | succeeded / failed；失败保留 handle/结果描述，只重试下载，不重发生成 |
 | outcome_unknown | 经原任务查询后进入 running/downloading/succeeded/failed/cancelled；不自动生成新任务 |
 | succeeded / failed / cancelled | 终态不原地重提交；用户重试建立新 jobId，保留关联 |
 
 任务必须保存精确 pluginId/version/hash、Model Binding 快照、attemptId、是否尝试发送、handle/state、output commit 状态；请求秘密存设备侧 runtime，不写共享正文/日志。媒体输出先落 Blob，再一次提交 AssetRecord + NodeOutputRef + job 成功投影；文本输出作为受限文本结果存入节点历史，不伪造媒体资产。
 
-若节点已删除，结果仍进入资产/任务历史，不自动复活节点；多个任务完成只追加结果，不覆盖当前 prompt 或后续编辑。恢复使用原版本查询；版本缺失/不兼容暂停并提示环境修复。取消/查询能力、超时、并发与重试参数随本批支持插件冻结；S4 前补转移测试和下载/入库补偿样例。
+若节点已删除或其内容已变更，输出仍保存到任务和资产库，跳过自动绑定。恢复使用原任务 ID 和固定插件版本查询；同节点有同类任务未结束时，`recheckJob` 返回 `JOB_CANNOT_RECHECK`，避免两条任务同时写回。
+
+### 画布助手（S4）
+
+`projects.canvasAgent` 通过项目句柄授权，支持 `list/create/state/send/decide/stop/continue/undo/exportDiagnostics`。编辑与生成依据当前画布修订及详情读集，审批提交选中项。生成使用审批 ID 和项索引派生本地任务 ID。项目重开时按任务回执补登记 watch，后台查询绑定原会话的项目。显式关闭项目中止该项目的活跃运行，已提交生成可随项目重开恢复。停止后原会话可补收结果，结果交付不会调用模型。
+
+`send` 的可选 `referenceURL` 只适用于新消息，按 D016 在 Main 读取资料并返回稳定错误 `AGENT_REFERENCE_UNAVAILABLE`。`exportDiagnostics` 按会话 ID 和运行 ID 选择脱敏记录，通过系统对话框导出 JSON，返回 `{ exported: boolean }`。
 
 ### 导出（S5）
 
-`exports.start/cancel/get/list`；start 带 MutationContext、按序视频 assetIds、可选 bgmAssetId、受限 audioMix/profile 和 outputTargetToken。服务保存不可变配方并 pin 输入，调用受控 FFmpeg；schema 与音频基线见 [导出规格](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出.md)。M0 已验证 macOS H.264 VideoToolbox/AAC 的 `hd-720p` 和测试用 `m0-360p`；完整参数及限制以 [媒体技术设计](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出-技术设计.md#m0-04-实现基线与待接入边界)为准。内部路径接口不得直接暴露给 Renderer；持久任务、Asset ID 映射和覆盖确认仍待 S5 接入。
+`projects.exportComposition` 接收 MutationContext、按序的 `videoAssetIds` 和可选 `bgmAssetId/sourceVolume/bgmVolume/profile`。Main 先校验资产，再打开保存对话框并处理覆盖确认，不接收 Renderer 提供的输出路径。指定的背景音乐不存在、已删除或不是音频时返回 `EXPORT_SOURCE_MISSING`，不会静默导出无配乐版本。
+
+`projectEvents.onExportProgress` 订阅按 `operationId` 关联的进度，`projects.cancelMediaTool` 使用原操作 ID 请求取消。成功返回 `{ asset, revision, targetName, exportId }`，派生资产和 composition 配方同快照提交；导出进程不跨重启恢复。参数与验证边界见 [导出规格](../03-功能规格/V1/04-媒体输出/06-基础媒体预览与导出.md)。
 
 ## 7. 官方与未来同步边界
 

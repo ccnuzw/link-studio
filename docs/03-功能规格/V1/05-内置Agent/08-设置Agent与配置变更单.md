@@ -125,11 +125,11 @@ Then 官方写被拒绝，本机效果从回执恢复不重复，失败/部分�
 
 | AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
 | --- | --- | --- | --- | --- | --- |
-| AC01 | 页面 hints 快照 | 集成 | `tests/integration/settingsAgentContext.test.ts` | `pnpm test:integration -- tests/integration/settingsAgentContext.test.ts` | 未创建 |
-| AC02 | 逐项决定/基线冲突 | 集成 | `tests/integration/settingsAgentChanges.test.ts` | `pnpm test:integration -- tests/integration/settingsAgentChanges.test.ts` | 未创建 |
-| AC03 | 密钥路径/降级 | 集成 | `tests/integration/settingsAgentSecrets.test.ts` | `pnpm test:integration -- tests/integration/settingsAgentSecrets.test.ts` | 未创建 |
-| AC04 | 插件接入/试跑 | E2E | `tests/e2e/agent-assistance.spec.ts` | `pnpm test:e2e -- tests/e2e/agent-assistance.spec.ts` | 未创建 |
-| AC05 | 权限/回执恢复 | 集成 | `tests/integration/settingsAgentChanges.test.ts` | `pnpm test:integration -- tests/integration/settingsAgentChanges.test.ts` | 未创建 |
+| AC01 | 当前页上下文与可移除标签 | E2E | `tests/e2e/settings.spec.ts`、`src/renderer/settings/settings-assistant.tsx` | `pnpm check:package` | 本地通过 |
+| AC02 | 逐项决定/基线冲突 | 集成/E2E | `src/main/settings/registry.ts`、`tests/integration/settings.test.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC03 | 密钥路径/降级 | 集成/E2E | `src/main/settings/ipc.ts`、`src/renderer/settings/settings-assistant.tsx`、`tests/integration/settings.test.ts` | `pnpm check:package` | 本地通过 |
+| AC04 | 插件接入/试跑 | E2E | `src/main/settings/agent.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC05 | 权限/回执恢复 | 集成/E2E | `packages/agent-runtime/src/runtime.ts`、`tests/integration/settings.test.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
 
 ## 技术设计
 
@@ -137,7 +137,13 @@ Then 官方写被拒绝，本机效果从回执恢复不重复，失败/部分�
 
 ## 实现与验证
 
-工程落点：设置 hints/controller、Main 配置工具 Gateway 与变更存储；复用上游 admin 工具意图，移除全站管理员权限。当前差距：本机配置 snapshot/receipt、变更项 schema/补偿及真实接口样例待验证；没有运行证据。
+工程落点：设置 hints/controller、Main 配置工具 Gateway、SQLite 配置 receipt、受信 IPC、safeStorage 和 Worker 重启对账；复用上游 admin 工具意图，移除全站管理员权限。真实供应商、预发费用/计费确认、其他平台和双入口验收仍待后续批次。
+
+### 验证记录
+
+#### 2026-11-20 S3 本地验收
+
+`tests/integration/settings.test.ts` 3/3 通过，`tests/e2e/settings.spec.ts` 在源码版和未签名 macOS arm64 目录包各 1/1 通过。覆盖变更单逐项应用、陈旧 revision、凭证卡不入模型/日志、试跑单次执行与 unknown 不重发、待审批重启对账、插话/停止/历史分页。回环 HTTP/SSE 仅证明本机桥接，不证明真实供应商接口或收费语义。
 
 ## 变更记录
 

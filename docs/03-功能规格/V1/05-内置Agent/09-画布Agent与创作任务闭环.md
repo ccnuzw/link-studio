@@ -36,7 +36,7 @@ updated: 2026-11-19
 ## 来源与追踪
 
 - 需求来源：[V1 产品需求](../../../02-产品与版本/当前版本/V1-产品需求.md)。
-- 相关决策：D001、D005、D007、D009、D011。
+- 相关决策：D001、D005、D007、D009、D011、D015、D016。
 - 跨功能验收：V1-E2E-01、V1-E2E-02、V1-NFR-001、V1-NFR-003。
 - 工具与机制依据：[完整迁移设计](../../../04-技术架构/内置Agent完整迁移设计.md)。
 
@@ -71,7 +71,7 @@ updated: 2026-11-19
 
 ## 接口契约
 
-复用 agent API，canvas 工具经 `canvas.read/applyOperations/arrange/proposeDelete/undoRun`；生成经 `jobs.propose/submit/get`，watch 经 engine。请求包含 scope/session/run、durableToolTaskId、资源基线、节点/资产 ID；审批引用存储中的规范 payload。
+桌面使用 `projects.canvasAgent`，通过 `projectHandle` 限定项目。会话和运行操作包含会话 ID，审批提交审批 ID 和选中项。模型使用 `canvas_get_state`、`canvas_delete`、`generate_media` 及绑定素材读取工具。结构变更和生成提案均须批准。助手生成与手动生成共享任务记录，结果跟进由引擎 watch 负责。
 
 结果为结构化 mutation 摘要、revision、asset/output/job 引用、冲突项或 watch batch ID；错误为 AGENT_CANVAS_READ_REQUIRED、AGENT_CANVAS_CONFLICT、AGENT_TOOL_UNSUPPORTED、AGENT_APPROVAL_STALE、AGENT_UNDO_CONFLICT、AGENT_SCOPE_DENIED，其他错误沿用任务/资产域。
 
@@ -135,12 +135,12 @@ Then 未批动作不执行，旧 owner 不写入，停止不等同取消供应�
 
 | AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
 | --- | --- | --- | --- | --- | --- |
-| AC01 | 选择/@/已读约束 | 集成 | `tests/integration/canvasAgentContext.test.ts` | `pnpm test:integration -- tests/integration/canvasAgentContext.test.ts` | 未创建 |
-| AC02 | 操作/人工并发 | 集成 | `tests/integration/canvasAgentMutations.test.ts` | `pnpm test:integration -- tests/integration/canvasAgentMutations.test.ts` | 未创建 |
-| AC03 | 审批/任务/watch | E2E | `tests/e2e/agent-assistance.spec.ts` | `pnpm test:e2e -- tests/e2e/agent-assistance.spec.ts` | 未创建 |
-| AC04 | 删除/逆变更冲突 | 集成 | `tests/integration/canvasAgentUndo.test.ts` | `pnpm test:integration -- tests/integration/canvasAgentUndo.test.ts` | 未创建 |
-| AC05 | 多模态/派生资产 | 集成 | `tests/integration/canvasAgentMedia.test.ts` | `pnpm test:integration -- tests/integration/canvasAgentMedia.test.ts` | 未创建 |
-| AC06 | 插话/退出/unknown | 集成 | `tests/integration/canvasAgentRecovery.test.ts` | `pnpm test:integration -- tests/integration/canvasAgentRecovery.test.ts` | 未创建 |
+| AC01 | 选择/@/已读约束 | 集成/E2E | `tests/integration/generation.test.ts`、`tests/e2e/generation.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC02 | 操作/人工并发 | 集成/E2E | `tests/integration/generation.test.ts`、`tests/integration/project-canvas.test.ts`、`tests/e2e/generation.spec.ts` | 同上 | 本地通过 |
+| AC03 | 审批/任务/watch | 集成/E2E | `tests/integration/generation.test.ts`、`tests/e2e/generation.spec.ts` | 同上 | 本地通过 |
+| AC04 | 删除/逆变更冲突 | 集成 | `tests/integration/generation.test.ts` | 同上 | 本地通过 |
+| AC05 | 多模态/派生资产 | 集成/E2E | `tests/integration/generation.test.ts`、`tests/e2e/generation.spec.ts` | 同上 | 本地通过 |
+| AC06 | 插话/退出/unknown | 集成/E2E | `tests/integration/generation.test.ts`、`tests/e2e/generation.spec.ts` | 同上 | 本地通过 |
 
 ## 技术设计
 
@@ -148,10 +148,34 @@ Then 未批动作不执行，旧 owner 不写入，停止不等同取消供应�
 
 ## 实现与验证
 
-工程落点：Renderer AgentHost/controller、Main Canvas Tool Gateway、core 操作/逆变更、JobRuntime 与 Agent engine watch。差距：原 canvasgraph 语义映射、read set/逆变更、生成审批与流模型 adapter 待实测；当前无运行证据。
+工程落点：Renderer AgentHost/controller、Main Canvas Tool Gateway、core 操作/逆变更、ProjectState JobRuntime 与 Agent engine watch。媒体工具仅读取当前项目已绑定资产；图片按上限发送，视频由受限 FFmpeg 提帧并登记 derived 来源。
+
+### 2026-11-21 模型问答
+
+`pnpm exec playwright test tests/e2e/generation.spec.ts -g 'S4 设置与画布小灵'` 本地 1/1。`ask_user` 可带 `modelKind` 选择图片或视频模型。选项取已启用且可调用的本机模型，提交时按模型 ID 与类型重验，模型收到选择后继续对话。测试使用本机回环模型并验证记录展示模型名。
+
+### 2026-11-21 联网检索
+
+`pnpm exec vitest run --project integration tests/integration/agent-reference.test.ts tests/integration/agent-runtime.test.ts` 覆盖默认关闭、单轮授权、共用调用限额、受限目标、正文提取与诊断脱敏。Worker 用例通过回环模型验证工具调用结果进入后续模型请求。Main 侧真实公网冒烟通过中文维基百科检索“分镜”，并成功提取对应网页正文。开发版 `magpie` 的联网工具端到端验证仍待补。
+
+`tests/e2e/generation.spec.ts` 补验首次默认关闭、发送后移除本轮联网标记、下一轮模型工具列表不含联网工具。模型响应来自本机回环服务。
+
+`pnpm exec vitest run --project integration tests/integration/generation.test.ts -t '按需读取导演场景'` 本地 1/1。概览返回时长、画幅与数量，精读提供限量人物、道具、机位和关键帧，并脱敏名称。
+
+### 2026-11-21 从剧本拆分镜
+
+画布小灵在引用包含正文的剧本后提供拆镜草稿入口。通过现有读取、画布修订校验和审批流程创建分镜表，审批可展开镜头的画面、景别、运镜、对白、动作与时长。`tests/e2e/generation.spec.ts` 通过回环模型验证草稿、审批预览及批准前后画布状态。
+
+### 2026-11-20 S4 本地验收
+
+macOS arm64/APFS 的 `env -u ELECTRON_RUN_AS_NODE pnpm check:package` 中，生成集成 12/12，源码和目录包的画布助手 E2E 各 1/1。覆盖先读详情后写、缺失节点、修订冲突、部分审批、关闭项目使待审批失效、图像授权与视频派生素材。Worker 在任务落盘后中止，重开按审批回执恢复 watch，混合成败一并回到原会话一次。用户停止后补交结果但不启动后续模型调用。
+
+双入口桌面用例覆盖结构审批、分组与结果定位、移除和重加引用、撤销后显示缺失、视口读取、待审批插话、退出重开和继续查询原供应商 ID。资料功能覆盖内置只读技能、用户提供的公开 HTTPS 文本附件及诊断。公网成功抓取和模型主动检索的门禁差距见 [V1-E2E-02](../../../05-测试与发布/V1-Agent端到端验收规范.md#v1-e2e-02-设置画布双入口-agent-辅助与恢复)。
 
 ## 变更记录
 
 | 日期 | 变更 | 关联决策 |
 | --- | --- | --- |
 | 2026-11-19 | 核心画布助手纳入 V1 主线，专业域工具随域迁入 | D011 |
+| 2026-11-20 | 补录项目作用域、审批恢复及媒体读取边界 | D011、D015 |
+| 2026-11-20 | 补录技能、联网附件与诊断导出边界 | D016 |

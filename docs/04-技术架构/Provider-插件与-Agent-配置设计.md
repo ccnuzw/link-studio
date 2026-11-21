@@ -153,8 +153,8 @@ Agent 工具范围建议为读取用户选定资料、读取非秘密配置、�
 | doubao-video 1.1.0 | 原文件未修改；文本 submit/query 到视频 URL | 参考媒体需要公网 URL；无上传配置时发送前明确拒绝 |
 | 合成 audio 插件 | prepare→submit→query→cancel，JSON 重建 state | 不代表上游音频插件或供应商兼容 |
 | 文件引用 | multipart/base64/dataUrl；槽位与大小校验 | multipart 当前缓冲编码，未实现流式大文件上传；不自动上传官方存储 |
-| utils | uuid/unixNow/base64/base64URL/base64Decode/sha256/hmacSHA256/hmacSHA256Hex | jwtSignHS256/jwtSignRS256 未实现；utils.log 当前丢弃，不返回追踪日志 |
+| utils | uuid/unixNow/base64/base64URL/base64Decode/sha256/hmacSHA256/hmacSHA256Hex/jwtSignHS256/jwtSignRS256 | utils.log 当前丢弃，不返回追踪日志 |
 | manifest | 单类型、模式、认证、必需/成对钩子、协议设置、poll 基础校验 | 非完整上游预检器；未知导出警告、弃用 import.args 全量规则与表单补默认仍待接入 |
-| custom auth | 明确拒绝 `PLUGIN_CUSTOM_AUTH_UNSUPPORTED`，凭证不进入钩子 | 原自定义签名插件需另做宿主签名能力，不能直接传 credentials |
+| custom auth | 宿主把安全存储中的凭证以 `ctx.credentials.apiKey` 传给插件；插件自行签名/组装请求，宿主不自动注入 Authorization | `kling/jimeng/vidu/vertex-ai` 已可 inspect；Vertex 的准备阶段使用 RS256，Kling 使用 HS256；catalog 仍走手动添加模型 |
 
-四份样本的固定提交/hash、MIT 与 Apache 来源说明保存在 `resources/provider-plugins/`。Apache 衍生代码的具体上游版权/NOTICE 和 Go 依赖清单仍须正式分发前审计；本机目录包不是正式发布。
+23 份内置适配器的固定提交/hash、MIT 与 Apache 来源说明保存在 `resources/provider-plugins/`。Apache 衍生代码的具体上游版权/NOTICE 和 Go 依赖清单仍须正式分发前审计；本机目录包不是正式发布。

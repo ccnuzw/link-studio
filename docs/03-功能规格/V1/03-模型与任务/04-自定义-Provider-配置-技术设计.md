@@ -56,6 +56,7 @@ FUNCTION saveProvider(input, revision):
 | B04-07 | AC03 | V1-NFR-001 |
 | B04-08 | AC04 | V1-NFR-001 |
 | B04-09～11 | AC02、AC04 | V1-NFR-001 |
+| B04-12～14 | AC02、AC03、AC04 | `tests/integration/settings.test.ts`、`tests/e2e/settings.spec.ts` |
 
 ## 并发控制
 
@@ -68,6 +69,12 @@ FUNCTION saveProvider(input, revision):
 ## 幂等与重试
 
 providerId 对配置更新幂等；连接测试为只读请求，但供应商可能产生调用费用，应在 UI 告知并限制频率。
+
+### 小灵流式检测
+
+1. B04-12：Main 校验已启用配置的修订、内置 OpenAI 插件与凭证，同一配置只允许一个进行中的检测。
+2. B04-13：复用小灵的受限网络传输与 Pi 协议解析。固定短提示、最多请求 64 个输出 token，超时 25 秒，无工具、无历史、无自动重试。Responses 请求设置 `store: false`。
+3. B04-14：完整文本流结束后复核配置修订，只返回脱敏结果与耗时。检测不创建 Agent 会话或项目记录。
 
 ## 外部调用与补偿
 

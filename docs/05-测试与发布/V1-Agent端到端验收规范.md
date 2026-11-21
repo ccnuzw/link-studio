@@ -2,7 +2,9 @@
 
 ## V1-E2E-02 设置/画布双入口 Agent 辅助与恢复
 
-覆盖 V1-FR-003～005、V1-FR-007～009，发布门禁 V1-RG-004。目标测试 `tests/e2e/agent-assistance.spec.ts`，计划命令 `pnpm test:e2e -- tests/e2e/agent-assistance.spec.ts`。证据状态：未创建。
+覆盖 V1-FR-003～005、V1-FR-007～009，发布门禁 V1-RG-004。桌面用例 `tests/e2e/generation.spec.ts` 与 `tests/e2e/settings.spec.ts`，执行命令 `env -u ELECTRON_RUN_AS_NODE pnpm check:package`。证据状态：已创建。
+
+2026-11-20，macOS arm64 的源码及目录包均通过双入口主链用例。覆盖作用域隔离、设置部分审批和陈旧提案拒绝、画布结构操作和定位、人工编辑后的冲突撤销、插话、原任务恢复、原会话一次交付及诊断脱敏。设置用例验证凭证输入与试跑重启，生成集成用例验证混合批次与 Worker 强制中止。资料集成用例通过替身传输验证 HTTPS 文本成功响应和限制。完整门禁仍待补桌面联网资料成功读取及压缩后溯源，以及内部模型调用用途和用量关联。
 
 ### Given
 

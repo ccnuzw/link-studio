@@ -78,9 +78,13 @@ updated: 2026-11-19
 
 Provider 设置提供插件列表、API 版本、来源（内置/用户/Agent 草拟）、校验状态、差异审阅、人工代码编辑、模型/端点/能力、密钥输入、连接测试、启用和删除。密钥仅显示已配置/未配置状态。
 
+内置 OpenAI 配置支持独立的「检测小灵连接」。检测使用已保存的端点、接口与模型，确认时显示目标和计费提示。用户可以先检测流式文本，再通过「允许小灵使用此模型」授权日常会话。
+
 ## 接口契约
 
 IPC 草案：listProviderPlugins、draftProviderPlugin、validateProviderPlugin、approveProviderPlugin、enableProviderPlugin、bindProviderConfig、setProviderSecret、testProviderPlugin、deleteProviderPlugin；最终通道待统一。
+
+`settings.agentTestConnection({ id, expectedRevision })` 在 Main 内验证一次短文本流。成功返回 `{ tested: true, durationMs }`。失败返回稳定错误码，区分凭证拒绝、限流、网络错误、超时、流无效和修订冲突。
 
 | 字段 | 位置 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- | --- |
@@ -173,12 +177,12 @@ Then 操作被拒绝；用户批准必须绑定所审阅的插件版本/hash，�
 
 | AC | 验收重点 | 测试层级 | 目标资产 | 目标命令 | 证据状态 |
 | --- | --- | --- | --- | --- | --- |
-| AC01 | Agent/人工插件草拟与校验 | 集成 | `src/main/services/linkStudio/providerPluginDraft.test.ts` | 待工程结构建立 | 未创建 |
-| AC02 | 密钥泄漏面 | 单元/集成 | `src/main/services/linkStudio/providerSecrets.test.ts` | 待工程结构建立 | 未创建 |
-| AC03 | URL/host policy | 单元 | `src/main/services/linkStudio/providerAddressPolicy.test.ts` | 待工程结构建立 | 未创建 |
-| AC04 | safeStorage failure | 集成 | `src/main/services/linkStudio/providerSecrets.test.ts` | 待工程结构建立 | 未创建 |
-| AC05 | 沙箱权限 | 单元/集成 | `packages/link-studio-core/src/providers/pluginSandbox.test.ts` | 待工程结构建立 | 未创建 |
-| AC06 | 审批/hash 绑定 | 集成 | `src/main/services/linkStudio/providerPluginApproval.test.ts` | 待工程结构建立 | 未创建 |
+| AC01 | Agent/人工插件草拟与校验 | 集成/E2E | `src/main/settings/registry.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC02 | 密钥泄漏面 | 集成/E2E | `src/main/settings/registry.ts`、`src/main/settings/stream.ts`、`tests/integration/settings.test.ts` | `pnpm exec vitest run --project integration tests/integration/settings.test.ts` | 本地通过 |
+| AC03 | URL/host policy | 集成 | `src/main/settings/network.ts`、`tests/integration/settings.test.ts` | `pnpm exec vitest run --project integration tests/integration/settings.test.ts` | 本地通过 |
+| AC04 | safeStorage failure | 集成/E2E | `src/main/settings/ipc.ts`、`tests/e2e/settings.spec.ts` | `pnpm check:package` | 本地通过 |
+| AC05 | 沙箱权限 | 集成 | `packages/provider-runtime/src/runner.ts`、`tests/integration/provider-runtime.test.ts` | `pnpm test:provider` | 本地通过 |
+| AC06 | 审批/hash 绑定 | 集成/E2E | `src/main/settings/registry.ts`、`packages/agent-runtime/src/settings-gateway.ts`、`tests/integration/settings.test.ts` | `pnpm check:package` | 本地通过 |
 
 ## 技术设计
 
@@ -188,13 +192,19 @@ Then 操作被拒绝；用户批准必须绑定所审阅的插件版本/hash，�
 
 ### 工程落点
 
-已建 `packages/provider-runtime/src/{runner,plugin,host}.ts`、独立 Go runner 与 `resources/provider-plugins/` 固定样本；Main Registry、SecretStore、IPC 和设置/Agent 工具尚待接入。
+已建 `packages/provider-runtime/src/{runner,plugin,host}.ts`、独立 Go runner 与 `resources/provider-plugins/` 固定样本；Main Registry、safeStorage、网络地址策略、受信 IPC 和设置 Agent 工具已接入。
 
 ### 当前差距
 
-详见 [Provider 插件与 Agent 配置设计](../../../04-技术架构/Provider-插件与-Agent-配置设计.md#8-m0-02-实现范围与兼容缺口)。M0-02 仅覆盖本机 mock、部分清单/钩子、隔离与 hash 检查；尚未覆盖任何完整配置用户 AC，表中正式资产保留未创建。人工/Agent 草拟、启用审批持久化、localhost/LAN 授权和 safeStorage 仍须后续验证，规格保持 Draft。
+详见 [Provider 插件与 Agent 配置设计](../../../04-技术架构/Provider-插件与-Agent-配置设计.md#8-m0-02-实现范围与兼容缺口)。本地证据覆盖手工配置、回环试跑、插件 hash/端点重新授权、safeStorage、跨源/重定向拒绝和脱敏流；真实供应商、其他平台及发布签名仍待验证。
 
 ### 验证记录
+
+#### 2026-11-20 小灵流式连接
+
+macOS arm64 使用普通 Electron 和开发版设置的加密快照，通过 `settings.agentTestConnection` 调用既有 `magpie` Responses 配置。一次无工具请求收到完整文本流，耗时 5533 ms。检测界面提供供应商计费提示，实际费用可在供应商控制台核对。
+
+`pnpm exec vitest run --project integration tests/integration/settings.test.ts` 6/6 通过，覆盖认证拒绝、限流、非流式响应、断流、超时、跨帧凭证脱敏、并发检测和修订冲突。`pnpm exec playwright test tests/e2e/settings.spec.ts --reporter=line` 2/2 通过，覆盖两种协议的设置界面与 Responses 只读工具回合。真实供应商的工具回合、视觉和恢复另行验收。
 
 #### 2026-11-19 M0-02 Runtime 切片
 
@@ -204,9 +214,14 @@ macOS arm64、Go 1.26.4；`pnpm test:provider`，18/18 本地通过。涵盖 AC0
 
 静态文档核验，无密钥安全测试证据。
 
+#### 2026-11-20 S3 本地验收
+
+macOS arm64/APFS：`pnpm check:package` 通过，含 90 项集成测试、源码版和未签名目录包各 9 项桌面 E2E；`tests/integration/settings.test.ts` 3/3 通过，覆盖安全存储失败保留旧值、陈旧 revision/hash、网络策略及两次 Worker 启动回执对账；`tests/e2e/settings.spec.ts` 覆盖真实 Electron safeStorage、手工保存、回环试跑、逐项审批、凭证专用卡、插话、停止和重启历史恢复。仅使用本机回环服务，不宣称真实供应商或 V1-E2E-02 通过。
+
 ## 变更记录
 
 | 日期 | 变更 | 关联决策 |
 | --- | --- | --- |
+| 2026-11-20 | 增加独立的小灵连接检测和真实 Responses 流式证据 | D014 |
 | 2026-11-19 | 回写 M0-02 插件兼容切片及待建业务验收路径 | D002、D004、D005 |
 | 2026-11-19 | 初始 Draft | D002、D003、D004 |
