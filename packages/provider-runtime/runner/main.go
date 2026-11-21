@@ -1,18 +1,23 @@
 package main
 
 import (
+	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -53,12 +58,14 @@ type request struct {
 	Source string            `json:"source"`
 	Hook   string            `json:"hook"`
 	Args   []json.RawMessage `json:"args"`
+	Trace  bool              `json:"trace,omitempty"`
 }
 
 type response struct {
 	OK     bool            `json:"ok"`
 	Code   string          `json:"code,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
+	Logs   []string        `json:"logs,omitempty"`
 }
 
 func main() {
@@ -69,15 +76,16 @@ func main() {
 		writeResponse(response{Code: "PLUGIN_INPUT_INVALID"})
 		return
 	}
-	result, code := execute(input)
-	writeResponse(response{OK: code == "", Result: result, Code: code})
+	var logs []string
+	result, code := execute(input, &logs)
+	writeResponse(response{OK: code == "", Result: result, Code: code, Logs: logs})
 }
 
 func writeResponse(result response) {
 	_ = json.NewEncoder(os.Stdout).Encode(result)
 }
 
-func execute(input request) (result json.RawMessage, code string) {
+func execute(input request, logs *[]string) (result json.RawMessage, code string) {
 	code = "PLUGIN_EXECUTION_FAILED"
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -103,7 +111,7 @@ func execute(input request) (result json.RawMessage, code string) {
 	done := make(chan struct{})
 	defer close(done)
 	go monitorMemory(interrupt, done)
-	result, err := run(vm, input)
+	result, err := run(vm, input, logs)
 	if err != nil {
 		var interrupted *goja.InterruptedError
 		if errors.As(err, &interrupted) {
@@ -138,11 +146,11 @@ func monitorMemory(interrupt func(string), done <-chan struct{}) {
 	}
 }
 
-func run(vm *goja.Runtime, input request) (json.RawMessage, error) {
+func run(vm *goja.Runtime, input request, logs *[]string) (json.RawMessage, error) {
 	if _, err := vm.RunString(bootstrap); err != nil {
 		return nil, err
 	}
-	if err := installUtils(vm); err != nil {
+	if err := installUtils(vm, input.Trace, logs); err != nil {
 		return nil, err
 	}
 	if _, err := vm.RunString(lockdown); err != nil {
@@ -184,16 +192,22 @@ func run(vm *goja.Runtime, input request) (json.RawMessage, error) {
 
 func inspect(vm *goja.Runtime, exported *goja.Object) (json.RawMessage, error) {
 	hooks := []string{}
+	warnings := []string{}
 	for _, name := range hookNames {
 		if _, ok := goja.AssertFunction(exported.Get(name)); ok {
 			hooks = append(hooks, name)
+		}
+	}
+	for _, name := range exported.Keys() {
+		if _, ok := goja.AssertFunction(exported.Get(name)); ok && !slices.Contains(hookNames, name) {
+			warnings = append(warnings, name)
 		}
 	}
 	meta, err := encode(vm, exported.Get("meta"))
 	if err != nil || len(meta) > 64<<10 {
 		return nil, errors.New("invalid meta")
 	}
-	return json.Marshal(map[string]any{"meta": meta, "hooks": hooks})
+	return json.Marshal(map[string]any{"meta": meta, "hooks": hooks, "unknownHooks": warnings})
 }
 
 func encode(vm *goja.Runtime, value goja.Value) (json.RawMessage, error) {
@@ -208,7 +222,7 @@ func encode(vm *goja.Runtime, value goja.Value) (json.RawMessage, error) {
 	return json.RawMessage(encoded.String()), nil
 }
 
-func installUtils(vm *goja.Runtime) error {
+func installUtils(vm *goja.Runtime, trace bool, logs *[]string) error {
 	utils := vm.Get("utils").ToObject(vm)
 	text := func(call goja.FunctionCall, index int) string {
 		value := call.Argument(index).String()
@@ -248,6 +262,36 @@ func installUtils(vm *goja.Runtime) error {
 			_, _ = mac.Write([]byte(text(call, 1)))
 			return vm.ToValue(hex.EncodeToString(mac.Sum(nil)))
 		},
+		"jwtSignRS256": func(call goja.FunctionCall) goja.Value {
+			claims := call.Argument(0).Export()
+			key := parseRSAPrivateKey(vm, text(call, 1))
+			payload, err := json.Marshal(claims)
+			if err != nil {
+				panic(vm.ToValue("JWT claims cannot be encoded as JSON"))
+			}
+			header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+			encodedPayload := base64.RawURLEncoding.EncodeToString(payload)
+			input := header + "." + encodedPayload
+			digest := sha256.Sum256([]byte(input))
+			signature, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+			if err != nil {
+				panic(vm.ToValue("RS256 signing failed"))
+			}
+			return vm.ToValue(input + "." + base64.RawURLEncoding.EncodeToString(signature))
+		},
+		"jwtSignHS256": func(call goja.FunctionCall) goja.Value {
+			claims := call.Argument(0).Export()
+			payload, err := json.Marshal(claims)
+			if err != nil {
+				panic(vm.ToValue("JWT claims cannot be encoded as JSON"))
+			}
+			header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+			encodedPayload := base64.RawURLEncoding.EncodeToString(payload)
+			input := header + "." + encodedPayload
+			mac := hmac.New(sha256.New, []byte(text(call, 1)))
+			_, _ = mac.Write([]byte(input))
+			return vm.ToValue(input + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)))
+		},
 		"uuid": func(goja.FunctionCall) goja.Value {
 			var value [16]byte
 			if _, err := rand.Read(value[:]); err != nil {
@@ -258,7 +302,13 @@ func installUtils(vm *goja.Runtime) error {
 			return vm.ToValue(fmt.Sprintf("%x-%x-%x-%x-%x", value[:4], value[4:6], value[6:8], value[8:10], value[10:]))
 		},
 		"unixNow": func(goja.FunctionCall) goja.Value { return vm.ToValue(time.Now().Unix()) },
-		"log":     func(goja.FunctionCall) goja.Value { return goja.Undefined() },
+		"log": func(call goja.FunctionCall) goja.Value {
+			if trace && len(*logs) < 50 {
+				message := text(call, 0)
+				*logs = append(*logs, message[:min(len(message), 1024)])
+			}
+			return goja.Undefined()
+		},
 	}
 	for name, function := range functions {
 		if err := utils.Set(name, function); err != nil {
@@ -266,4 +316,20 @@ func installUtils(vm *goja.Runtime) error {
 		}
 	}
 	return nil
+}
+
+func parseRSAPrivateKey(vm *goja.Runtime, value string) *rsa.PrivateKey {
+	block, _ := pem.Decode([]byte(value))
+	if block == nil {
+		panic(vm.ToValue("RS256 private key is not valid PEM"))
+	}
+	if parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+		if key, ok := parsed.(*rsa.PrivateKey); ok {
+			return key
+		}
+	}
+	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return key
+	}
+	panic(vm.ToValue("RS256 private key is not RSA"))
 }
