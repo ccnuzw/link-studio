@@ -10,6 +10,9 @@
     "node": ">=22.19.0 <23"
   },
   "scripts": {
+    "check": "node scripts/check.mjs quality",
+    "check:desktop": "node scripts/check.mjs desktop",
+    "check:package": "node scripts/check.mjs desktop --package",
     "icons:generate": "node scripts/generate-icons.mjs",
     "dev": "electron-vite dev",
     "build": "pnpm provider:build && pnpm media:build && pnpm agent:build && electron-vite build",
