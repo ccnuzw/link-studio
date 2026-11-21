@@ -17,6 +17,42 @@ const Json = Type.Recursive((Self) =>
     Type.Record(Type.String(), Self),
   ]),
 );
+export type JsonValue = Static<typeof Json>;
+const Asset = Type.Object(
+  {
+    assetId: Type.String({ pattern: "^[0-9a-f-]{36}$" }),
+    createdAt: Type.String(),
+    origin: Type.Union([
+      Type.Literal("imported"),
+      Type.Literal("generated"),
+      Type.Literal("derived"),
+    ]),
+    displayName: Type.String({ minLength: 1, maxLength: 255 }),
+    mediaType: Type.Union([Type.Literal("image"), Type.Literal("video"), Type.Literal("audio")]),
+    mimeType: Type.String({ minLength: 1, maxLength: 128 }),
+    sha256: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+    sizeBytes: Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
+    importMode: Type.Union([Type.Literal("copy"), Type.Literal("reference")]),
+    storage: Type.Union([
+      Type.Object(
+        { kind: Type.Literal("blob"), hash: Type.String({ pattern: "^[0-9a-f]{64}$" }) },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        { kind: Type.Literal("external"), locatorId: Identifier },
+        { additionalProperties: false },
+      ),
+    ]),
+    metadata: Type.Record(Type.String(), Json),
+    availability: Type.Union([
+      Type.Literal("ready"),
+      Type.Literal("missing"),
+      Type.Literal("deleted"),
+    ]),
+    deletedAt: Type.Optional(Timestamp),
+  },
+  { additionalProperties: false },
+);
 
 export const ProjectStateSchema = Type.Object(
   {
@@ -28,11 +64,11 @@ export const ProjectStateSchema = Type.Object(
     revision: Revision,
     parentHash: Type.Union([Type.Null(), Hash]),
     commitHash: Hash,
-    assets: Type.Record(Type.String(), Json),
+    assets: Type.Record(Type.String(), Asset),
     canvas: Type.Object(
       {
         schemaVersion: Type.Literal(1),
-        revision: Revision,
+        revision: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
         nodes: Type.Array(Json),
         edges: Type.Array(Json),
         viewport: Type.Object({ x: Type.Number(), y: Type.Number(), zoom: Type.Number() }),
@@ -44,7 +80,7 @@ export const ProjectStateSchema = Type.Object(
     operationReceipts: Type.Record(
       Identifier,
       Type.Object(
-        { requestHash: Hash, revision: Revision, result: Type.Object({ name: Type.String() }) },
+        { requestHash: Hash, revision: Revision, result: Json },
         { additionalProperties: false },
       ),
     ),
