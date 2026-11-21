@@ -1,15 +1,6 @@
-export type ProjectErrorCode =
-  | "PROJECT_IN_USE"
-  | "PROJECT_PATH_DENIED"
-  | "PROJECT_FILESYSTEM_UNSUPPORTED"
-  | "PROJECT_CORRUPT"
-  | "PROJECT_VERSION_UNSUPPORTED"
-  | "PROJECT_SCHEMA_INVALID"
-  | "PROJECT_NAME_INVALID"
-  | "PROJECT_CONFLICT"
-  | "PROJECT_SAVE_FAILED"
-  | "PROJECT_CLOSED"
-  | "OPERATION_ID_REUSED";
+import type { ProjectErrorCode } from "../../../packages/link-studio-core/src/projects-api.ts";
+
+export type { ProjectErrorCode };
 
 export class ProjectError extends Error {
   constructor(
