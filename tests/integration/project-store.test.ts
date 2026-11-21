@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { isLocalApfs } from "../../packages/media-runtime/src/local-filesystem";
 import { canonicalJson, contentHash } from "../../src/main/project/encoding";
 import { type CommitStage, ProjectStore } from "../../src/main/project/store";
 
@@ -86,6 +87,13 @@ afterEach(async () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("M0-03 本机 APFS 项目存储", () => {
+  it("识别 APFS 目录并拒绝 devfs", async () => {
+    const directory = join(parent, "本机 项目");
+    await mkdir(directory);
+    expect(await isLocalApfs(directory)).toBe(true);
+    expect(await isLocalApfs("/dev")).toBe(false);
+  });
+
   it("创建空项目、保存、重启后回执去重，冲突请求不落盘", async () => {
     const store = await create();
     const request = { operationId: randomUUID(), expectedRevision: 1, name: "第一版" };
