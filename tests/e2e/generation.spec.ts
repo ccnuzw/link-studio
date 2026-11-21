@@ -555,7 +555,8 @@ test("S4 设置与画布小灵隔离，审批生成和结果跨重启保留", as
     await projectAction(reopened, "关闭项目");
     await reopened.getByRole("button", { name: /^生成闭环验收/ }).click();
     await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
-    await expect(reopened.getByRole("button", { name: "发送", exact: true })).toBeVisible();
+    const assistant = reopened.getByRole("region", { name: "画布小灵" });
+    await expect(assistant.getByRole("status")).toHaveText("就绪");
     await expect(reopened.getByRole("heading", { name: "生成审批" })).toHaveCount(0);
     expect(asyncSubmits).toBe(1);
 
@@ -567,7 +568,6 @@ test("S4 设置与画布小灵隔离，审批生成和结果跨重启保留", as
     await reopened.getByRole("button", { name: "发送", exact: true }).click();
     await expect(reopened.getByText("已完成 · 检查生成素材")).toBeVisible();
     await expect(reopened.getByRole("button", { name: "发送", exact: true })).toBeVisible();
-    const assistant = reopened.getByRole("region", { name: "画布小灵" });
     const ask = {
       name: "ask_user",
       args: {

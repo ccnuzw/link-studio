@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { _electron as electron, expect, type Locator, type Page, test } from "@playwright/test";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
-import { projectAction } from "./workspace-actions";
+import { addCanvasNode, projectAction } from "./workspace-actions";
 
 async function projectDirectory(root: string) {
   const project = (await readdir(root)).find((name) => name.endsWith(".linkstudio"));
@@ -278,11 +278,7 @@ test("角色卡绑定主图并持久保存造型和角色设定", async () => {
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByRole("button", { name: "将look.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭素材库" }).click();
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 70, y: 100 } });
-    await page
-      .getByRole("region", { name: "添加节点菜单" })
-      .getByRole("button", { name: "角色卡", exact: true })
-      .click();
+    await addCanvasNode(page, "角色卡");
     const character = page.getByRole("dialog", { name: "角色卡" });
     await character.getByLabel("角色名").fill("林舟");
     await character.getByLabel("形象名").fill("夜班");
@@ -409,11 +405,7 @@ test("角色形象与音色联合生成，音色可独立重试、试听和手�
     }, endpoint);
     await page.getByRole("textbox", { name: "新项目名称" }).fill("音色验收");
     await page.getByRole("button", { name: "新建项目" }).click();
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 70, y: 100 } });
-    await page
-      .getByRole("region", { name: "添加节点菜单" })
-      .getByRole("button", { name: "角色卡", exact: true })
-      .click();
+    await addCanvasNode(page, "角色卡");
     const dialog = page.getByRole("dialog", { name: "角色卡" });
     await dialog.getByLabel("角色名").fill("林舟");
     await dialog.getByLabel("形象名").fill("夜班");
