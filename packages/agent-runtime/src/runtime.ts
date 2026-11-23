@@ -1,15 +1,26 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { Value } from "@sinclair/typebox/value";
+import {
+  feedbackStatuses,
+  RunFeedback,
+  type RunRating,
+} from "../../link-studio-core/src/agent-feedback.ts";
 import type { AttachmentCheck } from "../upstream/src/attachments.ts";
-import { AgentEngine, type PublishedEvent } from "../upstream/src/engine/engine.ts";
+import { AgentEngine, cleanTitle, type PublishedEvent } from "../upstream/src/engine/engine.ts";
+import { Err } from "../upstream/src/engine/errors.ts";
 import { WATCH_KEEP_MS } from "../upstream/src/engine/watch.ts";
 import { createIdCodec } from "../upstream/src/ids.ts";
 import type { ApprovalDecision } from "../upstream/src/platform-client.ts";
 import { type AgentStore, openStore } from "../upstream/src/store/store.ts";
+import type { Run } from "../upstream/src/store/types.ts";
 import { addCanvasGateway } from "./canvas-gateway.ts";
+import { addDramaGateway } from "./drama-gateway.ts";
 import { createLocalGateway } from "./gateway.ts";
+import { historyPage } from "./history-page.ts";
 import { createSettingsGateway, type SettingsBridge } from "./settings-gateway.ts";
+import { settingsHistory } from "./settings-history.ts";
 import { type AgentScope, LocalAgentError, SpikeTargets, scopeKey } from "./targets.ts";
 
 export interface RuntimeOptions {
@@ -19,6 +30,44 @@ export interface RuntimeOptions {
   onEffectCommitted?: () => void;
   serviceToken?: string;
   settings?: SettingsBridge;
+}
+
+const desktopIdCodec = createIdCodec("link-studio-m0");
+
+async function readSteerImages(
+  store: AgentStore,
+  targets: SpikeTargets,
+  bridge: SettingsBridge,
+  run: Run,
+  assetIds: string[],
+) {
+  const scope = targets.assertContext(run.sessionId, run.canvasId);
+  if (!scope.startsWith("canvas:")) throw new LocalAgentError("AGENT_SCOPE_DENIED");
+  const session = store.getSession(run.userId, run.sessionId);
+  const model = (await bridge("model", { key: session.modelKey, canvas: true })) as {
+    vision?: boolean;
+  };
+  if (!model.vision) throw new LocalAgentError("AGENT_MEDIA_UNAVAILABLE");
+  const images = (await bridge("canvas:attachments", {
+    project: scope.slice(7),
+    assetIds,
+  })) as AttachmentCheck[];
+  if (
+    !Array.isArray(images) ||
+    images.length !== assetIds.length ||
+    images.some((image) => !image.image?.data)
+  )
+    throw new LocalAgentError("AGENT_MEDIA_UNAVAILABLE");
+  return images;
+}
+
+function eventApprovalId(type: string, payload: unknown) {
+  if (type !== "approval.created" && type !== "approval.decided") return undefined;
+  const data = payload as { id?: unknown; recoveryId?: unknown } | null;
+  if (typeof data?.id === "string") return desktopIdCodec.decodeDecimal(data.id);
+  if (typeof data?.recoveryId === "string")
+    return /^approval:([1-9]\d{0,19})$/.exec(data.recoveryId)?.[1];
+  return undefined;
 }
 
 export class LocalAgentRuntime {
@@ -45,8 +94,14 @@ export class LocalAgentRuntime {
     const store = openStore(database);
     try {
       const platform = options.settings
-        ? addCanvasGateway(
-            createSettingsGateway(targets, options.settings),
+        ? addDramaGateway(
+            addCanvasGateway(
+              createSettingsGateway(targets, options.settings, (resource, status) =>
+                settingsHistory(database, resource, status),
+              ),
+              targets,
+              options.settings,
+            ),
             targets,
             options.settings,
           )
@@ -59,16 +114,19 @@ export class LocalAgentRuntime {
         platform,
         baseUrl: bridge.origin,
         serviceToken: options.serviceToken ?? "local-m0-not-a-provider-credential",
-        codec: createIdCodec("link-studio-m0"),
+        codec: desktopIdCodec,
         onEvent: options.onEvent,
-        autoTitle: false,
-        activitySummary: false,
+        autoTitle: Boolean(options.settings),
+        activitySummary: Boolean(options.settings),
         leaseIntervalMs: 1000,
         ...(options.settings
           ? {
               watchGraceMs: 500,
               watchPollMs: 2000,
               modelDiagnostics: true,
+              readSteerImages: (run: Run, ids: string[]) =>
+                readSteerImages(store, targets, options.settings!, run, ids),
+              localModelUsage: true,
               canvasWatchEnabled: (id: string) => openedCanvases.has(id),
             }
           : {}),
@@ -89,6 +147,11 @@ export class LocalAgentRuntime {
 
   createSession(scope: AgentScope) {
     const mapped = this.targets.scope(scope);
+    if (
+      scope.kind === "drama" &&
+      (!this.desktopSettings || !this.openedCanvases.has(mapped.engineId))
+    )
+      throw new LocalAgentError("AGENT_SCOPE_DENIED");
     const session = this.store.createSession({
       userId: "1",
       canvasId: mapped.engineId,
@@ -100,6 +163,23 @@ export class LocalAgentRuntime {
     return { sessionId: session.id, scope: scopeKey(scope) };
   }
 
+  async interject(
+    scope: AgentScope,
+    sessionId: string,
+    runId: string,
+    message: string,
+    assetIds: string[],
+    bridge: SettingsBridge,
+  ) {
+    this.targets.assertSession(sessionId, scope);
+    const run = this.store.getRun("1", runId);
+    if (run.sessionId !== sessionId) throw new LocalAgentError("AGENT_SCOPE_DENIED");
+    const images = assetIds.length
+      ? await readSteerImages(this.store, this.targets, bridge, run, assetIds)
+      : [];
+    return this.engine.interject("1", runId, message, images);
+  }
+
   async start(
     scope: AgentScope,
     sessionId: string,
@@ -109,10 +189,11 @@ export class LocalAgentRuntime {
     selection?: string[],
     attachments?: AttachmentCheck[],
     allowWebResearch = false,
+    budgetCredits = 0,
   ) {
     this.targets.assertSession(sessionId, scope);
     if (
-      scope.kind === "canvas" &&
+      scope.kind !== "settings" &&
       this.desktopSettings &&
       !this.openedCanvases.has(this.targets.scope(scope).engineId)
     )
@@ -123,11 +204,12 @@ export class LocalAgentRuntime {
       sessionId,
       message,
       modelKey,
-      mode: scope.kind === "settings" ? "admin" : "all",
+      mode: this.targets.scope(scope).mode,
       pageContext,
       selection,
       attachments,
       allowWebResearch: scope.kind === "canvas" && allowWebResearch,
+      budgetCredits,
     });
   }
 
@@ -136,7 +218,89 @@ export class LocalAgentRuntime {
     return this.store.listSessions("1", engineId).map(({ id, title }) => ({ id, title }));
   }
 
+  renameSession(scope: AgentScope, sessionId: string, raw: unknown) {
+    this.targets.assertSession(sessionId, scope);
+    const title = typeof raw === "string" ? cleanTitle(raw, "") : "";
+    if (!title) throw new LocalAgentError("AGENT_ARGUMENT_INVALID");
+    this.store.updateSession("1", sessionId, { title, titleSource: "user" });
+    return { title };
+  }
+
+  async removeSession(scope: AgentScope, sessionId: string) {
+    this.targets.assertSession(sessionId, scope);
+    const { canvasId } = this.store.getSession("1", sessionId);
+    const ensureIdle = () => {
+      if (this.store.activeRun(canvasId, "1")?.sessionId === sessionId) throw Err.runActive();
+    };
+    ensureIdle();
+    await this.engine.cancelWatches("1", sessionId);
+    ensureIdle();
+    this.store.deleteSession("1", sessionId);
+    return { removed: true };
+  }
+
   async recoverCanvas(scope: AgentScope, bridge: SettingsBridge) {
+    if (scope.kind === "drama") {
+      if (!this.desktopSettings) throw new LocalAgentError("AGENT_SCOPE_DENIED");
+      await bridge("canvas:drama-prepare", { project: scope.projectId });
+      const { engineId } = this.targets.scope(scope);
+      const sessions = new Set(this.store.listSessions("1", engineId).map((item) => item.id));
+      for (const run of this.store.listRunsByStatus([
+        "interrupted",
+        "waiting_approval",
+        "canceled",
+      ])) {
+        if (
+          run.mode !== "drama" ||
+          run.userId !== "1" ||
+          run.canvasId !== engineId ||
+          !sessions.has(run.sessionId)
+        )
+          continue;
+        this.targets.assertSession(run.sessionId, scope);
+        for (const approval of this.store.listApprovals(run.id)) {
+          if (
+            approval.status !== "approved" ||
+            ![
+              "drama_update_episode",
+              "drama_update_outline",
+              "drama_update_segment",
+              "drama_run_job",
+            ].includes(approval.kind)
+          )
+            continue;
+          const receipt = await bridge("canvas:drama-receipt", {
+            project: scope.projectId,
+            runId: run.id,
+            id: approval.id,
+            kind: approval.kind,
+            input: approval.payload,
+          });
+          const status = receipt ? "executed" : "failed";
+          const result = receipt ?? { code: "DRAMA_APPROVAL_INTERRUPTED" };
+          appendRecoveryEvent(
+            this.store,
+            run.sessionId,
+            run.id,
+            "approval.decided",
+            `approval:${approval.id}`,
+            { kind: approval.kind, status, result },
+          );
+          this.store.updateApprovalIf(approval.id, ["approved"], { status, result });
+        }
+        if (
+          run.status === "waiting_approval" &&
+          !this.store.listApprovals(run.id).some((item) => item.status === "pending")
+        ) {
+          appendRecoveryEvent(this.store, run.sessionId, run.id, "run.status", `run:${run.id}`, {
+            status: "interrupted",
+          });
+          this.store.updateRunIf(run.id, ["waiting_approval"], { status: "interrupted" });
+        }
+      }
+      this.openedCanvases.add(engineId);
+      return;
+    }
     if (scope.kind !== "canvas") throw new LocalAgentError("AGENT_SCOPE_DENIED");
     const { engineId } = this.targets.scope(scope);
     this.openedCanvases.add(engineId);
@@ -145,7 +309,9 @@ export class LocalAgentRuntime {
       engineId,
       Date.now() - WATCH_KEEP_MS,
     );
+    const visibleSessions = new Set(this.store.listSessions("1", engineId).map(({ id }) => id));
     for (const approval of approvals) {
+      if (!visibleSessions.has(approval.sessionId)) continue;
       this.targets.assertSession(approval.sessionId, scope);
       if (approval.status !== "executed") {
         const decision = approval.decision as ApprovalDecision;
@@ -167,7 +333,11 @@ export class LocalAgentRuntime {
           "approval.decided",
           `approval:${approval.id}`,
           {
+            id: approval.id,
             kind: approval.kind,
+            payload: approval.payload,
+            decision: approval.decision,
+            quote_credits: approval.quoteCredits,
             status,
             result: evidence,
           },
@@ -189,7 +359,7 @@ export class LocalAgentRuntime {
   }
 
   async closeCanvas(scope: AgentScope) {
-    if (scope.kind !== "canvas") throw new LocalAgentError("AGENT_SCOPE_DENIED");
+    if (scope.kind === "settings") throw new LocalAgentError("AGENT_SCOPE_DENIED");
     const { engineId } = this.targets.scope(scope);
     this.openedCanvases.delete(engineId);
     const active = this.store.activeRun(engineId, "1");
@@ -202,16 +372,37 @@ export class LocalAgentRuntime {
     }
   }
 
-  page(scope: AgentScope, sessionId: string, after: number) {
+  async cancelWatches(scope: AgentScope, sessionId: string) {
+    if (scope.kind !== "canvas") throw new LocalAgentError("AGENT_SCOPE_DENIED");
+    this.targets.assertSession(sessionId, scope);
+    return { canceled: (await this.engine.cancelWatches("1", sessionId)).length };
+  }
+
+  async page(scope: AgentScope, sessionId: string, after: number, before?: number) {
     this.targets.assertSession(sessionId, scope);
     const { canvasId, title } = this.store.getSession("1", sessionId);
     const active = this.store.activeRun(canvasId, "1");
     const activeRun = active?.sessionId === sessionId ? active.id : undefined;
+    const page = before === undefined ? undefined : historyPage(this.store, sessionId, before);
     return {
       title,
-      events: this.store
-        .listEvents(sessionId, after, 100)
-        .map(({ seq, runId, type, payload }) => ({ seq, runId, type, payload })),
+      ...(scope.kind === "canvas" &&
+        !before && { watches: await this.engine.watches("1", sessionId) }),
+      hasMoreOlder: page?.hasMoreOlder,
+      events: (page?.events ?? this.store.listEvents(sessionId, after, 100)).map(
+        ({ seq, runId, type, payload, createdAt }) => ({
+          seq,
+          runId,
+          type,
+          payload,
+          createdAt,
+          approvalId: eventApprovalId(type, payload),
+          ...(type === "run.status" &&
+            feedbackStatuses.has(String((payload as { status?: string })?.status)) && {
+              feedback: this.readFeedback(runId),
+            }),
+        }),
+      ),
       activeRun,
       activeStatus: activeRun ? active?.status : undefined,
       otherActiveSession: active && !activeRun ? active.sessionId : undefined,
@@ -237,6 +428,25 @@ export class LocalAgentRuntime {
       runs: this.store.listRunsUpdatedAfter(0, 1000).filter((run) => run.sessionId === sessionId),
       target: this.targets.read(scopeKey(scope)),
     };
+  }
+
+  private readFeedback(runId: string): RunRating | undefined {
+    const stored = this.store.getFeedback(runId, "1");
+    if (!stored) return undefined;
+    const { rating, reasons, comment } = stored;
+    const value = { rating, reasons, comment };
+    return Value.Check(RunFeedback, value) ? value : undefined;
+  }
+
+  feedback(scope: AgentScope, sessionId: string, runId: string, value: RunRating | null) {
+    this.targets.assertSession(sessionId, scope);
+    const run = this.store.getRun("1", runId);
+    if (run.sessionId !== sessionId || scope.kind === "drama")
+      throw new LocalAgentError("AGENT_SCOPE_DENIED");
+    if (!feedbackStatuses.has(run.status)) throw new LocalAgentError("AGENT_ARGUMENT_INVALID");
+    if (value) this.store.upsertFeedback({ runId, userId: "1", ...value });
+    else this.store.deleteFeedback(runId, "1");
+    return { saved: true };
   }
 
   diagnostics(scope: AgentScope, sessionId: string, runId: string) {

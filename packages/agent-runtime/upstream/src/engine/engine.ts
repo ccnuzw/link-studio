@@ -161,6 +161,7 @@ export interface EngineOptions {
   codec: IdCodec;
   onEvent?: (ev: PublishedEvent) => void;
   modelDiagnostics?: boolean;
+  localModelUsage?: boolean;
   now?: () => number;
   approvalTtlMs?: number;
   defaultMaxSteps?: number;
@@ -179,6 +180,7 @@ export interface EngineOptions {
   /** 后台等待生成：整批结束但没交付成（画布被占、Go 暂时不可用）后隔多久再试（默认 60 秒） */
   watchPollMs?: number;
   canvasWatchEnabled?: (canvasId: string) => boolean;
+  readSteerImages?: (run: Run, ids: string[]) => Promise<AttachmentCheck[]>;
   /** 传给 Pi Harness 的时钟和定时器；生产不用传，测试用它控制「睡一会儿」的任务 */
   harness?: { now?: () => number; setTimer?: SetTimer };
   /** Agent 自己管理联网 MCP；未传时兼容旧的平台联网工具。 */
@@ -221,6 +223,7 @@ interface Active {
   cards: number;
   /** 模型调用 id（响应头），按请求顺序，assistant 消息结束时取走一个 */
   callIds: string[];
+  localInputChars?: number;
   /** 摘要调用的 id，写完摘要后单独结算 */
   summaryCallIds: string[];
   /** 摘要失败后这个运行片段里不再压缩，免得每个回合都白付一次钱 */
@@ -232,7 +235,7 @@ interface Active {
   /** 已经交给 Pi、还在它收件箱里的插话（id → 提交）；被读到、撤回或丢掉时移出 */
   steers: Map<string, Submission>;
   /** 收下了、还没读到也没丢掉的插话（id → 正文，按收下的顺序）：已交给 Pi 的在 steers 里，其余是引擎扣着的 */
-  unread: Map<string, string>;
+  unread: Map<string, { text: string; imageIds: string[] }>;
   /** 生成全部结束后插进这一轮的通知（请求 id → 提交）：不是用户的插话，不发 steer.* 事件，只在读不到时撤回 */
   wakes: Map<string, Submission>;
   modelError?: { code?: number; status?: number; message?: string };
@@ -346,6 +349,10 @@ export class AgentEngine {
       baseUrl: this.#o.baseUrl,
       serviceToken: this.#o.serviceToken,
       contexts: this.#contexts,
+      onLocalMainInput: this.#o.localModelUsage ? (sessionId, characters) => {
+        const active = this.#active.get(this.#contexts.conversationOf(sessionId ?? '') ?? '');
+        if (active) active.localInputChars = characters;
+      } : undefined,
       onCall: ({ sessionId, callId, purpose }) => {
         const a = this.#active.get(this.#contexts.conversationOf(sessionId ?? "") ?? "");
         // 摘要、命名不是助手的话，没有对应的 message.done：它们的调用 id 单独放，免得错配到下一条对话消息上
@@ -459,11 +466,11 @@ export class AgentEngine {
           const a = await this.#attach(sess, run, rc, await this.#o.platform.prepare(rc, {}), true);
           a.recovering = true;
           // 重启前交给 Pi 的插话：用插话 id 当请求 id 找回它们的提交（已知的请求 id 返回原来的提交，不会重复提交），读到时才发得出 steer.read
-          for (const [id, text] of a.unread)
+          for (const [id, steer] of a.unread)
             a.steers.set(
               id,
               await a.conv.submit(
-                { type: "input", content: text, whenBusy: "steer", requestId: id },
+                { type: "input", content: await this.#steerContent(run, steer), whenBusy: "steer", requestId: id },
                 context,
               ),
             );
@@ -1451,15 +1458,31 @@ export class AgentEngine {
    */
   async #submitWithHeld(a: Active, text: string): Promise<Submission> {
     const held = [...a.unread];
-    const content = held.length
-      ? `${text}\n\n用户在等待期间补充了：\n${held.map(([, t]) => `- ${t}`).join("\n")}`
-      : text;
+    const blocks: Exclude<ReturnType<typeof inputContent>, string> = [];
+    for (const [, steer] of held) {
+      if (!steer.imageIds.length) {
+        blocks.push({type:'text', text:`- ${steer.text}`});
+        continue;
+      }
+      const content = await this.#steerContent(a.run, steer);
+      if (typeof content === 'string') throw Err.unavailable();
+      blocks.push(...content);
+    }
+    const intro = `${text}\n\n用户在等待期间补充了：`;
+    const content = blocks.some(block => block.type === 'image') ? [{type:'text' as const, text:intro}, ...blocks]
+      : held.length ? `${intro}\n${held.map(([, steer]) => `- ${steer.text}`).join('\n')}` : text;
     const sub = await a.conv.submit({ type: "input", content }, context);
     this.#emitRead(
       a,
       held.map(([id]) => id),
     );
     return sub;
+  }
+
+  async #steerContent(run: Run, steer: {text:string; imageIds:string[]}) {
+    if (!steer.imageIds.length) return steer.text;
+    if (!this.#o.readSteerImages) throw Err.unavailable();
+    return inputContent(steer.text, await this.#o.readSteerImages(run, steer.imageIds));
   }
 
   // ---- 继续 ----
@@ -1561,7 +1584,7 @@ export class AgentEngine {
         steer: true,
         ...(attachments.length > 0 && { attachments: attachmentViews(attachments) }),
       });
-      a.unread.set(id, msg);
+      a.unread.set(id, {text:msg, imageIds:attachments.map(image => image.asset_id)});
       try {
         // 官方效果：工具跑完后、下一次请求前一起带上；不打断正在进行的步骤。本轮要用户回答时由 #withdrawSteers 撤回，等回答后再交
         a.steers.set(
@@ -1605,15 +1628,15 @@ export class AgentEngine {
         ...(attachments.length > 0 && { attachments: attachmentViews(attachments) }),
       },
     );
-    this.#byRun.get(run.id)?.unread.set(id, msg);
+    this.#byRun.get(run.id)?.unread.set(id, {text:msg, imageIds:attachments.map(image => image.asset_id)});
   }
 
   /** 这个运行里没读到、也没丢掉的插话，按收下的顺序（从落库的事件推出来，重启后也在） */
-  #unreadSteers(run: Run): Array<[string, string]> {
-    const open = new Map<string, string>();
+  #unreadSteers(run: Run) {
+    const open = new Map<string, {text:string; imageIds:string[]}>();
     for (const e of this.#o.store.listRunEvents(run.id)) {
-      const p = e.payload as { id?: string; text?: string; steer?: boolean; ids?: string[] } | null;
-      if (e.type === "message.user" && p?.steer && p.id) open.set(p.id, p.text ?? "");
+      const p = e.payload as { id?: string; text?: string; steer?: boolean; ids?: string[]; attachments?: AttachmentCheck[] } | null;
+      if (e.type === "message.user" && p?.steer && p.id) open.set(p.id, {text:p.text ?? '', imageIds:(p.attachments ?? []).map(image => image.asset_id)});
       else if (e.type === "steer.read" || e.type === "steer.dropped")
         for (const id of p?.ids ?? []) open.delete(id);
     }
@@ -1955,7 +1978,7 @@ export class AgentEngine {
         this.#emit(
           { id: first[1].runId, userId: sess.userId, sessionId: sess.id, canvasId: sess.canvasId },
           "tasks.settled",
-          { batch_ids: batchIds, steer: false, tasks: message.tasks },
+          { batch_ids: batchIds, steer: false, receipt_only: true, tasks: message.tasks },
         );
         ready = ready.filter(([id]) => !batchIds.includes(id));
       }
@@ -2266,6 +2289,8 @@ export class AgentEngine {
     this.#answered.set(convId, (this.#answered.get(convId) ?? 0) + 1);
     this.#dropDeltas.get(convId)?.();
     const callId = a.callIds.shift();
+    const estimatedInput = a.localInputChars;
+    delete a.localInputChars;
     let credits: { charged: number; estimated: boolean } | undefined;
     if (callId) {
       const u = await this.#settled(a, callId);
@@ -2279,6 +2304,15 @@ export class AgentEngine {
           spent_credits: u.spent_credits + this.#extras(a.run.id),
           context_tokens: u.context_tokens,
         });
+      }
+    }
+    if (!callId && this.#o.localModelUsage) {
+      const reported = msg.usage.input + msg.usage.cacheRead + msg.usage.cacheWrite;
+      const tokens = reported || (msg.stopReason !== 'aborted' && msg.stopReason !== 'error' ? estimatedInput : undefined);
+      if (tokens !== undefined && Number.isSafeInteger(tokens) && tokens > 0) {
+        const spent = this.#o.store.getRun(a.run.userId, a.run.id).spentCredits;
+        this.#o.store.setRunUsage(a.run.id, { spentCredits: spent, contextTokens: tokens });
+        this.#emit(this.#ev(a), 'run.usage', { spent_credits: spent, context_tokens: tokens });
       }
     }
     if (msg.stopReason === "error")

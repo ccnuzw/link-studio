@@ -40,12 +40,12 @@ export function SkillFiles({ files, target }: { files: SkillFile[]; target: Prev
         <h3>
           包内文件 <span>{files.length}</span>
         </h3>
-        {files.map(({ path }) => (
+        {files.map(({ path, kind, text, size }) => (
           <button
             type="button"
             key={path}
             aria-pressed={selected === path}
-            title={path}
+            title={`${path} · ${size} B${kind === "script" ? " · 脚本（仅阅读）" : ""}${text === false ? " · 二进制" : ""}`}
             onClick={() => {
               if (selected === path) return;
               setPreview(undefined);
@@ -80,14 +80,10 @@ export function SkillFiles({ files, target }: { files: SkillFile[]; target: Prev
 }
 
 export function ScopeFields({
-  enabled,
-  setEnabled,
   scopes,
   setScopes,
   disabled,
 }: {
-  enabled: boolean;
-  setEnabled: (value: boolean) => void;
   scopes: SkillScope[];
   setScopes: (value: SkillScope[]) => void;
   disabled?: boolean;
@@ -95,14 +91,6 @@ export function ScopeFields({
   return (
     <fieldset className="skill-scopes" disabled={disabled}>
       <legend>适用场景</legend>
-      <label>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => setEnabled(event.target.checked)}
-        />
-        启用技能
-      </label>
       <div>
         {(Object.keys(skillScopes) as SkillScope[]).map((scope) => (
           <label key={scope}>

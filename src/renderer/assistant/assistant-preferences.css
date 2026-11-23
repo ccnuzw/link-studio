@@ -1,0 +1,286 @@
+.assistant-surface .assistant-heading {
+  anchor-scope: --canvas-session-title, --agent-settings;
+}
+.assistant-surface .assistant-heading .agent-settings-trigger {
+  anchor-name: --agent-settings;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  color: var(--muted-foreground, oklch(0.556 0 0));
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.assistant-heading .agent-settings-trigger svg {
+  color: inherit;
+  stroke-width: 1.75;
+}
+.assistant-surface .agent-settings-menu {
+  position: fixed;
+  position-anchor: --agent-settings;
+  inset: auto;
+  top: calc(anchor(bottom) + 4px);
+  right: clamp(5px, anchor(right), calc(100vw - min(260px, 100vw - 24px) - 5px));
+  margin: 0;
+  width: min(260px, calc(100vw - 24px));
+  padding: 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--settings-paper, white);
+  color: var(--foreground, oklch(0.145 0 0));
+  box-shadow:
+    inset 0 1px 0 var(--settings-sheen, oklch(1 0 0 / 0.7)),
+    0 0 0 1px var(--chrome-border, oklch(0 0 0 / 0.08)),
+    0 20px 25px -5px #0000001a,
+    0 8px 10px -6px #0000001a;
+  font:
+    13px / 1.42857 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+  transform: translateZ(0);
+}
+.agent-settings-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.agent-settings-menu section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.assistant-surface .agent-settings-menu label {
+  display: block;
+  font: inherit;
+  color: inherit;
+}
+.agent-settings-menu small,
+.agent-settings-menu p {
+  margin: 0;
+  color: var(--muted-foreground, oklch(0.556 0 0));
+}
+.agent-settings-menu small {
+  font-size: 12px;
+  line-height: 16px;
+}
+.agent-settings-menu p {
+  font-size: 11.5px;
+}
+.assistant-surface .agent-settings-menu button[role="switch"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 24px;
+  min-height: 0;
+  height: 14px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--switch-off, oklch(0.922 0 0));
+}
+.assistant-surface .agent-settings-menu button[aria-checked="true"] {
+  background: var(--switch-on, oklch(0.205 0 0));
+}
+.agent-settings-menu button span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--switch-thumb, oklch(1 0 0));
+  transition: translate 120ms;
+}
+.agent-settings-menu button[aria-checked="true"] span {
+  translate: 10px 0;
+  background: var(--switch-thumb-on, oklch(1 0 0));
+}
+@media (prefers-color-scheme: dark) {
+  .agent-settings-menu {
+    --settings-paper: oklch(0.205 0 0);
+    --settings-sheen: oklch(1 0 0 / 0.09);
+    --switch-off: oklch(1 0 0 / 0.12);
+    --switch-on: oklch(0.922 0 0);
+    --switch-thumb: oklch(0.985 0 0);
+    --switch-thumb-on: oklch(0.205 0 0);
+  }
+}
+.agent-reply {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font:
+    13.5px / 1.7 "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+  color: var(--foreground, var(--assistant-text));
+}
+.agent-thinking p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.agent-reply-text {
+  overflow-wrap: anywhere;
+  display: flow-root;
+}
+.agent-reply-text p {
+  margin: 6px 0;
+}
+.agent-reply-text :is(ul, ol) {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+.agent-reply-text h3 {
+  font-size: 15px;
+  margin: 12px 0 6px;
+}
+.agent-reply-text h4 {
+  font-size: 14px;
+  margin: 10px 0 4px;
+}
+.agent-reply-text :is(h3, h4, strong) {
+  font-weight: 600;
+}
+.agent-reply-text p:first-child {
+  margin-top: 0;
+}
+.agent-reply-text p:last-child {
+  margin-bottom: 0;
+}
+.agent-reply-text li {
+  padding-left: 2px;
+}
+.agent-reply-text li + li {
+  margin-top: 2px;
+}
+.agent-reply-text blockquote {
+  margin: 6px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--chrome-border, #0002);
+}
+.agent-reply-text pre,
+.agent-reply-table {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.assistant-surface .agent-reply-text pre {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.625;
+  white-space: pre;
+  overflow-x: auto;
+}
+.agent-reply-text :is(pre, code) {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+}
+.agent-reply-text code {
+  font-size: 12.5px;
+}
+.agent-reply-text code:not([class]) {
+  padding: 2px 4px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 4px;
+}
+.agent-reply-text table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-reply-text :is(td, th) {
+  border: 1px solid var(--chrome-border, #0002);
+  padding: 4px 8px;
+}
+.agent-reply-text th {
+  text-align: left;
+  font-weight: 500;
+}
+.assistant-surface .agent-reply .agent-reply-copy {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--assistant-panel);
+}
+.assistant-surface .agent-reply:is(:hover, :focus-within) .agent-reply-copy {
+  opacity: 1;
+}
+.agent-thinking {
+  color: var(--muted-foreground, oklch(0.556 0 0));
+  font-size: 13px;
+  line-height: 1.42857;
+}
+.assistant-surface .agent-thinking button,
+.agent-thinking-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  margin-left: -8px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.agent-thinking-pending {
+  padding-left: 28px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .agent-thinking-pending span {
+    background:
+      linear-gradient(
+        90deg,
+        var(--muted-foreground, oklch(0.556 0 0)) 0% 35%,
+        var(--foreground, oklch(0.145 0 0)) 50%,
+        var(--muted-foreground, oklch(0.556 0 0)) 65% 100%
+      )
+      0 0 / 250% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: agent-thinking-shimmer 1.6s linear infinite;
+  }
+}
+@keyframes agent-thinking-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+.agent-thinking button svg {
+  transition: transform 120ms;
+}
+.agent-thinking button[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.agent-thinking p {
+  margin: 4px 0 0 6px;
+  padding-left: 12px;
+  border-left: 1px solid currentColor;
+  font-size: 12px;
+  line-height: 1.625;
+}

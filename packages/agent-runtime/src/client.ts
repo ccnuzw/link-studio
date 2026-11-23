@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
+import type { CanvasNoticeKind } from "../../link-studio-core/src/agent-notice.ts";
 import type { PublishedEvent } from "../upstream/src/engine/engine.ts";
 import { LocalAgentError } from "./targets.ts";
 
@@ -9,6 +10,7 @@ export interface AgentWorkerOptions {
   modelBridgeUrl: string;
   crashAfterEffect?: boolean;
   onEvent?: (event: PublishedEvent) => void;
+  onNotice?: (notice: { project: string; kind: CanvasNoticeKind }) => void;
   serviceToken?: string;
   settings?: (command: string, args: unknown) => Promise<unknown>;
 }
@@ -80,6 +82,10 @@ export class AgentWorkerClient {
         try {
           options.onEvent?.(message.event);
         } catch {}
+        return;
+      }
+      if (message.notice) {
+        options.onNotice?.(message.notice);
         return;
       }
       if (!message.id) {

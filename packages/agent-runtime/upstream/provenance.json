@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/zaylora/video-canvas",
-  "commit": "f0b8ced3687b22de6af0358c682c5e768001ff4f",
+  "commit": "4277d16f40457664e27a89efabac14d07c1d73e8",
   "sha256": {
     "src/activity-summary.ts": "dd80e84c977dd48dcc997ca0b3781ee9a6f03f311cfa2b1bd7b3d23e7788ca14",
     "src/attachments.ts": "c48aae86364bd041dc977c72c407378f438239eeb8c23a092880696acca8a2e8",
@@ -61,12 +61,12 @@
       "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
     },
     "src/engine/engine.ts": {
-      "sha256": "c4ed89886fb06aebb1e9ab2e741098b6576d6337e7aa0dd68f37f3329da581fd",
-      "reason": "Strict indexed-access narrowing, scoped task lookups, desktop watch recovery, metadata diagnostics, preserve the model API, and pass fresh-run web consent to platform preparation."
+      "sha256": "2b46be97f7f8cd6c7cb0e5653678c4de0cff4b66919c6923b0a22be141f6a939",
+      "reason": "Strict indexed-access narrowing, scoped task lookups, desktop watch recovery including receipt-only delivery for stopped runs, metadata diagnostics, preserve the model API, persist local main-call context usage, pass fresh-run web consent to platform preparation and rehydrate held image steers from project-scoped assets."
     },
     "src/model-provider.ts": {
-      "sha256": "3db205f485eed3a5f4c3fa3773c3ee680b0ca4f2bafc925f5ca1332f5404a1ec",
-      "reason": "Expose model response status and call purpose for desktop diagnostics and register native OpenAI Responses."
+      "sha256": "e52c420b5f993328a28f67a2033c7d0a161e9cd73f51a2bd31c71e3342f00bf0",
+      "reason": "Expose model response status and call purpose for desktop diagnostics, count local main request characters for missing usage, and register native OpenAI Responses."
     },
     "src/platform-client.ts": {
       "sha256": "2074922919d8dd23dc0f7c40b566fe424f73135d55305d792cb650620ac17b81",

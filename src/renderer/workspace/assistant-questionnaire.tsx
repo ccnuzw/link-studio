@@ -2,35 +2,139 @@ import {
   type CanvasAgentAnswers,
   type canvasAgentMediaModels,
   isCanvasAgentAnswerValue,
-  isCanvasAgentQuestionnaire,
+  type ProviderView,
+  readWorkspaceQuestions,
 } from "@link-studio/core";
-import { useId, useState } from "react";
+import { CornerDownRight, createLucideIcon } from "lucide-react";
+import { motion } from "motion/react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
+
+const customChoice = "\u0000custom";
+const MessageCircleQuestion = createLucideIcon("message-circle-question-mark", [
+  [
+    "path",
+    {
+      d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+      key: "bubble",
+    },
+  ],
+  ["path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3", key: "question" }],
+  ["path", { d: "M12 17h.01", key: "dot" }],
+]);
+
+function fields(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+export function QuestionRecord({
+  payload,
+  providers,
+}: {
+  payload: Record<string, unknown>;
+  providers: ProviderView[];
+}) {
+  const decision = fields(payload.decision);
+  const request = fields(payload.payload);
+  const questions = Array.isArray(request.questions) ? request.questions.map(fields) : [];
+  const answers = new Map(
+    (Array.isArray(decision.answers) ? decision.answers : [])
+      .map(fields)
+      .map((answer) => [answer.id, answer]),
+  );
+  const skipped = payload.status === "rejected";
+  const entries =
+    skipped && questions.length > 1
+      ? [{ label: "", answer: `跳过了 ${questions.length} 个问题` }]
+      : questions.map((question) => {
+          const saved = answers.get(question.id);
+          const value = saved?.value;
+          const model =
+            question.kind === "model"
+              ? providers.find((provider) => provider.id === value)
+              : undefined;
+          const reply =
+            saved?.answer ??
+            (Array.isArray(question.models)
+              ? question.models.map(fields).find((entry) => entry.key === value)?.name
+              : undefined) ??
+            model?.config?.name ??
+            model?.model ??
+            (Array.isArray(value) ? value.join("、") : value);
+          return {
+            label: String(question.question ?? question.label ?? ""),
+            answer: skipped ? "跳过了这个问题" : String(reply ?? ""),
+          };
+        });
+  if (!entries.length)
+    entries.push({
+      label: String(request.question ?? ""),
+      answer: String(decision.answer || (skipped ? "跳过了这个问题" : "")),
+    });
+  return (
+    <section className="agent-question-record" aria-label="小灵提问记录">
+      {entries.map(({ label, answer }, index) => (
+        <div key={index} aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}>
+          <CornerDownRight size={14} aria-hidden />
+          {label && <span title={label}>{label}</span>}
+          <strong
+            data-answer-state={skipped ? "skipped" : answer ? "answered" : "empty"}
+            title={answer || "没回答"}
+          >
+            {answer || "没回答"}
+          </strong>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 export function AssistantQuestionnaire({
   payload,
   busy,
   models,
   onAnswer,
+  quickChoices = false,
 }: {
   payload: unknown;
   busy: boolean;
   models: ReturnType<typeof canvasAgentMediaModels>;
   onAnswer: (answers?: CanvasAgentAnswers) => void;
+  quickChoices?: boolean;
 }) {
   const prefix = useId();
   type AnswerValue = CanvasAgentAnswers[number]["value"];
   const [draft, setDraft] = useState(new Map<string, AnswerValue>());
-  if (!isCanvasAgentQuestionnaire(payload)) return null;
-  const questions = payload.questions.map((question) => {
+  const [detailsByChoice, setDetailsByChoice] = useState(new Map<string, string>());
+  const parsed = readWorkspaceQuestions(payload);
+  if (!parsed) return null;
+  const questions = parsed.questions.map((question) => {
     const raw = draft.get(question.id) ?? "";
-    const value = typeof raw === "string" ? raw.trim() : raw;
+    const readChoice = (selected: string) => {
+      const detail = detailsByChoice.get(JSON.stringify([question.id, selected]))?.trim();
+      if (selected === customChoice) return detail || "";
+      if (question.follow?.some((option) => option.label === selected))
+        return detail ? `${selected}：${detail}` : "";
+      return selected.trim();
+    };
+    const value = Array.isArray(raw) ? raw.map(readChoice) : readChoice(raw);
     const choices =
       question.kind === "model"
-        ? models.filter(({ kind }) => kind === question.modelKind)
+        ? (question.models?.map((model) => ({
+            value: model.key,
+            label: model.name,
+            hint: model.hint ?? "",
+          })) ??
+          models
+            .filter(({ kind }) => kind === question.modelKind)
+            .map(({ provider }) => ({
+              value: provider.id,
+              label: provider.config?.name ?? provider.model,
+              hint: provider.label,
+            })))
         : undefined;
     const valid =
       isCanvasAgentAnswerValue(question, value) &&
-      (!choices || choices.some(({ provider }) => provider.id === value));
+      (!choices || choices.some((choice) => choice.value === value));
     const empty = value.length === 0;
     return { ...question, raw, value, valid, empty, choices };
   });
@@ -40,133 +144,274 @@ export function AssistantQuestionnaire({
   );
   const edit = (id: string, value: AnswerValue) =>
     setDraft((current) => new Map(current).set(id, value));
+  const single = questions.length === 1 ? questions[0] : undefined;
+  if (
+    quickChoices &&
+    single &&
+    !single.multi &&
+    !single.follow?.length &&
+    (single.choices || single.options)
+  ) {
+    const options =
+      single.choices ?? (single.options ?? []).map((value) => ({ value, label: value, hint: "" }));
+    return (
+      <QuickQuestion
+        label={single.label}
+        options={options}
+        busy={busy}
+        allowCustom={single.allowCustom}
+        answer={(value) => onAnswer([{ id: single.id, value }])}
+      />
+    );
+  }
   return (
     <form
-      className="settings-confirm assistant-questionnaire"
+      className="agent-ask-form"
       aria-label="小灵提问"
       onSubmit={(event) => {
         event.preventDefault();
         if (ready && !busy) onAnswer(answers);
       }}
     >
-      <h3>小灵需要你确认</h3>
-      <p>回答后，小灵会继续当前任务。跳过不会授权任何画布操作或生成任务。</p>
+      <h3>
+        <MessageCircleQuestion size={16} aria-hidden />
+        {questions.length === 1 ? questions[0]?.label : `还差 ${questions.length} 件事要你定`}
+      </h3>
       {questions.map(
-        ({ id, label, options, required, kind, multi, raw, valid, empty, choices }, index) => {
+        (
+          {
+            id,
+            label,
+            kind,
+            choices,
+            multi,
+            options,
+            raw,
+            empty,
+            valid,
+            required,
+            follow,
+            allowCustom,
+            placeholder,
+          },
+          index,
+        ) => {
           const control = `${prefix}-${id}`;
-          const caption = `${index + 1}. ${label}${required === false ? "（选填）" : ""}`;
-          if (multi && options) {
-            const picked = Array.isArray(raw) ? raw : [];
-            return (
-              <fieldset key={id} className="assistant-question-choices" disabled={busy}>
-                <legend>{caption} · 可多选</legend>
-                {options.map((option) => (
-                  <label key={option}>
-                    <input
-                      type="checkbox"
-                      checked={picked.includes(option)}
-                      onChange={(event) =>
-                        edit(
-                          id,
-                          options.filter((item) =>
-                            item === option ? event.target.checked : picked.includes(item),
-                          ),
-                        )
-                      }
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
-              </fieldset>
-            );
-          }
-          const text = typeof raw === "string" ? raw : "";
-          const invalid = !empty && !valid;
+          const items =
+            choices ?? options?.map((option) => ({ value: option, label: option, hint: "" }));
+          const picked = Array.isArray(raw) ? raw : [raw];
+          if (allowCustom) items?.push({ value: customChoice, label: "其他，我来说", hint: "" });
           return (
-            <label key={id} htmlFor={control}>
-              <span>{caption}</span>
-              {choices ? (
-                <select
-                  id={control}
-                  disabled={busy || !choices.length}
-                  value={valid ? text : ""}
-                  onChange={(event) => edit(id, event.target.value)}
-                  required={required !== false}
+            <div className="agent-ask-question" key={id} role="group" aria-label={label}>
+              <div className="agent-ask-label">
+                <span aria-hidden>{index + 1}</span>
+                <label htmlFor={items ? undefined : control}>{label}</label>
+                {required === false && <small>选填</small>}
+              </div>
+              {items ? (
+                <div
+                  className="agent-ask-options"
+                  role={multi ? "group" : "radiogroup"}
+                  aria-label={label}
                 >
-                  <option value="">
-                    {choices.length ? "选择模型" : "暂无可用模型，请在设置中启用"}
-                  </option>
-                  {choices.map(({ provider }) => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.config?.name ?? provider.model} · {provider.label}
-                    </option>
+                  {items.map((item, optionIndex) => (
+                    <Fragment key={item.value}>
+                      <button
+                        type="button"
+                        key={item.value}
+                        value={item.value}
+                        role={multi ? "checkbox" : "radio"}
+                        aria-checked={picked.includes(item.value)}
+                        disabled={busy}
+                        onClick={() =>
+                          edit(
+                            id,
+                            multi
+                              ? picked.includes(item.value)
+                                ? picked.filter((value) => value !== item.value)
+                                : [...picked.filter(Boolean), item.value]
+                              : item.value,
+                          )
+                        }
+                      >
+                        <span aria-hidden>{String.fromCharCode(65 + optionIndex)}</span>
+                        {item.label}
+                        {item.hint && <small>{item.hint}</small>}
+                      </button>
+                      {picked.includes(item.value) &&
+                        (item.value === customChoice ||
+                          follow?.some((entry) => entry.label === item.value)) && (
+                          <input
+                            aria-label={`${item.label}：补充`}
+                            placeholder={
+                              follow?.find((entry) => entry.label === item.value)?.placeholder ??
+                              "自己写"
+                            }
+                            autoFocus
+                            maxLength={2000}
+                            disabled={busy}
+                            value={detailsByChoice.get(JSON.stringify([id, item.value])) ?? ""}
+                            onChange={(event) => {
+                              const text = event.target.value;
+                              setDetailsByChoice((previous) =>
+                                new Map(previous).set(JSON.stringify([id, item.value]), text),
+                              );
+                            }}
+                          />
+                        )}
+                    </Fragment>
                   ))}
-                </select>
-              ) : options ? (
-                <select
-                  id={control}
-                  disabled={busy}
-                  value={text}
-                  onChange={(event) => edit(id, event.target.value)}
-                  required={required !== false}
-                >
-                  <option value="" disabled={required !== false}>
-                    选择一项
-                  </option>
-                  {options.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              ) : kind === "number" || kind === "url" ? (
-                <>
-                  <input
-                    id={control}
-                    type="text"
-                    inputMode={kind === "number" ? "decimal" : "url"}
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={busy}
-                    value={text}
-                    onChange={(event) => edit(id, event.target.value)}
-                    required={required !== false}
-                    maxLength={2048}
-                    aria-invalid={invalid}
-                    aria-describedby={invalid ? `${control}-error` : undefined}
-                  />
-                  {invalid && (
-                    <small id={`${control}-error`} role="alert">
-                      {kind === "number"
-                        ? "请输入有效数字。"
-                        : "请输入不含登录凭据的 HTTP 或 HTTPS 链接。"}
-                    </small>
-                  )}
-                </>
+                  {!items.length && <small>暂无可用模型，请在设置中启用</small>}
+                </div>
               ) : (
-                <textarea
+                <input
                   id={control}
+                  type="text"
+                  placeholder={placeholder}
+                  inputMode={kind === "number" ? "decimal" : kind === "url" ? "url" : "text"}
+                  autoComplete="off"
                   disabled={busy}
-                  value={text}
-                  onChange={(event) => edit(id, event.target.value)}
-                  rows={2}
-                  maxLength={2048}
+                  value={typeof raw === "string" ? raw : ""}
                   required={required !== false}
+                  maxLength={2048}
+                  aria-invalid={!empty && !valid}
+                  aria-describedby={!empty && !valid ? control + "-error" : undefined}
+                  onChange={(event) => edit(id, event.target.value)}
                 />
               )}
-            </label>
+              {!empty && !valid && !items && (
+                <small id={control + "-error"} role="alert">
+                  {kind === "number"
+                    ? "请输入有效数字。"
+                    : "请输入不含登录凭据的 HTTP 或 HTTPS 链接。"}
+                </small>
+              )}
+            </div>
           );
         },
       )}
-      <div className="settings-actions">
-        <small>
-          已答 {answers.length}/{questions.length}
+      <div className="agent-ask-actions">
+        <small aria-label="进度">
+          {answers.length} / {questions.length}
         </small>
-        <button type="button" disabled={busy} onClick={() => onAnswer()}>
-          跳过提问
-        </button>
-        <button type="submit" className="settings-primary" disabled={busy || !ready}>
-          提交回答
+        {!quickChoices && (
+          <button type="button" disabled={busy} onClick={() => onAnswer()}>
+            跳过提问
+          </button>
+        )}
+        <button type="submit" disabled={busy || !ready} aria-label="提交回答">
+          提交
         </button>
       </div>
     </form>
+  );
+}
+
+function QuickQuestion({
+  label,
+  options,
+  busy,
+  answer,
+  allowCustom,
+}: {
+  label: string;
+  options: { value: string; label: string; hint: string }[];
+  busy: boolean;
+  allowCustom?: boolean;
+  answer: (value: string) => void;
+}) {
+  const [active, setActive] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [customText, setCustomText] = useState("");
+  const highlightId = useId();
+  const entries = allowCustom
+    ? [...options, { value: customChoice, label: "其他…", hint: "" }]
+    : options;
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  useEffect(() => {
+    if (document.activeElement === document.body)
+      buttons.current[0]?.focus({ preventScroll: true });
+  }, []);
+  return (
+    <section
+      role="group"
+      aria-label={label}
+      className="agent-ask-form agent-quick-question"
+      onKeyDown={(event) => {
+        if (editing || busy || event.nativeEvent.isComposing || !entries.length) return;
+        if (/^[1-9]$/.test(event.key) && Number(event.key) <= entries.length) {
+          event.preventDefault();
+          buttons.current[Number(event.key) - 1]?.click();
+        } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          event.preventDefault();
+          const step = event.key === "ArrowUp" ? -1 : 1;
+          buttons.current[(active + step + entries.length) % entries.length]?.focus();
+        }
+      }}
+    >
+      <h3>
+        <MessageCircleQuestion size={16} aria-hidden />
+        <span>{label}</span>
+      </h3>
+      <div className="change-decision-options" role="listbox" aria-label="你的决定">
+        {entries.map((item, index) =>
+          editing && item.value === customChoice ? (
+            <form
+              key={item.value}
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!busy && customText.trim()) answer(customText.trim());
+              }}
+            >
+              <span className="choice-number">{index + 1}</span>
+              <input
+                autoFocus
+                aria-label="其他…"
+                placeholder="自己写"
+                maxLength={2000}
+                disabled={busy}
+                value={customText}
+                onChange={(event) => setCustomText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+                    event.stopPropagation();
+                    setEditing(false);
+                    requestAnimationFrame(() => buttons.current[index]?.focus());
+                  }
+                }}
+              />
+            </form>
+          ) : (
+            <button
+              type="button"
+              role="option"
+              value={item.value}
+              key={item.value}
+              aria-selected={index === active}
+              ref={(button) => {
+                buttons.current[index] = button;
+              }}
+              disabled={busy}
+              onMouseEnter={() => setActive(index)}
+              onFocus={() => setActive(index)}
+              onClick={() => (item.value === customChoice ? setEditing(true) : answer(item.value))}
+            >
+              {index === active && (
+                <motion.span
+                  className="question-choice-highlight"
+                  aria-hidden
+                  layoutId={highlightId}
+                  transition={{ type: "spring", stiffness: 500, damping: 38, mass: 0.8 }}
+                />
+              )}
+              <span className="choice-number">{index + 1}</span>
+              <span>{item.label}</span>
+              {item.hint && <small>{item.hint}</small>}
+            </button>
+          ),
+        )}
+        {!options.length && <small>暂无可用模型，请在设置中启用</small>}
+      </div>
+    </section>
   );
 }

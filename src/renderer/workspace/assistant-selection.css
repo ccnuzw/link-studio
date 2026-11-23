@@ -1,0 +1,137 @@
+.agent-user-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-synthesis: weight style small-caps;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+  --turn-ink: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --turn-dim: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --turn-accent: light-dark(oklch(0.55 0.2 295), oklch(0.6 0.19 295));
+  --turn-sheen: light-dark(oklch(1 0 0 / 0.7), oklch(1 0 0 / 0.09));
+  --turn-border: light-dark(oklch(0 0 0 / 0.08), oklch(1 0 0 / 0.08));
+  --turn-ring: light-dark(oklch(0.2 0 0 / 0.85), oklch(1 0 0 / 0.72));
+}
+.assistant-selection {
+  display: flex;
+  max-width: 88%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.agent-user-turn .assistant-selection button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  height: 24px;
+  min-height: 0;
+  max-width: 160px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  outline: none;
+  color: var(--turn-ink);
+  background: color-mix(in oklab, var(--turn-ink) 6%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--turn-sheen),
+    0 0 0 1px var(--turn-border);
+  cursor: pointer;
+  transition:
+    background-color 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.agent-user-turn .assistant-selection button:enabled:hover {
+  background: color-mix(in oklab, var(--turn-ink) 10%, transparent);
+}
+.agent-user-turn .assistant-selection button:focus-visible {
+  outline: none;
+  outline-offset: 0;
+  box-shadow:
+    0 0 #0000,
+    0 0 #0000,
+    0 0 #0000,
+    0 0 0 2px color-mix(in oklab, var(--turn-ring) 60%, transparent),
+    0 0 #0000;
+}
+.agent-user-turn .assistant-selection button:disabled {
+  cursor: default;
+  color: var(--turn-dim);
+}
+.assistant-selection :is(i, svg) {
+  flex-shrink: 0;
+  color: var(--turn-accent);
+}
+.assistant-selection i {
+  width: 6px;
+  height: 6px;
+  border-radius: 100%;
+  background: currentColor;
+}
+.assistant-selection :disabled i {
+  color: color-mix(in oklab, var(--turn-dim) 40%, transparent);
+}
+.assistant-selection svg {
+  width: 12px;
+  height: 12px;
+}
+.assistant-selection span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-user-turn .assistant-selection button[aria-label] {
+  color: var(--turn-dim);
+  font-variant-numeric: tabular-nums;
+}
+.agent-user-turn .assistant-selection button[aria-label]:hover {
+  color: var(--turn-ink);
+}
+.agent-user-bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 18px 18px 6px 18px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--turn-ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: color-mix(in oklab, var(--turn-ink) 7%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--turn-sheen),
+    0 0 0 1px var(--turn-border);
+}
+.agent-message-ref {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  height: 20px;
+  max-width: 160px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: 0 0 0 1px var(--turn-border);
+  background: color-mix(in oklab, var(--turn-ink) 7%, transparent);
+}
+.agent-message-ref[data-kind="model"] {
+  background: color-mix(
+    in oklab,
+    light-dark(oklch(0.58 0.15 250), oklch(0.75 0.12 240)) 20%,
+    transparent
+  );
+}
+.agent-message-ref[data-kind="skill"] {
+  background: color-mix(in oklab, var(--turn-accent) 20%, transparent);
+}
+.agent-message-ref > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

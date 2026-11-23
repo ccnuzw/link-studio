@@ -1,0 +1,1287 @@
+.assistant-frame,
+.settings-drawer {
+  --shell-paper: light-dark(white, oklch(0.205 0 0));
+  --shell-ink: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --shell-muted: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --shell-line: light-dark(oklch(0 0 0 / 0.08), oklch(1 0 0 / 0.08));
+  --shell-sheen: light-dark(oklch(1 0 0 / 0.7), oklch(1 0 0 / 0.09));
+  --shell-far: light-dark(oklch(0 0 0 / 0.18), oklch(0 0 0 / 0.42));
+  color-scheme: light dark;
+}
+.settings-drawer {
+  --shell-paper: light-dark(oklch(0.985 0.004 85), oklch(0.205 0 0));
+}
+@media (min-width: 768px) {
+  .settings-drawer {
+    background: light-dark(oklch(0.95 0.007 85), oklch(0.145 0 0));
+  }
+}
+.assistant-frame {
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--shell-paper) 94%, transparent);
+  backdrop-filter: blur(24px);
+  box-shadow:
+    inset 0 1px var(--shell-sheen),
+    0 0 0 1px var(--shell-line),
+    0 2px 6px light-dark(#0000000f, #0000001a),
+    0 28px 64px -16px var(--shell-far);
+}
+.assistant-layout[data-mode="dock"] .assistant-frame {
+  background: var(--shell-paper);
+  backdrop-filter: none;
+  box-shadow:
+    -1px 0 var(--shell-line),
+    -16px 0 48px -24px var(--shell-far);
+}
+.assistant-layout[data-mode="sheet"] .assistant-frame {
+  border-radius: 22px 22px 0 0;
+}
+.assistant-frame .assistant-surface,
+.settings-drawer .assistant-surface {
+  --assistant-text: var(--shell-ink);
+  --assistant-panel: var(--shell-paper);
+  --assistant-muted: var(--shell-muted);
+  --muted: var(--shell-muted);
+  --assistant-hover: color-mix(in oklab, var(--shell-ink) 6%, var(--shell-paper));
+  --welcome-beam: light-dark(oklch(0.62 0.16 55), oklch(0.78 0.15 70));
+  --welcome-ink: var(--shell-ink);
+  --welcome-muted: var(--shell-muted);
+  container-type: inline-size;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+}
+.settings-drawer .settings-assistant {
+  --shell-muted: light-dark(oklch(0.5 0.015 85), oklch(0.708 0 0));
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-heading {
+  height: 52px;
+  padding: 0 12px 0 14px;
+  gap: 2px;
+  justify-content: flex-start;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-heading .assistant-header-orb {
+  margin-right: 8px;
+  background: radial-gradient(
+    circle at 35% 30%,
+    oklch(0.78 0.15 70),
+    var(--welcome-beam) 60%,
+    color-mix(in oklab, var(--welcome-beam) 40%, black)
+  );
+  box-shadow:
+    inset 0 1px var(--shell-sheen),
+    0 0 0 1px var(--shell-line),
+    0 2px 8px color-mix(in oklab, var(--welcome-beam) 35%, transparent);
+}
+.settings-assistant-actions {
+  gap: 2px;
+}
+.assistant-heading > button,
+.settings-assistant-actions > button {
+  flex: none;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-heading > button,
+.settings-assistant .settings-assistant-actions > button {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--shell-muted);
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-session-title button {
+  background: transparent;
+  border-radius: 10px;
+  letter-spacing: -0.01em;
+}
+.assistant-surface .assistant-heading > button svg,
+.settings-assistant-actions > button svg {
+  color: inherit;
+  stroke-width: 1.75;
+}
+.assistant-surface .assistant-session-title button svg {
+  color: var(--shell-muted);
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-status[data-idle="true"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-transcript {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+}
+.assistant-surface:has(.assistant-events[data-scrolled="true"]) .assistant-heading {
+  box-shadow: 0 1px var(--shell-line);
+}
+.canvas-assistant .assistant-history-content .assistant-approvals {
+  max-height: none;
+  overflow: visible;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-events:has(> .assistant-history-content) {
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 8px;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-composer {
+  --composer-ring: color-mix(in oklab, var(--shell-ink) 10%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px 12px;
+  padding: 10px;
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--shell-ink) 4%, var(--shell-paper));
+  box-shadow:
+    inset 0 1px var(--shell-sheen),
+    0 0 0 1px var(--composer-ring),
+    0 10px 28px -12px var(--shell-far);
+}
+.canvas-assistant .assistant-composer:has(.pet-peek:not(:empty)) {
+  margin-top: 36px;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-composer:focus-within {
+  --composer-ring: color-mix(in oklab, var(--shell-ink) 24%, transparent);
+}
+:is(.canvas-assistant, .settings-assistant)
+  .assistant-composer
+  :is(.assistant-inline-editor, label)
+  > textarea {
+  display: block;
+  field-sizing: content;
+  width: 100%;
+  min-height: 60px;
+  max-height: 140px;
+  resize: none;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+:is(.canvas-assistant, .settings-assistant)
+  .assistant-composer
+  > .settings-actions:has(> .sr-only:only-child) {
+  display: contents;
+}
+.canvas-assistant .assistant-composer {
+  --shell-muted: light-dark(oklch(0.53 0 0), oklch(0.708 0 0));
+  --muted: var(--shell-muted);
+}
+:is(.canvas-assistant, .settings-assistant) .agent-reply-text {
+  color: color-mix(in oklab, var(--shell-ink) 92%, transparent);
+  --chrome-border: var(--drawer-line, var(--shell-line));
+}
+:is(.canvas-assistant, .settings-assistant) .agent-reply-text blockquote {
+  color: var(--shell-muted);
+}
+:is(.canvas-assistant, .settings-assistant) .agent-reply-text pre {
+  background: color-mix(in oklab, var(--shell-ink) 6%, transparent);
+}
+:is(.canvas-assistant, .settings-assistant) .agent-reply-text code:not([class]) {
+  background: color-mix(in oklab, var(--shell-ink) 8%, transparent);
+}
+.canvas-assistant .canvas-references .context-chip {
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  color: var(--shell-ink);
+  font-size: 12px;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-composer .composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.composer-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--shell-line);
+  flex: none;
+}
+.assistant-surface .composer-toolbar .composer-tool {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  flex: none;
+  color: var(--shell-muted);
+  background: transparent;
+}
+.composer-tool svg {
+  stroke-width: 1.75;
+}
+.assistant-surface .composer-toolbar .composer-tool:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px light-dark(oklch(0.2 0 0 / 51%), oklch(1 0 0 / 43.2%));
+}
+.canvas-assistant .agent-run-plan {
+  --shell-muted: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+}
+.assistant-surface .composer-toolbar .composer-model-choice {
+  position: relative;
+  margin-left: auto;
+  height: 32px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+.assistant-surface .composer-toolbar .composer-model-choice:is(:hover, [data-popup-open]) {
+  background: var(--assistant-hover);
+  color: var(--shell-ink);
+}
+.assistant-surface .composer-toolbar .composer-model-choice:focus-visible {
+  outline: 2px solid var(--shell-muted);
+}
+.composer-model-choice .model-avatar {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.composer-model-choice svg {
+  flex: none;
+}
+.composer-model-name {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assistant-inline-editor .agent-rich-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 60px;
+  max-height: 140px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  padding: 0 4px;
+  outline: none;
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+.agent-rich-input p {
+  margin: 0;
+}
+.assistant-surface .assistant-inline-editor .agent-rich-input:focus-visible {
+  outline: none;
+}
+.assistant-inline-editor .agent-editor-placeholder {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  pointer-events: none;
+  color: var(--shell-muted);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+.agent-editor-atom {
+  display: inline-block;
+  vertical-align: baseline;
+}
+.agent-editor-chip {
+  display: inline-flex;
+  vertical-align: middle;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  padding: 0 6px;
+  height: 24px;
+  max-width: 176px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--shell-line);
+  background: color-mix(in oklab, var(--shell-ink) 7%, transparent);
+  font-size: 12px;
+}
+.agent-editor-chip[data-kind="skill"] {
+  background: light-dark(oklch(0.55 0.2 295 / 20%), oklch(0.6 0.19 295 / 20%));
+}
+.agent-editor-chip[data-kind="model"] {
+  background: light-dark(oklch(0.58 0.15 250 / 20%), oklch(0.75 0.12 240 / 20%));
+}
+.agent-editor-chip svg {
+  flex: none;
+  opacity: 0.7;
+}
+.agent-editor-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-editor-ghost {
+  display: inline-flex;
+  vertical-align: middle;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  padding: 0 6px;
+  height: 24px;
+  max-width: 176px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in oklab, var(--shell-ink) 25%, transparent);
+  color: color-mix(in oklab, var(--shell-ink) 45%, transparent);
+  font-size: 12px;
+  user-select: none;
+  pointer-events: none;
+}
+.agent-editor-ghost svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  opacity: 0.5;
+}
+.agent-editor-ghost > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assistant-inline-editor:has(.agent-editor-ghost) .agent-editor-placeholder {
+  display: none;
+}
+.assistant-model-position {
+  z-index: 1500;
+  isolation: isolate;
+}
+.assistant-model-menu {
+  color-scheme: light dark;
+  --menu-paper: light-dark(white, oklch(0.205 0 0));
+  --menu-text: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --menu-muted: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --menu-line: light-dark(oklch(0 0 0 / 0.08), oklch(1 0 0 / 0.08));
+  --menu-hover: light-dark(oklch(0 0 0 / 0.05), oklch(1 0 0 / 0.07));
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 24px));
+  max-height: var(--available-height);
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 0;
+  border-radius: 18px;
+  outline: none;
+  color: var(--menu-text);
+  background: var(--menu-paper);
+  box-shadow:
+    inset 0 1px light-dark(#ffffffb3, #ffffff17),
+    0 0 0 1px var(--menu-line),
+    0 20px 25px -5px rgb(0 0 0 / 0.1),
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
+  font:
+    13px / 1.4 "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.assistant-model-kinds {
+  display: flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--menu-text) 5%, transparent);
+}
+.assistant-model-menu .assistant-model-kinds button {
+  position: relative;
+  flex: 1;
+  text-align: center;
+  color: var(--menu-muted);
+  border-radius: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+.assistant-model-kinds i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--menu-paper);
+  box-shadow:
+    0 0 0 1px var(--menu-line),
+    0 1px 3px #0002,
+    0 1px 2px -1px #0002;
+}
+.assistant-model-kinds span {
+  position: relative;
+}
+.assistant-model-menu .assistant-model-kinds [aria-checked="true"] {
+  color: var(--menu-text);
+}
+.assistant-model-menu :focus-visible {
+  outline: 2px solid var(--menu-muted);
+  outline-offset: -2px;
+}
+.assistant-model-menu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 256px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.assistant-model-menu ul::-webkit-scrollbar {
+  width: 8px;
+}
+.assistant-model-menu ul::-webkit-scrollbar-thumb {
+  background: var(--menu-line);
+  border-radius: 9px;
+}
+.assistant-model-menu button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.assistant-model-menu li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.assistant-model-menu li button:hover {
+  background: var(--menu-hover);
+}
+.assistant-model-menu .model-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex: none;
+  font-size: 12px;
+}
+.assistant-model-copy {
+  min-width: 0;
+  flex: 1;
+}
+.assistant-model-copy :is(strong, small) {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.assistant-model-copy strong {
+  font-weight: 500;
+}
+.assistant-model-copy small,
+.assistant-model-menu svg,
+.assistant-model-menu p {
+  color: var(--menu-muted);
+}
+.assistant-model-price {
+  color: light-dark(#95631d, #e2b46d);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.assistant-model-menu p {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.42857;
+}
+.assistant-model-menu .assistant-model-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--menu-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.assistant-skill-menu {
+  width: min(372px, calc(100vw - 24px));
+}
+.assistant-skill-menu [role="tablist"] {
+  display: flex;
+  gap: 4px;
+}
+.assistant-skill-menu [role="tab"] {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.assistant-skill-menu [aria-selected="true"] {
+  background: color-mix(in oklab, var(--menu-text) 8%, transparent);
+}
+.assistant-skill-menu [aria-disabled="true"] {
+  color: color-mix(in oklab, var(--menu-muted) 60%, transparent);
+  cursor: not-allowed;
+}
+.assistant-skill-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.assistant-skill-search svg {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+}
+.assistant-skill-search input {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(oklch(0.922 0 0), oklch(1 0 0 / 0.15));
+  border-radius: 10px;
+  padding: 4px 12px 4px 32px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--menu-text);
+  background: light-dark(transparent, oklch(1 0 0 / 0.045));
+}
+.assistant-skill-search input::placeholder {
+  color: var(--menu-muted);
+  opacity: 1;
+}
+.assistant-skill-search input:focus-visible {
+  outline: 0;
+  border-color: light-dark(oklch(0.708 0 0), oklch(0.556 0 0));
+  box-shadow: 0 0 0 1px light-dark(oklch(0.708 0 0 / 0.5), oklch(0.556 0 0 / 0.5));
+}
+@media (min-width: 768px) {
+  .assistant-skill-search input {
+    font-size: 14px;
+  }
+}
+.assistant-skill-menu li button {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0;
+  padding: 6px 10px;
+}
+.assistant-skill-menu strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.assistant-skill-menu small {
+  color: var(--menu-muted);
+  font-size: 12px;
+  line-height: 1.375;
+}
+.assistant-skill-menu p {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+}
+.assistant-skill-menu p button {
+  padding: 0;
+  text-decoration: underline;
+  color: var(--menu-text);
+}
+.assistant-skill-skeleton {
+  padding: 8px 10px;
+  display: grid;
+  gap: 6px;
+}
+.assistant-skill-skeleton i {
+  height: 16px;
+  width: 96px;
+  border-radius: 4px;
+  background: var(--menu-hover);
+}
+.assistant-skill-skeleton i:nth-child(even) {
+  height: 12px;
+  width: 192px;
+}
+.agent-model-picker {
+  --menu-muted: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --menu-hover: light-dark(oklch(0 0 0 / 0.05), oklch(1 0 0 / 0.07));
+  width: min(260px, calc(100vw - 24px));
+  padding: 6px;
+  gap: 2px;
+  border-radius: 18px;
+}
+body:has(.settings-assistant .composer-model-choice[data-popup-open]) .agent-model-picker {
+  --menu-paper: light-dark(oklch(0.985 0.004 85), oklch(0.205 0 0));
+  --menu-muted: light-dark(oklch(0.5 0.015 85), oklch(0.708 0 0));
+  --menu-hover: light-dark(oklch(0.22 0.02 85 / 0.06), oklch(1 0 0 / 0.07));
+}
+.agent-model-picker p {
+  padding: 4px 10px 2px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.agent-model-picker [role="radiogroup"] {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.agent-model-picker [role="radiogroup"]::-webkit-scrollbar {
+  width: 8px;
+}
+.agent-model-picker [role="radiogroup"]::-webkit-scrollbar-thumb {
+  background: var(--menu-line);
+  border-radius: 9px;
+}
+.agent-model-picker [role="radio"] > svg {
+  color: inherit;
+}
+.agent-model-picker [role="radio"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  text-align: left;
+  line-height: 1.42857143;
+}
+.agent-model-picker [role="radio"]:hover {
+  background: var(--menu-hover);
+}
+.agent-model-picker .agent-model-option-name {
+  flex: 1;
+  min-width: 0;
+}
+.agent-model-option-name > * {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-model-picker small {
+  color: var(--menu-muted);
+  font-size: 11px;
+}
+.agent-model-picker button > :is(svg, small) {
+  flex-shrink: 0;
+}
+.run-feedback {
+  display: grid;
+  gap: 8px;
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+.assistant-waiting-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  color: var(--shell-muted);
+  font-size: 12.5px;
+}
+.assistant-waiting-line svg {
+  color: var(--status-warning, oklch(0.67 0.14 78));
+}
+.run-feedback-line,
+.run-feedback-actions,
+.run-feedback-form > div {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.run-feedback-actions {
+  margin-left: auto;
+}
+.assistant-surface .run-feedback-line button {
+  min-height: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.run-feedback-line > button {
+  opacity: 0;
+}
+.run-feedback[data-quiet="true"]:not(:hover, :focus-within) .run-feedback-actions {
+  opacity: 0;
+}
+.run-feedback:is(:hover, :focus-within) .run-feedback-line > button {
+  opacity: 1;
+}
+.assistant-surface .run-feedback-line button:is(:hover, :focus-visible) {
+  background: var(--assistant-hover);
+  color: var(--shell-ink);
+}
+.assistant-surface .run-feedback-line button[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+.assistant-surface .run-feedback button[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--shell-ink) 10%, transparent);
+  color: var(--shell-ink);
+}
+.run-feedback-form {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--assistant-hover);
+}
+.run-feedback-form > div {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.run-feedback-form button {
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: inherit;
+  font-size: 12px;
+}
+.run-feedback-form > div:last-child span {
+  margin-right: auto;
+}
+.run-feedback-form textarea {
+  resize: none;
+}
+.composer-toolbar > .composer-model {
+  margin-left: auto;
+}
+@container (max-width: 360px) {
+  .composer-model-name {
+    display: none;
+  }
+}
+.assistant-surface .composer-toolbar .composer-send {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin-left: 2px;
+  border: 0;
+  background: var(--shell-ink);
+  color: var(--shell-paper);
+}
+.assistant-surface .composer-toolbar .composer-send:disabled,
+.assistant-surface .composer-toolbar .composer-send[type="button"] {
+  background: color-mix(in oklab, var(--shell-ink) 10%, transparent);
+  color: light-dark(oklch(0.47 0 0), var(--shell-muted));
+  opacity: 1;
+}
+.agent-steer-tray {
+  padding: 4px;
+  border-bottom: 1px solid var(--shell-line, #8883);
+}
+.agent-steer-tray > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+.agent-steer-tray svg {
+  flex: none;
+  color: var(--turn-accent);
+}
+.agent-steer-tray span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-steer-tray small {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--shell-muted);
+  font-size: 11.5px;
+}
+.agent-steer-tray button,
+.agent-missed-steer button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.agent-steer-tray button {
+  padding: 4px 8px 4px 28px;
+  font-size: 12px;
+}
+.agent-missed-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.agent-missed-turn {
+  --missed-warning: light-dark(oklch(0.7 0.16 70), oklch(0.8 0.15 75));
+}
+.agent-missed-steer {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 16px;
+  font-size: 11px;
+  line-height: 1.42857143;
+  color: var(--missed-warning);
+}
+.assistant-surface .agent-missed-steer button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--shell-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, var(--shell-ink) 35%, transparent);
+}
+.agent-missed-turn .settings-user-message {
+  width: 100%;
+}
+.agent-missed-turn .agent-user-bubble,
+.agent-missed-turn .settings-user-message > div:not(.settings-context-chips) {
+  padding: 7px 11px;
+  border: 1px dashed color-mix(in oklab, var(--missed-warning) 70%, transparent);
+  background: color-mix(in oklab, var(--missed-warning) 8%, transparent);
+  box-shadow: none;
+}
+.agent-run-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.625;
+  background: linear-gradient(
+    to bottom in oklab,
+    color-mix(in oklab, var(--shell-ink) 4%, transparent) 0%,
+    color-mix(in oklab, var(--shell-ink) 2%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 1px var(--shell-sheen),
+    0 0 0 1px var(--shell-line);
+  --status-error: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
+}
+.settings-drawer .agent-run-status-card {
+  --shell-line: light-dark(oklch(0.22 0.02 85 / 10%), oklch(1 0 0 / 8%));
+  --shell-resume-paper: light-dark(oklch(0.95 0.007 85), oklch(1 0 0 / 4.5%));
+  --shell-resume-line: light-dark(oklch(0.22 0.02 85 / 10%), oklch(1 0 0 / 15%));
+  --shell-resume-hover: light-dark(oklch(0.92 0.008 85), oklch(1 0 0 / 7.5%));
+}
+.agent-run-status-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.agent-run-status-body > div {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.agent-run-status-body > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.agent-run-status-card[data-failed="true"] {
+  background: color-mix(in oklab, var(--status-error) 5%, transparent);
+}
+.agent-run-status-card[data-failed="true"] .agent-run-status-body > svg {
+  color: var(--status-error);
+}
+.agent-run-status-card strong {
+  display: block;
+  font-weight: 500;
+}
+.agent-run-status-card p {
+  margin: 0;
+  color: var(--shell-muted);
+}
+.agent-resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.assistant-surface .agent-resume-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  min-height: 0;
+  padding: 0 12px;
+  border: 1px solid var(--shell-resume-line, light-dark(oklch(0.922 0 0), oklch(1 0 0 / 15%)));
+  border-radius: 8px;
+  background: var(--shell-resume-paper, light-dark(white, oklch(1 0 0 / 4.5%)));
+  color: var(--shell-ink);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.assistant-surface .agent-resume-actions button:hover {
+  background: var(--shell-resume-hover, light-dark(oklch(0.97 0 0), oklch(1 0 0 / 7.5%)));
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-tool-group {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-tool-group > button {
+  align-self: flex-start;
+  min-height: 0;
+  height: 28px;
+  margin-left: -8px;
+  line-height: 1.42857143;
+}
+:is(.canvas-assistant, .settings-assistant) .assistant-tool-row {
+  line-height: 16px;
+}
+.agent-question-record > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.42857143;
+  color: var(--assistant-muted);
+}
+.agent-question-record svg {
+  flex: none;
+}
+.agent-question-record span,
+.agent-question-record strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-question-record span {
+  max-width: 55%;
+}
+.agent-question-record strong {
+  color: var(--assistant-text);
+  font-weight: 500;
+}
+.agent-question-record [data-answer-state="skipped"] {
+  color: inherit;
+  font-weight: inherit;
+}
+.agent-question-record [data-answer-state="empty"] {
+  color: inherit;
+  font-weight: inherit;
+  opacity: 0.7;
+}
+.agent-ask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in oklab, currentColor 5%, transparent);
+  box-shadow: 0 0 0 1px var(--shell-line, #8883);
+}
+.agent-ask-form h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.agent-ask-form h3 svg {
+  flex: none;
+  color: light-dark(#936920, #e8bb6b);
+}
+.agent-quick-question {
+  gap: 8px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.42857143;
+  background: light-dark(oklch(0 0 0 / 0.05), oklch(1 0 0 / 0.07));
+  box-shadow: 0 0 0 1px var(--drawer-line, var(--shell-line));
+}
+.settings-drawer .agent-quick-question {
+  background: light-dark(oklch(0.22 0.02 85 / 0.06), oklch(1 0 0 / 0.07));
+}
+.agent-quick-question h3 {
+  line-height: 1.42857143;
+}
+.agent-quick-question h3 span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.agent-quick-question h3 svg {
+  color: light-dark(oklch(0.7 0.16 70), oklch(0.8 0.15 75));
+}
+.agent-quick-question .change-decision-options button {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 36px;
+  padding: 8px 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+}
+.agent-quick-question .change-decision-options button {
+  position: relative;
+  outline: none;
+}
+.assistant-surface .agent-quick-question .change-decision-options button:focus-visible {
+  outline: none;
+}
+.agent-quick-question .change-decision-options button > :is(span, small) {
+  position: relative;
+}
+.agent-quick-question .change-decision-options button > .question-choice-highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--shell-ink) 7%, transparent);
+  pointer-events: none;
+}
+.agent-quick-question .change-decision-options form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+}
+.agent-quick-question .change-decision-options input {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.agent-quick-question .choice-number {
+  box-shadow: 0 0 0 1px var(--drawer-line, var(--shell-line));
+  line-height: 1.42857143;
+}
+.agent-quick-question button small {
+  font-size: 12px;
+  line-height: 20px;
+}
+.agent-ask-question,
+.agent-ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-ask-question + .agent-ask-question {
+  border-top: 1px solid var(--shell-line, #8883);
+  padding-top: 12px;
+}
+.agent-ask-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.agent-ask-label > span,
+.agent-ask-options button > span {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  font-size: 11px;
+  box-shadow: 0 0 0 1px var(--shell-line, #8883);
+}
+.agent-ask-options {
+  gap: 4px;
+}
+.agent-ask-form small {
+  font-weight: 400;
+  color: var(--assistant-muted);
+}
+.agent-ask-form .agent-ask-options button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 36px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  box-shadow: 0 0 0 1px var(--shell-line, #8883);
+}
+.agent-ask-options button > span {
+  border-radius: 5px;
+}
+.agent-ask-form .agent-ask-options button:is(:hover, [aria-checked="true"]) {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}
+.agent-ask-options [aria-checked="true"] > span,
+.agent-ask-actions button[type="submit"] {
+  background: var(--assistant-text);
+  color: var(--assistant-panel);
+}
+.agent-ask-form input {
+  height: 34px;
+  width: 100%;
+  padding: 0 10px;
+  color: inherit;
+  border: 1px solid var(--shell-line, #8883);
+  background: transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+.agent-ask-form input[aria-invalid="true"] {
+  border-color: light-dark(#a15042, #f29a87);
+}
+.agent-ask-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-ask-actions small {
+  margin-right: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-ask-actions button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.agent-ask-actions button:disabled {
+  opacity: 0.45;
+}
+.agent-changes-footer {
+  display: grid;
+  gap: 6px;
+}
+.assistant-surface .run-feedback-line .agent-changes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 8px 0 10px;
+  opacity: 1;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--shell-line);
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+.agent-changes-toggle[aria-expanded="true"] svg:last-child {
+  transform: rotate(180deg);
+}
+.agent-changes-toggle[data-undone="true"] {
+  text-decoration: line-through;
+}
+.agent-changes-panel {
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px var(--shell-sheen),
+    0 0 0 1px var(--shell-line);
+  background: color-mix(in oklab, var(--shell-ink) 3%, transparent);
+  font-size: 13px;
+}
+.agent-changes-panel ul {
+  max-height: 192px;
+  padding: 4px;
+  margin: 0;
+  list-style: none;
+  overflow: auto;
+}
+.agent-changes-panel button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.agent-changes-panel button:enabled:hover {
+  background: var(--assistant-hover);
+}
+.agent-changes-panel li button {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  text-align: left;
+}
+.agent-changes-panel li span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-changes-panel > div {
+  display: flex;
+  padding: 4px;
+  border-top: 1px solid var(--shell-line);
+}
+.agent-changes-panel > div button {
+  padding: 0 8px;
+  height: 28px;
+  font-size: 12px;
+}
+.agent-changes-panel > div button:last-child {
+  margin-left: auto;
+}
+.agent-changes-footer [data-change="created"] {
+  color: light-dark(#38794a, #87bb90);
+}
+.agent-changes-footer [data-change="deleted"] {
+  color: light-dark(#9e4a42, #ec9e96);
+}

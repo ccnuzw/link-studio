@@ -14,7 +14,6 @@ export function SkillDetail({
   changed: (item: SkillItem | null) => void;
 }) {
   const [title, setTitle] = useState(item.title);
-  const [enabled, setEnabled] = useState(item.enabled);
   const [scopes, setScopes] = useState(item.scopes);
   const [selected, setSelected] = useState(item.activeVersion);
   const [pendingDelete, setPendingDelete] = useState<"skill" | number>();
@@ -26,7 +25,6 @@ export function SkillDetail({
     item.versions.find(({ version }) => version === item.activeVersion);
   const dirty =
     title !== item.title ||
-    enabled !== item.enabled ||
     scopes.length !== item.scopes.length ||
     scopes.some((scope) => !item.scopes.includes(scope));
 
@@ -55,7 +53,8 @@ export function SkillDetail({
           <button
             type="button"
             className="skill-back skill-danger"
-            disabled={busy || !!pendingDelete}
+            disabled={busy || !!pendingDelete || item.scopes.length > 0}
+            title={item.scopes.length ? "请先关闭所有使用场景并保存" : undefined}
             onClick={() => setPendingDelete("skill")}
           >
             <Trash2 size={16} />
@@ -73,7 +72,7 @@ export function SkillDetail({
                 const result = await window.desktop.skills.update({
                   name: item.name,
                   title,
-                  enabled,
+                  enabled: scopes.includes("agent"),
                   scopes,
                 });
                 if (result.ok) setTitle(result.value.title);
@@ -136,13 +135,7 @@ export function SkillDetail({
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
-        <ScopeFields
-          enabled={enabled}
-          setEnabled={setEnabled}
-          scopes={scopes}
-          setScopes={setScopes}
-          disabled={busy}
-        />
+        <ScopeFields scopes={scopes} setScopes={setScopes} disabled={busy} />
         {version && (
           <>
             <div className="skill-version-bar">
@@ -162,6 +155,27 @@ export function SkillDetail({
                 </select>
               </label>
               <span className="skill-note">{new Date(version.createdAt).toLocaleString()}</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  setNotice("");
+                  try {
+                    const result = await window.desktop.skills.exportZip({
+                      name: item.name,
+                      version: version.version,
+                    });
+                    if (!result.ok) setError(result.message);
+                    else if (result.value) setNotice(`已导出 v${version.version}`);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                导出版本 ZIP
+              </button>
               {version.version !== item.activeVersion && (
                 <div className="skill-actions">
                   <button
@@ -191,6 +205,18 @@ export function SkillDetail({
               )}
             </div>
             <p className="skill-note">{version.description}</p>
+            {version.hash && (
+              <p className="skill-note">
+                内容 SHA-256：<code>{version.hash}</code>
+              </p>
+            )}
+            {!!version.warnings?.length && (
+              <ul className="skill-warnings">
+                {version.warnings.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
             <SkillFiles
               key={version.version}
               files={version.files}

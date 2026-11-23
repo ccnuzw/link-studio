@@ -1,0 +1,188 @@
+.assistant-history-content {
+  display: flow-root;
+}
+.assistant-events:has(> .assistant-history-content) {
+  overscroll-behavior: auto;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 14px,
+    black calc(100% - 6px),
+    transparent
+  );
+}
+.assistant-transcript :is(.assistant-page-pill, .assistant-page-jump) {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: max-content;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: calc(infinity * 1px);
+  background: var(--popover, var(--settings-paper, oklch(1 0 0)));
+  color: var(--muted-foreground, oklch(0.556 0 0));
+  box-shadow:
+    inset 0 1px var(--settings-sheen, oklch(1 0 0 / 0.7)),
+    0 0 0 1px var(--chrome-border, oklch(0 0 0 / 0.08)),
+    0 2px 6px var(--elevation-near, oklch(0 0 0 / 0.06)),
+    0 16px 40px -12px var(--elevation-far, oklch(0 0 0 / 0.18));
+  font:
+    400 12px / 1.42857143 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-assistant :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
+  --popover: oklch(0.985 0.004 85);
+  --muted-foreground: oklch(0.5 0.015 85);
+  --chrome-border: oklch(0.22 0.02 85 / 0.1);
+}
+@media (prefers-color-scheme: dark) {
+  :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
+    --popover: oklch(0.205 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --settings-sheen: oklch(1 0 0 / 0.09);
+    --elevation-near: oklch(0 0 0 / 0.1);
+    --elevation-far: oklch(0 0 0 / 0.42);
+  }
+  .drama-assistant :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
+    --popover: oklch(0.225 0.006 286);
+    --muted-foreground: oklch(0.75 0.015 85);
+    --chrome-border: oklch(1 0 0 / 0.08);
+  }
+}
+.assistant-page-overlay {
+  position: absolute;
+  inset: 8px 0 auto;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.assistant-transcript .assistant-page-pill {
+  position: static;
+  transform: none;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+}
+.assistant-surface .assistant-page-pill button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.assistant-surface .assistant-transcript .assistant-page-pill button:hover:not(:disabled) {
+  background: none;
+  color: var(--foreground, var(--assistant-text));
+}
+.assistant-transcript .assistant-page-jump {
+  bottom: 8px;
+  width: 28px;
+  padding: 0;
+  margin-left: -14px;
+  transform: none;
+}
+.assistant-transcript button:is(.assistant-page-pill, .assistant-page-jump):hover {
+  color: var(--foreground, var(--assistant-text));
+}
+.assistant-page-opening {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  color: var(--muted-foreground, oklch(0.556 0 0));
+  font:
+    400 12.5px / 1.42857143 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.assistant-surface .assistant-page-opening button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--retry-border, oklch(0.922 0 0));
+  border-radius: 8px;
+  background: var(--retry-paper, oklch(1 0 0));
+  background-clip: padding-box;
+  color: var(--retry-text, oklch(0.145 0 0));
+  font:
+    500 14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+}
+.assistant-surface .assistant-page-opening button:hover:not(:disabled) {
+  background-color: var(--retry-hover, oklch(0.97 0 0));
+}
+@media (prefers-color-scheme: light) {
+  :is(.settings-assistant, .drama-assistant) .assistant-page-opening {
+    --retry-border: oklch(0.22 0.02 85 / 0.1);
+    --retry-paper: oklch(0.95 0.007 85);
+    --retry-hover: oklch(0.92 0.008 85);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .assistant-page-opening {
+    --retry-text: oklch(0.985 0 0);
+    --retry-border: oklch(1 0 0 / 0.15);
+    --retry-paper: oklab(1 0 0 / 0.045);
+    --retry-hover: oklab(1 0 0 / 0.075);
+  }
+  .drama-assistant .assistant-page-opening {
+    --retry-border: oklch(1 0 0 / 0.13);
+    --retry-paper: oklab(1 0 0 / 0.039);
+    --retry-hover: oklab(1 0 0 / 0.065);
+  }
+}
+.assistant-surface .assistant-page-opening .assistant-header-orb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  --orb: oklch(0.62 0.16 55);
+  background: radial-gradient(
+    circle at 35% 30%,
+    oklch(0.78 0.15 70),
+    var(--orb) 60%,
+    color-mix(in oklab, var(--orb) 40%, black)
+  );
+}
+@media (prefers-color-scheme: dark) {
+  .assistant-surface .assistant-page-opening .assistant-header-orb {
+    --orb: oklch(0.78 0.15 70);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .assistant-page-shimmer {
+    background:
+      linear-gradient(
+        90deg,
+        currentColor 35%,
+        var(--foreground, var(--assistant-text)) 50%,
+        currentColor 65%
+      )
+      0 0 / 250% 100%;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: agent-thinking-shimmer 1.6s linear infinite;
+  }
+}

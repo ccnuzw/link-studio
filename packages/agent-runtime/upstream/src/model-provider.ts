@@ -118,6 +118,7 @@ export interface ModelRegistryOptions {
   contexts: RunContexts;
   /** 每次模型请求收到响应头时调用，带上 Go 给的调用 id */
   onCall?: (info: ModelCallInfo) => void;
+  onLocalMainInput?: (sessionId: string | undefined, characters: number) => void;
   onResponseStatus?: (info: { sessionId: string | undefined; purpose: ModelPurpose; status: number }) => void;
   /** 模型代理回了错误（HTTP 4xx/5xx）时调用。OpenAI 格式的错误体只有文字，业务错误码在响应头里 */
   onError?: (info: ModelErrorInfo) => void;
@@ -144,6 +145,12 @@ export function createModelRegistry(opts: ModelRegistryOptions) {
       // 错误响应不会走 onResponse（SDK 直接抛错），所以在 fetch 这一层看状态码和业务错误码
       fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
         const res = await (o.fetch ?? fetch)(input, init);
+        if (opts.onLocalMainInput && res.ok && purposeOf(o.headers?.[PURPOSE_HEADER]) === 'main' && typeof init?.body === 'string') {
+          const body = init.body.replace(/(data:[^"\s,]*;base64,)[a-z0-9+/=]+/gi, '$1');
+          let characters = 0;
+          for (const _character of body) characters++;
+          opts.onLocalMainInput(o.sessionId, characters);
+        }
         opts.onResponseStatus?.({ sessionId: o.sessionId, purpose: purposeOf(o.headers?.[PURPOSE_HEADER]), status: res.status });
         if (res.status >= 400) {
           const code = Number(res.headers.get(ERROR_CODE_HEADER));

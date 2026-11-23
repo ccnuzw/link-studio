@@ -6,6 +6,7 @@ import { crc32 } from "node:zlib";
 import { skillLimits } from "@link-studio/core";
 import { isMap, parseDocument } from "yaml";
 import { fromBufferPromise } from "yauzl";
+import { isSkillScript } from "./drama-body";
 
 export class SkillError extends Error {}
 
@@ -48,7 +49,8 @@ function ignored(path: string) {
     .split("/")
     .some(
       (part) =>
-        [".ds_store", "__macosx", ".git"].includes(part.toLowerCase()) || part.startsWith("._"),
+        [".ds_store", "__macosx", ".git", "thumbs.db"].includes(part.toLowerCase()) ||
+        part.startsWith("._"),
     );
 }
 
@@ -96,17 +98,30 @@ async function readZip(path: string, output: PackageFiles) {
   try {
     const zip = await fromBufferPromise(await readBounded(path, zipLimit), {
       strictFileNames: true,
+      decodeStrings: false,
     });
     try {
       if (zip.entryCount > entryLimit) throw new SkillError("压缩包中的条目过多。");
       for await (const entry of zip.eachEntry()) {
-        const directory = entry.fileName.endsWith("/");
-        const name = safePath(directory ? entry.fileName.slice(0, -1) : entry.fileName);
+        let filename: string;
+        try {
+          filename = new TextDecoder("utf-8", { fatal: true }).decode(entry.fileNameRaw);
+        } catch {
+          try {
+            filename = new TextDecoder("gbk", { fatal: true }).decode(entry.fileNameRaw);
+          } catch {
+            throw new SkillError("ZIP 文件名无法按 UTF-8 或 GBK 解码。");
+          }
+        }
+        const directory = filename.endsWith("/");
+        const name = safePath(directory ? filename.slice(0, -1) : filename);
         const kind = (entry.externalFileAttributes >>> 16) & 0o170000;
         if (kind && kind !== (directory ? 0o040000 : 0o100000))
           throw new SkillError("技能包不支持符号链接或特殊文件。");
         if (directory || ignored(name)) continue;
         if (entry.isEncrypted()) throw new SkillError("技能包不支持加密文件。");
+        if (entry.uncompressedSize > 65536 && entry.uncompressedSize > entry.compressedSize * 100)
+          throw new SkillError("ZIP 压缩比超过 100:1。");
         output.reserve(name, entry.uncompressedSize);
         const stream = await zip.openReadStreamPromise(entry);
         const chunks: Buffer[] = [];
@@ -154,7 +169,7 @@ async function readFolder(root: string, output: PackageFiles) {
   await walk(root, "");
 }
 
-function parseManifest(bytes: Buffer) {
+function parseManifest(bytes: Buffer, files: Map<string, Buffer>) {
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/\r\n?/g, "\n");
@@ -164,12 +179,27 @@ function parseManifest(bytes: Buffer) {
   const match = /^---[^\S\n]*\n([\s\S]*?)\n---[^\S\n]*(?:\n|$)/.exec(text);
   if (!match?.[1] || match[1].length > 128 * 1024)
     throw new SkillError("SKILL.md 需要以两个 --- 分隔线包裹的 YAML 头部（最多 128 KiB）。");
-  const document = parseDocument(match[1], { logLevel: "silent", stringKeys: true });
+  const options = { logLevel: "silent" as const, stringKeys: true };
+  let document = parseDocument(match[1], options);
+  if (document.errors.length) {
+    const repaired = match[1].replace(
+      /^([A-Za-z_][\w-]*):[ \t]+(\S.*)$/gm,
+      (line, key, value: string) =>
+        value.includes(": ") && !/^["'[{|>&*!]/.test(value)
+          ? `${key}: ${JSON.stringify(value.trim())}`
+          : line,
+    );
+    if (repaired !== match[1]) document = parseDocument(repaired, options);
+  }
   if (document.errors.length || !isMap(document.contents))
     throw new SkillError("SKILL.md 的 YAML 头部格式有误。");
   const name = document.get("name");
   const rawDescription = document.get("description");
-  const rawTitle = document.get("title");
+  const metadataTitle = document.getIn(["metadata", "title"]);
+  const rawTitle =
+    typeof metadataTitle === "string" && metadataTitle.trim()
+      ? metadataTitle
+      : document.get("title");
   if (typeof name !== "string" || name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name))
     throw new SkillError("name 必须为 1–64 个小写字母、数字或单个连字符，且首尾不能是连字符。");
   const description = typeof rawDescription === "string" ? rawDescription.trim() : "";
@@ -177,6 +207,47 @@ function parseManifest(bytes: Buffer) {
     throw new SkillError("description 必须是 1–1024 个字符的说明。");
   const title = typeof rawTitle === "string" ? rawTitle.trim().slice(0, 128) || name : name;
   const warnings: string[] = [];
+  const supported = new Set([
+    "name",
+    "title",
+    "description",
+    "metadata",
+    "compatibility",
+    "license",
+  ]);
+  for (const { key } of document.contents.items)
+    if (!supported.has(String(key))) warnings.push(`未支持的字段：${key}（原样保存）`);
+  const compatibility = document.get("compatibility");
+  if (
+    compatibility !== undefined &&
+    (typeof compatibility !== "string" || Array.from(compatibility).length > 500)
+  )
+    warnings.push("compatibility 应是不超过 500 字的字符串。");
+  const body = text.slice(match[0].length);
+  const refs = new Set<string>();
+  for (const ref of body.matchAll(
+    /(?:^|[^\w/.:-])((?:references|scripts|assets)\/[\p{L}\p{N}_./-]+)/gu,
+  ))
+    refs.add(ref[1]!.replace(/\.+$/, ""));
+  for (const link of body.matchAll(/\]\(([^\s)]+)\)/g)) {
+    const path = link[1]!.split("#")[0]?.replace(/^\.\//, "");
+    if (path && !/[:]|^\//.test(path)) refs.add(path);
+  }
+  for (const ref of refs)
+    if (
+      !files.has(ref) &&
+      !(ref.endsWith("/") && [...files.keys()].some((path) => path.startsWith(ref)))
+    )
+      warnings.push(`缺少引用文件：${ref}`);
+  if ([...files.keys()].some(isSkillScript))
+    warnings.push("包含脚本：Agent 只能阅读，生产任务不执行也不注入脚本。");
+  for (const [path, content] of files)
+    if (
+      /^(7f454c46|feedface|feedfacf|cefaedfe|cffaedfe|cafebabe|4d5a)/.test(
+        content.subarray(0, 4).toString("hex"),
+      )
+    )
+      warnings.push(`含可执行二进制文件：${path}（不会执行）`);
   if (text.split("\n", 501).length > 500)
     warnings.push("SKILL.md 超过建议的 500 行，可将补充资料移到 references/。");
   if (!text.slice(match[0].length).trim()) warnings.push("SKILL.md 没有正文。");
@@ -208,7 +279,7 @@ function normalize(input: Map<string, Buffer>) {
     const bytes = normalized.get(path);
     if (bytes) hash.update(JSON.stringify([path, bytes.length])).update(bytes);
   }
-  return { files: normalized, hash: hash.digest("hex") };
+  return { files: normalized, hash: hash.digest("hex"), wrapper: wrapper.slice(0, -1) };
 }
 
 export async function readSkillPackage(source: string): Promise<SkillPackage> {
@@ -223,5 +294,9 @@ export async function readSkillPackage(source: string): Promise<SkillPackage> {
   const normalized = normalize(output.files);
   const manifest = normalized.files.get("SKILL.md");
   if (!manifest) throw new SkillError("技能包中没有 SKILL.md。");
-  return { ...parseManifest(manifest), ...normalized };
+  const parsed = parseManifest(manifest, normalized.files),
+    outer = normalized.wrapper || (stat.isDirectory() ? basename(source) : "");
+  if (outer && outer !== parsed.name)
+    parsed.warnings.push(`外层目录「${outer}」与 name 不一致，以「${parsed.name}」为准。`);
+  return { ...parsed, files: normalized.files, hash: normalized.hash };
 }

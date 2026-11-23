@@ -1,0 +1,207 @@
+[
+  {
+    "name": "plan_update",
+    "description": "展示和更新你的执行计划（最多 12 步）。开始较长的任务前先列计划，每完成一步更新状态。",
+    "parameters": {
+      "type": "object",
+      "required": ["steps"],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "status"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "这一步做什么，80 字以内"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "todo"
+                  },
+                  {
+                    "type": "string",
+                    "const": "doing"
+                  },
+                  {
+                    "type": "string",
+                    "const": "done"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "show_card",
+    "description": "把有结构的结论用卡片展示给用户，替代大段文字。kind=summary 是结论卡：标题加 1 到 12 行「标签｜值｜徽标」，适合说明查到的对象、状态、清单；kind=table 是对比表：2 到 5 列、1 到 20 行（每行单元格数必须等于列数），适合多行同构数据的对照。卡片之外正文只留一两句过渡或下一步，不要重复卡片里的内容。引用后台对象（模型、渠道、插件、定价设置）或画布节点时在行或单元格里带 ref（type 取 model / channel / plugin / pricing_settings / user / register_settings / smtp_settings / storage / image_processor / node，key 是对象的标识：模型 key、渠道 key、插件 key、节点 id，用户/存储/图片服务用数字 ID，注册设置用 register，邮件服务用 smtp；pricing_settings 不需要 key），前端会渲染成可点击跳转，不要在正文里写路径或网址；外部链接只能放在 sources 里（仅 http/https）。notes 最多 3 条提示，tone 取 ok / warn / bad / info。每一轮最多展示 3 张卡。需要用户回答的问题不要放进卡片，用 ask_user。参数超限或不合法会返回错误，按提示改后重调。",
+    "parameters": {
+      "type": "object",
+      "required": ["kind", "title", "rows"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["summary", "table"],
+          "description": "summary 结论卡；table 对比表"
+        },
+        "title": {
+          "type": "string",
+          "description": "卡片标题，40 字以内"
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["ok", "warn", "bad", "info"],
+          "description": "整张卡的状态色，决定标题前图标的颜色；缺省 info"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "description": "列名，12 字以内"
+          },
+          "description": "仅 table：列名，2 到 5 列"
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "description": "summary：1 到 12 行 {label,value,sub?,badge?,tone?,ref?}；table：1 到 20 行 {cells:[…]}，cells 的个数等于 columns 的个数，每个单元格是字符串或 {text,tone?,ref?}",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "summary 行标签，12 字以内"
+              },
+              "value": {
+                "type": "string",
+                "description": "summary 行的值，120 字以内"
+              },
+              "sub": {
+                "type": "string",
+                "description": "summary 行的补充说明（如路径），120 字以内"
+              },
+              "badge": {
+                "type": "string",
+                "description": "summary 行的徽标，12 字以内，如「已启用」"
+              },
+              "tone": {
+                "type": "string",
+                "enum": ["ok", "warn", "bad", "info"]
+              },
+              "ref": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "model",
+                      "channel",
+                      "plugin",
+                      "pricing_settings",
+                      "user",
+                      "register_settings",
+                      "smtp_settings",
+                      "storage",
+                      "image_processor",
+                      "node"
+                    ]
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "对象标识；pricing_settings 可省略"
+                  }
+                },
+                "description": "点击跳转的后台对象或画布节点"
+              },
+              "cells": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "required": ["text"],
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "description": "120 字以内"
+                        },
+                        "tone": {
+                          "type": "string",
+                          "enum": ["ok", "warn", "bad", "info"]
+                        },
+                        "ref": {
+                          "type": "object",
+                          "required": ["type"],
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": ["model", "channel", "plugin", "pricing_settings", "node"]
+                            },
+                            "key": {
+                              "type": "string",
+                              "description": "对象标识；pricing_settings 可省略"
+                            }
+                          },
+                          "description": "点击跳转的后台对象或画布节点"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "tone": {
+                "type": "string",
+                "enum": ["ok", "warn", "bad", "info"]
+              },
+              "text": {
+                "type": "string",
+                "description": "提示，120 字以内"
+              }
+            }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["title", "url"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "来源标题，40 字以内"
+              },
+              "url": {
+                "type": "string",
+                "description": "仅 http 或 https"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+]

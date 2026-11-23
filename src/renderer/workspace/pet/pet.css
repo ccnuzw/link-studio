@@ -1,0 +1,153 @@
+.pet-launcher {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 15;
+  border: 0;
+  border-radius: 16px;
+  padding: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.pet-launcher:active {
+  cursor: grabbing;
+}
+.pet-sprite-frame {
+  position: relative;
+  display: block;
+  pointer-events: none;
+}
+@media (prefers-color-scheme: dark) {
+  .pet-sprite-frame {
+    filter: drop-shadow(0 0 1px hsl(0 0% 100% / 0.7));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pet-sprite-frame {
+    animation: pet-sprite-enter 300ms ease-out;
+  }
+  @keyframes pet-sprite-enter {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+.pet-sprite {
+  position: absolute;
+  display: block;
+  top: 0;
+  left: 0;
+  width: 192px;
+  height: 208px;
+  background-repeat: no-repeat;
+  background-size: 1536px 2080px;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.canvas-assistant .assistant-composer {
+  position: relative;
+}
+.pet-peek {
+  position: absolute;
+  right: 20px;
+  bottom: 100%;
+  width: 60px;
+  height: 44px;
+  clip-path: inset(-48px -24px 0);
+  pointer-events: none;
+}
+.pet-options {
+  position: fixed;
+  inset: auto;
+  min-width: 160px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas-surface, white);
+  box-shadow: 0 6px 18px #0002;
+}
+.pet-options button {
+  display: block;
+  width: 100%;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--canvas-ink);
+  text-align: left;
+  padding: 0 10px;
+}
+.pet-options button:is(:hover, :focus-visible) {
+  background: var(--canvas-hover);
+}
+.pet-options button[aria-pressed="true"]::after {
+  content: "✓";
+  float: right;
+}
+.pet-request {
+  position: absolute;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 264px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 82%);
+  backdrop-filter: blur(24px) saturate(150%);
+  padding: 6px 6px 6px 14px;
+  color: oklch(0.145 0 0);
+  font-size: 13px;
+  box-shadow:
+    0 0 0 1px var(--pet-ring, #00000014),
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+  pointer-events: auto;
+}
+.pet-request[data-priority="approval"] {
+  --pet-ring: oklch(0.7 0.16 70 / 55%);
+}
+.pet-request[data-priority="error"] {
+  --pet-ring: oklch(0.577 0.245 27.325 / 40%);
+}
+.pet-request button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.pet-request-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  text-align: left;
+  line-height: 20px;
+}
+.pet-request button:last-child {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: oklch(0.556 0 0);
+}
+.pet-request button:last-child:hover {
+  background: #0000000d;
+}
+.pet-stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pet-stage :is(button, [popover]) {
+  pointer-events: auto;
+}

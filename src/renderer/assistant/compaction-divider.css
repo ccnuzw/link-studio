@@ -1,0 +1,160 @@
+.compaction-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  outline: 0;
+  color: var(--muted-foreground, oklch(0.556 0 0));
+  font:
+    11.5px / 1.5 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.compaction-divider:focus-visible {
+  box-shadow: 0 0 0 2px var(--divider-ring, oklch(0.2 0 0 / 0.51));
+}
+.drama-assistant :is(.compaction-divider, .agent-compacting-line) {
+  --muted-foreground: oklch(0.5 0.015 85);
+  --foreground: oklch(0.22 0.01 85);
+  --status-warning: oklch(0.67 0.14 78);
+  --chrome-border: oklch(0.22 0.02 85 / 0.1);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-assistant :is(.compaction-divider, .agent-compacting-line) {
+    --muted-foreground: oklch(0.75 0.015 85);
+    --foreground: oklch(0.955 0.008 85);
+    --status-warning: oklch(0.81 0.15 82);
+    --chrome-border: oklch(1 0 0 / 0.08);
+  }
+}
+.compaction-divider i {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in oklab, var(--foreground, oklch(0.145 0 0)) 12%, transparent);
+}
+.compaction-divider[data-failed="true"] {
+  color: var(--status-warning, oklch(0.7 0.16 70));
+}
+.compaction-divider[data-failed="true"] i {
+  background: color-mix(in oklab, currentColor 45%, transparent);
+}
+.compaction-divider > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.compaction-divider svg {
+  width: 13px;
+  height: 13px;
+}
+.compaction-divider b {
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.compaction-description {
+  max-width: 260px;
+  line-height: 1.625;
+}
+.agent-compacting-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  color: var(--compact-muted, var(--muted-foreground, oklch(0.556 0 0)));
+  font:
+    12.5px / 1.5 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.agent-compacting-line i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  --compact-beam: oklch(0.62 0.16 55);
+  background: radial-gradient(
+    circle at 35% 30%,
+    oklch(0.78 0.15 70),
+    var(--compact-beam) 60%,
+    color-mix(in oklab, var(--compact-beam) 40%, black)
+  );
+  box-shadow: 0 0 8px color-mix(in oklab, var(--compact-beam) 60%, transparent);
+}
+.agent-compacting-line time {
+  font-variant-numeric: tabular-nums;
+}
+.compaction-divider,
+.agent-compacting-line {
+  line-height: 1.42857143;
+}
+.agent-compacting-line small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.agent-compacting-line kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--foreground, oklch(0.145 0 0)) 5%, transparent);
+  box-shadow: 0 0 0 1px var(--chrome-border, oklch(0 0 0 / 0.08));
+  font: inherit;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .agent-compacting-line > span {
+    background:
+      linear-gradient(
+        90deg,
+        currentColor 0% 35%,
+        var(--foreground, oklch(0.145 0 0)) 50%,
+        currentColor 65% 100%
+      )
+      0 0 / 250% 100%;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: agent-thinking-shimmer 1.6s linear infinite;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .agent-compacting-line {
+    --compact-muted: var(--muted-foreground, oklch(0.708 0 0));
+  }
+  .agent-compacting-line i {
+    --compact-beam: oklch(0.78 0.15 70);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .compaction-divider b[data-revealed="true"] {
+    animation: divider-after 0.12s ease-out;
+  }
+}
+@keyframes divider-after {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .compaction-divider {
+    --divider-ring: oklch(1 0 0 / 0.432);
+    color: var(--muted-foreground, oklch(0.708 0 0));
+  }
+  .compaction-divider i {
+    background: color-mix(in oklab, var(--foreground, oklch(0.985 0 0)) 12%, transparent);
+  }
+  .compaction-divider[data-failed="true"] {
+    color: var(--status-warning, oklch(0.8 0.15 75));
+  }
+}

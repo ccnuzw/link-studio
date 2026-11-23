@@ -1,0 +1,201 @@
+.drama-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.drama-composer-actions select {
+  min-width: 0;
+  max-width: calc(100% - 96px);
+}
+.agent-context {
+  display: inline-flex;
+  anchor-scope: --context-ring;
+  --context-ink: var(--foreground, oklch(0.145 0 0));
+  --context-muted: var(--muted-foreground, oklch(0.556 0 0));
+  --context-tone: var(--context-muted);
+}
+.agent-context[data-tone="warn"] {
+  --context-tone: var(--status-warning, oklch(0.7 0.16 70));
+}
+.agent-context[data-tone="danger"] {
+  --context-tone: var(--destructive, oklch(0.577 0.245 27.325));
+}
+.assistant-surface .agent-context > button {
+  anchor-name: --context-ring;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.assistant-surface .agent-context > button:hover {
+  background: var(--chrome-hover);
+}
+.assistant-surface .agent-context:has(:popover-open) > button {
+  background: color-mix(in oklab, var(--context-ink) 10%, transparent);
+}
+.agent-context svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+}
+.agent-context .context-track {
+  stroke: color-mix(in oklab, var(--context-ink) 15%, transparent);
+}
+.agent-context circle {
+  transition:
+    stroke-dashoffset 240ms,
+    stroke 240ms;
+}
+.agent-context-tip-position {
+  z-index: 1000;
+}
+.agent-context-tip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 320px;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: var(--tip-ink, oklch(0.145 0 0));
+  color: var(--tip-paper, oklch(1 0 0));
+  font:
+    12px / 16px "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.agent-context-tip-arrow {
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-radius: 2px;
+  rotate: 45deg;
+}
+.agent-context-tip-arrow[data-side="top"] {
+  bottom: -3px;
+}
+.agent-context-tip-arrow[data-side="bottom"] {
+  top: -3px;
+}
+@media (prefers-color-scheme: dark) {
+  .agent-context-tip {
+    --tip-ink: oklch(0.985 0 0);
+    --tip-paper: oklch(0.145 0 0);
+  }
+}
+.drama-assistant .agent-context > button {
+  --context-ink: oklch(0.22 0.01 85);
+  --context-tone: oklch(0.5 0.015 85);
+}
+.drama-assistant .agent-context[data-tone="warn"] > button {
+  --context-tone: oklch(0.67 0.14 78);
+}
+.drama-assistant .agent-context[data-tone="danger"] > button {
+  --context-tone: oklch(0.58 0.2 28);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-assistant .agent-context > button {
+    --context-ink: oklch(0.955 0.008 85);
+    --context-tone: oklch(0.75 0.015 85);
+  }
+  .drama-assistant .agent-context[data-tone="warn"] > button {
+    --context-tone: oklch(0.81 0.15 82);
+  }
+  .drama-assistant .agent-context[data-tone="danger"] > button {
+    --context-tone: oklch(0.68 0.2 28);
+  }
+}
+.assistant-surface .agent-context-popup {
+  position: fixed;
+  position-anchor: --context-ring;
+  inset: auto;
+  top: calc(anchor(top) - 8px);
+  right: clamp(5px, anchor(right), calc(100vw - min(240px, 100vw - 24px) - 5px));
+  margin: 0;
+  width: min(240px, calc(100vw - 24px));
+  padding: 12px;
+  border: 0;
+  border-radius: 18px;
+  color: var(--context-ink);
+  background: var(--settings-paper, white);
+  box-shadow:
+    inset 0 1px 0 var(--settings-sheen, oklch(1 0 0 / 0.7)),
+    0 0 0 1px var(--chrome-border, oklch(0 0 0 / 0.08)),
+    0 20px 25px -5px #0000001a,
+    0 8px 10px -6px #0000001a;
+  font:
+    14px / 1.42857143 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+  transform: translateY(round(nearest, -100%, 1px)) translateZ(0);
+}
+.agent-context-popup:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-context-popup .context-counts {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.context-counts > div + div {
+  text-align: right;
+}
+.agent-context-popup strong {
+  display: block;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.assistant-surface .agent-context-popup p {
+  margin: 0;
+  color: var(--context-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.assistant-surface .agent-context-popup .context-hint {
+  font-size: 11.5px;
+  line-height: inherit;
+}
+.context-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--context-ink) 10%, transparent);
+  overflow: hidden;
+}
+.context-bar span {
+  display: block;
+  height: 100%;
+  background: var(--context-tone);
+  border-radius: inherit;
+  transition:
+    width 240ms,
+    background-color 240ms;
+}
+@media (prefers-color-scheme: dark) {
+  .agent-context {
+    --context-ink: var(--foreground, oklch(0.985 0 0));
+    --context-muted: var(--muted-foreground, oklch(0.708 0 0));
+    --settings-paper: oklch(0.205 0 0);
+    --settings-sheen: oklch(1 0 0 / 0.09);
+  }
+  .agent-context[data-tone="warn"] {
+    --context-tone: oklch(0.8 0.15 75);
+  }
+  .agent-context[data-tone="danger"] {
+    --context-tone: oklch(0.704 0.191 22.216);
+  }
+}

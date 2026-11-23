@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SkillDetail } from "./skill-detail";
 import { SkillImport } from "./skill-import";
 import "./skills.css";
+import { MethodWorkbench } from "./method-workbench";
 
 const filters = [
   ["all", "全部"],
@@ -32,17 +33,18 @@ function matches(item: SkillItem, filter: Filter) {
     case "all":
       return true;
     case "agent":
-      return item.enabled && item.scopes.includes("agent");
+      return item.scopes.includes("agent");
     case "drama":
-      return item.enabled && item.scopes.some((scope) => scope !== "agent");
+      return item.scopes.some((scope) => scope !== "agent");
     case "unused":
-      return !item.enabled || item.scopes.length === 0;
+      return item.scopes.length === 0;
     case "builtin":
       return item.origin === "builtin";
   }
 }
 
 export function SkillsPage({ close }: { close: () => void }) {
+  const [methods, setMethods] = useState(false);
   const [items, setItems] = useState<SkillItem[] | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -81,6 +83,7 @@ export function SkillsPage({ close }: { close: () => void }) {
         event.metaKey ||
         event.altKey ||
         importing ||
+        methods ||
         active ||
         (event.target instanceof Element &&
           event.target.closest("input, textarea, select, [contenteditable]"))
@@ -91,7 +94,7 @@ export function SkillsPage({ close }: { close: () => void }) {
     }
     window.addEventListener("keydown", shortcut);
     return () => window.removeEventListener("keydown", shortcut);
-  }, [importing, active]);
+  }, [importing, active, methods]);
 
   const needle = query.trim().toLowerCase();
   const results = (items ?? []).filter(
@@ -145,6 +148,9 @@ export function SkillsPage({ close }: { close: () => void }) {
       </nav>
       <div className="skills-heading">
         <h1>技能</h1>
+        <button type="button" disabled={!items} onClick={() => setMethods(true)}>
+          环节技能
+        </button>
         <button
           type="button"
           className="skill-primary"
@@ -257,11 +263,16 @@ export function SkillsPage({ close }: { close: () => void }) {
                       </div>
                     </td>
                     <td>
-                      <span className="skill-status" data-enabled={item.enabled}>
-                        {item.enabled ? "已启用" : "未启用"}
+                      <span className="skill-status" data-enabled={item.scopes.length > 0}>
+                        {item.scopes.length ? "使用中" : "未使用"}
                       </span>
                     </td>
-                    <td>v{item.activeVersion}</td>
+                    <td>
+                      v{item.activeVersion}
+                      {item.versions[0] && item.versions[0].version > item.activeVersion && (
+                        <small className="skill-note"> · v{item.versions[0].version} 待启用</small>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -349,6 +360,7 @@ export function SkillsPage({ close }: { close: () => void }) {
           }}
         />
       )}
+      {methods && <MethodWorkbench items={items ?? []} close={() => setMethods(false)} />}
       {active && (
         <SkillDetail
           key={active.name}

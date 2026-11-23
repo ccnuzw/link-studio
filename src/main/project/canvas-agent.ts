@@ -5,20 +5,44 @@ import type {
   ProjectCanvasView,
 } from "../../../packages/link-studio-core/src/canvas.ts";
 import {
+  CanvasAgentArrange,
+  CanvasAgentCapture,
+  CanvasAgentDelete,
   CanvasAgentEdit,
   CanvasAgentGenerate,
+  CanvasAgentOps,
   CanvasAgentRead,
   canvasAgentMediaModels,
+  maxAgentImages,
 } from "../../../packages/link-studio-core/src/canvas-agent.ts";
 import type { DirectorScene } from "../../../packages/link-studio-core/src/director.ts";
+import type { DramaJobRequest } from "../../../packages/link-studio-core/src/drama.ts";
 import type { GenerationInput } from "../../../packages/link-studio-core/src/generation.ts";
+import {
+  modelGenerationModes,
+  modelGenerationOptions,
+  modelParameterChoices,
+} from "../../../packages/link-studio-core/src/media-generation.ts";
+import { publicModelPricing } from "../../../packages/link-studio-core/src/model-price.ts";
 import type { JsonValue, ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import type { SettingsRegistry } from "../settings/registry.ts";
 import { applyCanvas, projectCanvas } from "./canvas.ts";
+import { agentCanvasCatalog } from "./canvas-agent-catalog.ts";
+import { compileDeletion, deletionPreview } from "./canvas-agent-delete.ts";
+import { planFrames } from "./canvas-agent-frames.ts";
+import { nodeGenerationInput, quotePreparedGeneration } from "./canvas-agent-generation";
+import { compileArrange } from "./canvas-agent-layout.ts";
+import { generationDetail } from "./canvas-agent-model";
+import { compileAgentOps } from "./canvas-agent-ops.ts";
 import type { CanvasMedia } from "./canvas-media.ts";
+import { DramaTools, dramaDocument } from "./drama.ts";
+import { estimateDramaJob } from "./drama-estimate.ts";
+import { dramaJobReceipt, submitApprovedDramaJob } from "./drama-job.ts";
+import { runDramaPlanning } from "./drama-planning.ts";
+import { runDramaAssetJob } from "./drama-worker.ts";
 import { contentHash } from "./encoding.ts";
 import { ProjectError } from "./errors.ts";
-import type { GenerationService } from "./generation.ts";
+import { canvasRoleJobs, type GenerationService } from "./generation.ts";
 import type { ProjectStore } from "./store.ts";
 
 function object(value: unknown): Record<string, unknown> {
@@ -40,6 +64,9 @@ type EditReceipt = {
   nodeIds: string[];
   revision: number;
   undone?: boolean;
+  created?: Record<string, string>;
+  baseRevision?: number;
+  warnings?: string[];
 };
 
 function digestEntry(value: unknown) {
@@ -87,6 +114,9 @@ function directorContext(
 }
 
 export class CanvasAgentService {
+  private readonly dramas = new WeakMap<ProjectStore, DramaTools>();
+  private readonly dramaWorkers = new WeakMap<ProjectStore, Set<string>>();
+  private readonly studioJobControllers = new WeakMap<ProjectStore, Map<string, AbortController>>();
   private readonly stores = new Map<string, ProjectStore>();
   private readonly readSets = new Map<string, { revision: number; ids: Set<string> }>();
   private readonly sessions = new WeakMap<ProjectStore, AbortController>();
@@ -97,7 +127,12 @@ export class CanvasAgentService {
     private readonly media?: CanvasMedia,
     private readonly skills?: {
       catalog(query?: string): Array<{ id: string; title: string; summary: string }>;
-      content(name: string, version: number): string | null;
+      page(
+        id: string,
+        offset: number,
+        file?: string,
+        pinned?: string,
+      ): { id: string; text: string } | null;
     },
   ) {}
 
@@ -113,7 +148,7 @@ export class CanvasAgentService {
     signal = new AbortController().signal,
   ) {
     if (!this.media) throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "媒体处理能力不可用");
-    return this.media.inspect(store, asset, timeMs, frameId, signal);
+    return this.media.inspect(store, asset, timeMs, frameId, signal, true);
   }
 
   async trimMedia(
@@ -157,6 +192,85 @@ export class CanvasAgentService {
   attach(store: ProjectStore) {
     this.stores.set(this.key(store), store);
     this.sessions.set(store, new AbortController());
+    this.startPlanning(store);
+    for (const job of dramaDocument(store.snapshot)?.jobs ?? []) {
+      if (["queued", "running"].includes(job.status)) this.startDramaAssetJob(store, job.id);
+    }
+  }
+
+  startPlanning(store: ProjectStore) {
+    const plan = dramaDocument(store.snapshot)?.planning;
+    if (!plan || (plan.phase !== "running" && !plan.pending)) return;
+    const signal = this.sessions.get(store)?.signal;
+    const workers = this.dramaWorkers.get(store) ?? new Set<string>();
+    if (!signal || workers.has("planning")) return;
+    workers.add("planning");
+    this.dramaWorkers.set(store, workers);
+    void this.registry()
+      .then((registry) => runDramaPlanning(store, registry, signal))
+      .catch(() => {
+        if (!signal.aborted) console.error("短剧规划状态保存失败");
+      })
+      .finally(() => workers.delete("planning"));
+  }
+
+  startDramaAssetJob(store: ProjectStore, id: string) {
+    const session = this.sessions.get(store)?.signal;
+    const workers = this.dramaWorkers.get(store) ?? new Set<string>();
+    if (!session || workers.has(id)) return;
+    const step = dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === id)?.step;
+    const controller =
+      step === "breakdown" || step === "storyboard" ? new AbortController() : undefined;
+    if (controller) {
+      const active = this.studioJobControllers.get(store) ?? new Map();
+      active.set(id, controller);
+      this.studioJobControllers.set(store, active);
+    }
+    const signal = controller ? AbortSignal.any([session, controller.signal]) : session;
+    workers.add(id);
+    this.dramaWorkers.set(store, workers);
+    void this.registry()
+      .then((registry) => runDramaAssetJob(store, registry, id, signal, this.media))
+      .catch((error) => {
+        if (!signal.aborted)
+          console.error(
+            "短剧任务状态保存失败",
+            error instanceof ProjectError ? error.code : "DRAMA_WORKER_FAILED",
+          );
+      })
+      .finally(() => {
+        workers.delete(id);
+        this.studioJobControllers.get(store)?.delete(id);
+      });
+  }
+
+  async cancelStudioJob(store: ProjectStore, id: string, step: "storyboard" | "breakdown") {
+    await store.updateGeneration((state) => {
+      const doc = dramaDocument(state),
+        job = doc?.jobs?.find((entry) => entry.id === id),
+        label = step === "breakdown" ? "拆解" : "分镜";
+      if (!doc || job?.step !== step)
+        throw new ProjectError("DRAMA_STEP_NOT_READY", `${label}任务不存在`);
+      if (job.status === "canceled") return { changed: false, result: null };
+      if (job.status !== "running" && job.status !== "queued")
+        throw new ProjectError("DRAMA_STEP_NOT_READY", `${label}任务已结束`);
+      if (step === "storyboard") {
+        const ep = doc.episodes.find((entry) => entry.episode_no === job.episodes[0]);
+        if (ep) {
+          ep.storyboard_status = doc.segments?.some(
+            (segment) => segment.episode_no === ep.episode_no,
+          )
+            ? "ready"
+            : "empty";
+          ep.revision = (ep.revision ?? 1) + 1;
+          doc.overview_revision ??= doc.revision;
+          doc.revision++;
+        }
+      }
+      job.status = "canceled";
+      return { changed: true, result: null };
+    });
+    this.studioJobControllers.get(store)?.get(id)?.abort();
   }
 
   detach(store: ProjectStore) {
@@ -180,7 +294,7 @@ export class CanvasAgentService {
   }
 
   private async attachments(store: ProjectStore, assetIds: string[]) {
-    if (!this.media || assetIds.length > 4)
+    if (!this.media || assetIds.length > maxAgentImages)
       throw new ProjectError("AGENT_MEDIA_LIMIT", "附件数量超过限制");
     const signal = this.sessions.get(store)?.signal ?? new AbortController().signal;
     const result = [];
@@ -188,7 +302,14 @@ export class CanvasAgentService {
       const asset = store.snapshot.assets[assetId];
       if (!asset || !["image", "video"].includes(asset.mediaType))
         throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "只支持图片或视频附件");
-      result.push(await this.media.attachment(store, asset, signal));
+      result.push(
+        await this.media.attachment(
+          store,
+          asset,
+          signal,
+          Math.floor((2 * 1024 * 1024) / assetIds.length),
+        ),
+      );
     }
     return result;
   }
@@ -232,6 +353,24 @@ export class CanvasAgentService {
 
   async command(command: string, raw: unknown) {
     const args = object(raw);
+    if (command === "admin-job-summaries") {
+      const rows = Array.from(this.stores.values())
+        .flatMap((store) =>
+          this.generation
+            .list(store)
+            .jobs.filter((job) => !args.status || job.status === args.status)
+            .map(({ id, kind, status, createdAt, updatedAt }) => ({
+              id,
+              kind,
+              status,
+              createdAt,
+              updatedAt,
+            })),
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+        .slice(0, 50);
+      return { resource: "queue", scope: "当前已打开项目的生成任务", limit: 50, rows };
+    }
     if (command === "tasks") {
       const ids = Array.isArray(args.ids) ? args.ids : [];
       const available = new Map(
@@ -259,36 +398,284 @@ export class CanvasAgentService {
       });
     }
     const store = this.get(args.project);
+    if (command.startsWith("drama-")) {
+      if (command === "drama-estimate") {
+        const snapshot = store.snapshot;
+        const document = dramaDocument(snapshot);
+        if (!document) throw new ProjectError("AGENT_SCOPE_DENIED", "未创建短剧");
+        const { estimate } = await estimateDramaJob(
+          document,
+          args.input,
+          await this.registry(),
+          snapshot,
+        );
+        const { reason, ...request } = args.input as DramaJobRequest;
+        const labels = {
+          scripts: "分集剧本",
+          breakdown: "资产拆解",
+          asset_prompts: "资产提示词",
+          storyboard: "分镜脚本",
+          compose: "合成整集",
+        };
+        const activeJobs =
+          document.jobs
+            ?.filter((job) => ["queued", "running"].includes(job.status))
+            .map(({ id, step, status, episodes }) => ({ id, step, status, episodes })) ?? [];
+        return {
+          title: `运行短剧任务：${labels[request.step]}`,
+          reason: reason ?? "",
+          args: request,
+          estimate,
+          ...(document.episode_order && { episodeOrder: document.episode_order }),
+          before: JSON.stringify({ active_jobs: activeJobs }),
+          after: JSON.stringify(request),
+        };
+      }
+      if (
+        args.kind === "drama_run_job" &&
+        typeof args.id === "string" &&
+        typeof args.runId === "string"
+      ) {
+        if (command === "drama-receipt")
+          return dramaJobReceipt(store, args.runId, args.id, args.input);
+        if (command === "drama-apply") {
+          const job = await submitApprovedDramaJob(
+            store,
+            await this.registry(),
+            args.runId,
+            args.id,
+            args.input as { args: DramaJobRequest; estimate: number },
+            this.sessions.get(store)?.signal,
+          );
+          if (job.status === "queued") this.startDramaAssetJob(store, job.id);
+          return { id: job.id, status: job.status, step: job.step, episodes: job.episodes };
+        }
+      }
+      let tools = this.dramas.get(store);
+      if (!tools) {
+        tools = new DramaTools();
+        this.dramas.set(store, tools);
+      }
+      if (["drama-skills", "drama-skill", "drama-question-models"].includes(command)) {
+        await tools.command(store, "drama-prepare", {
+          runId: String(args.runId),
+          input: undefined,
+        });
+        command = command.slice(6);
+      } else
+        return tools.command(
+          store,
+          command,
+          { ...args, runId: String(args.runId), input: args.input },
+          this.sessions.get(store)?.signal,
+        );
+    }
     if (command === "attachments") {
       const ids = Array.isArray(args.assetIds) ? args.assetIds.map(String) : [];
       return this.attachments(store, ids);
     }
     if (command === "skills") {
-      const query = String(args.query ?? "").toLowerCase();
-      const list = this.skills?.catalog(String(args.query ?? "")) ?? [];
-      return list.filter(
-        (skill) =>
-          !query || `${skill.id} ${skill.title} ${skill.summary}`.toLowerCase().includes(query),
-      );
+      return this.skills?.catalog(String(args.query ?? "")) ?? [];
     }
     if (command === "skill") {
       const id = String(args.id ?? "");
-      const [name, version] = id.split("@");
-      const skill = this.skills?.content(name ?? "", Number(version));
-      return skill ? { id, text: skill } : null;
+      return (
+        this.skills?.page(
+          id,
+          Number(args.offset ?? 0),
+          typeof args.file === "string" ? args.file : undefined,
+          typeof args.pinned === "string" ? args.pinned : undefined,
+        ) ?? null
+      );
     }
     const runId = String(args.runId);
     const run = `${this.key(store)}:${runId}`;
     const input = args.input;
     switch (command) {
-      case "prepare":
-        return { project: store.projectId };
+      case "check-message": {
+        const references = new Map<string, { kind: string; id: string; name: string }>();
+        for (const match of String(input).matchAll(
+          /@\[([^\]]*)\]\((node|model|skill|asset):([^)\s]+)\)/g,
+        )) {
+          const [, name, kind, id] = match;
+          references.set(`${kind}:${id}`, { kind: kind!, id: id!, name: name! });
+          if (references.size > 50)
+            throw new ProjectError("AGENT_MESSAGE_REFERENCE_INVALID", "一条消息最多引用 50 个对象");
+        }
+        const kinds = new Set([...references.values()].map((ref) => ref.kind));
+        const nodes = kinds.has("node")
+          ? new Set((await store.readCanvas()).canvas.nodes.map((node) => node.id))
+          : undefined;
+        const models = kinds.has("model")
+          ? new Set(
+              canvasAgentMediaModels((await this.registry()).list()).map((row) => row.provider.id),
+            )
+          : undefined;
+        const skills = kinds.has("skill")
+          ? new Set(this.skills?.catalog().map((skill) => skill.id))
+          : undefined;
+        this.assertOpen(store);
+        for (const { kind, id, name } of references.values()) {
+          let reason: string | undefined;
+          if (kind === "node" && !nodes?.has(id))
+            reason = `引用的节点「${name}」不可用：画布上没有这个节点，可能已被删除`;
+          if (kind === "model" && !models?.has(id))
+            reason = `引用的模型「${name}」不可用：模型未发布或已下线`;
+          if (kind === "skill" && !skills?.has(id))
+            reason = `引用的技能「${name}」不可用：没有这个技能，或已被停用`;
+          if (kind === "asset")
+            reason = `暂不支持引用素材附件「${name}」，请先把图片放进画布，再引用对应的节点`;
+          if (reason) throw new ProjectError("AGENT_MESSAGE_REFERENCE_INVALID", reason);
+        }
+        return null;
+      }
+      case "prepare": {
+        if (!args.includeCatalog) return { project: store.projectId };
+        const state = await store.readCanvas();
+        const clean = (await this.registry()).redactor().redact;
+        this.assertOpen(store);
+        const selection = Array.isArray(args.selection)
+          ? args.selection.filter((id): id is string => typeof id === "string")
+          : [];
+        return {
+          project: store.projectId,
+          catalog: agentCanvasCatalog(state.canvas, selection, clean),
+        };
+      }
+      case "arrange":
+      case "apply-ops": {
+        if (typeof args.id !== "string" || !args.id)
+          throw new ProjectError("CANVAS_OPERATION_INVALID", "检查批量操作");
+        const operationId = stableId(`${run}:${args.id}`);
+        const settings = command === "apply-ops" ? (await this.registry()).list() : undefined;
+        const receipt = await store.updateGeneration((state) => {
+          this.assertOpen(store);
+          const fingerprint =
+            command === "arrange" ? contentHash({ command, input }) : contentHash(input);
+          const key = `canvas-agent:direct:${operationId}`;
+          const previous = state.extensions[key] as unknown as EditReceipt | undefined;
+          if (previous) {
+            if (previous.fingerprint !== fingerprint)
+              throw new ProjectError("OPERATION_ID_REUSED", "调用参数已变化");
+            return { result: previous, changed: false };
+          }
+          const before = projectCanvas(state.canvas);
+          const compiled =
+            command === "arrange"
+              ? Value.Check(CanvasAgentArrange, input) &&
+                compileArrange(before, input, state.assets)
+              : settings &&
+                Value.Check(CanvasAgentOps, input) &&
+                compileAgentOps(
+                  before,
+                  input,
+                  (index) => stableId(`${operationId}:${index}`),
+                  state.assets,
+                  settings,
+                );
+          if (!compiled) throw new ProjectError("CANVAS_OPERATION_INVALID", "检查画布操作参数");
+          const { operations, touched, created } = compiled;
+          if (operations.length && !Value.Check(CanvasAgentEdit.properties.operations, operations))
+            throw new ProjectError("CANVAS_OPERATION_INVALID", "布局超出画布范围");
+          this.requireRead(run, state.canvas.revision, touched);
+          const baseRevision = state.canvas.revision;
+          if (operations.length) state.canvas = applyCanvas(state, operations);
+          const patches = inversePatches(before, projectCanvas(state.canvas));
+          const result: EditReceipt = {
+            runId,
+            fingerprint,
+            created,
+            ...("warnings" in compiled && compiled.warnings.length
+              ? { warnings: compiled.warnings }
+              : {}),
+            baseRevision,
+            revision: state.canvas.revision,
+            patches,
+            nodeIds: patches.filter((patch) => !patch.edge).map((patch) => patch.id),
+          };
+          state.extensions[key] = result as unknown as JsonValue;
+          return { result, changed: true };
+        }, this.sessions.get(store)?.signal);
+        if (receipt.revision === store.getCanvas().canvasRevision) {
+          const last = this.readSets.get(run);
+          const ids = new Set(
+            last && (last.revision === receipt.revision || last.revision === receipt.baseRevision)
+              ? last.ids
+              : [],
+          );
+          if (command !== "arrange") for (const id of receipt.nodeIds) ids.add(id);
+          this.readSets.set(run, { revision: receipt.revision, ids });
+        }
+        return {
+          revision: receipt.revision,
+          created: receipt.created,
+          nodeIds: receipt.nodeIds,
+          ...(receipt.warnings ? { warnings: receipt.warnings } : {}),
+        };
+      }
+      case "model-list": {
+        const { kind } = object(input);
+        if (kind !== "image" && kind !== "video" && kind !== "audio")
+          throw new ProjectError("JOB_INPUT_INVALID", "检查模型类型");
+        const registry = await this.registry();
+        this.assertOpen(store);
+        const { providers, plugins } = registry.list();
+        const clean = registry.redactor().redact;
+        return {
+          models: providers.flatMap((provider) => {
+            const plugin = plugins.find(({ hash }) => hash === provider.pluginHash);
+            if (
+              !provider.enabled ||
+              provider.pending ||
+              provider.channelEnabled === false ||
+              provider.config?.kind === "agent" ||
+              !plugin ||
+              plugin.disabled ||
+              plugin.kind !== kind ||
+              (plugin.auth !== "none" && !provider.hasSecret)
+            )
+              return [];
+            const options = modelGenerationOptions(
+              kind,
+              plugin.origin === "builtin" ? plugin.key : undefined,
+              provider.model,
+              provider.channel,
+              provider.config,
+            );
+            const params = {
+              ...modelParameterChoices(options),
+              count: options.counts,
+              ...options.customParameters,
+            };
+            return [
+              {
+                key: provider.id,
+                revision: provider.revision,
+                label: clean(provider.label),
+                hint: clean(provider.config?.description ?? ""),
+                ops: modelGenerationModes(kind, options).filter(
+                  (mode) => !options.modes || options.modes.includes(mode),
+                ),
+                refs: {
+                  image: !!options.references.image,
+                  video: !!options.references.video,
+                  audio: !!options.references.audio,
+                },
+                params,
+                pricing: publicModelPricing(provider.config?.pricing),
+              },
+            ];
+          }),
+        };
+      }
       case "question-models": {
         const registry = await this.registry();
         this.assertOpen(store);
         return canvasAgentMediaModels(registry.list()).map(({ provider, kind }) => ({
           id: provider.id,
           kind,
+          name: provider.config?.name || provider.model,
+          hint: provider.label,
         }));
       }
       case "read": {
@@ -309,29 +696,44 @@ export class CanvasAgentService {
         this.readSets.set(run, { revision: state.canvasRevision, ids });
         const registry = await this.registry();
         const clean = registry.redactor().redact;
-        const { providers, plugins } = registry.list();
+        const settings = registry.list();
+        const { providers, plugins } = settings;
         const related = new Set(selected.map(({ id }) => id));
         return {
           canvasRevision: state.canvasRevision,
           viewport: state.canvas.viewport,
+          totalNodes: state.canvas.nodes.length,
           missingNodeIds: input.nodeIds?.filter((id) => !related.has(id)) ?? [],
           nodes: selected.map((node) => {
             if (node.type !== "creative")
               return { ...node, data: { label: clean(node.data.label) } };
             const { director, ...data } = node.data;
+            const detail = input.nodeIds && generationDetail(data, settings);
             return {
               ...node,
+              ...(detail?.mode && { mode: detail.mode }),
               data: {
                 ...data,
+                ...(detail?.model && { model: clean(detail.model) }),
+                ...(detail &&
+                  Object.keys(detail.params).length && {
+                    params: Object.fromEntries(
+                      Object.entries(detail.params).map(([key, value]) => [
+                        key,
+                        typeof value === "string" ? clean(value) : value,
+                      ]),
+                    ),
+                  }),
                 label: clean(node.data.label),
                 text: clean(node.data.text).slice(0, input.nodeIds ? 5000 : 200),
                 ...(director ? directorContext(director, !!input.nodeIds, clean) : {}),
                 ...(node.data.storyboard
                   ? {
                       storyboard: node.data.storyboard
-                        .slice(0, input.nodeIds ? 30 : 0)
-                        .map((shot) => ({
+                        .slice(0, input.nodeIds ? node.data.storyboard.length : 0)
+                        .map((shot, index) => ({
                           ...shot,
+                          no: index + 1,
                           scene: clean(shot.scene),
                           action: clean(shot.action),
                           dialogue: clean(shot.dialogue),
@@ -346,6 +748,9 @@ export class CanvasAgentService {
                         name: clean(node.data.character.name),
                         look: clean(node.data.character.look),
                         description: clean(node.data.character.description),
+                        ...(node.data.character.voicePrompt
+                          ? { voicePrompt: clean(node.data.character.voicePrompt) }
+                          : {}),
                       },
                     }
                   : {}),
@@ -377,6 +782,12 @@ export class CanvasAgentService {
         };
       }
       case "edit-preview": {
+        if (Value.Check(CanvasAgentDelete, input)) {
+          const state = store.snapshot;
+          const canvas = projectCanvas(state.canvas);
+          applyCanvas(state, compileDeletion(canvas, input.nodeIds ?? [], input.edgeIds ?? []));
+          return deletionPreview(canvas, state.canvas.revision, input);
+        }
         const edit = this.checkedEdit(store, run, input);
         return {
           ...edit,
@@ -394,11 +805,11 @@ export class CanvasAgentService {
         };
       }
       case "edit-apply":
-        return this.apply(store, runId, String(args.id), input);
+        return this.apply(store, runId, String(args.id), input, args.selected);
       case "generate-preview": {
         if (!Value.Check(CanvasAgentGenerate, input))
           throw new ProjectError("JOB_INPUT_INVALID", "检查任务参数");
-        const revision = store.getCanvas().canvasRevision;
+        const { canvas, canvasRevision: revision } = store.getCanvas();
         this.requireRead(
           run,
           revision,
@@ -406,21 +817,48 @@ export class CanvasAgentService {
         );
         if (new Set(input.items.map(({ nodeId }) => nodeId)).size !== input.items.length)
           throw new ProjectError("JOB_INPUT_INVALID", "每个节点只能提交一个任务");
-        const items = await Promise.all(
-          input.items.map(async (request) => {
-            const { binding, node, kind } = await this.generation.prepare(store, request);
-            return {
-              request,
-              kind,
-              node_id: node.id,
-              label: node.data.label,
-              endpoint: binding.profile.endpoint,
-              model: binding.profile.model,
-            };
-          }),
-        );
+        const settings = (await this.registry()).list();
+        const state = store.snapshot;
+        const jobs = canvasRoleJobs(state);
+        const items = [];
+        for (const { nodeId } of input.items) {
+          const request = nodeGenerationInput(
+            canvas,
+            revision,
+            nodeId,
+            state.assets,
+            settings,
+            jobs,
+          );
+          const {
+            binding,
+            node,
+            kind,
+            input: prepared,
+          } = await this.generation.prepare(store, request, true);
+          const config = binding.profile.config;
+          const estimate = quotePreparedGeneration(config, kind, prepared, state.assets);
+          items.push({
+            request,
+            kind,
+            node_id: node.id,
+            label: node.data.label,
+            model_key: binding.profile.id,
+            model_name: config?.name || binding.profile.label,
+            count: 1,
+            ...(estimate !== undefined && { price: estimate }),
+            endpoint: binding.profile.endpoint,
+            model: binding.profile.model,
+          });
+        }
         this.assertOpen(store);
-        return { items, wait: true };
+        return {
+          items,
+          reason: Array.from(input.reason ?? "")
+            .slice(0, 200)
+            .join(""),
+          wait: input.wait ?? true,
+        };
       }
       case "generate-apply":
       case "generate-receipt": {
@@ -433,21 +871,24 @@ export class CanvasAgentService {
         }));
         this.assertOpen(store);
         if (command === "generate-receipt") {
-          const tasks = new Map(
-            this.generation.list(store).jobs.map((job) => [job.id, job.nodeId]),
+          return this.generation.receipt(
+            store,
+            entries.map(({ id }) => id),
           );
-          return entries.length && entries.every(({ id }) => tasks.has(id))
-            ? { tasks: entries.map(({ id }) => ({ task_id: id, node_id: tasks.get(id) })) }
-            : null;
         }
-        const jobs = await this.generation.submit(store, entries, this.sessions.get(store)?.signal);
+        const jobs = await this.generation.submit(
+          store,
+          entries,
+          this.sessions.get(store)?.signal,
+          true,
+        );
         return { tasks: jobs.map(({ id, nodeId }) => ({ task_id: id, node_id: nodeId })) };
       }
       case "undo":
         return this.undo(store, runId);
       case "inspect": {
         const media = args.media;
-        const { nodeId, timeMs = 0 } = object(input);
+        const { nodeId, timeMs = 0, count = 6 } = object(input);
         if (
           typeof nodeId !== "string" ||
           typeof timeMs !== "number" ||
@@ -467,6 +908,31 @@ export class CanvasAgentService {
         const signal = this.sessions.get(store)?.signal;
         if (!this.media || !signal || asset?.availability !== "ready" || asset.mediaType !== media)
           throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "当前节点没有可用的匹配素材");
+        if (media === "video") {
+          if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > 6)
+            throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "抽帧数量无效");
+          if (typeof args.analyze === "function") {
+            try {
+              const video = await this.media.videoInput(store, asset, signal);
+              signal.throwIfAborted();
+              const analysis = await args.analyze(video, signal);
+              this.assertOpen(store);
+              if (typeof analysis !== "string" || !analysis.trim())
+                throw new Error("EMPTY_ANALYSIS");
+              return { analysis };
+            } catch {
+              signal.throwIfAborted();
+              if (!args.allowFrames)
+                throw new ProjectError(
+                  "AGENT_MEDIA_UNAVAILABLE",
+                  "视频分析失败，当前模型无法退回抽帧",
+                );
+            }
+          }
+          const result = await this.media.sampleVideo(store, asset, count, signal);
+          this.assertOpen(store);
+          return result;
+        }
         const frameId = stableId(
           `${store.projectId}:frame:${asset.assetId}:${asset.sha256}:${timeMs}`,
         );
@@ -474,20 +940,104 @@ export class CanvasAgentService {
         this.assertOpen(store);
         return result;
       }
+      case "capture": {
+        if (!Value.Check(CanvasAgentCapture, input) || typeof args.id !== "string" || !args.id)
+          throw new ProjectError("CANVAS_OPERATION_INVALID", "检查截帧参数");
+        const media = this.media;
+        const signal = this.sessions.get(store)?.signal;
+        if (!media || !signal) throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "截帧不可用");
+        const key = `canvas-agent:frames:${stableId(`${run}:${args.id}`)}`;
+        const fingerprint = contentHash(input);
+        return store.updateGeneration(async (state) => {
+          this.assertOpen(store);
+          const previous = state.extensions[key] as unknown as
+            | (EditReceipt & {
+                frames: { node_id: string; label: string; at: number; connected_to: string[] }[];
+              })
+            | undefined;
+          if (previous) {
+            if (previous.fingerprint !== fingerprint)
+              throw new ProjectError("OPERATION_ID_REUSED", "调用参数已变化");
+            return {
+              changed: false,
+              result: {
+                ok: true,
+                revision: previous.revision,
+                frames: previous.frames,
+                nodeIds: previous.nodeIds,
+              },
+            };
+          }
+          const before = projectCanvas(state.canvas);
+          const planned = planFrames(before, state.assets, input, (part) =>
+            stableId(`${key}:${part}`),
+          );
+          if (!Value.Check(CanvasAgentEdit.properties.operations, planned.operations))
+            throw new ProjectError("CANVAS_OPERATION_INVALID", "截帧超出画布范围");
+          for (const frame of planned.frames) {
+            const timeMs = Math.min(
+              Math.round(frame.at * 1000),
+              Number(planned.asset.metadata.durationMs) - 1,
+            );
+            await media.inspect(
+              store,
+              planned.asset,
+              timeMs,
+              frame.assetId,
+              signal,
+              true,
+              (asset) => {
+                state.assets[asset.assetId] = asset;
+              },
+            );
+          }
+          this.assertOpen(store);
+          state.canvas = applyCanvas(state, planned.operations);
+          const patches = inversePatches(before, projectCanvas(state.canvas));
+          const frames = planned.frames.map(({ assetId, ...frame }) => frame);
+          const result = {
+            ok: true,
+            frames,
+            revision: state.canvas.revision,
+            nodeIds: frames.map((frame) => frame.node_id),
+          };
+          state.extensions[key] = {
+            ...result,
+            runId,
+            fingerprint,
+            patches,
+          } as unknown as JsonValue;
+          return { changed: true, result };
+        }, signal);
+      }
       default:
         throw new ProjectError("AGENT_SCOPE_DENIED", "工具不属于画布作用域");
     }
   }
 
-  private apply(store: ProjectStore, runId: string, id: string, input: unknown) {
-    const { expectedCanvasRevision, operations } = object(input);
+  private apply(store: ProjectStore, runId: string, id: string, input: unknown, selected: unknown) {
+    const { expectedCanvasRevision, operations, action, nodeIds, edgeIds, reason } = object(input);
     const edit = { expectedCanvasRevision, operations };
-    if (!Value.Check(CanvasAgentEdit, edit) || edit.operations.length > 30)
+    const deletion = { nodeIds, edgeIds, reason };
+    let targets: { nodeIds: string[]; edgeIds: string[] } | undefined;
+    if (action === "delete" && Value.Check(CanvasAgentDelete, deletion)) {
+      const nodes = deletion.nodeIds ?? [];
+      const edges = deletion.edgeIds ?? [];
+      const limit = nodes.length + Number(Boolean(edges.length));
+      if (
+        !Array.isArray(selected) ||
+        !selected.length ||
+        selected.some((index) => !Number.isInteger(index) || index < 0 || index >= limit) ||
+        (edges.length && !selected.includes(nodes.length))
+      )
+        throw new ProjectError("CANVAS_OPERATION_INVALID", "检查删除审批");
+      targets = { nodeIds: nodes.filter((_, index) => selected.includes(index)), edgeIds: edges };
+    } else if (!Value.Check(CanvasAgentEdit, edit) || edit.operations.length > 30)
       throw new ProjectError("CANVAS_OPERATION_INVALID", "无效审批");
     return store.updateGeneration((state) => {
       this.assertOpen(store);
       const key = `canvas-agent:${id}`;
-      const fingerprint = contentHash(edit);
+      const fingerprint = contentHash(targets ? { expectedCanvasRevision, targets } : edit);
       const previous = state.extensions[key] as unknown as EditReceipt | undefined;
       if (previous) {
         if (previous.fingerprint !== fingerprint || previous.runId !== runId)
@@ -497,7 +1047,12 @@ export class CanvasAgentService {
       if (state.canvas.revision !== edit.expectedCanvasRevision)
         throw new ProjectError("CANVAS_REVISION_CONFLICT", "画布已更新");
       const before = projectCanvas(state.canvas);
-      state.canvas = applyCanvas(state, edit.operations);
+      state.canvas = applyCanvas(
+        state,
+        targets
+          ? compileDeletion(before, targets.nodeIds, targets.edgeIds)
+          : (edit.operations as CanvasOperation[]),
+      );
       const after = projectCanvas(state.canvas);
       const patches = inversePatches(before, after);
       const result: EditReceipt = {

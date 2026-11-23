@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
-export type AgentScope = { kind: "settings" } | { kind: "canvas"; projectId: string };
+export type AgentScope = { kind: "settings" } | { kind: "canvas" | "drama"; projectId: string };
 
 export class LocalAgentError extends Error {
   constructor(readonly code: string) {
@@ -12,9 +12,9 @@ export class LocalAgentError extends Error {
 
 export function scopeKey(scope: AgentScope): string {
   if (scope.kind === "settings") return "settings";
-  if (scope.kind !== "canvas" || !/^[a-zA-Z0-9-]{1,100}$/.test(scope.projectId))
+  if (!["canvas", "drama"].includes(scope.kind) || !/^[a-zA-Z0-9-]{1,100}$/.test(scope.projectId))
     throw new LocalAgentError("AGENT_SCOPE_INVALID");
-  return `canvas:${scope.projectId}`;
+  return `${scope.kind}:${scope.projectId}`;
 }
 
 function canonical(value: unknown): string {
@@ -62,7 +62,7 @@ export class SpikeTargets {
     return {
       key,
       engineId: String(row?.engine_id),
-      mode: scope.kind === "settings" ? "admin" : "all",
+      mode: scope.kind === "settings" ? "admin" : scope.kind === "drama" ? "drama" : "all",
     };
   }
 

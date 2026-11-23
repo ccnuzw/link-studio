@@ -1,11 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { parentPort, workerData } from "node:worker_threads";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
+import { Value } from "@sinclair/typebox/value";
+import { feedbackValue } from "../../link-studio-core/src/agent-feedback.ts";
+import { isAgentBudget } from "../../link-studio-core/src/agent-generation-quote.ts";
+import { canvasNoticeKind } from "../../link-studio-core/src/agent-notice.ts";
 import type { AttachmentCheck } from "../upstream/src/attachments.ts";
 import { AgentError } from "../upstream/src/engine/errors.ts";
 import type { ApprovalDecision } from "../upstream/src/platform-client.ts";
 import { LocalAgentRuntime, type RuntimeOptions } from "./runtime.ts";
 import { type AgentScope, LocalAgentError } from "./targets.ts";
+
+function canvasBudget(scope: AgentScope, value: unknown) {
+  if (value === undefined) return 0;
+  if (scope.kind !== "canvas") throw new LocalAgentError("AGENT_SCOPE_DENIED");
+  if (!isAgentBudget(value)) throw new LocalAgentError("AGENT_ARGUMENT_INVALID");
+  return value;
+}
 
 const port = parentPort;
 if (!port) throw new Error("Agent runtime requires a Worker");
@@ -42,7 +53,19 @@ async function initialize() {
   runtime = await LocalAgentRuntime.open({
     ...options,
     settings: options.desktopSettings ? settings : undefined,
-    onEvent: (event) => port?.postMessage({ event }),
+    onEvent: (event) => {
+      port?.postMessage({ event });
+      const kind = canvasNoticeKind(event.type, event.payload);
+      if (!runtime || !options.desktopSettings || !kind || event.userId !== "1") return;
+      let target: string;
+      try {
+        target = runtime.targets.assertContext(event.sessionId, event.canvasId);
+      } catch {
+        return;
+      }
+      if (target.startsWith("canvas:"))
+        port?.postMessage({ notice: { project: target.slice(7), kind } });
+    },
     onEffectCommitted: () => {
       if (options.crashAfterEffect) process.exit(73);
     },
@@ -70,15 +93,31 @@ async function dispatch(command: string, args: Record<string, unknown>) {
         Array.isArray(args.selection) ? (args.selection as string[]) : undefined,
         Array.isArray(args.attachments) ? (args.attachments as AttachmentCheck[]) : undefined,
         args.allowWebResearch === true,
+        canvasBudget(scope, args.budgetCredits),
       );
     case "sessions":
       return runtime.sessions(scope);
+    case "renameSession":
+      return runtime.renameSession(scope, sessionId, args.title);
+    case "removeSession":
+      return runtime.removeSession(scope, sessionId);
+    case "cancelWatches":
+      return runtime.cancelWatches(scope, sessionId);
     case "page":
-      return runtime.page(scope, sessionId, Number(args.after));
+      return runtime.page(
+        scope,
+        sessionId,
+        Number(args.after),
+        typeof args.before === "number" ? args.before : undefined,
+      );
     case "state":
       return runtime.state(scope, sessionId);
     case "diagnostics":
       return runtime.diagnostics(scope, sessionId, String(args.runId));
+    case "feedback":
+      if (!Value.Check(feedbackValue, args.value))
+        throw new LocalAgentError("AGENT_ARGUMENT_INVALID");
+      return runtime.feedback(scope, sessionId, String(args.runId), args.value);
     case "idle":
       await runtime.engine.idle();
       return null;
@@ -87,11 +126,14 @@ async function dispatch(command: string, args: Record<string, unknown>) {
       const approval = runtime.store.getApproval("1", String(args.approvalId));
       if (args.sessionId && approval.sessionId !== sessionId)
         throw new LocalAgentError("AGENT_SCOPE_DENIED");
-      if (scope.kind === "canvas" && (command === "canvasAnswer") !== (approval.kind === "ask"))
+      const projectScope = scope.kind === "canvas" || scope.kind === "drama";
+      if (projectScope && (command === "canvasAnswer") !== (approval.kind === "ask"))
         throw new LocalAgentError("AGENT_APPROVAL_STALE");
-      if (command === "canvasAnswer" && scope.kind !== "canvas")
+      if (command === "canvasAnswer" && !projectScope)
         throw new LocalAgentError("AGENT_SCOPE_DENIED");
-      return runtime.decide(scope, String(args.approvalId), args.decision as ApprovalDecision);
+      const decision = args.decision as ApprovalDecision;
+      canvasBudget(scope, decision.add_budget);
+      return runtime.decide(scope, String(args.approvalId), decision);
     }
     case "pendingApproval": {
       runtime.targets.assertSession(sessionId, scope);
@@ -101,7 +143,7 @@ async function dispatch(command: string, args: Record<string, unknown>) {
         approval.sessionId !== sessionId ||
         approval.status !== "pending" ||
         approval.expiresAt <= Date.now() ||
-        run.status !== "waiting_approval"
+        run.status !== (approval.kind === "ask" ? "waiting_input" : "waiting_approval")
       )
         throw new LocalAgentError("AGENT_APPROVAL_STALE");
       return { kind: approval.kind, payload: approval.payload };
@@ -113,10 +155,14 @@ async function dispatch(command: string, args: Record<string, unknown>) {
       return runtime.store.listApprovals(run.id);
     }
     case "interject": {
-      runtime.targets.assertSession(sessionId, scope);
-      const run = runtime.store.getRun("1", String(args.runId));
-      if (run.sessionId !== sessionId) throw new LocalAgentError("AGENT_SCOPE_DENIED");
-      return runtime.engine.interject("1", run.id, String(args.message));
+      return runtime.interject(
+        scope,
+        sessionId,
+        String(args.runId),
+        String(args.message),
+        (args.attachmentAssetIds ?? []) as string[],
+        settings,
+      );
     }
     case "cancel": {
       runtime.targets.assertSession(sessionId, scope);
@@ -140,7 +186,7 @@ async function dispatch(command: string, args: Record<string, unknown>) {
         (workerData as { desktopSettings?: boolean }).desktopSettings
       )
         await settings("model", { key: runtime.store.getSession("1", sessionId).modelKey });
-      return runtime.engine.resume("1", run.id);
+      return runtime.engine.resume("1", run.id, canvasBudget(scope, args.addBudget));
     }
     case "sandbox": {
       const sandbox = new CodemodeSandbox({ timeoutMs: 500, memoryLimitBytes: 16 * 1024 * 1024 });
@@ -187,6 +233,7 @@ port.on(
         60002: "AGENT_MODEL_UNAVAILABLE",
         60003: "AGENT_RUN_STATE_INVALID",
         60004: "AGENT_APPROVAL_STALE",
+        60008: "AGENT_OVER_BUDGET",
         60011: "AGENT_SCOPE_DENIED",
         60012: "AGENT_SCOPE_DENIED",
         60013: "AGENT_APPROVAL_STALE",

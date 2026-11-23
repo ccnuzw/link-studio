@@ -1,0 +1,60 @@
+.agent-model-empty,
+.agent-model-skeleton {
+  color: var(--welcome-ink);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.agent-model-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 24px;
+  text-align: center;
+}
+.agent-model-empty span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--welcome-fill);
+}
+.agent-model-empty div {
+  font-weight: 500;
+}
+.agent-model-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--welcome-muted);
+}
+.agent-model-skeleton {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+.agent-model-skeleton i {
+  height: 96px;
+  border-radius: 8px;
+  background: var(--welcome-fill);
+}
+.agent-model-skeleton i:first-child {
+  width: 128px;
+  height: 24px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .agent-model-skeleton i {
+    animation: agent-model-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+@keyframes agent-model-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}

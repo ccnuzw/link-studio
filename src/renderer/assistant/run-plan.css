@@ -1,0 +1,141 @@
+.agent-run-plan {
+  --plan-color: light-dark(oklch(0.7 0.16 70), oklch(0.8 0.15 75));
+  margin: -10px -10px 4px;
+  border-bottom: 1px solid color-mix(in oklab, var(--shell-ink) 8%, transparent);
+  color: var(--shell-ink);
+  font-size: 12px;
+  line-height: 16px;
+}
+.agent-run-plan[data-finished="true"] {
+  --plan-color: light-dark(oklch(0.6 0.15 155), oklch(0.75 0.15 155));
+}
+.agent-run-plan > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+}
+.assistant-surface .agent-run-plan button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: 16px;
+}
+.agent-run-plan button:first-child {
+  flex: 1;
+  text-align: left;
+}
+.agent-run-plan button > span {
+  flex: 1;
+}
+.agent-run-plan button > span,
+.agent-run-plan li > span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-run-plan button > svg {
+  flex: none;
+}
+.agent-run-plan button > svg:first-child {
+  transform: rotate(-90deg);
+}
+.agent-run-plan circle:first-child {
+  stroke: color-mix(in oklab, var(--shell-ink) 15%, transparent);
+}
+.agent-run-plan circle:last-child {
+  stroke: var(--plan-color);
+  transition: stroke-dashoffset 240ms;
+}
+.agent-run-plan button > small,
+.agent-run-plan button > svg:last-child {
+  color: var(--shell-muted);
+}
+.agent-run-plan button > small {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.agent-run-plan button[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+.agent-run-plan button + button {
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+}
+.agent-run-plan button + button:hover {
+  background: var(--assistant-hover);
+}
+.agent-run-plan b {
+  padding: 1px 6px;
+  border-radius: 5px;
+  color: var(--plan-color);
+  background: color-mix(in oklab, var(--plan-color) 16%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+}
+.agent-run-plan ul {
+  list-style: none;
+  max-height: 192px;
+  overflow-y: auto;
+  scrollbar-color: auto;
+  scrollbar-gutter: stable;
+  margin: 0;
+  padding: 8px 12px 0;
+}
+.agent-run-plan ul::-webkit-scrollbar {
+  width: 8px;
+}
+.agent-run-plan li {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--shell-muted);
+}
+.agent-run-plan li > span:first-child {
+  width: 14px;
+  display: grid;
+  place-items: center;
+}
+.agent-run-plan li i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.7;
+}
+.agent-run-plan li[data-state="doing"] {
+  color: inherit;
+  font-weight: 500;
+}
+.agent-run-plan li[data-state="doing"] i {
+  color: var(--plan-color);
+  background: currentColor;
+  opacity: 1;
+}
+.agent-run-plan li[data-state="done"] > span:last-child {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--shell-ink) 20%, transparent);
+}
+.agent-run-plan li svg,
+.assistant-plan-done svg {
+  color: light-dark(oklch(0.6 0.15 155), oklch(0.75 0.15 155));
+}
+.assistant-plan-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: 13px;
+}

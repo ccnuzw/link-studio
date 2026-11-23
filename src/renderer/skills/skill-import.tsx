@@ -30,7 +30,6 @@ export function SkillImport({
   const [activity, setActivity] = useState("");
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
-  const [enabled, setEnabled] = useState(false);
   const [scopes, setScopes] = useState<SkillScope[]>([]);
   const busy = useRef(false);
   const stage = useRef<string | null>(null);
@@ -92,7 +91,11 @@ export function SkillImport({
     busy.current = true;
     setActivity("正在保存技能…");
     setError("");
-    const result = await window.desktop.skills.confirm({ id: inspection.id, enabled, scopes });
+    const result = await window.desktop.skills.confirm({
+      id: inspection.id,
+      enabled: scopes.includes("agent"),
+      scopes,
+    });
     busy.current = false;
     setActivity("");
     if (result.ok) {
@@ -130,7 +133,6 @@ export function SkillImport({
                 discard();
                 setInspection(undefined);
                 setError("");
-                setEnabled(false);
                 setScopes([]);
               }}
             >
@@ -238,13 +240,7 @@ export function SkillImport({
             </ul>
           )}
           {inspection.plan?.action === "create" && (
-            <ScopeFields
-              enabled={enabled}
-              setEnabled={setEnabled}
-              scopes={scopes}
-              setScopes={setScopes}
-              disabled={!!activity}
-            />
+            <ScopeFields scopes={scopes} setScopes={setScopes} disabled={!!activity} />
           )}
           {inspection.id && (
             <SkillFiles
