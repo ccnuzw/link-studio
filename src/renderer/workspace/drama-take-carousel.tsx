@@ -8,6 +8,7 @@ import {
   useTransform,
 } from "motion/react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { AssetVideo } from "../asset-media";
 import { initialTakeIndex, snapTakeIndex } from "./drama-take-index";
 import { LocalVideoPoster } from "./local-video-poster";
 
@@ -21,7 +22,7 @@ export interface SegmentTake {
 export function TakeVideo({ asset }: { asset: NonNullable<SegmentTake["asset"]> }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  if (url) return <video className="nodrag" controls autoPlay src={url} />;
+  if (url) return <AssetVideo className="nodrag" controls autoPlay src={url} />;
   return (
     <button
       type="button"
@@ -64,7 +65,7 @@ const isRunning = (take: SegmentTake) =>
 
 /** 预览区的尺寸，用来算卡片大小 */
 function useBoxSize() {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLFieldSetElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
@@ -233,11 +234,12 @@ export function TakeCarousel({
   };
 
   return (
-    <div
+    <fieldset
+      data-ui-group
       ref={box.ref}
-      role="group"
       aria-roledescription="carousel"
       aria-label={`版本 ${focus + 1} / ${takes.length}`}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: The focused carousel handles Left and Right to select a take.
       tabIndex={0}
       onWheel={onWheel}
       onKeyDown={(event) => {
@@ -299,6 +301,6 @@ export function TakeCarousel({
           ))}
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }

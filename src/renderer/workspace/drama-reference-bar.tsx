@@ -128,7 +128,11 @@ export function DramaReferenceBar({
         )}
         {plan.refs.map((item) => (
           <Fragment key={item.id}>
-            <span aria-label={`${item.label} · ${item.state}`} data-dead={item.state === "已失效"}>
+            <span
+              role="img"
+              aria-label={`${item.label} · ${item.state}`}
+              data-dead={item.state === "已失效"}
+            >
               <ReferenceIcon item={item} projectHandle={projectHandle} />
               <span>{item.label}</span>
               {item.state === "参考音频" ? (

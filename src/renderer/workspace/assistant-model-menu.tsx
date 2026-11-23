@@ -3,6 +3,7 @@ import { modelPriceLabel, type ProviderView } from "@link-studio/core";
 import { Box, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useId, useState } from "react";
+import { ChoiceButton } from "../choice-button";
 import { ModelAvatar } from "../settings/model-logo";
 import { AssistantInsertPopup } from "./assistant-insert-popup";
 
@@ -35,7 +36,7 @@ export function AssistantModelMenu({
       <AssistantInsertPopup aria-label="插入模型">
         <div className="assistant-model-kinds" role="radiogroup" aria-label="模型种类">
           {(["image", "video"] as const).map((value) => (
-            <button
+            <ChoiceButton
               key={value}
               type="button"
               role="radio"
@@ -50,7 +51,7 @@ export function AssistantModelMenu({
                 />
               )}
               <span>{value === "image" ? "图片" : "视频"}</span>
-            </button>
+            </ChoiceButton>
           ))}
         </div>
         {options.length ? (

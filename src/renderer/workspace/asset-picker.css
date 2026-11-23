@@ -166,7 +166,7 @@
   gap: 6px;
   font-size: 13px;
 }
-.asset-pick-actions i {
+.asset-pick-actions hr {
   height: 18px;
   width: 1px;
   background: var(--edge);
@@ -252,7 +252,7 @@
 .asset-pick .asset-pick-menu button[aria-pressed="true"] {
   font-weight: 500;
 }
-.asset-pick-menu [role="separator"] {
+.asset-pick-menu :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   margin: 4px -4px;
   background: var(--edge);
@@ -1218,7 +1218,7 @@
   font-size: 11px;
   opacity: 0.7;
 }
-.asset-pick-actions i {
+.asset-pick-actions hr {
   margin-inline: 4px;
 }
 .asset-pick .asset-pick-confirm {
@@ -1518,7 +1518,7 @@
     border-radius: 0;
   }
   .asset-pick footer ul,
-  .asset-pick-actions i {
+  .asset-pick-actions hr {
     display: none;
   }
 }

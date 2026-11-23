@@ -92,7 +92,7 @@ export function ShotRowMenu({
                   <Video />
                   {hasVideo ? "重新生成视频" : "生成视频"}
                 </button>
-                <div role="separator" />
+                <hr data-ui-divider />
                 <button type="button" disabled={full} onClick={() => insertRow(false)}>
                   <ArrowUpToLine />
                   在上方插入
@@ -105,7 +105,7 @@ export function ShotRowMenu({
                   <Copy />
                   复制镜头
                 </button>
-                <div role="separator" />
+                <hr data-ui-divider />
                 <button
                   type="button"
                   className="shot-destructive"

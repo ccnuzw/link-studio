@@ -62,7 +62,7 @@ export function ChangeDecisionOptions({
       {options.map((label, index) =>
         editing && index === 2 ? (
           <form
-            key={index}
+            key={label}
             onSubmit={(event) => {
               event.preventDefault();
               if (reason.trim() && !disabled) void submit(false, reason.trim());
@@ -91,7 +91,7 @@ export function ChangeDecisionOptions({
         ) : (
           <button
             type="button"
-            key={index}
+            key={label}
             ref={(button) => {
               buttons.current[index] = button;
             }}

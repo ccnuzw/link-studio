@@ -174,24 +174,26 @@ export function EpisodeRail({
               (job) => ["queued", "running"].includes(job.status) && job.episodes.includes(no),
             );
             const segments = doc.segments?.filter((segment) => segment.episode_no === no);
-            const states = [
-              (item.script_status ?? (item.script_md.trim() ? "ready" : "empty")) === "ready"
-                ? "on"
-                : "off",
-              item.locked ? "on" : "off",
-              item.storyboard_status === "generating"
-                ? "run"
-                : item.storyboard_status === "ready"
-                  ? segments?.length && segments.every((segment) => segment.chosen_task_id)
-                    ? "on"
-                    : "part"
+            const states = {
+              script:
+                (item.script_status ?? (item.script_md.trim() ? "ready" : "empty")) === "ready"
+                  ? "on"
                   : "off",
-              item.final_asset_id
+              locked: item.locked ? "on" : "off",
+              storyboard:
+                item.storyboard_status === "generating"
+                  ? "run"
+                  : item.storyboard_status === "ready"
+                    ? segments?.length && segments.every((segment) => segment.chosen_task_id)
+                      ? "on"
+                      : "part"
+                    : "off",
+              final: item.final_asset_id
                 ? item.segment_version === item.final_segment_version
                   ? "on"
                   : "part"
                 : "off",
-            ];
+            };
             return (
               <EpisodeMenu
                 key={no}
@@ -216,7 +218,7 @@ export function EpisodeRail({
                   >
                     <b>{String(no).padStart(2, "0")}</b>
                     <i className="episode-pips" aria-hidden="true">
-                      {states.map((state, slot) => (
+                      {Object.entries(states).map(([slot, state]) => (
                         <i key={slot} data-state={state} />
                       ))}
                     </i>

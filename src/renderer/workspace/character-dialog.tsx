@@ -9,6 +9,7 @@ import {
 } from "@link-studio/core";
 import { Loader2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { BackdropDialog } from "./backdrop-dialog";
 import { canvasUploadKind } from "./canvas-upload-file";
 import { type CharacterIdentityChange, CharacterIdentityFields } from "./character-identity-fields";
 import { CharacterImageGallery } from "./character-image-gallery";
@@ -143,12 +144,12 @@ export function CharacterDialog({
 
   return (
     <>
-      <dialog
+      <BackdropDialog
         ref={dialog}
         className="image-doodle-dialog character-detail-dialog"
         aria-labelledby="character-title"
         aria-describedby="character-detail-description"
-        onClick={(event) => event.stopPropagation()}
+        isolateClicks
         onDoubleClick={(event) => event.stopPropagation()}
         onCancel={(event) => {
           event.preventDefault();
@@ -321,7 +322,7 @@ export function CharacterDialog({
             }}
           />
         )}
-      </dialog>
+      </BackdropDialog>
       {purpose &&
         renderPicker(
           { purpose, primary, extras: character.extraAssetIds },

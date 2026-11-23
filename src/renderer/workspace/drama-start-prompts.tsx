@@ -17,6 +17,7 @@ import breakdown from "../../../packages/provider-runtime/runner/dramaoutput/pro
 import planning from "../../../packages/provider-runtime/runner/dramaoutput/prompts/plan_draft.md?raw";
 import scripts from "../../../packages/provider-runtime/runner/dramaoutput/prompts/scripts_draft.md?raw";
 import video from "../../../packages/provider-runtime/runner/dramaoutput/prompts/storyboard_draft.md?raw";
+import { focusOnMount } from "../focus-on-mount";
 import { PlaceholderEditor } from "./drama-placeholder-editor";
 import { FieldMenu } from "./drama-start-style";
 
@@ -339,7 +340,7 @@ export function PromptEditor({ draft, library }: { draft: Draft; library: Librar
         </strong>
       </header>
       <input
-        autoFocus
+        ref={focusOnMount}
         aria-label="名称"
         placeholder="名称"
         maxLength={40}

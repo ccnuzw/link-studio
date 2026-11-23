@@ -47,7 +47,7 @@ export function GroupToolbar({
             className="canvas-group-toolbar canvas-selection-tools grouped-node-tools nodrag nopan"
           >
             <GroupColors colors={colors} setColor={setColor} />
-            <span className="group-tools-divider" role="separator" aria-orientation="vertical" />
+            <hr className="group-tools-divider" data-ui-divider aria-orientation="vertical" />
             <motion.button
               type="button"
               aria-label="整理布局"
@@ -58,7 +58,7 @@ export function GroupToolbar({
               <LayoutGrid />
               <span>整理布局</span>
             </motion.button>
-            <span className="group-tools-divider" role="separator" aria-orientation="vertical" />
+            <hr className="group-tools-divider" data-ui-divider aria-orientation="vertical" />
             <SelectionButton
               label="解散这个组，节点原地保留"
               shortcut={shortcut}
@@ -69,7 +69,7 @@ export function GroupToolbar({
               <span>解组</span>
               <kbd>{shortcut}</kbd>
             </SelectionButton>
-            <span className="group-tools-divider" role="separator" aria-orientation="vertical" />
+            <hr className="group-tools-divider" data-ui-divider aria-orientation="vertical" />
             <SelectionButton
               label="删除组和组内节点"
               shortcut="⌫"

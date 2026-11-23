@@ -8,6 +8,7 @@ import {
 } from "@link-studio/core";
 import { Link2, Upload, X } from "lucide-react";
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import { ChoiceButton } from "../choice-button";
 import { MediaParameterPicker, type MediaParameters } from "../workspace/media-pickers";
 import { KindMark } from "./model-editor";
 import { ModelAvatar } from "./model-logo";
@@ -204,9 +205,9 @@ export function TrialInputCard({
         <KindMark kind={kind} />
       </header>
       {modes.length > 1 && (
-        <fieldset className="trial-modes" role="radiogroup" aria-label="生成方式">
+        <div className="trial-modes" role="radiogroup" aria-label="生成方式">
           {modes.map((entry) => (
-            <button
+            <ChoiceButton
               type="button"
               key={entry}
               disabled={busy}
@@ -215,9 +216,9 @@ export function TrialInputCard({
               onClick={() => setMode(entry)}
             >
               {modelModeLabels[entry]}
-            </button>
+            </ChoiceButton>
           ))}
-        </fieldset>
+        </div>
       )}
       <label className="model-trial-prompt">
         <textarea

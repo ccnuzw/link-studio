@@ -1,6 +1,7 @@
 import { Popover } from "@base-ui/react/popover";
 import type { ProviderView } from "@link-studio/core";
 import { Bot, Check, ChevronDown } from "lucide-react";
+import { ChoiceButton } from "../choice-button";
 import { ModelAvatar } from "../settings/model-logo";
 import { vendors } from "../settings/model-logos/vendors";
 import { CanvasControlTip } from "../workspace/canvas-control-tip";
@@ -55,7 +56,7 @@ export function AgentModelMenu({
                 const label = model.config?.name || model.model;
                 const logo = vendorOf(model);
                 return (
-                  <button
+                  <ChoiceButton
                     key={model.id}
                     type="button"
                     role="radio"
@@ -75,7 +76,7 @@ export function AgentModelMenu({
                     </span>
                     {!model.agentVision && <small>不能看图</small>}
                     {model.id === current.id && <Check size={16} aria-hidden />}
-                  </button>
+                  </ChoiceButton>
                 );
               })}
             </div>

@@ -1,6 +1,7 @@
 import type { DramaDocument } from "@link-studio/core";
 import { Link2Off, Loader2, Lock, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BackdropDialog } from "./backdrop-dialog";
 import { DramaEpisodePicker } from "./drama-episode-picker";
 
 export function DramaScriptsDialog({
@@ -158,7 +159,7 @@ export function DramaScriptsDialog({
     }
   }
   return (
-    <dialog
+    <BackdropDialog
       className="drama-scripts-dialog"
       aria-label={title}
       data-breakdown={breakdown || undefined}
@@ -167,17 +168,7 @@ export function DramaScriptsDialog({
       onCancel={(event) => {
         if (busy) event.preventDefault();
       }}
-      onClick={(event) => {
-        if (busy || event.target !== event.currentTarget) return;
-        const box = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < box.left ||
-          event.clientX > box.right ||
-          event.clientY < box.top ||
-          event.clientY > box.bottom
-        )
-          close();
-      }}
+      dismiss={busy ? undefined : close}
     >
       <h2>{title}</h2>
       <DramaEpisodePicker
@@ -255,6 +246,6 @@ export function DramaScriptsDialog({
       >
         <X size={16} />
       </button>
-    </dialog>
+    </BackdropDialog>
   );
 }

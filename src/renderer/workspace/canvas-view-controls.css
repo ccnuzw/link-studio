@@ -79,7 +79,7 @@
   background: var(--control-hover);
   box-shadow: 0 0 0 1px var(--control-edge);
 }
-.canvas-control-pill [role="separator"] {
+.canvas-control-pill :is([role="separator"], hr[data-ui-divider]) {
   width: 1px;
   height: 18px;
   margin: 0 4px;
@@ -181,7 +181,7 @@
 .canvas-edit-controls button.canvas-edit-add:hover {
   background: color-mix(in oklab, var(--control-ink) 90%, transparent);
 }
-.canvas-edit-controls [role="separator"] {
+.canvas-edit-controls :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   width: 18px;
   margin: 4px 0;

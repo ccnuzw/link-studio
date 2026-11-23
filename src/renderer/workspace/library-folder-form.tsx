@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { BackdropDialog } from "./backdrop-dialog";
 
 export function LibraryFolderForm({
   handle,
@@ -26,7 +27,7 @@ export function LibraryFolderForm({
     return () => element?.close();
   }, []);
   return (
-    <dialog
+    <BackdropDialog
       ref={dialog}
       aria-label={title}
       className="library-folder-form library-name-dialog"
@@ -35,17 +36,7 @@ export function LibraryFolderForm({
         event.stopPropagation();
         if (!busy) close();
       }}
-      onClick={(event) => {
-        if (busy || event.target !== event.currentTarget) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          close();
-      }}
+      dismiss={busy ? undefined : close}
     >
       <form
         onSubmit={async (event) => {
@@ -110,6 +101,6 @@ export function LibraryFolderForm({
       >
         <X size={16} />
       </button>
-    </dialog>
+    </BackdropDialog>
   );
 }

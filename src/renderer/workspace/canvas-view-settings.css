@@ -266,7 +266,7 @@
 .canvas-view-menu [role="menuitem"]:focus small {
   color: inherit;
 }
-.canvas-view-menu [role="separator"] {
+.canvas-view-menu :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   margin: 4px -4px;
   background: oklch(0.922 0 0);
@@ -355,7 +355,7 @@
     --menu-accent: oklch(0.269 0 0);
     --menu-active: oklch(0.985 0 0);
   }
-  .canvas-view-menu [role="separator"] {
+  .canvas-view-menu :is([role="separator"], hr[data-ui-divider]) {
     background: oklch(1 0 0 / 0.1);
   }
   .canvas-view-menu small {

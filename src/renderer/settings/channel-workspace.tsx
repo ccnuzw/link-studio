@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { focusOnMount } from "../focus-on-mount";
 import { CatalogSelect, catalogPageNumbers } from "./adapter-catalog";
 import { ChannelCards } from "./channel-cards";
 import { channelModelHealth, compareChannelModels, matchesModelQuery } from "./channel-model-list";
@@ -171,7 +172,7 @@ export function ChannelWorkspace({
       setChannelsState("ready");
     } else setChannelsState("error");
     return result.ok;
-  }, [api]);
+  }, []);
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -465,7 +466,7 @@ export function ChannelWorkspace({
           reorder={(source, target, after) => void reorderChannels(source, target, after)}
         />
         {channelsState === "loading" ? (
-          <div className="channel-list-loading" aria-label="渠道列表加载中">
+          <div role="status" className="channel-list-loading" aria-label="渠道列表加载中">
             {[0, 1, 2].map((index) => (
               <div className="channel-models-skeleton" key={index} />
             ))}
@@ -729,7 +730,11 @@ export function ChannelWorkspace({
                         [0, 1, 2, 3].map((index) => (
                           <tr key={index}>
                             <td colSpan={7}>
-                              <div className="channel-models-skeleton" aria-label="加载中" />
+                              <div
+                                role="status"
+                                className="channel-models-skeleton"
+                                aria-label="加载中"
+                              />
                             </td>
                           </tr>
                         ))}
@@ -1048,7 +1053,10 @@ export function ChannelWorkspace({
                             {number}
                           </button>
                         ) : (
-                          <span key={`gap-${index}`} aria-hidden="true">
+                          <span
+                            key={index === 1 ? "leading-gap" : "trailing-gap"}
+                            aria-hidden="true"
+                          >
                             …
                           </span>
                         ),
@@ -1096,7 +1104,7 @@ export function ChannelWorkspace({
             )}
           </>
         ) : channelsState === "loading" ? (
-          <div className="channel-detail-loading" aria-label="渠道详情加载中">
+          <div role="status" className="channel-detail-loading" aria-label="渠道详情加载中">
             <div className="channel-models-skeleton" />
             <div className="channel-models-skeleton" />
           </div>
@@ -1748,7 +1756,7 @@ function ChannelDialog({
                   </label>
                 </>
               )}
-              <div className="channel-headers-box" role="group" aria-label="自定义请求头">
+              <fieldset className="channel-headers-box" data-ui-group aria-label="自定义请求头">
                 <strong>自定义请求头</strong>
                 {fields.headers.map((header, index) => (
                   <div className="channel-header-row" key={headerKeys[index]}>
@@ -1808,8 +1816,12 @@ function ChannelDialog({
                   </button>
                   <small>{fields.headers.length}/32</small>
                 </div>
-              </div>
-              <div className="channel-limit-fields" role="group" aria-label="限流（留空不限）">
+              </fieldset>
+              <fieldset
+                className="channel-limit-fields"
+                data-ui-group
+                aria-label="限流（留空不限）"
+              >
                 <small>限流（留空不限）</small>
                 <div className="model-fields">
                   {limitInputs.map(([key, title]) => (
@@ -1830,7 +1842,7 @@ function ChannelDialog({
                     </label>
                   ))}
                 </div>
-              </div>
+              </fieldset>
               {channel && (filing.enabled || officialFilingEndpoint) && (
                 <div className="channel-filing-section">
                   <div className="channel-filing-heading">
@@ -2069,7 +2081,7 @@ function KeysDialog({
             <input
               name="secret"
               type="password"
-              autoFocus
+              ref={focusOnMount}
               maxLength={8192}
               autoComplete="new-password"
               spellCheck={false}
@@ -2184,7 +2196,7 @@ function PullDialog({
       current = false;
       window.clearTimeout(timer);
     };
-  }, [api, id, revision, attempt]);
+  }, [id, revision, attempt]);
   const visible = (models ?? []).filter(({ id }) =>
     id.toLowerCase().includes(query.trim().toLowerCase()),
   );

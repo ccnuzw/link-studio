@@ -221,9 +221,10 @@ export function DramaBoardStage({
   const step = (delta: number) => void choose(outputs[index + delta]?.id);
   return (
     <section className="drama-board-stage" aria-label="故事板预览">
-      <div
-        role="group"
+      <fieldset
+        data-ui-group
         aria-label={outputs.length > 1 ? `故事板版本 ${index + 1} / ${outputs.length}` : "故事板"}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: Arrow keys on the focused preview switch storyboard versions.
         tabIndex={0}
         onKeyDown={(event) => {
           if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
@@ -281,7 +282,7 @@ export function DramaBoardStage({
               </button>
             ))}
         </div>
-      </div>
+      </fieldset>
       {node?.data.assetId && meta && meta.shotCount > 0 && (
         <small>
           {meta.shotCount} 镜 · {meta.layout.replace("x", "×")} · 16:9

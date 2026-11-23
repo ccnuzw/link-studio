@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AssetAudio } from "../asset-media";
 
 import "./node-audio-player.css";
 
@@ -16,6 +17,7 @@ import { clockParts, positionToTime, SILENT_PEAK, timeToPosition } from "./audio
 import { useAudioPeaks } from "./use-audio-peaks";
 
 const BARS = 56;
+const barPositions = Array.from({ length: BARS }, (_, position) => position);
 
 const KEY_STEP = 1;
 
@@ -104,7 +106,7 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
 
   return (
     <div className="node-audio-player">
-      <audio
+      <AssetAudio
         ref={audioRef}
         src={src}
         preload="metadata"
@@ -150,7 +152,7 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
         >
-          {Array.from({ length: BARS }, (_, index) => {
+          {barPositions.map((index) => {
             const peak = peaks?.[index] ?? 0;
             return (
               <span

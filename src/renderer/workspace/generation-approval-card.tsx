@@ -24,7 +24,7 @@ export function GenerationApprovalCard({
   const total = missing ? (known ? `✦ ${known} + 未定价` : "未定价") : `✦ ${known}`;
   const title = `申请生成 ${items.length} 个节点`;
   return (
-    <section role="group" aria-label={title} className="generation-approval settings-change-card">
+    <fieldset data-ui-group aria-label={title} className="generation-approval settings-change-card">
       <h3>
         <Sparkles size={16} aria-hidden />
         <span>{title}</span>
@@ -75,7 +75,7 @@ export function GenerationApprovalCard({
         disabled={busy}
         submit={(approve, answer) => decide(approve ? selected : [], answer)}
       />
-    </section>
+    </fieldset>
   );
 }
 

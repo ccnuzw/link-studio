@@ -1,6 +1,7 @@
 import type { SettingsPluginReview } from "@link-studio/core";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { keyedItems } from "../occurrence-keys";
 
 export function isPluginReview(value: Record<string, unknown>): value is SettingsPluginReview {
   const request = value.request;
@@ -58,18 +59,22 @@ export function PluginReviewDetail({ review }: { review: SettingsPluginReview })
               代码差异
             </button>
             {open && (
-              <pre aria-label="插件代码差异">
-                {review.codeDiff.split("\n").map((line, index) => (
-                  <span key={index} data-prefix={line[0]}>
-                    {line || " "}
-                  </span>
-                ))}
-              </pre>
+              <section aria-label="插件代码差异">
+                <pre>
+                  {keyedItems(review.codeDiff.split("\n"), (line) => line).map(
+                    ({ item: line, key }) => (
+                      <span key={key} data-prefix={line[0]}>
+                        {line || " "}
+                      </span>
+                    ),
+                  )}
+                </pre>
+              </section>
             )}
           </div>
         )}
       </div>
-      <div className="change-diff plugin-review-diffs" aria-label="当前到变更后">
+      <section className="change-diff plugin-review-diffs" aria-label="当前到变更后">
         {review.diff.map((entry) => {
           const before = String(entry.before ?? "—"),
             after = String(entry.after ?? "—");
@@ -84,7 +89,7 @@ export function PluginReviewDetail({ review }: { review: SettingsPluginReview })
             </div>
           );
         })}
-      </div>
+      </section>
     </div>
   );
 }

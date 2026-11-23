@@ -64,7 +64,9 @@ export function DirectorView({
   const gizmo = useRef<TransformControls | null>(null),
     busy = useRef(false),
     skipPick = useRef(false);
-  const [tags, setTags] = useState<{ text: string; x: number; y: number; draft: boolean }[]>([]);
+  const [tags, setTags] = useState<
+    { id: string; text: string; x: number; y: number; draft: boolean }[]
+  >([]);
   const figureStatus = models.status;
   const active = scene.cameras.find(({ id }) => id === scene.activeCameraId);
   const ratio = cameraView ? (active?.aspect ?? "16:9") : "16:9";
@@ -227,11 +229,12 @@ export function DirectorView({
       }
       renderer.redraw();
     }
-    const next: { text: string; x: number; y: number; draft: boolean }[] = [];
-    const tag = (text: string, x: number, y: number, z: number, draft = false) => {
+    const next: { id: string; text: string; x: number; y: number; draft: boolean }[] = [];
+    const tag = (id: string, text: string, x: number, y: number, z: number, draft = false) => {
       const projected = new Vector3(x, y, z).project(renderer.projection);
       if (projected.z < 1)
         next.push({
+          id: JSON.stringify([id, draft]),
           text,
           x: ((projected.x + 1) * box.width) / 2,
           y: ((1 - projected.y) * box.height) / 2,
@@ -241,13 +244,14 @@ export function DirectorView({
     for (const actor of scene.characters) {
       if (actor.hidden) continue;
       const pose = pending.characters.get(actor.id) ?? sampleCharacter(actor, time);
-      if (labels) tag(actor.name, pose.x, 1.95 * (actor.scale || 1), pose.z);
-      if (pending.characters.has(actor.id)) tag("未记录 · 按 K", pose.x, 0, pose.z, true);
+      if (labels) tag(actor.id, actor.name, pose.x, 1.95 * (actor.scale || 1), pose.z);
+      if (pending.characters.has(actor.id)) tag(actor.id, "未记录 · 按 K", pose.x, 0, pose.z, true);
     }
     for (const camera of scene.cameras) {
       const pose = pending.cameras.get(camera.id) ?? sampleCamera(camera, time);
-      if (labels) tag(camera.name, pose.x, pose.y + 0.3, pose.z);
-      if (pending.cameras.has(camera.id)) tag("未记录 · 按 K", pose.x, pose.y + 0.3, pose.z, true);
+      if (labels) tag(camera.id, camera.name, pose.x, pose.y + 0.3, pose.z);
+      if (pending.cameras.has(camera.id))
+        tag(camera.id, "未记录 · 按 K", pose.x, pose.y + 0.3, pose.z, true);
     }
     setTags(next);
   }, [
@@ -310,8 +314,8 @@ export function DirectorView({
         />
       )}
       <div className="director-labels">
-        {tags.map((tag, index) => (
-          <span key={index} data-draft={tag.draft} style={{ left: tag.x, top: tag.y }}>
+        {tags.map((tag) => (
+          <span key={tag.id} data-draft={tag.draft} style={{ left: tag.x, top: tag.y }}>
             {tag.text}
           </span>
         ))}

@@ -1,6 +1,7 @@
 import type { ChannelView, SettingsValues } from "@link-studio/core";
 import { ImagePlus, RotateCw, Star, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { focusOnMount } from "../focus-on-mount";
 import { FilingPersonalPicker } from "./filing-personal-picker";
 import { FilingStorageDialog } from "./filing-storage-dialog";
 import { ModelModal } from "./model-editor";
@@ -217,7 +218,7 @@ export function FilingLibrary({
             </ul>
           )}
           <footer className="model-dialog-footer">
-            <button type="button" autoFocus onClick={() => setRemoval(null)}>
+            <button type="button" ref={focusOnMount} onClick={() => setRemoval(null)}>
               取消
             </button>
             <button
@@ -254,17 +255,17 @@ export function FilingLibrary({
           <fieldset disabled={busy || !canFile}>
             <legend>添加备案图片</legend>
             {people.size > 0 && (
-              <div className="settings-actions" role="group" aria-label="加入方式">
+              <fieldset className="settings-actions" data-ui-group aria-label="加入方式">
                 <button type="button" aria-pressed={!existing} onClick={() => setExisting(false)}>
                   新建真人
                 </button>
                 <button type="button" aria-pressed={existing} onClick={() => setExisting(true)}>
                   加到已有真人
                 </button>
-              </div>
+              </fieldset>
             )}
             {choosingExisting ? (
-              <div role="group" aria-label="选择真人" className="model-chips">
+              <fieldset data-ui-group aria-label="选择真人" className="model-chips">
                 {Array.from(people, ([id, members]) => (
                   <button
                     type="button"
@@ -276,7 +277,7 @@ export function FilingLibrary({
                     {members[0]?.humanName} {members.length}/5
                   </button>
                 ))}
-              </div>
+              </fieldset>
             ) : (
               <label>
                 真人名称
@@ -317,7 +318,7 @@ export function FilingLibrary({
           </fieldset>
         </form>
         {!channel.hasFilingKeys && <p>请先在渠道设置填写备案凭证。</p>}
-        <div role="group" aria-label="按备案状态筛选" className="settings-actions">
+        <fieldset data-ui-group aria-label="按备案状态筛选" className="settings-actions">
           {(Object.keys(filterLabels) as Filter[]).map((key) => (
             <button
               type="button"
@@ -331,7 +332,7 @@ export function FilingLibrary({
                 : groups.filter((group) => group.status === key).length}
             </button>
           ))}
-        </div>
+        </fieldset>
         {!visible.length && <p>暂无符合条件的真人</p>}
         {visible.map(({ id, members, ready, status }) => (
           <section key={id} aria-label={members[0]?.humanName}>

@@ -68,7 +68,7 @@ function SplitSkeletonRows() {
           <div />
           <i />
           <i />
-          {Array.from({ length: 6 }, (_, column) => (
+          {[0, 1, 2, 3, 4, 5].map((column) => (
             <i key={column} />
           ))}
           <div />
@@ -391,11 +391,7 @@ export function StoryboardDialog({
               {shots.length > 0 && <BatchShotImages plan={planImages} generate={startImages} />}
               <div className="storyboard-split-pill">
                 <ShotModelPicker models={textModels} selection={splitSelection} busy={splitting} />
-                <div
-                  className="shot-split-separator"
-                  role="separator"
-                  aria-orientation="vertical"
-                />
+                <hr className="shot-split-separator" data-ui-divider aria-orientation="vertical" />
                 {splitButton}
               </div>
               <ShotStats shots={shots} />
@@ -462,7 +458,7 @@ export function StoryboardDialog({
                       "视频",
                       "",
                     ].map((label, index) => (
-                      <div key={index}>
+                      <div key={label || (index === 0 ? "select" : "actions")}>
                         {label}
                         {index === 3 && <span> *</span>}
                       </div>
@@ -524,7 +520,6 @@ export function StoryboardDialog({
                         >
                           <div className="shot-image-cell">
                             <div
-                              tabIndex={0}
                               className="shot-image-frame"
                               data-state={failed ? "failed" : generating ? "running" : undefined}
                               title={failed ? jobFailureReason(imageJob) || "生成失败" : undefined}

@@ -1,6 +1,7 @@
 import type { SettingsEvent } from "@link-studio/core";
 import { Check, ChevronUp, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { keyedItems } from "../occurrence-keys";
 import { latestPlan } from "./run-plan";
 import "./run-plan.css";
 
@@ -40,8 +41,8 @@ function Plan({
     <section className="agent-run-plan" aria-label="本轮计划" data-finished={finished}>
       {open && (
         <ul>
-          {steps.map((step, index) => (
-            <li key={index} data-state={step.status}>
+          {keyedItems(steps, (step) => step.title).map(({ item: step, key }) => (
+            <li key={key} data-state={step.status}>
               <span aria-hidden>{step.status === "done" ? <Check size={14} /> : <i />}</span>
               <span>{step.title}</span>
             </li>

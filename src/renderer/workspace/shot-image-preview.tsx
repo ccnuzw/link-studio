@@ -105,13 +105,18 @@ function PreviewStage({
   const [failed, setFailed] = useState(false);
   if (!url || failed)
     return (
-      <div
-        className="lightbox-failed"
-        role={item.kind === "video" ? "alert" : "img"}
-        aria-label={item.kind === "video" ? undefined : "原图加载失败"}
-      >
-        <ImageOff />
-        {item.kind === "video" ? "视频无法播放" : "原图加载失败"}
+      <div className="lightbox-failed" role="alert">
+        {item.kind === "video" ? (
+          <>
+            <ImageOff />
+            视频无法播放
+          </>
+        ) : (
+          <span role="img" aria-label="原图加载失败">
+            <ImageOff />
+            原图加载失败
+          </span>
+        )}
         <button type="button" onClick={retry}>
           <RotateCcw />
           重试
@@ -292,8 +297,8 @@ export function ShotImagePreview({
           event.stopPropagation();
           exit(close);
         }}
-        onClick={(event) => {
-          if (event.currentTarget === event.target) exit(close);
+        onPointerUp={(event) => {
+          if (event.button === 0 && event.currentTarget === event.target) exit(close);
         }}
         onKeyDownCapture={(event) => {
           if ((event.target as Element).closest('[role="menu"]')) return;

@@ -1,6 +1,7 @@
 import type { SettingsApproval } from "@link-studio/core";
 import { Check, ChevronDown, ClipboardList } from "lucide-react";
 import { useState } from "react";
+import { ChoiceButton } from "../choice-button";
 import { ChangeDecisionOptions } from "./change-decision-options";
 import { isPluginReview, PluginReviewDetail } from "./settings-plugin-review";
 
@@ -68,7 +69,7 @@ export function ApprovalCard({
             return (
               <li key={field}>
                 <div className="change-item-heading">
-                  <button
+                  <ChoiceButton
                     type="button"
                     role="checkbox"
                     aria-checked={selected.includes(index)}
@@ -83,7 +84,7 @@ export function ApprovalCard({
                     }
                   >
                     {selected.includes(index) && <Check size={14} aria-hidden />}
-                  </button>
+                  </ChoiceButton>
                   <strong>{review?.label ?? field}</strong>
                   <code>{review?.key ?? field}</code>
                   <small>
@@ -94,14 +95,14 @@ export function ApprovalCard({
                 {review ? (
                   <PluginReviewDetail review={review} />
                 ) : (
-                  <div className="change-diff" aria-label="当前到变更后">
+                  <section className="change-diff" aria-label="当前到变更后">
                     <span title={field}>{field}</span>
                     <span data-old={item.before != null} title={before}>
                       {before}
                     </span>
                     <span aria-hidden>→</span>
                     <span title={after}>{after}</span>
-                  </div>
+                  </section>
                 )}
               </li>
             );

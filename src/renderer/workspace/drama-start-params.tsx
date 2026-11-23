@@ -1,5 +1,6 @@
 import type { DramaImageParams, dramaImageFields } from "@link-studio/core";
 import type { RefObject } from "react";
+import { ChoiceButton } from "../choice-button";
 import { FieldMenu } from "./drama-start-style";
 
 type Picks = NonNullable<DramaImageParams["prop"]>;
@@ -91,7 +92,7 @@ export function DramaStartParams({
                 ) : (
                   <div role="radiogroup" aria-label={title} data-param={key}>
                     {values.map((value) => (
-                      <button
+                      <ChoiceButton
                         type="button"
                         role="radio"
                         key={value}
@@ -101,7 +102,7 @@ export function DramaStartParams({
                         {key === "aspectRatio" && <RatioIcon ratio={value} />}
                         {value}
                         {key === "resolution" && fields.resolutionUnit}
-                      </button>
+                      </ChoiceButton>
                     ))}
                   </div>
                 )}

@@ -21,6 +21,7 @@ export function SettledDivider({
   return (
     <>
       <div className="settled-row">
+        {/* biome-ignore lint/a11y/useSemanticElements: This divider contains the visible status pill, which a void hr cannot contain. */}
         <div role="separator" aria-label={text} className="settled-divider">
           <i aria-hidden="true" />
           <span className="settled-pill">

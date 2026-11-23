@@ -30,7 +30,11 @@ export function AssistantSelection({
   const unique = [...new Set(ids)];
   if (!unique.length) return null;
   return (
-    <div role="group" className="assistant-selection" aria-label={`引用了 ${unique.length} 个节点`}>
+    <fieldset
+      data-ui-group
+      className="assistant-selection"
+      aria-label={`引用了 ${unique.length} 个节点`}
+    >
       {(expanded ? unique : unique.slice(0, 3)).map((id, index) => {
         const node = nodes.get(id);
         const kind = node?.type === "creative" ? linkKind(node.data) : node?.type;
@@ -62,6 +66,6 @@ export function AssistantSelection({
           +{unique.length - 3}
         </motion.button>
       )}
-    </div>
+    </fieldset>
   );
 }

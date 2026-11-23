@@ -3427,20 +3427,22 @@ comparison: try {
       );
       const rows = await menu.evaluate((el) => {
         const box = el.getBoundingClientRect();
-        return [...el.querySelector('[role="group"]').children].map((child) => {
-          const rect = child.getBoundingClientRect();
-          const style = getComputedStyle(child);
-          return [
-            rect.x - box.x,
-            rect.y - box.y,
-            rect.width,
-            rect.height,
-            style.fontSize,
-            style.fontWeight,
-            style.color,
-            style.fontFamily,
-          ];
-        });
+        return [...el.querySelector('fieldset[aria-label], [role="group"]').children].map(
+          (child) => {
+            const rect = child.getBoundingClientRect();
+            const style = getComputedStyle(child);
+            return [
+              rect.x - box.x,
+              rect.y - box.y,
+              rect.width,
+              rect.height,
+              style.fontSize,
+              style.fontWeight,
+              style.color,
+              style.fontFamily,
+            ];
+          },
+        );
       });
       console.log("trial-ref-rows", label, JSON.stringify(rows));
       assert.deepEqual(

@@ -348,7 +348,7 @@ export function AdapterCatalog({
               [0, 1, 2].map((index) => (
                 <tr key={index} className="adapter-loading">
                   <td colSpan={6}>
-                    <div aria-label="加载中" />
+                    <div role="status" aria-label="加载中" />
                   </td>
                 </tr>
               ))}
@@ -378,7 +378,10 @@ export function AdapterCatalog({
                   key={latest.key}
                   onClick={(event) => {
                     if (
-                      !(event.target as HTMLElement).closest("button,input,label,summary,details")
+                      event.currentTarget.contains(event.target as Node) &&
+                      !(event.target as HTMLElement).closest(
+                        "button,input,label,summary,details,[role=menuitem]",
+                      )
                     )
                       open(selected ?? latest);
                   }}
@@ -413,7 +416,7 @@ export function AdapterCatalog({
                     {count > 0 ? `${count} 个在用` : <span className="adapter-muted">未使用</span>}
                     {outdated > 0 && <small className="adapter-cell-note">{outdated} 个旧版</small>}
                   </td>
-                  <td onClick={(event) => event.stopPropagation()}>
+                  <td>
                     <label className="adapter-switch" title={`${latest.name} · 所有版本`}>
                       <input
                         type="checkbox"
@@ -427,7 +430,7 @@ export function AdapterCatalog({
                       <span aria-hidden="true" />
                     </label>
                   </td>
-                  <td onClick={(event) => event.stopPropagation()}>
+                  <td>
                     <div className="adapter-row-actions">
                       <button
                         type="button"
@@ -523,7 +526,7 @@ export function AdapterCatalog({
                   {number}
                 </button>
               ) : (
-                <span key={`gap-${index}`}>…</span>
+                <span key={index === 1 ? "leading-gap" : "trailing-gap"}>…</span>
               ),
             )}
             <button

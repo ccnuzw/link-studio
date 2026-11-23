@@ -1,6 +1,7 @@
 import { Menu } from "@base-ui/react/menu";
 import { Check, Pause, Play, Repeat, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AssetVideo } from "../asset-media";
 
 function clock(seconds: number) {
   const total = Math.round(seconds);
@@ -80,7 +81,7 @@ export function LightboxVideo({
   }, [src, crossOrigin, wake, toggle, mute]);
   return (
     <div className="lightbox-video" onPointerMove={wake}>
-      <video
+      <AssetVideo
         ref={player}
         playsInline
         preload="auto"

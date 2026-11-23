@@ -11,6 +11,12 @@
 * {
   box-sizing: border-box;
 }
+:where(fieldset[data-ui-group], hr[data-ui-divider]) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
 body {
   margin: 0;
 }
@@ -541,7 +547,13 @@ h1 {
   color: #bac3d2;
   font-size: 11px;
 }
-.node-body {
+.node-:where(fieldset[data-ui-group], hr[data-ui-divider]) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+body {
   display: block;
   padding: 15px;
 }
@@ -951,7 +963,7 @@ dd {
   min-width: 0;
   font-size: 13px;
 }
-.model-settings fieldset {
+.model-settings fieldset:where(:not([data-ui-group])) {
   display: grid;
   gap: 14px;
   border: 0;

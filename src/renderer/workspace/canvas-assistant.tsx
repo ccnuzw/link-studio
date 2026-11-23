@@ -94,16 +94,19 @@ function Proposal({
       </>
     );
   if (deletion) {
+    const highlight = () =>
+      marks.danger(
+        items.flatMap((item) => (typeof item.node_id === "string" ? [item.node_id] : [])),
+      );
     const edgeCount = Array.isArray(payload.edgeIds) ? payload.edgeIds.length : 0;
     const count = selected.length + (edgeCount ? edgeCount - 1 : 0);
     return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: Hover and descendant focus both highlight the canvas targets of this approval.
       <section
         className="settings-confirm"
-        onMouseEnter={() =>
-          marks.danger(
-            items.flatMap((item) => (typeof item.node_id === "string" ? [item.node_id] : [])),
-          )
-        }
+        onFocus={highlight}
+        onBlur={() => marks.danger([])}
+        onMouseEnter={highlight}
         onMouseLeave={() => marks.danger([])}
       >
         <h3>申请删除</h3>

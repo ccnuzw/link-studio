@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { focusOnMount } from "../focus-on-mount";
 
 export function ShotText({
   value,
@@ -29,7 +30,7 @@ export function ShotText({
       aria-label={label}
       aria-invalid={(required && touched && !text.trim()) || undefined}
       placeholder={placeholder}
-      autoFocus={focus}
+      ref={focus ? focusOnMount : undefined}
       rows={1}
       value={text}
       maxLength={maxLength}

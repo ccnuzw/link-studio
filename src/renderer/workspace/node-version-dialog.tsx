@@ -98,7 +98,9 @@ function Modal({
 }
 
 function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
-  const items = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-history-tile]")];
+  const grid = event.currentTarget.closest(".version-grid");
+  if (!grid) return;
+  const items = [...grid.querySelectorAll<HTMLElement>("[data-history-tile]")];
   const index = items.indexOf(document.activeElement as HTMLElement);
   if (index < 0) return;
   const columns = items.filter((item) => item.offsetTop === items[0]?.offsetTop).length;
@@ -156,6 +158,7 @@ function Tile({
     }
   };
   return (
+    // biome-ignore lint/a11y/useSemanticElements: The keyboard-selectable tile contains independent preview and export buttons.
     <div
       role="button"
       tabIndex={0}
@@ -164,9 +167,14 @@ function Tile({
       aria-label={`第 ${index + 1} 版${current ? "（当前主图）" : ""}`}
       title={locked ? "生成中，出第一张后可切换" : current ? "当前主图" : "设为主图"}
       data-locked={locked || undefined}
-      onClick={pick}
-      onDoubleClick={full ? zoom : undefined}
+      onClick={(event) => {
+        if (!(event.target as Element).closest(".version-tools")) pick();
+      }}
+      onDoubleClick={(event) => {
+        if (full && !(event.target as Element).closest(".version-tools")) zoom();
+      }}
       onKeyDown={(event) => {
+        moveFocus(event);
         if (event.target === event.currentTarget && ["Enter", " "].includes(event.key)) {
           event.preventDefault();
           pick();
@@ -192,11 +200,7 @@ function Tile({
             当前图片
           </div>
         ))}
-      <div
-        className="version-tools"
-        onClick={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => event.stopPropagation()}
-      >
+      <div className="version-tools">
         <button type="button" aria-label="放大" title="放大" onClick={zoom}>
           <ZoomIn />
         </button>
@@ -293,9 +297,14 @@ export function NodeVersionDialog({
       : [];
   });
   const grid = (expanded: boolean) => (
-    <div className="version-grid" onKeyDown={moveFocus}>
+    <div className="version-grid">
       {pending.map((job) => (
-        <div key={job.id} className="version-pending" aria-label={imageTaskTitle(job)}>
+        <div
+          role="status"
+          key={job.id}
+          className="version-pending"
+          aria-label={imageTaskTitle(job)}
+        >
           <div>
             <Loader2 className="shot-split-spinner" />
             {imageTaskTitle(job)}
@@ -305,6 +314,7 @@ export function NodeVersionDialog({
       {!expanded &&
         failed.map((job) => (
           <div
+            role="status"
             key={job.id}
             className="version-failed"
             aria-label={`生成失败：${jobFailureReason(job) || "生成失败"}`}

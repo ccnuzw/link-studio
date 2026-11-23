@@ -9,6 +9,7 @@ import {
   type ProviderView,
 } from "@link-studio/core";
 import { useEffect, useState } from "react";
+import { ChoiceButton } from "../choice-button";
 import { DramaBoardStage } from "./drama-board-stage";
 import { DramaReferenceBar } from "./drama-reference-bar";
 import { TakeCarousel } from "./drama-take-carousel";
@@ -190,22 +191,22 @@ export function DramaSegmentVideo({
   return (
     <section aria-label="片段视频">
       <div className="drama-preview-switch" role="radiogroup" aria-label="预览">
-        <button
+        <ChoiceButton
           type="button"
           role="radio"
           aria-checked={view === "board"}
           onClick={() => setView("board")}
         >
           故事板
-        </button>
-        <button
+        </ChoiceButton>
+        <ChoiceButton
           type="button"
           role="radio"
           aria-checked={view === "video"}
           onClick={() => setView("video")}
         >
           视频
-        </button>
+        </ChoiceButton>
       </div>
       {view === "board" && context && (
         <DramaBoardStage

@@ -14,6 +14,7 @@ import {
   type CardTone,
   validateCard,
 } from "../../../packages/agent-runtime/upstream/src/card";
+import { keyedItems } from "../occurrence-keys";
 import "./info-card.css";
 
 const tones = {
@@ -56,8 +57,8 @@ export function InfoCard({ raw, resolveJump }: { raw: unknown; resolveJump?: Car
       </h3>
       {card.kind === "summary" ? (
         <dl>
-          {card.rows.map((row, index) => (
-            <div key={index}>
+          {keyedItems(card.rows, (row) => row.label).map(({ item: row, key }) => (
+            <div key={key}>
               <dt>{row.label}</dt>
               <dd>
                 {reference(row.value, row.ref)}
@@ -79,18 +80,20 @@ export function InfoCard({ raw, resolveJump }: { raw: unknown; resolveJump?: Car
             <table>
               <thead>
                 <tr>
-                  {card.columns.map((column, index) => (
-                    <th key={index} scope="col">
+                  {keyedItems(card.columns, (column) => column).map(({ item: column, key }) => (
+                    <th key={key} scope="col">
                       {column}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {card.rows.slice(0, expanded ? undefined : 6).map((row, index) => (
-                  <tr key={index}>
-                    {row.cells.map((cell, column) => (
-                      <td key={column}>
+                {keyedItems(card.rows.slice(0, expanded ? undefined : 6), (row) =>
+                  JSON.stringify(row.cells),
+                ).map(({ item: row, key }) => (
+                  <tr key={key}>
+                    {keyedItems(row.cells, (cell) => cell.text).map(({ item: cell, key }) => (
+                      <td key={key}>
                         <span className="card-cell">
                           {cell.tone && (
                             <>
@@ -117,8 +120,8 @@ export function InfoCard({ raw, resolveJump }: { raw: unknown; resolveJump?: Car
       )}
       {card.notes && (
         <ul aria-label="提示" className="card-notes">
-          {card.notes.map((note, index) => (
-            <li key={index} data-tone={note.tone}>
+          {keyedItems(card.notes, (note) => note.text).map(({ item: note, key }) => (
+            <li key={key} data-tone={note.tone}>
               <Tone tone={note.tone} note />
               {note.text}
             </li>
@@ -127,10 +130,10 @@ export function InfoCard({ raw, resolveJump }: { raw: unknown; resolveJump?: Car
       )}
       {card.sources && (
         <ul aria-label="来源" className="card-sources">
-          {card.sources.map((source, index) => {
+          {keyedItems(card.sources, (source) => source.url).map(({ item: source, key }) => {
             const url = sourceWebUrl(source.url);
             return (
-              <li key={index}>
+              <li key={key}>
                 {url ? (
                   <a
                     href={url}

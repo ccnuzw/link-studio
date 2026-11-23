@@ -150,7 +150,7 @@ export function NodeActionStrip({
         )}
         {kind === "storyboard" && tool("storyboard", "编辑分镜", Maximize2)}
         {kind !== "script" && kind !== "storyboard" && (
-          <span className="strip-separator" role="separator" aria-orientation="vertical" />
+          <hr className="strip-separator" data-ui-divider aria-orientation="vertical" />
         )}
         {kind === "script" && tail("copy", "复制文本", Copy)}
         {(kind === "script" || kind === "image" || kind === "video") &&

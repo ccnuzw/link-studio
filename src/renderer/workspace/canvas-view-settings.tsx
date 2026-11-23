@@ -78,13 +78,13 @@ function ChoiceRow<Value extends string>({
         <strong>{title}</strong>
         <p>{hint}</p>
       </div>
-      <div className="canvas-preference-options" role="group" aria-label={title}>
+      <fieldset className="canvas-preference-options" data-ui-group aria-label={title}>
         {options.map(([key, label]) => (
           <button key={key} type="button" aria-pressed={value === key} onClick={() => choose(key)}>
             {label}
           </button>
         ))}
-      </div>
+      </fieldset>
     </div>
   );
 }

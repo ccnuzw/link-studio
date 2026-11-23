@@ -27,7 +27,7 @@ export function CanvasStatsBar({
     cursor.current++;
   }
   return (
-    <div className="canvas-controls canvas-stats-zone" role="group" aria-label="画布统计">
+    <fieldset className="canvas-controls canvas-stats-zone" data-ui-group aria-label="画布统计">
       <div className="canvas-control-pill">
         <span title="连线">
           <ArrowRight size={14} />
@@ -52,6 +52,6 @@ export function CanvasStatsBar({
           </CanvasControlTip>
         </Tooltip.Provider>
       </div>
-    </div>
+    </fieldset>
   );
 }

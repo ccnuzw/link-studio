@@ -261,11 +261,13 @@ export function DirectorTimeline({
         </div>
         <div ref={lanesRef} className="dt-lanes" onPointerDown={scrub}>
           <div className="dt-ruler" style={{ height: RULER }}>
-            {Array.from({ length: Math.floor(scene.duration) + 1 }, (_, s) => (
-              <span key={s} className="dt-tick" style={{ left: pct(s) }}>
-                {s}s
-              </span>
-            ))}
+            {Array.from({ length: Math.floor(scene.duration) + 1 }, (_, second) => second).map(
+              (s) => (
+                <span key={s} className="dt-tick" style={{ left: pct(s) }}>
+                  {s}s
+                </span>
+              ),
+            )}
           </div>
           {rows.map(({ item }) => (
             <div

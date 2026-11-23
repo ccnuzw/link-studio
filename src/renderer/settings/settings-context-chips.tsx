@@ -13,8 +13,8 @@ export function SettingsContextChips({
 }) {
   if (!refs.length) return null;
   return (
-    <div
-      role="group"
+    <fieldset
+      data-ui-group
       aria-label="页面上下文"
       className="settings-context-chips"
       data-editable={!!remove}
@@ -29,6 +29,6 @@ export function SettingsContextChips({
           )}
         </span>
       ))}
-    </div>
+    </fieldset>
   );
 }

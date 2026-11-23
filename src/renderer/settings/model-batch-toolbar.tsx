@@ -120,7 +120,9 @@ export function ModelBatchToolbar({
             </Tool>
             <i aria-hidden="true" />
             <span className="batch-count">
-              <b aria-label={`已选 ${count} 个`}>{count}</b>
+              <b role="status" aria-label={`已选 ${count} 个`}>
+                {count}
+              </b>
               <span>个模型</span> 已选
             </span>
             <i aria-hidden="true" />

@@ -33,8 +33,7 @@ export function ResizeHandle({
 
   return (
     <>
-      <div
-        role="separator"
+      <hr
         aria-orientation={vertical ? "vertical" : "horizontal"}
         aria-valuemin={limits.min}
         aria-valuemax={limits.max}
@@ -78,9 +77,7 @@ export function ResizeHandle({
         }}
         className={`director-divider ${orientation}`}
         data-dragging={dragging}
-      >
-        <span className="director-divider-line" />
-      </div>
+      />
 
       {dragging && <div className={`director-divider-cover ${orientation}`} />}
     </>

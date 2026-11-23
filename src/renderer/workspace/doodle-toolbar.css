@@ -68,7 +68,7 @@
 .doodle-pill > span[title] {
   display: inline-flex;
 }
-.doodle-pill [role="separator"] {
+.doodle-pill :is([role="separator"], hr[data-ui-divider]) {
   flex-shrink: 0;
 }
 .doodle-width {

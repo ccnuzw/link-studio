@@ -443,7 +443,7 @@ export function FilingPersonalPicker({
                 上传
               </button>
             )}
-            <i role="separator" aria-orientation="vertical" />
+            <hr data-ui-divider aria-orientation="vertical" />
             <button
               type="button"
               aria-label="关闭"

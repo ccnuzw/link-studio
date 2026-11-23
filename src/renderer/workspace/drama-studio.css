@@ -933,7 +933,7 @@
   border: 1.5px solid currentColor;
   border-radius: 3px;
 }
-.drama-source [role="group"] {
+.drama-source [data-ui-group] {
   display: flex;
   gap: 4px;
   margin-bottom: 10px;

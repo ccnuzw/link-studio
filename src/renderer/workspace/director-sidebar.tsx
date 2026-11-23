@@ -164,12 +164,21 @@ function LayerList({ scene, selectedId, select, updateObject, removeObject }: Si
         const keys = "keys" in item ? item.keys.length : 0;
         const hidden = "hidden" in item && item.hidden;
         return (
+          // biome-ignore lint/a11y/useSemanticElements: This keyboard-selectable row also contains separate visibility and delete buttons.
           <div
             key={item.id}
             role="button"
             tabIndex={0}
             onClick={() => select(item.id)}
-            onKeyDown={(event) => event.key === "Enter" && select(item.id)}
+            onKeyDown={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                (event.key === "Enter" || event.key === " ")
+              ) {
+                event.preventDefault();
+                select(item.id);
+              }
+            }}
             className={cn("ds-item", selectedId === item.id && "ds-active", hidden && "ds-dim")}
           >
             <span className="ds-swatch" style={{ background: swatch(item) }} />
@@ -511,6 +520,7 @@ function Properties({
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: Every Row wraps one labelable input or select supplied by its caller.
     <label className="ds-fieldrow">
       <span className="ds-dim">{label}</span>
       {children}

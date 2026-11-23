@@ -10,6 +10,7 @@ import {
   Video,
 } from "lucide-react";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { focusOnMount } from "../focus-on-mount";
 import type { LinkKind } from "./link-rules";
 import { NodeAudioIcon } from "./node-audio-icon";
 import { normalizeNodeLabel } from "./node-label";
@@ -31,6 +32,7 @@ export function GroupTitle({ labelColor, ...props }: TitleProps & { labelColor?:
     (state) => Math.round(Math.min(4, Math.max(1, 1 / state.transform[2])) * 10) / 10,
   );
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Double-clicking the icon or text is a pointer shortcut for the nested keyboard rename button.
     <div
       className="canvas-group-name"
       onDoubleClick={() => {
@@ -74,7 +76,7 @@ export function CardHeading({
         <input
           className="nodrag nopan"
           aria-label="节点名称"
-          autoFocus
+          ref={focusOnMount}
           value={draft}
           maxLength={80}
           onFocus={(event) => event.currentTarget.select()}
@@ -150,5 +152,19 @@ function GroupName({ id, label, disabled, commit }: TitleProps) {
         }}
       />
     );
-  return <span>{label}</span>;
+  return (
+    <span>
+      <button
+        className="group-title-keyboard"
+        type="button"
+        disabled={disabled}
+        aria-label={`重命名 ${label}`}
+        onClick={(event) => {
+          if (event.detail === 0) rename.start(id);
+        }}
+      >
+        {label}
+      </button>
+    </span>
+  );
 }

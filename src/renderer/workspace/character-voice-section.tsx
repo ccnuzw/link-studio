@@ -194,7 +194,7 @@ export function CharacterVoiceSection({
                 >
                   {bars.map((height, index) => (
                     <i
-                      key={index}
+                      key={height}
                       style={{ height: `${height * 100}%`, animationDelay: `${index * 90}ms` }}
                     />
                   ))}

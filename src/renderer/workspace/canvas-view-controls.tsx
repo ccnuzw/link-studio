@@ -74,7 +74,7 @@ export function CanvasViewControls({
               ))}
             </div>
           </LayoutGroup>
-          <div role="separator" aria-orientation="vertical" />
+          <hr data-ui-divider aria-orientation="vertical" />
           <Menu.Root modal={false}>
             <Menu.Trigger
               render={<motion.button type="button" whileTap={tap} />}

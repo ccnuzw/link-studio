@@ -57,9 +57,9 @@ export function ViewModeSwitch({
   };
 
   return (
-    <div ref={rootRef} className="director-view-menu" onKeyDown={open ? onMenuKey : undefined}>
+    <div ref={rootRef} className="director-view-menu">
       {open && (
-        <div role="menu" aria-label="视角" className="director-menu-items">
+        <div role="menu" onKeyDown={onMenuKey} aria-label="视角" className="director-menu-items">
           <MenuItem
             icon={<Compass />}
             label="导演视角"
@@ -80,6 +80,7 @@ export function ViewModeSwitch({
       )}
       <button
         ref={triggerRef}
+        onKeyDown={open ? onMenuKey : undefined}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}

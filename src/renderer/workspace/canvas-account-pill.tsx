@@ -44,7 +44,7 @@ export function CanvasAccountPill() {
           </Popover.Positioner>
         </Popover.Portal>
       </Popover.Root>
-      <span className="canvas-account-divider" role="separator" aria-orientation="vertical" />
+      <hr className="canvas-account-divider" data-ui-divider aria-orientation="vertical" />
       <Menu.Root modal={false}>
         <Menu.Trigger
           className="canvas-account-trigger"

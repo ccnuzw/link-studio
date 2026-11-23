@@ -173,7 +173,7 @@ export function PricingRules({
           <span>
             计费方式 <em>*</em>
           </span>
-          <div className="price-segments" role="group" aria-label="计费方式">
+          <fieldset className="price-segments" data-ui-group aria-label="计费方式">
             {(["request", "second", "token"] as const).map((unit) => (
               <button
                 key={unit}
@@ -194,12 +194,12 @@ export function PricingRules({
                 {unit === "token" ? "Token" : unit === "second" ? "按秒" : "按次"}
               </button>
             ))}
-          </div>
+          </fieldset>
         </div>
         {!token && (
           <div>
             <span>适用范围</span>
-            <div className="price-segments" role="group" aria-label="适用范围">
+            <fieldset className="price-segments" data-ui-group aria-label="适用范围">
               <button
                 type="button"
                 aria-pressed={!spec}
@@ -226,7 +226,7 @@ export function PricingRules({
               >
                 按规格定价
               </button>
-            </div>
+            </fieldset>
           </div>
         )}
         {spec && <small>未命中规格时按最低规格价收取</small>}
@@ -322,10 +322,10 @@ export function PricingRules({
                 </div>
                 <div className="price-default-body">
                   {dimensions.map((dim) => (
-                    <div
+                    <fieldset
                       className="price-condition"
                       key={dim.key}
-                      role="group"
+                      data-ui-group
                       aria-label={dim.label}
                     >
                       <span>{dim.label}</span>
@@ -346,7 +346,7 @@ export function PricingRules({
                           </button>
                         );
                       })}
-                    </div>
+                    </fieldset>
                   ))}
                   {Object.keys(tier.when)
                     .filter((key) => !dimensions.some((dim) => dim.key === key))

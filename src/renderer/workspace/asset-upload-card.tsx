@@ -18,10 +18,10 @@ export function AssetUploadCard({
   const failed = task.status === "failed";
   const label = failed ? "移除" : "取消上传";
   return (
-    <div
+    <fieldset
       className="asset-upload-card"
       data-status={task.status}
-      role="group"
+      data-ui-group
       aria-label={task.file.name}
     >
       <Tooltip.Root>
@@ -82,6 +82,6 @@ export function AssetUploadCard({
           </span>
         </>
       )}
-    </div>
+    </fieldset>
   );
 }

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BackdropDialog } from "./backdrop-dialog";
 import { CanvasPromptEditor, type CanvasPromptHandle } from "./canvas-prompt-editor";
 import { GenerationModelMenu } from "./generation-model-menu";
 import { mediaGenerationDraft, type ProviderSettings } from "./media-generation-draft";
@@ -884,6 +885,7 @@ export function GenerationForm({
               }
             >
               <span
+                role="status"
                 className="media-credit"
                 data-blocked={!ready}
                 aria-label={quote === undefined ? "积分未知" : `预估 ${quote} 积分`}
@@ -1042,7 +1044,7 @@ export function GenerationForm({
       >
         <RefHighlightProvider>
           {dialogOnly && (
-            <dialog
+            <BackdropDialog
               ref={settingsDialog}
               className="asset-prompt-settings nodrag nopan nowheel"
               aria-labelledby={`asset-prompt-title-${node.id}`}
@@ -1051,18 +1053,8 @@ export function GenerationForm({
                 event.preventDefault();
                 if (!expanded && !picker) close();
               }}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (event.target !== event.currentTarget) return;
-                const box = event.currentTarget.getBoundingClientRect();
-                if (
-                  event.clientX < box.left ||
-                  event.clientX > box.right ||
-                  event.clientY < box.top ||
-                  event.clientY > box.bottom
-                )
-                  close();
-              }}
+              isolateClicks
+              dismiss={close}
               onDoubleClick={(event) => event.stopPropagation()}
             >
               <header>
@@ -1091,12 +1083,12 @@ export function GenerationForm({
               >
                 {!expanded && form}
               </div>
-            </dialog>
+            </BackdropDialog>
           )}
           {!expanded ? (
             !dialogOnly && form
           ) : (
-            <dialog
+            <BackdropDialog
               ref={expandedDialog}
               className="media-prompt-dialog nodrag nopan nowheel"
               aria-label="编辑提示词"
@@ -1118,18 +1110,8 @@ export function GenerationForm({
                 event.stopPropagation();
                 restorePrompt();
               }}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (event.target !== event.currentTarget) return;
-                const bounds = event.currentTarget.getBoundingClientRect();
-                if (
-                  event.clientX < bounds.left ||
-                  event.clientX > bounds.right ||
-                  event.clientY < bounds.top ||
-                  event.clientY > bounds.bottom
-                )
-                  restorePrompt();
-              }}
+              isolateClicks
+              dismiss={restorePrompt}
               onDoubleClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
@@ -1144,7 +1126,7 @@ export function GenerationForm({
               >
                 <X size={16} />
               </button>
-            </dialog>
+            </BackdropDialog>
           )}
           {switchDialog}
         </RefHighlightProvider>

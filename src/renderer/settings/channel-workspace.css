@@ -4744,7 +4744,7 @@
 .model-display-fields :where(label) > small {
   justify-self: end;
 }
-.model-settings .model-editor-form fieldset {
+.model-settings .model-editor-form fieldset:where(:not([data-ui-group])) {
   border: 1px solid var(--channel-line);
   border-radius: 8px;
   padding: 9px;

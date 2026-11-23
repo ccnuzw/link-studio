@@ -8,6 +8,9 @@ import {
 import { CornerDownRight, createLucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { ChoiceButton } from "../choice-button";
+import { focusOnMount } from "../focus-on-mount";
+import { keyedItems } from "../occurrence-keys";
 
 const customChoice = "\u0000custom";
 const MessageCircleQuestion = createLucideIcon("message-circle-question-mark", [
@@ -72,8 +75,8 @@ export function QuestionRecord({
     });
   return (
     <section className="agent-question-record" aria-label="小灵提问记录">
-      {entries.map(({ label, answer }, index) => (
-        <div key={index} aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}>
+      {keyedItems(entries, (entry) => entry.label).map(({ item: { label, answer }, key }) => (
+        <section key={key} aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}>
           <CornerDownRight size={14} aria-hidden />
           {label && <span title={label}>{label}</span>}
           <strong
@@ -82,7 +85,7 @@ export function QuestionRecord({
           >
             {answer || "没回答"}
           </strong>
-        </div>
+        </section>
       ))}
     </section>
   );
@@ -203,21 +206,22 @@ export function AssistantQuestionnaire({
           const picked = Array.isArray(raw) ? raw : [raw];
           if (allowCustom) items?.push({ value: customChoice, label: "其他，我来说", hint: "" });
           return (
-            <div className="agent-ask-question" key={id} role="group" aria-label={label}>
+            <fieldset className="agent-ask-question" key={id} data-ui-group aria-label={label}>
               <div className="agent-ask-label">
                 <span aria-hidden>{index + 1}</span>
                 <label htmlFor={items ? undefined : control}>{label}</label>
                 {required === false && <small>选填</small>}
               </div>
               {items ? (
-                <div
+                <fieldset
+                  data-ui-group
                   className="agent-ask-options"
-                  role={multi ? "group" : "radiogroup"}
+                  {...(multi ? {} : { role: "radiogroup" })}
                   aria-label={label}
                 >
                   {items.map((item, optionIndex) => (
                     <Fragment key={item.value}>
-                      <button
+                      <ChoiceButton
                         type="button"
                         key={item.value}
                         value={item.value}
@@ -238,7 +242,7 @@ export function AssistantQuestionnaire({
                         <span aria-hidden>{String.fromCharCode(65 + optionIndex)}</span>
                         {item.label}
                         {item.hint && <small>{item.hint}</small>}
-                      </button>
+                      </ChoiceButton>
                       {picked.includes(item.value) &&
                         (item.value === customChoice ||
                           follow?.some((entry) => entry.label === item.value)) && (
@@ -248,7 +252,7 @@ export function AssistantQuestionnaire({
                               follow?.find((entry) => entry.label === item.value)?.placeholder ??
                               "自己写"
                             }
-                            autoFocus
+                            ref={focusOnMount}
                             maxLength={2000}
                             disabled={busy}
                             value={detailsByChoice.get(JSON.stringify([id, item.value])) ?? ""}
@@ -263,7 +267,7 @@ export function AssistantQuestionnaire({
                     </Fragment>
                   ))}
                   {!items.length && <small>暂无可用模型，请在设置中启用</small>}
-                </div>
+                </fieldset>
               ) : (
                 <input
                   id={control}
@@ -287,12 +291,12 @@ export function AssistantQuestionnaire({
                     : "请输入不含登录凭据的 HTTP 或 HTTPS 链接。"}
                 </small>
               )}
-            </div>
+            </fieldset>
           );
         },
       )}
       <div className="agent-ask-actions">
-        <small aria-label="进度">
+        <small role="status" aria-label="进度">
           {answers.length} / {questions.length}
         </small>
         {!quickChoices && (
@@ -334,8 +338,8 @@ function QuickQuestion({
       buttons.current[0]?.focus({ preventScroll: true });
   }, []);
   return (
-    <section
-      role="group"
+    <fieldset
+      data-ui-group
       aria-label={label}
       className="agent-ask-form agent-quick-question"
       onKeyDown={(event) => {
@@ -366,7 +370,7 @@ function QuickQuestion({
             >
               <span className="choice-number">{index + 1}</span>
               <input
-                autoFocus
+                ref={focusOnMount}
                 aria-label="其他…"
                 placeholder="自己写"
                 maxLength={2000}
@@ -413,6 +417,6 @@ function QuickQuestion({
         )}
         {!options.length && <small>暂无可用模型，请在设置中启用</small>}
       </div>
-    </section>
+    </fieldset>
   );
 }

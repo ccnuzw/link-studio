@@ -63,7 +63,7 @@ export function CanvasEditToolbar({
               </CanvasControlTip>
             )}
           />
-          <div role="separator" aria-orientation="horizontal" />
+          <hr data-ui-divider aria-orientation="horizontal" />
           <LayoutGroup id="canvas-tool">
             <div role="radiogroup">
               {tools.map(([pan, label, key, Icon]) => (
@@ -91,7 +91,7 @@ export function CanvasEditToolbar({
               ))}
             </div>
           </LayoutGroup>
-          <div role="separator" aria-orientation="horizontal" />
+          <hr data-ui-divider aria-orientation="horizontal" />
           <CanvasControlTip label="撤销" shortcut={`${canvasModifier}Z`} side="right">
             <motion.button
               type="button"
@@ -114,7 +114,7 @@ export function CanvasEditToolbar({
               <Redo2 size={16} />
             </motion.button>
           </CanvasControlTip>
-          <div role="separator" aria-orientation="horizontal" className="canvas-edit-wide" />
+          <hr data-ui-divider aria-orientation="horizontal" className="canvas-edit-wide" />
           <CanvasControlTip label="资产库" side="right">
             <motion.button
               type="button"

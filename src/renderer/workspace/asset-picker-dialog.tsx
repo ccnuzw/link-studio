@@ -14,6 +14,7 @@ import {
 import { AssetHumanPane, type FiledChoice } from "./asset-human-pane";
 import { assetPickLimit, pickAsset } from "./asset-node-batch";
 import { AssetUploadCard } from "./asset-upload-card";
+import { BackdropDialog } from "./backdrop-dialog";
 import { useThumbURL } from "./canvas-prompt-editor";
 import { type CharacterPick, characterPickReason, characterPickTitles } from "./character-pick";
 import { FilingCover } from "./human-picker";
@@ -330,7 +331,7 @@ export function AssetPickerDialog({
         : "";
   const filtered = !library && (keyword || range !== "0" || filter !== "all");
   return (
-    <dialog
+    <BackdropDialog
       ref={dialog}
       aria-label={dialogTitle ?? (character ? characterPickTitles[character.purpose] : "资产库")}
       className="asset-pick"
@@ -339,17 +340,7 @@ export function AssetPickerDialog({
         event.stopPropagation();
         if (!resolving) close();
       }}
-      onClick={(event) => {
-        if (resolving || event.target !== event.currentTarget) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          close();
-      }}
+      dismiss={resolving ? undefined : close}
     >
       <header inert={resolving}>
         <div className="asset-pick-line">
@@ -433,7 +424,7 @@ export function AssetPickerDialog({
                 />
               </>
             )}
-            <i role="separator" aria-orientation="vertical" />
+            <hr data-ui-divider aria-orientation="vertical" />
             <motion.button
               className="asset-pick-icon"
               aria-label="关闭"
@@ -445,7 +436,7 @@ export function AssetPickerDialog({
           </div>
         </div>
         {source === "history" && !lockedKind && (
-          <div role="group" aria-label="内容类型" className="asset-pick-kinds">
+          <fieldset data-ui-group aria-label="内容类型" className="asset-pick-kinds">
             {(Object.keys(kinds) as (keyof typeof kinds)[]).map((value) => (
               <button
                 type="button"
@@ -456,7 +447,7 @@ export function AssetPickerDialog({
                 {kinds[value]}
               </button>
             ))}
-          </div>
+          </fieldset>
         )}
       </header>
       <input
@@ -777,6 +768,6 @@ export function AssetPickerDialog({
           </button>
         </span>
       </footer>
-    </dialog>
+    </BackdropDialog>
   );
 }

@@ -165,7 +165,7 @@ export function CharacterImageGallery({
         </motion.button>
       </div>
       <div className="character-image-extras">
-        {Array.from({ length: 4 }, (_, index) => {
+        {[0, 1, 2, 3].map((index) => {
           const id = extras[index],
             next = index === extras.length;
           return id ? (

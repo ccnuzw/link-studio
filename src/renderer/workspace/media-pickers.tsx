@@ -6,7 +6,6 @@ export type { MediaParameters } from "./model-switch";
 import { Box, Check, Clock, Film, Grid, History, Sun, User } from "lucide-react";
 import {
   Children,
-  Fragment,
   isValidElement,
   type ReactNode,
   type RefObject,
@@ -163,10 +162,10 @@ function OrderedControls({
 }) {
   const ranks = new Map<string, number>(order?.map((name, index) => [name, index]));
   const controls: { rank: number; node: ReactNode }[] = [];
-  Children.forEach(children, (child, index) => {
+  Children.forEach(children, (child) => {
     if (!isValidElement(child)) return;
     const rank = ranks.get(String(child.key)) ?? ranks.size;
-    controls.push({ rank, node: <Fragment key={index}>{child}</Fragment> });
+    controls.push({ rank, node: child });
   });
   return controls.sort((left, right) => left.rank - right.rank).map(({ node }) => node);
 }
@@ -586,17 +585,15 @@ export function MediaPresetPicker({
   maxLength?: number;
 }) {
   const [category, setCategory] = useState("all");
-  const moveFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const moveFocus = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!event.key.startsWith("Arrow")) return;
-    const items = [
-      ...event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-preset-item]"),
-    ];
+    const container = event.currentTarget.closest(".media-template-groups, .media-preset-grid");
+    if (!container) return;
+    const items = [...container.querySelectorAll<HTMLButtonElement>("[data-preset-item]")];
     const index = items.indexOf(document.activeElement as HTMLButtonElement);
     if (index < 0) return;
     const columns =
-      kind === "tpl"
-        ? 1
-        : getComputedStyle(event.currentTarget).gridTemplateColumns.split(" ").length;
+      kind === "tpl" ? 1 : getComputedStyle(container).gridTemplateColumns.split(" ").length;
     const step = { ArrowDown: columns, ArrowUp: -columns, ArrowLeft: -1, ArrowRight: 1 }[event.key];
     const next = step && items[index + step];
     if (next) {
@@ -611,6 +608,7 @@ export function MediaPresetPicker({
     return {
       "aria-pressed": selected.includes(item.id),
       "data-preset-item": true,
+      onKeyDown: moveFocus,
       "aria-disabled": overLimit || undefined,
       title: overLimit
         ? `${title}\n展开后约 ${length} 字，超过当前模型的 ${maxLength} 字上限，不能选`
@@ -622,7 +620,7 @@ export function MediaPresetPicker({
   };
   if (kind === "tpl")
     return (
-      <div className="media-template-groups" onKeyDown={moveFocus}>
+      <div className="media-template-groups">
         {!hasReference && (
           <p className="media-popover-hint">
             模板需要一张参考图。请选择支持参考图的模型并添加素材。
@@ -668,7 +666,7 @@ export function MediaPresetPicker({
           </button>
         ))}
       </fieldset>
-      <div className="media-preset-grid" onKeyDown={moveFocus}>
+      <div className="media-preset-grid">
         {presets
           .filter((item) => category === "all" || item.category === category)
           .map((preset) => (

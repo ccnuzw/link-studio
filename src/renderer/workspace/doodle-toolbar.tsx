@@ -32,7 +32,7 @@ const tools = [
 ] as const;
 const tap = { scale: 0.96 };
 function Divider() {
-  return <span role="separator" aria-orientation="vertical" />;
+  return <hr data-ui-divider aria-orientation="vertical" />;
 }
 
 export function DoodleToolbar(props: Props) {

@@ -777,6 +777,7 @@ export function StageAssets({
             <p>正在读取资产…</p>
           ) : (
             <div className="drama-asset-drop-scroll">
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: File drops and marquee selection supplement the asset picker and selection controls. */}
               <div
                 className="drama-asset-drop-zone"
                 {...marquee.handlers}

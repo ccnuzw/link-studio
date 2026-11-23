@@ -45,7 +45,7 @@ export function PickerFilter({
               <Fragment key={key}>
                 {canvasGroup && index === 2 && (
                   <>
-                    <div role="separator" />
+                    <hr data-ui-divider />
                     <div className="asset-filter-heading">画布</div>
                   </>
                 )}

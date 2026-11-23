@@ -2,7 +2,10 @@ import { Menu } from "@base-ui/react/menu";
 import type { LibraryFolder, ProjectValues } from "@link-studio/core";
 import { Check, Ellipsis, Folder, FolderPlus, House, Loader2, X } from "lucide-react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChoiceButton } from "../choice-button";
+import { focusOnMount } from "../focus-on-mount";
 import { Cover } from "./asset-picker-dialog";
+import { BackdropDialog } from "./backdrop-dialog";
 import { LibraryFolderForm } from "./library-folder-form";
 import { usePersonalLibrary } from "./use-personal-library";
 
@@ -27,7 +30,7 @@ function Surface({
     return () => element?.close();
   }, []);
   return (
-    <dialog
+    <BackdropDialog
       ref={ref}
       role={alert ? "alertdialog" : "dialog"}
       aria-label={label}
@@ -37,20 +40,10 @@ function Surface({
         event.stopPropagation();
         close();
       }}
-      onClick={(event) => {
-        if (alert || event.target !== event.currentTarget) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          close();
-      }}
+      dismiss={alert ? undefined : close}
     >
       {children}
-    </dialog>
+    </BackdropDialog>
   );
 }
 function Actions({ name, options }: { name: string; options: [string, () => void][] }) {
@@ -131,7 +124,7 @@ export function LibraryLocationDialog({
       </header>
       <div className="library-locations" role="radiogroup" aria-label="位置">
         {locations.map((location) => (
-          <button
+          <ChoiceButton
             type="button"
             key={location.id ?? "root"}
             role="radio"
@@ -150,7 +143,7 @@ export function LibraryLocationDialog({
               </small>
             )}
             {destination === location.id && <Check size={16} />}
-          </button>
+          </ChoiceButton>
         ))}
         {!folders && !failed && (
           <div className="library-loading" aria-busy="true">
@@ -214,7 +207,7 @@ export function LibraryLocationDialog({
         >
           <div className="library-draft-row">
             <input
-              autoFocus
+              ref={focusOnMount}
               aria-label="新文件夹名称"
               aria-invalid={!!draftError}
               placeholder="新文件夹名称（最多 30 字）"
@@ -291,7 +284,7 @@ export function DeleteLibraryFolder({
         <p>将移除文件夹及其中 {folder.itemCount} 个素材；画布里已使用的素材不受影响。</p>
       </header>
       <footer>
-        <button type="button" autoFocus onClick={close}>
+        <button type="button" ref={focusOnMount} onClick={close}>
           取消
         </button>
         <button type="button" className="library-danger" onClick={confirm}>

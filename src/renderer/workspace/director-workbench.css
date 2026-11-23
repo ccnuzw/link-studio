@@ -176,6 +176,10 @@
   opacity: 0.4;
 }
 .director-divider {
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
   position: absolute;
   z-index: 20;
   touch-action: none;
@@ -189,23 +193,24 @@
 .director-divider-cover.horizontal {
   cursor: row-resize;
 }
-.director-divider-line {
+.director-divider::after {
+  content: "";
   position: absolute;
   pointer-events: none;
   background: transparent;
   transition: background-color 0.15s;
 }
-.vertical > .director-divider-line {
+.director-divider.vertical::after {
   inset: 0 auto 0 calc(50% - 1px);
   width: 2px;
 }
-.horizontal > .director-divider-line {
+.director-divider.horizontal::after {
   inset: calc(50% - 1px) 0 auto;
   height: 2px;
 }
-.director-divider:hover > .director-divider-line,
-.director-divider:focus-visible > .director-divider-line,
-.director-divider[data-dragging="true"] > .director-divider-line {
+.director-divider:hover::after,
+.director-divider:focus-visible::after,
+.director-divider[data-dragging="true"]::after {
   background: oklch(0.556 0 0 / 0.85);
 }
 .director-divider-cover {

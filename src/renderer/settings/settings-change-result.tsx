@@ -60,9 +60,9 @@ export function SettingsChangeResult({
     .join(":");
   const Icon = applied.length ? CircleCheck : CircleX;
   return (
-    <div
+    <fieldset
       className="settings-change-card change-result"
-      role="group"
+      data-ui-group
       aria-label={`变更单 ${receipt.order} 结果`}
     >
       <div className="change-result-header">
@@ -129,6 +129,6 @@ export function SettingsChangeResult({
           ))}
         </ul>
       )}
-    </div>
+    </fieldset>
   );
 }

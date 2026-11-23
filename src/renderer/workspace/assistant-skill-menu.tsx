@@ -121,7 +121,12 @@ export function AssistantSkillMenu({
           />
         </label>
         {catalog.status === "loading" ? (
-          <div className="assistant-skill-skeleton" aria-busy="true" aria-label="正在加载技能">
+          <div
+            role="status"
+            className="assistant-skill-skeleton"
+            aria-busy="true"
+            aria-label="正在加载技能"
+          >
             <i />
             <i />
             <i />

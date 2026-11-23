@@ -29,6 +29,8 @@ import {
 } from "../assistant/assistant-panel";
 import { AssistantPreferences, AssistantReply } from "../assistant/assistant-preferences";
 import { useAssistantAction, useAssistantSession } from "../assistant/use-assistant-session";
+import { focusOnMount } from "../focus-on-mount";
+import { keyedItems } from "../occurrence-keys";
 import { Activity } from "../settings/settings-assistant";
 import { settingsError } from "../settings/settings-page";
 import { CanvasAssistantEmpty } from "./assistant-empty";
@@ -437,7 +439,7 @@ export function DramaStudio({
       ) : doc === null ? (
         <div className="drama-source">
           <fieldset disabled={busy}>
-            <div role="group" aria-label="剧本来源">
+            <fieldset data-ui-group aria-label="剧本来源">
               <button
                 type="button"
                 aria-pressed={sourceTab === "file"}
@@ -452,8 +454,9 @@ export function DramaStudio({
               >
                 粘贴正文
               </button>
-            </div>
+            </fieldset>
             {sourceTab === "file" ? (
+              // biome-ignore lint/a11y/noStaticElementInteractions: The adjacent file picker button provides keyboard access to the same import.
               <div
                 className="drama-file-drop"
                 onDragOver={(event) => event.preventDefault()}
@@ -703,8 +706,11 @@ export function DramaStudio({
                           <details>
                             <summary>已处理 {preflight.issues.length} 处</summary>
                             <ul>
-                              {preflight.issues.map((issue, index) => (
-                                <li key={index}>{issue.message}</li>
+                              {keyedItems(
+                                preflight.issues,
+                                (issue) => issue.kind + issue.message,
+                              ).map(({ item: issue, key }) => (
+                                <li key={key}>{issue.message}</li>
                               ))}
                             </ul>
                           </details>
@@ -1606,7 +1612,7 @@ function DramaAssistant({
             <h3>{payload.title}</h3>
             <p>{payload.reason}</p>
             {job ? (
-              <div aria-label="修改前后">
+              <section aria-label="修改前后">
                 <div>
                   <strong>修改前</strong>
                   <del>{job.before}</del>
@@ -1615,7 +1621,7 @@ function DramaAssistant({
                   <strong>修改后</strong>
                   <ins>{job.after}</ins>
                 </div>
-              </div>
+              </section>
             ) : (
               Object.entries(payload.after).map(([field, text]) => (
                 <div key={field}>
@@ -1669,7 +1675,7 @@ function DramaAssistant({
             {job && explanation?.id === approval.id && (
               <input
                 aria-label="拒绝说明"
-                autoFocus
+                ref={focusOnMount}
                 maxLength={2000}
                 placeholder="比如：只改结尾，保留前两段"
                 value={explanation.text}

@@ -47,6 +47,7 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { ChoiceButton } from "../choice-button";
 import { CatalogSelect } from "./adapter-catalog";
 import { groupAdapters } from "./catalog-version-order";
 import { CustomEnumEditor } from "./custom-enum-editor";
@@ -339,7 +340,9 @@ function DisabledReason({ reason, children }: { reason?: string; children: React
   const [dismissed, setDismissed] = useState(false);
   if (!reason) return children;
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: The disabled control cannot receive focus, so its wrapper handles tooltip dismissal.
     <span
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: This is the keyboard entry point for the disabled control’s explanation.
       tabIndex={0}
       aria-describedby={id}
       className="model-disabled-reason"
@@ -581,7 +584,7 @@ export function ModelProtocolPicker({
               const endpoint = `${item.endpoint?.method || "POST"} ${item.endpoint?.path || "—"}`;
               const vendor = item.vendor || "—";
               return (
-                <button
+                <ChoiceButton
                   key={item.hash}
                   type="button"
                   role="radio"
@@ -609,7 +612,7 @@ export function ModelProtocolPicker({
                     {item.mode === "async" ? "异步" : "同步"}
                   </small>
                   <span className="model-protocol-dot" aria-hidden="true" />
-                </button>
+                </ChoiceButton>
               );
             })}
             {!results.length && (
@@ -1413,7 +1416,7 @@ function ModelEditorForm({
       >
         {confirmation}
         {json === undefined ? (
-          <nav className="model-tabs" role="tablist" aria-label="模型编辑分区">
+          <div className="model-tabs" role="tablist" aria-label="模型编辑分区">
             {(
               [
                 ["basic", "基本信息", Info],
@@ -1451,7 +1454,7 @@ function ModelEditorForm({
                 )}
               </button>
             ))}
-          </nav>
+          </div>
         ) : (
           <div className="model-tabs model-json-tools">
             <Braces size={16} aria-hidden="true" />

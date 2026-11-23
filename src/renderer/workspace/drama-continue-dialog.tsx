@@ -1,6 +1,7 @@
 import type { DramaDocument } from "@link-studio/core";
 import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BackdropDialog } from "./backdrop-dialog";
 
 export function DramaContinueDialog({
   doc,
@@ -89,7 +90,7 @@ export function DramaContinueDialog({
     }
   }
   return (
-    <dialog
+    <BackdropDialog
       ref={dialog}
       className="drama-scripts-dialog drama-continue-dialog"
       aria-label="继续规划"
@@ -97,17 +98,7 @@ export function DramaContinueDialog({
       onCancel={(event) => {
         if (busy) event.preventDefault();
       }}
-      onClick={(event) => {
-        if (busy || event.target !== dialog.current) return;
-        const box = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < box.left ||
-          event.clientX > box.right ||
-          event.clientY < box.top ||
-          event.clientY > box.bottom
-        )
-          close();
-      }}
+      dismiss={busy ? undefined : close}
     >
       <h2>继续规划</h2>
       <div role="tablist" aria-label="规划范围">
@@ -173,6 +164,6 @@ export function DramaContinueDialog({
       >
         <X size={16} />
       </button>
-    </dialog>
+    </BackdropDialog>
   );
 }

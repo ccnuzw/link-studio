@@ -11,6 +11,7 @@ import {
 } from "@link-studio/core";
 import { CircleAlert, CircleCheck, FlaskConical, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { AssetAudio, AssetVideo } from "../asset-media";
 import { ModelModal } from "./model-editor";
 import {
   type ReferenceKind,
@@ -383,6 +384,7 @@ export function ModelTrial({
             role="tabpanel"
             id={`${tabId}-panel`}
             aria-labelledby={`${tabId}-${tab}`}
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: The active tab panel can contain only non-focusable output text.
             tabIndex={0}
           >
             {busy && tab === "result" && preparing !== "request" && (
@@ -492,7 +494,7 @@ export function ModelTrial({
                           alt="试跑产物"
                         />
                       ) : output.previewUrl && output.mediaType === "video" ? (
-                        <video
+                        <AssetVideo
                           key={output.id}
                           className="trial-output-media"
                           controls
@@ -500,7 +502,7 @@ export function ModelTrial({
                           aria-label="试跑视频"
                         />
                       ) : output.previewUrl && output.mediaType === "audio" ? (
-                        <audio
+                        <AssetAudio
                           key={output.id}
                           className="trial-output-audio"
                           controls

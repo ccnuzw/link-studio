@@ -171,7 +171,7 @@ export function DirectorDialog({
       if (
         event.target instanceof HTMLElement &&
         event.target.closest(
-          'input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="separator"], [data-director-menu], [contenteditable="true"]',
+          'input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="separator"], .director-divider, [data-director-menu], [contenteditable="true"]',
         )
       )
         return;
@@ -407,7 +407,7 @@ export function DirectorDialog({
       if (next < duration) frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
-  }, [playing, scene.duration]);
+  }, [playing]);
 
   function addCamera(pose?: CameraTransform) {
     if (scene.cameras.length >= 6) return;

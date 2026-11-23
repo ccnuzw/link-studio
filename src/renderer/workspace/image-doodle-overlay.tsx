@@ -164,6 +164,7 @@ export function ImageDoodleOverlay({
     <>
       {rect && (
         <ViewportPortal>
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: This event boundary prevents clicks from leaking to the underlying canvas and does not activate a control. */}
           <div
             style={{
               transform: `translate(${left + rect.x}px,${top + rect.y}px)`,

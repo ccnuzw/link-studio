@@ -1,6 +1,7 @@
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
+import { AssetVideo } from "../asset-media";
 
 const DURATION = { base: 0.18, exit: 0.126, fast: 0.12 };
 const EASE_OUT = [0.2, 0, 0, 1] as const;
@@ -197,7 +198,7 @@ function FacadeVideo({ src, phase, onFrame, onError, onRevoke, onVideo }: Facade
       animate={{ opacity: phase === "playing" ? 1 : 0, transition: ENTER }}
       exit={{ opacity: 0, transition: LEAVE }}
     >
-      <video
+      <AssetVideo
         ref={videoRef}
         playsInline
         preload="auto"

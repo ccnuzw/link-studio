@@ -641,7 +641,7 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
   height: 16px;
   pointer-events: none;
 }
-.canvas-add-menu [role="separator"] {
+.canvas-add-menu :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   margin: 4px 8px;
   background: color-mix(in oklab, var(--menu-fg) 8%, transparent);
@@ -1260,6 +1260,15 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
 }
 .canvas-group-name > svg {
   flex-shrink: 0;
+}
+.group-title-keyboard {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
 }
 .canvas-group-name > span {
   overflow: hidden;
@@ -4654,7 +4663,7 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
   width: 16px;
   height: 16px;
 }
-.shot-row-menu [role="separator"] {
+.shot-row-menu :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   background: var(--chrome-border, oklch(0 0 0 / 0.08));
   margin: 4px 8px;

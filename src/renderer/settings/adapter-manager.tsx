@@ -683,7 +683,7 @@ export function AdapterManager({
               </button>
             </header>
             {!editing && (
-              <nav role="tablist" className="adapter-tabs" aria-label="插件详情视图">
+              <div role="tablist" className="adapter-tabs" aria-label="插件详情视图">
                 <button
                   type="button"
                   role="tab"
@@ -700,7 +700,7 @@ export function AdapterManager({
                 >
                   <History size={16} /> 版本历史 <span>{versions.length}</span>
                 </button>
-              </nav>
+              </div>
             )}
             {message}
             <div
@@ -843,12 +843,12 @@ export function AdapterManager({
                 <div className="adapter-detail-skeleton" aria-label="插件详情加载中" role="status">
                   <span />
                   <div>
-                    {Array.from({ length: 4 }, (_, index) => (
+                    {[0, 1, 2, 3].map((index) => (
                       <span key={index} />
                     ))}
                   </div>
                   <div>
-                    {Array.from({ length: 6 }, (_, index) => (
+                    {[0, 1, 2, 3, 4, 5].map((index) => (
                       <span key={index} />
                     ))}
                   </div>

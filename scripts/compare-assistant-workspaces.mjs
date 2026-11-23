@@ -582,7 +582,7 @@ async function captureQuickQuestion(page, panel, scope, side) {
     report.samples[sample] ??= {};
     report.samples[sample][side] = {
       ...(await boxes(panel, {
-        card: `[role="group"][aria-label="${askLabel}"]`,
+        card: `:is(fieldset,[role="group"])[aria-label="${askLabel}"]`,
         activity: 'button[aria-label="处理中"]',
       })),
       ...(await boxes(card, {

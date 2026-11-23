@@ -484,6 +484,7 @@ export function SettingsAssistant({
     </Fragment>
   );
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Escape bubbles from whichever child has focus to cancel the current assistant run.
     <section
       className="assistant-surface settings-assistant"
       onKeyDown={(event) => {

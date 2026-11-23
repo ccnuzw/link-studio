@@ -6197,9 +6197,9 @@ export function App() {
                                         <span className="canvas-selection-count">
                                           {editableSelection.length} 个节点
                                         </span>
-                                        <span
+                                        <hr
                                           className="group-tools-divider"
-                                          role="separator"
+                                          data-ui-divider
                                           aria-orientation="vertical"
                                         />
                                         <SelectionButton
@@ -6211,18 +6211,18 @@ export function App() {
                                           <LayoutGrid />
                                           <span>打组</span>
                                         </SelectionButton>
-                                        <span
+                                        <hr
                                           className="group-tools-divider"
-                                          role="separator"
+                                          data-ui-divider
                                           aria-orientation="vertical"
                                         />
                                         <ArrangeMenu
                                           disabled={selectionBusy}
                                           choose={arrangeNodes}
                                         />
-                                        <span
+                                        <hr
                                           className="group-tools-divider"
-                                          role="separator"
+                                          data-ui-divider
                                           aria-orientation="vertical"
                                         />
                                         <SelectionButton
