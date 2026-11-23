@@ -1,88 +1,92 @@
 import {
   type CanvasCharacter,
+  type ChannelView,
   type GenerationJob,
   jobIsTerminal,
-  modelGenerationOptions,
   type ProjectAsset,
   type ProviderView,
   type SettingsValues,
 } from "@link-studio/core";
-import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { generationStatuses } from "./generation";
+import { Loader2, X } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { canvasUploadKind } from "./canvas-upload-file";
+import { type CharacterIdentityChange, CharacterIdentityFields } from "./character-identity-fields";
+import { CharacterImageGallery } from "./character-image-gallery";
+import type { CharacterPick, CharacterPurpose } from "./character-pick";
+import { characterVoiceModel } from "./character-voice-model";
+import { CharacterVoiceSection } from "./character-voice-section";
+import { GenerationModelMenu } from "./generation-model-menu";
+import { HumanPicker } from "./human-picker";
+import type { ProviderSettings } from "./media-generation-draft";
 
-type GenerationChoice = { prompt: string; provider: ProviderView; afterImageJobId?: string };
+type GenerationChoice = {
+  prompt: string;
+  provider: ProviderView;
+  afterImageJobId?: string;
+  referenceAssetIds?: string[];
+};
 
 export function CharacterDialog({
   character,
+  episodes,
+  changeIdentity,
+  changeVoice,
+  changeVoicePrompt,
   assetId,
   assets,
+  projectHandle,
+  uploadMedia,
+  removeExtra,
+  download,
   jobs,
   settings,
-  preview,
+  changeVoiceModel,
+  cancelVoice,
+  importHuman,
+  renderPicker,
   generate,
-  save,
   close,
 }: {
   character: CanvasCharacter;
+  episodes?: number[] | null;
+  changeIdentity: (patch: CharacterIdentityChange) => void;
   assetId?: string;
   assets: ProjectAsset[];
+  projectHandle: string;
+  download: (id: string) => void;
+  uploadMedia: (slot: CharacterPurpose, file: File) => Promise<string | undefined>;
+  changeVoice: (voice: CanvasCharacter["voice"]) => void;
+  changeVoicePrompt: (voicePrompt: string) => void;
+  removeExtra: (id: string) => void;
   jobs: GenerationJob[];
-  settings: SettingsValues["list"];
-  preview: (asset: ProjectAsset) => void;
-  generate: (image?: GenerationChoice, voice?: GenerationChoice) => Promise<string | undefined>;
-  save: (character: CanvasCharacter, assetId?: string) => void;
+  settings: ProviderSettings;
+  changeVoiceModel: (id: string) => void;
+  cancelVoice: (job: GenerationJob) => Promise<string | undefined>;
+  renderPicker: (
+    request: CharacterPick,
+    close: () => void,
+    confirmed: (assets: ProjectAsset[]) => void,
+  ) => ReactNode;
+  importHuman: (channel: ChannelView, images: SettingsValues["filingAssets"]) => Promise<string[]>;
+  generate: (voice: GenerationChoice) => Promise<string | undefined>;
   close: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [draft, setDraft] = useState(character);
-  const [primaryOverride, setPrimary] = useState<string>();
-  const primary = primaryOverride ?? assetId ?? "";
-  const [imagePrompt, setImagePrompt] = useState<string>();
-  const [imageModelId, setImageModelId] = useState("");
-  const [voicePromptOverride, setVoicePrompt] = useState<string>();
-  const [voiceModelId, setVoiceModelId] = useState("");
+  const [purpose, setPurpose] = useState<CharacterPurpose>();
+  const [pickingHuman, setPickingHuman] = useState(false);
+  const voiceInput = useRef<HTMLInputElement>(null);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const primary = assetId ?? "";
   const [submitting, setSubmitting] = useState(false);
   const [generationError, setGenerationError] = useState("");
-  const models = (kind: "image" | "audio") =>
-    settings.providers.filter((provider) => {
-      const plugin = settings.plugins.find(({ hash }) => hash === provider.pluginHash);
-      return (
-        provider.enabled &&
-        provider.channelEnabled !== false &&
-        plugin?.kind === kind &&
-        !plugin.disabled &&
-        provider.config?.kind !== "agent" &&
-        (kind !== "image" || (provider.config?.modes?.includes("t2i") ?? true)) &&
-        (plugin.auth === "none" || provider.hasSecret)
-      );
-    });
-  const imageModels = models("image");
-  const imageModel = imageModels.find(({ id }) => id === imageModelId) ?? imageModels[0];
-  const voiceModels = models("audio");
-  const voiceModel = voiceModels.find(({ id }) => id === voiceModelId) ?? voiceModels[0];
+  const { voiceModels, voiceModel, acceptsImage, requiresImageURL } = characterVoiceModel(
+    character,
+    settings,
+  );
   const voiceJobs = jobs.filter(({ purpose }) => purpose === "character-voice");
-  const imageJobs = jobs.filter(({ kind }) => kind === "image");
   const latestJob = voiceJobs[0];
-  const voicePrompt = voicePromptOverride ?? latestJob?.voicePrompt ?? "";
-  const imageJob = imageJobs[0];
+  const voicePrompt = character.voicePrompt ?? "";
   const voiceBusy = submitting || voiceJobs.some(({ status }) => !jobIsTerminal(status));
-  const imageBusy = submitting || imageJobs.some(({ status }) => !jobIsTerminal(status));
-  const imageText = (imagePrompt ?? draft.description).trim();
-  const canGenerateImage = !imageBusy && imageModel && imageText;
-  const canGenerateVoice =
-    !voiceBusy && voiceModel && voicePrompt.trim() && latestJob?.status !== "outcome_unknown";
-  const voicePlugin = settings.plugins.find(({ hash }) => hash === voiceModel?.pluginHash);
-  const voiceOptions =
-    voiceModel &&
-    modelGenerationOptions(
-      "audio",
-      voicePlugin?.origin === "builtin" ? voicePlugin.key : undefined,
-      voiceModel.model,
-      voiceModel.channel,
-      voiceModel.config,
-    );
-  const acceptsImage = !!voiceOptions?.references.image && !voiceOptions.referenceNeedsURL("image");
   const dependency = jobs.find(({ id }) => id === latestJob?.afterImageJobId);
   const source = dependency?.outputs[0];
   const retryImageId =
@@ -91,53 +95,45 @@ export function CharacterDialog({
     source?.kind === "image" &&
     source.assetId === assetId &&
     source.assetId === primary &&
-    acceptsImage
+    !requiresImageURL
       ? dependency.id
       : undefined;
-  const images = assets.filter(
-    (asset) =>
-      asset.mediaType === "image" &&
-      (asset.availability === "ready" ||
-        asset.assetId === primary ||
-        draft.extraAssetIds.includes(asset.assetId)),
-  );
-  const audio = assets.filter(
-    (asset) =>
-      asset.mediaType === "audio" &&
-      (asset.availability === "ready" || asset.assetId === draft.voice?.assetId),
-  );
-  const valid = Boolean(draft.name.trim() && draft.look.trim());
-  const currentVoice = audio.find(
-    ({ assetId, availability }) => assetId === draft.voice?.assetId && availability === "ready",
-  );
+  const runningVoice = voiceJobs.find((job) => !jobIsTerminal(job.status));
   useEffect(() => {
     const element = dialog.current;
+    element?.setAttribute("closedby", "any");
     element?.showModal();
+    if (
+      element?.querySelector(".character-detail-columns") === document.activeElement &&
+      matchMedia("(pointer: fine)").matches
+    ) {
+      element
+        ?.querySelector<HTMLButtonElement>(".character-image-gallery button:not(:disabled)")
+        ?.focus({ preventScroll: true });
+    }
     return () => element?.close();
   }, []);
 
-  async function submitGeneration(includeImage: boolean, includeVoice: boolean) {
-    if (
-      (includeImage && !canGenerateImage) ||
-      (includeVoice && !canGenerateVoice) ||
-      (includeImage && includeVoice && !acceptsImage)
-    )
+  async function submitVoice() {
+    if (voiceBusy || !voiceModel || !voicePrompt.trim() || latestJob?.status === "outcome_unknown")
       return;
     setSubmitting(true);
     setGenerationError("");
     try {
-      const error = await generate(
-        includeImage && imageModel ? { prompt: imageText, provider: imageModel } : undefined,
-        includeVoice && voiceModel
-          ? {
-              prompt: voicePrompt.trim(),
-              provider: voiceModel,
-              ...(!includeImage && retryImageId ? { afterImageJobId: retryImageId } : {}),
-            }
-          : undefined,
-      );
+      if (primary && requiresImageURL) {
+        setGenerationError("音色模型需要公网参考图地址");
+        return;
+      }
+      const error = await generate({
+        prompt: voicePrompt.trim(),
+        provider: voiceModel,
+        ...(retryImageId
+          ? { afterImageJobId: retryImageId }
+          : primary && acceptsImage
+            ? { referenceAssetIds: [primary] }
+            : {}),
+      });
       setGenerationError(error ?? "");
-      if (!error && includeImage) setPrimary(undefined);
     } catch {
       setGenerationError("暂时无法提交生成，请重试。");
     } finally {
@@ -146,313 +142,192 @@ export function CharacterDialog({
   }
 
   return (
-    <dialog
-      ref={dialog}
-      className="image-doodle-dialog image-outpaint-dialog"
-      aria-labelledby="character-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!submitting) close();
-      }}
-    >
-      <header>
-        <h2 id="character-title">角色卡</h2>
-        <button type="button" aria-label="关闭角色卡" disabled={submitting} onClick={close}>
-          <X size={18} />
-        </button>
-      </header>
-      <form
-        onSubmit={(event) => {
+    <>
+      <dialog
+        ref={dialog}
+        className="image-doodle-dialog character-detail-dialog"
+        aria-labelledby="character-title"
+        aria-describedby="character-detail-description"
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onCancel={(event) => {
           event.preventDefault();
-          if (valid && !submitting)
-            save(
-              { ...draft, name: draft.name.trim(), look: draft.look.trim() },
-              primary || undefined,
-            );
+          if (!submitting) close();
         }}
       >
-        <div className="outpaint-fields">
-          <label>
-            角色名
-            <input
-              required
-              maxLength={64}
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+        <h2 className="character-detail-sr" id="character-title">
+          角色卡详情
+        </h2>
+        <p className="character-detail-sr" id="character-detail-description">
+          修改角色名称、形象名称、补充图和音色
+        </p>
+        <div className="character-detail-columns">
+          <CharacterImageGallery
+            handle={projectHandle}
+            primary={primary}
+            extras={character.extraAssetIds}
+            name={character.name}
+            assets={assets}
+            human={() => setPickingHuman(true)}
+            library={setPurpose}
+            download={download}
+            remove={removeExtra}
+            upload={async (slot, file) => {
+              await uploadMedia(slot, file);
+            }}
+          />
+          <div className="character-detail-properties">
+            <CharacterIdentityFields
+              name={character.name}
+              look={character.look}
+              episodes={episodes}
+              change={changeIdentity}
             />
-          </label>
-          <label>
-            形象名
-            <input
-              required
-              maxLength={64}
-              value={draft.look}
-              onChange={(event) => setDraft({ ...draft, look: event.target.value })}
-            />
-          </label>
-          <label className="outpaint-full">
-            角色设定
-            <textarea
-              rows={3}
-              maxLength={500}
-              value={draft.description}
-              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-            />
-          </label>
-          <label>
-            主图
-            <select
-              value={primary}
-              onChange={(event) => {
-                const next = event.target.value;
-                setPrimary(next);
-                setDraft({
-                  ...draft,
-                  extraAssetIds: draft.extraAssetIds.filter((id) => id !== next),
-                });
-              }}
+            <CharacterVoiceSection
+              handle={projectHandle}
+              voice={character.voice}
+              jobs={voiceJobs}
+              assets={assets}
+              providers={settings.providers}
+              uploading={uploadingVoice}
+              upload={() => voiceInput.current?.click()}
+              library={() => setPurpose("voice")}
+              adopt={(assetId) => changeVoice({ assetId, origin: "generated" })}
             >
-              <option value="">未绑定</option>
-              {images.map((asset) => (
-                <option key={asset.assetId} value={asset.assetId}>
-                  {asset.displayName}
-                  {asset.availability === "missing" ? "（待定位）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            音色
-            <select
-              value={draft.voice?.assetId ?? ""}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  voice: event.target.value ? { assetId: event.target.value } : undefined,
-                })
-              }
-            >
-              <option value="">未绑定</option>
-              {audio.map((asset) => (
-                <option key={asset.assetId} value={asset.assetId}>
-                  {asset.displayName}
-                  {asset.availability === "missing" ? "（待定位）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="outpaint-full">
-            补充图（{draft.extraAssetIds.length}/4）
-            <select
-              value=""
-              disabled={draft.extraAssetIds.length >= 4}
-              onChange={(event) => {
-                if (event.target.value)
-                  setDraft({
-                    ...draft,
-                    extraAssetIds: [...draft.extraAssetIds, event.target.value],
-                  });
-              }}
-            >
-              <option value="">添加素材</option>
-              {images
-                .filter(
-                  (asset) =>
-                    asset.availability === "ready" &&
-                    asset.assetId !== primary &&
-                    !draft.extraAssetIds.includes(asset.assetId),
-                )
-                .map((asset) => (
-                  <option key={asset.assetId} value={asset.assetId}>
-                    {asset.displayName}
-                  </option>
-                ))}
-            </select>
-          </label>
-          {draft.extraAssetIds.length > 0 && (
-            <ul className="character-extras outpaint-full">
-              {draft.extraAssetIds.map((id) => {
-                const label =
-                  assets.find((asset) => asset.assetId === id)?.displayName ?? "素材缺失";
-                return (
-                  <li key={id}>
-                    <span>{label}</span>
-                    <button
-                      type="button"
-                      aria-label={`移除补充图 ${label}`}
-                      onClick={() =>
-                        setDraft({
-                          ...draft,
-                          extraAssetIds: draft.extraAssetIds.filter((value) => value !== id),
-                        })
-                      }
-                    >
-                      <X size={15} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-        <fieldset className="outpaint-fields storyboard-batch">
-          <legend>形象生成</legend>
-          <label className="outpaint-full">
-            形象提示词
-            <textarea
-              rows={2}
-              maxLength={3000}
-              value={imagePrompt ?? draft.description}
-              onChange={(event) => setImagePrompt(event.target.value)}
-            />
-          </label>
-          <label>
-            形象模型
-            <select
-              value={imageModel?.id ?? ""}
-              disabled={imageBusy}
-              onChange={(event) => setImageModelId(event.target.value)}
-            >
-              {!imageModel && <option value="">请在模型设置中启用图片模型</option>}
-              {imageModels.map(({ id, config, label, model }) => (
-                <option key={id} value={id}>
-                  {config?.name ?? model} · {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={!canGenerateImage}
-            onClick={() => void submitGeneration(true, false)}
-          >
-            生成形象
-          </button>
-          {imageJob && (
-            <p className="outpaint-full storyboard-batch-hint" role="status">
-              形象 · {generationStatuses[imageJob.status]}
-              {imageJob.status === "succeeded" && !imageJob.bound && " · 结果已保留在素材库"}
-            </p>
-          )}
-        </fieldset>
-        <fieldset className="outpaint-fields storyboard-batch">
-          <legend>音色生成</legend>
-          <label className="outpaint-full">
-            音色描述或示例台词
-            <textarea
-              rows={2}
-              maxLength={3000}
-              value={voicePrompt}
-              onChange={(event) => setVoicePrompt(event.target.value)}
-            />
-          </label>
-          <label>
-            音色模型
-            <select
-              value={voiceModel?.id ?? ""}
-              disabled={voiceBusy}
-              onChange={(event) => setVoiceModelId(event.target.value)}
-            >
-              {!voiceModel && <option value="">请在模型设置中启用音频模型</option>}
-              {voiceModels.map(({ id, config, label, model }) => (
-                <option key={id} value={id}>
-                  {config?.name ?? model} · {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="settings-primary"
-            disabled={!canGenerateVoice}
-            onClick={() => void submitGeneration(false, true)}
-          >
-            {submitting
-              ? "正在提交…"
-              : latestJob?.status === "failed"
-                ? "重试生成音色"
-                : "生成音色"}
-          </button>
-          <button
-            type="button"
-            className="outpaint-full"
-            title={!acceptsImage && voiceModel ? "请选择支持内嵌图片参考的音色模型" : undefined}
-            disabled={!canGenerateImage || !canGenerateVoice || !acceptsImage}
-            onClick={() => void submitGeneration(true, true)}
-          >
-            生成形象并生成音色
-          </button>
-          {voiceModel && !acceptsImage && (
-            <small className="outpaint-full storyboard-batch-hint">
-              联合生成需要支持内嵌图片参考的音色模型。
-            </small>
-          )}
-          {latestJob && (
-            <p className="outpaint-full storyboard-batch-hint" role="status">
-              {latestJob.error === "JOB_IMAGE_DEPENDENCY_FAILED"
-                ? "本次形象未能用作主图参考，音色未发送。可单独生成音色，或重新联合生成。"
-                : latestJob.status === "queued" && latestJob.afterImageJobId
-                  ? "等待形象生成并绑定主图"
-                  : `音色 · ${generationStatuses[latestJob.status]}`}
-              {latestJob.status === "outcome_unknown" && " · 请在生成任务中核对原任务。"}
-            </p>
-          )}
-          {generationError && (
-            <p className="outpaint-full image-doodle-error" role="alert">
-              {generationError}
-            </p>
-          )}
-          {currentVoice && (
-            <button type="button" onClick={() => preview(currentVoice)}>
-              试听已选音色
-            </button>
-          )}
-          {voiceJobs.some(({ outputs }) => outputs.length > 0) && (
-            <ul className="character-extras outpaint-full" aria-label="音色历史">
-              {voiceJobs.flatMap((job) =>
-                job.outputs.flatMap((output) => {
-                  if (output.kind !== "audio") return [];
-                  const asset = audio.find(({ assetId }) => assetId === output.assetId);
-                  if (!asset) return [];
-                  return [
-                    <li key={`${job.id}:${asset.assetId}`}>
-                      <span>
-                        {job.model} · {asset.displayName}
-                      </span>
+              <div className="voice-composer">
+                <label htmlFor="character-voice-prompt">AI 生成</label>
+                <div className="voice-composer-input">
+                  <textarea
+                    id="character-voice-prompt"
+                    maxLength={500}
+                    value={voicePrompt}
+                    disabled={voiceBusy}
+                    onChange={(event) => changeVoicePrompt(event.target.value)}
+                    placeholder="音色描述加一句试音台词，例如：年轻女声，偏低，语速慢，句尾轻：“我回来了。”"
+                  />
+                  <div className="voice-composer-tools">
+                    <GenerationModelMenu
+                      current={voiceModel}
+                      models={voiceModels}
+                      plugins={settings.plugins}
+                      disabled={voiceBusy || !voiceModels.length}
+                      status={settings.status ?? "ready"}
+                      emptyLabel="没有音频模型"
+                      container={dialog}
+                      offline={false}
+                      choose={(id) => {
+                        changeVoiceModel(
+                          voiceModels.find((model) => model.id === id)?.modelKey ?? id,
+                        );
+                        return false;
+                      }}
+                    />
+                    {runningVoice ? (
                       <button
                         type="button"
-                        disabled={asset.availability !== "ready"}
-                        onClick={() => preview(asset)}
-                      >
-                        试听
-                      </button>
-                      <button
-                        type="button"
+                        className="voice-submit"
+                        data-cancel
                         disabled={
-                          asset.availability !== "ready" || draft.voice?.assetId === asset.assetId
+                          runningVoice.cancelRequested ||
+                          (runningVoice.status !== "queued" && !runningVoice.canCancelRemote)
                         }
-                        onClick={() =>
-                          setDraft((current) => ({ ...current, voice: { assetId: asset.assetId } }))
-                        }
+                        onClick={async () => {
+                          try {
+                            setGenerationError((await cancelVoice(runningVoice)) ?? "");
+                          } catch {
+                            setGenerationError("无法取消生成，请重试。");
+                          }
+                        }}
                       >
-                        {draft.voice?.assetId === asset.assetId ? "已选音色" : "采用音色"}
+                        <Loader2 />
+                        {Number.isFinite(runningVoice.progress)
+                          ? `${runningVoice.progress}% · 取消`
+                          : "取消"}
                       </button>
-                    </li>,
-                  ];
-                }),
-              )}
-            </ul>
-          )}
-        </fieldset>
-        <footer>
-          <button type="button" disabled={submitting} onClick={close}>
-            取消
-          </button>
-          <button type="submit" className="settings-primary" disabled={!valid || submitting}>
-            保存角色
-          </button>
-        </footer>
-      </form>
-    </dialog>
+                    ) : (
+                      <button
+                        type="button"
+                        className="voice-submit"
+                        disabled={
+                          submitting || !voiceModel || latestJob?.status === "outcome_unknown"
+                        }
+                        onClick={() => {
+                          if (!voicePrompt.trim()) setGenerationError("还没有音色描述");
+                          else void submitVoice();
+                        }}
+                      >
+                        {latestJob?.status === "failed"
+                          ? "重试"
+                          : character.voice
+                            ? "重新生成"
+                            : "生成声音"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {(generationError || latestJob?.status === "failed") && (
+                  <p className="voice-error" role="alert">
+                    {generationError || latestJob?.errorMessage || "生成失败"}
+                  </p>
+                )}
+              </div>
+            </CharacterVoiceSection>
+            <output className="character-detail-sr" aria-label="主图" data-asset-id={primary}>
+              {assets.find((item) => item.assetId === primary)?.displayName ?? "未绑定"}
+            </output>
+            <input
+              hidden
+              type="file"
+              ref={voiceInput}
+              accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.opus"
+              onChange={async (event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (!file || uploadingVoice) return;
+                const result = canvasUploadKind(file);
+                if ("error" in result || result.kind !== "audio") {
+                  setGenerationError("error" in result ? result.error : "音色只能上传音频");
+                  return;
+                }
+                setUploadingVoice(true);
+                setGenerationError("");
+                try {
+                  if (!(await uploadMedia("voice", file)))
+                    setGenerationError("无法上传声音，请重试。");
+                } catch {
+                  setGenerationError("无法上传声音，请重试。");
+                } finally {
+                  setUploadingVoice(false);
+                }
+              }}
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="character-detail-close"
+          aria-label="关闭角色卡"
+          disabled={submitting}
+          onClick={close}
+        >
+          <X size={16} />
+        </button>
+        {pickingHuman && (
+          <HumanPicker
+            close={() => setPickingHuman(false)}
+            apply={async (channel, images) => {
+              const ids = await importHuman(channel, images);
+              if (!ids.length) throw new Error("图片不可用");
+            }}
+          />
+        )}
+      </dialog>
+      {purpose &&
+        renderPicker(
+          { purpose, primary, extras: character.extraAssetIds },
+          () => setPurpose(undefined),
+          () => setPurpose(undefined),
+        )}
+    </>
   );
 }

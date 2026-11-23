@@ -1,0 +1,511 @@
+.creative-card .canvas-version-badge,
+.node-version-dialog,
+.version-menu {
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+.creative-card button.canvas-version-badge,
+.version-head h2 span {
+  font-variant-numeric: tabular-nums;
+}
+.creative-card button.canvas-version-badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: oklab(0 0 0 / 0.75);
+  color: white;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  box-shadow: 0 0 0 1px color-mix(in oklab, white 10%, transparent);
+  cursor: pointer;
+}
+.creative-card button.canvas-version-badge:hover {
+  background: rgb(0 0 0 / 0.9);
+}
+.creative-card button.canvas-version-badge:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.7);
+}
+.node-version-dialog {
+  --version-card: oklch(1 0 0);
+  --version-text: oklch(0.145 0 0);
+  --version-soft: oklch(0.556 0 0);
+  --version-muted: oklch(0.97 0 0);
+  --version-border: oklch(0.922 0 0);
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: var(--version-card);
+  color: var(--version-text);
+  border-radius: 22px;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  width: min(720px, 92vw);
+  max-height: 92svh;
+  overflow: visible;
+  font-size: 14px;
+  line-height: 20px;
+}
+.dark .node-version-dialog,
+[data-theme="dark"] .node-version-dialog,
+.dark .version-menu,
+[data-theme="dark"] .version-menu {
+  --version-primary: oklch(0.922 0 0);
+  --version-primary-text: oklch(0.205 0 0);
+  --version-card: oklch(0.205 0 0);
+  --version-text: oklch(0.985 0 0);
+  --version-soft: oklch(0.708 0 0);
+  --version-muted: oklch(0.269 0 0);
+  --version-border: oklch(1 0 0 / 0.1);
+}
+.node-version-dialog.normal,
+.node-version-dialog.confirm {
+  inset: 50% auto auto 50%;
+  margin: 0;
+  translate: -50% -50%;
+}
+.node-version-dialog {
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+}
+.version-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgb(0 0 0 / 0.62);
+  backdrop-filter: blur(8px);
+}
+.dark .version-backdrop,
+[data-theme="dark"] .version-backdrop {
+  background: rgb(0 0 0 / 0.7);
+}
+.node-version-dialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  padding: 0;
+}
+.node-version-dialog button:focus-visible,
+.version-grid [data-history-tile]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.version-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 22px 12px;
+}
+.version-head h2 {
+  font-size: 15px;
+  line-height: calc(20 / 14);
+  font-weight: 600;
+  margin: 0 auto 0 0;
+}
+.version-head h2 span {
+  margin-left: 6px;
+  color: var(--version-soft);
+  font-weight: 400;
+}
+.version-head > i {
+  height: 18px;
+  width: 1px;
+  margin: 0 4px;
+  background: var(--version-border);
+}
+.version-head button {
+  height: 32px;
+  min-width: 32px;
+  border-radius: 10px;
+}
+.version-head button:has(svg):not([aria-label]) {
+  padding: 0 10px;
+}
+.version-head button:hover {
+  background: var(--version-muted);
+}
+.version-head svg,
+.version-menu svg {
+  width: 16px;
+  height: 16px;
+}
+.version-grid {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 0 22px 22px;
+  overflow: auto;
+  max-height: min(520px, 70svh);
+}
+.version-grid > div {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 14px;
+}
+.version-grid [data-history-tile] {
+  background: color-mix(in oklab, var(--version-muted) 40%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, white 12%, transparent);
+  cursor: pointer;
+}
+.version-grid [data-history-tile]:hover {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+.version-grid [data-history-tile][aria-pressed="true"] {
+  box-shadow: 0 0 0 2px white;
+}
+.version-grid [data-locked] {
+  cursor: not-allowed;
+}
+.version-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.version-grid [data-history-tile] > svg {
+  color: var(--version-soft);
+}
+.version-current,
+.version-main {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: white;
+  font-size: 12px;
+  line-height: 16px;
+}
+.version-current {
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(to bottom, oklab(0 0 0 / 0.55) 0%, transparent 100%);
+  padding: 8px 10px 16px;
+}
+.version-main {
+  top: 8px;
+  left: 8px;
+  background: color-mix(in oklab, white 90%, transparent);
+  color: black;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.version-tools {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  color: white;
+  background: oklab(0.269 0 0 / 0.85);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.version-grid [data-history-tile]:hover .version-tools,
+.version-grid [data-history-tile]:focus-within .version-tools {
+  opacity: 1;
+}
+.version-tools button {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+.version-tools button:hover {
+  background: rgb(255 255 255 / 0.15);
+}
+.version-tools svg {
+  width: 14px;
+  height: 14px;
+}
+@media (pointer: coarse) {
+  .version-tools {
+    opacity: 1;
+  }
+}
+.version-grid .version-pending,
+.version-grid .version-failed {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--version-soft);
+  background: color-mix(in oklab, var(--version-muted) 30%, transparent);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.version-pending svg,
+.version-failed svg {
+  width: 20px;
+  height: 20px;
+}
+.version-grid .version-failed {
+  padding: 12px;
+  gap: 4px;
+  background: oklch(0.577 0.245 27.325 / 0.08);
+  box-shadow: 0 0 0 1px oklch(0.577 0.245 27.325 / 0.4);
+}
+.version-failed svg {
+  color: oklch(0.577 0.245 27.325);
+}
+.version-failed b {
+  color: var(--version-text);
+  font-weight: 500;
+}
+.version-failed span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.version-menu {
+  font-size: 14px;
+  line-height: 20px;
+  min-width: 176px;
+  max-height: var(--available-height);
+  overflow: hidden auto;
+  outline: none;
+  padding: 6px;
+  border-radius: 14px;
+  color: var(--version-text, oklch(0.145 0 0));
+  background: var(--version-card, oklch(1 0 0));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--version-text, oklch(0.145 0 0)) 10%, transparent),
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+.version-menu-positioner {
+  isolation: isolate;
+  outline: none;
+  z-index: 151;
+}
+.version-menu svg {
+  width: 16px;
+  height: 16px;
+}
+.version-menu [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+.version-menu [data-highlighted] {
+  background: var(--version-muted, oklch(0.97 0 0));
+}
+.version-menu [data-disabled] {
+  opacity: 0.5;
+}
+.node-version-dialog.full {
+  width: 100vw;
+  height: 100svh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  color: white;
+  background: black;
+}
+.full .version-head {
+  padding: 16px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.full .version-head button {
+  appearance: button;
+  border: 0 solid var(--version-border);
+  height: 38px;
+  gap: 8px;
+  min-width: 38px;
+  border-radius: 14px;
+  background: oklch(0.205 0 none);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, white 12%, transparent),
+    0 0 transparent;
+}
+.full .version-head button:last-child {
+  margin-left: auto;
+}
+.full .version-head button:last-child svg {
+  width: 20px;
+  height: 20px;
+}
+.full .version-grid {
+  max-height: none;
+  padding: 0 20px 24px;
+}
+.version-head button:has(svg):not([aria-label]) {
+  white-space: nowrap;
+}
+.node-version-dialog.full .version-head button:not([aria-label]) {
+  padding: 0 14px;
+}
+.node-version-dialog.full .version-head button:hover {
+  background: #262626;
+}
+.node-version-dialog.confirm {
+  width: min(360px, 90vw);
+  padding: 20px;
+  border-radius: 18px;
+}
+.node-version-dialog.confirm h2 {
+  font: inherit;
+  margin: 0 0 16px;
+}
+.node-version-dialog.confirm div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.node-version-dialog.confirm button {
+  padding: 0 12px;
+  height: 32px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--version-border);
+}
+.node-version-dialog.confirm button:first-child:hover {
+  background: var(--version-muted);
+}
+.node-version-dialog.confirm button:last-child {
+  color: var(--version-primary-text, oklch(0.985 0 0));
+  background: var(--version-primary, oklch(0.205 0 0));
+  box-shadow: none;
+}
+.version-grid {
+  scrollbar-gutter: stable;
+}
+.version-grid::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.version-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--version-soft) 40%, transparent);
+}
+.version-grid::-webkit-scrollbar-track,
+.version-grid::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.creative-card button.canvas-version-badge,
+.node-version-dialog,
+.version-menu {
+  text-rendering: auto;
+  font-synthesis: initial;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  .node-version-dialog,
+  .version-menu {
+    --version-primary: oklch(0.922 0 0);
+    --version-primary-text: oklch(0.205 0 0);
+    --version-card: oklch(0.205 0 0);
+    --version-text: oklch(0.985 0 0);
+    --version-soft: oklch(0.708 0 0);
+    --version-muted: oklch(0.269 0 0);
+    --version-border: oklch(1 0 0 / 0.1);
+  }
+  .version-backdrop {
+    background: rgb(0 0 0 / 0.7);
+  }
+}
+.node-version-dialog .version-grid [data-history-tile]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--version-text);
+}
+.version-grid .version-poster img {
+  object-fit: cover;
+}
+.version-poster-error svg {
+  width: 24px;
+  height: 24px;
+}
+.version-backdrop {
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.node-version-dialog.normal {
+  transition:
+    opacity 240ms cubic-bezier(0.2, 0, 0, 1),
+    scale 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+.node-version-dialog.full {
+  transition: opacity 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.node-version-dialog.normal:is([data-starting-style], [data-ending-style]) {
+  scale: 0.96;
+}
+.node-version-dialog:is(.normal, .full):is([data-starting-style], [data-ending-style]),
+.version-backdrop:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+}
+.canvas-version-badge .shot-split-spinner {
+  opacity: 0.8;
+}
+.version-grid .version-pending,
+.version-grid .version-failed {
+  display: grid;
+  place-items: center;
+}
+.version-pending > div,
+.version-failed > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.version-failed > div {
+  gap: 4px;
+}
+.version-grid .version-pending {
+  box-shadow: 0 0 0 1px color-mix(in oklab, white 10%, transparent);
+}
+.version-grid .version-failed {
+  --failure: oklch(0.577 0.245 27.325);
+  background: color-mix(in oklab, var(--failure) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--failure) 40%, transparent);
+}
+.version-failed svg {
+  color: var(--failure);
+}
+.dark .version-grid .version-failed,
+[data-theme="dark"] .version-grid .version-failed {
+  --failure: oklch(0.704 0.191 22.216);
+}
+@media (prefers-color-scheme: dark) {
+  .version-grid .version-failed {
+    --failure: oklch(0.704 0.191 22.216);
+  }
+}
+.node-version-dialog.full {
+  box-shadow: none;
+}

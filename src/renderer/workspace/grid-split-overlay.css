@@ -1,0 +1,147 @@
+.canvas-frame-menu.split-picker {
+  padding: 12px;
+  min-width: 0;
+}
+.split-picker header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  color: oklch(0.556 0 0);
+  font-size: 12px;
+  line-height: 16px;
+  margin-bottom: 8px;
+}
+.split-picker header b {
+  font-weight: 500;
+  color: oklch(0.145 0 0);
+  font-variant-numeric: tabular-nums;
+}
+.split-cells {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 24px);
+  gap: 5px;
+}
+.split-cells button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: oklch(0.145 0 0 / 0.15);
+}
+.split-cells button[data-lit="true"] {
+  background: oklch(0.78 0.12 265);
+}
+.split-cells button[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.split-cells button[aria-disabled="true"][data-lit="false"] {
+  opacity: 0.35;
+}
+.split-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  --hit: calc(14px * var(--split-inverse));
+  --line: calc(1.5px * var(--split-inverse));
+}
+.split-stage [role="slider"] {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  outline: 0;
+}
+.split-stage [data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  width: var(--hit);
+  translate: -50% 0;
+  cursor: col-resize;
+}
+.split-stage [data-axis="y"] {
+  left: 0;
+  right: 0;
+  height: var(--hit);
+  translate: 0 -50%;
+  cursor: row-resize;
+}
+.split-stage [role="slider"] span {
+  position: absolute;
+  background: white;
+  box-shadow: 0 0 0 calc(1px * var(--split-inverse)) #0007;
+  pointer-events: none;
+}
+.split-stage [data-axis="x"] span {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--line);
+  translate: -50% 0;
+}
+.split-stage [data-axis="y"] span {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--line);
+  translate: 0 -50%;
+}
+.split-stage [role="slider"]:is(:hover, :focus-visible) span {
+  background: oklch(0.78 0.12 265);
+}
+.split-stage :is(.split-reset, .split-badge) {
+  position: absolute;
+  top: calc(8px * var(--split-inverse));
+  scale: var(--split-inverse);
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  white-space: nowrap;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  color: white;
+  background: #000a;
+  box-shadow: 0 0 0 1px #fff3;
+  backdrop-filter: blur(4px);
+}
+.split-reset {
+  left: calc(8px * var(--split-inverse));
+  transform-origin: top left;
+  pointer-events: auto;
+}
+.split-badge {
+  right: calc(8px * var(--split-inverse));
+  transform-origin: top right;
+}
+.split-bar {
+  display: flex;
+  position: relative;
+  gap: 8px;
+}
+.split-bar button {
+  border: 1px solid #0002;
+  border-radius: 8px;
+  background: #fff;
+  color: #171717;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 14px;
+}
+.split-bar button:nth-child(2) {
+  color: white;
+  background: oklch(0.205 0 0);
+}
+.split-bar p {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  color: #b32b26;
+  background: #fff;
+}

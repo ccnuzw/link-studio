@@ -1,71 +1,120 @@
-import type {
-  CanvasEdge,
-  CreativeData,
-  EditableCanvasNode,
-  ProjectCanvasView,
+import {
+  type ArrangeMode,
+  type CanvasEdge,
+  type CreativeData,
+  cloneDirectorScene,
+  type EditableCanvasNode,
+  layoutPositions,
+  type ProjectCanvasView,
+  remapShotLinks,
+  restoreMediaVersion,
 } from "@link-studio/core";
+import type { UploadHistoryData } from "./upload-history";
+
+export type { ArrangeMode } from "@link-studio/core";
 
 type Creative = Extract<EditableCanvasNode, { type: "creative" }>;
 type Position = Creative["position"];
 type Size = { width: number; height: number };
-type MeasuredNode = Omit<Creative, "data"> & { measured?: Partial<Size>; data: CreativeData };
-export type ArrangeMode = "row" | "column" | "grid";
+type MeasuredNode = Omit<Creative, "data"> &
+  Partial<Size> & { measured?: Partial<Size>; data: CreativeData };
 
 export function arrangeSelection(
   nodes: MeasuredNode[],
   parents: ReadonlyMap<string, Position>,
   mode: ArrangeMode,
 ) {
-  const selected = nodes.map(({ id, position, measured, parentId }) => {
+  const selected = nodes.map(({ id, position, measured, width, height, parentId }) => {
     const parent = parentId ? parents.get(parentId) : undefined;
     return {
       id,
       parent,
       x: position.x + (parent?.x ?? 0),
       y: position.y + (parent?.y ?? 0),
-      width: measured?.width ?? 280,
-      height: measured?.height ?? 200,
+      width: measured?.width ?? width ?? 576,
+      height: measured?.height ?? height ?? 324,
     };
   });
   const result = new Map<string, Position>();
   if (selected.length < 2) return result;
-  const left = Math.min(...selected.map(({ x }) => x));
-  const top = Math.min(...selected.map(({ y }) => y));
-  selected.sort((first, second) =>
-    mode === "row"
-      ? first.x - second.x || first.y - second.y
-      : first.y - second.y || first.x - second.x,
-  );
-  const columns =
-    mode === "row"
-      ? selected.length
-      : mode === "column"
-        ? 1
-        : Math.ceil(Math.sqrt(selected.length));
-  const widths: number[] = [];
-  const heights: number[] = [];
-  for (const [index, node] of selected.entries()) {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    widths[column] = Math.max(widths[column] ?? 0, node.width);
-    heights[row] = Math.max(heights[row] ?? 0, node.height);
-  }
-  for (const [index, node] of selected.entries()) {
-    const x =
-      left +
-      widths.slice(0, index % columns).reduce((sum, width) => sum + width + 120, 0) -
-      (node.parent?.x ?? 0);
-    const y =
-      top +
-      heights.slice(0, Math.floor(index / columns)).reduce((sum, height) => sum + height + 80, 0) -
-      (node.parent?.y ?? 0);
+  const positions = layoutPositions(selected, mode);
+  for (const node of selected) {
+    const absolute = positions.get(node.id);
+    if (!absolute) continue;
+    const x = absolute.x - (node.parent?.x ?? 0);
+    const y = absolute.y - (node.parent?.y ?? 0);
     if (Math.abs(x) > 1e7 || Math.abs(y) > 1e7) return new Map<string, Position>();
     result.set(node.id, { x, y });
   }
   return result;
 }
 
-export type CanvasFragment = { nodes: EditableCanvasNode[]; edges: CanvasEdge[] };
+export type CanvasFragment = {
+  nodes: EditableCanvasNode[];
+  edges: CanvasEdge[];
+  parentOrigins?: Map<string, Position>;
+};
+
+export function mapFragmentMedia(
+  fragment: CanvasFragment,
+  resolve: (id: string) => string,
+): CanvasFragment {
+  return {
+    ...fragment,
+    nodes: fragment.nodes.map((node) => {
+      if (node.type === "group") return node;
+      const data = node.data;
+      return {
+        ...node,
+        data: {
+          ...data,
+          ...(data.assetId && { assetId: resolve(data.assetId) }),
+          ...(data.outputs && {
+            outputs: data.outputs.map((output) =>
+              output.assetId ? { ...output, assetId: resolve(output.assetId) } : output,
+            ),
+          }),
+          ...(data.manualReferenceIds && {
+            manualReferenceIds: data.manualReferenceIds.map(resolve),
+          }),
+          ...(data.character && {
+            character: {
+              ...data.character,
+              extraAssetIds: data.character.extraAssetIds.map(resolve),
+              ...(data.character.voice && {
+                voice: { ...data.character.voice, assetId: resolve(data.character.voice.assetId) },
+              }),
+            },
+          }),
+          ...(data.storyboard && {
+            storyboard: data.storyboard.map((shot) =>
+              shot.imageAssetId ? { ...shot, imageAssetId: resolve(shot.imageAssetId) } : shot,
+            ),
+          }),
+          ...(data.directorThumbnailId && {
+            directorThumbnailId: resolve(data.directorThumbnailId),
+          }),
+        },
+      };
+    }),
+  };
+}
+
+export function detachExternalNodes(fragment: CanvasFragment): CanvasFragment {
+  const copied = new Set(fragment.nodes.map((node) => node.id));
+  return {
+    edges: fragment.edges.filter((edge) => copied.has(edge.source)),
+    nodes: fragment.nodes.map((node) => {
+      if (node.type === "group" || !node.parentId || copied.has(node.parentId)) return node;
+      const { parentId, ...orphan } = node,
+        parent = fragment.parentOrigins?.get(parentId);
+      return {
+        ...orphan,
+        position: { x: node.position.x + (parent?.x ?? 0), y: node.position.y + (parent?.y ?? 0) },
+      };
+    }),
+  };
+}
 
 export function captureSelection(canvas: ProjectCanvasView, selection: ReadonlySet<string>) {
   const nodes = canvas.nodes.filter(
@@ -78,20 +127,19 @@ export function captureSelection(canvas: ProjectCanvasView, selection: ReadonlyS
   const parents = new Map(
     canvas.nodes.filter((node) => node.type === "group").map(({ id, position }) => [id, position]),
   );
-  const editable = nodes.flatMap((node): EditableCanvasNode[] => {
-    if (node.type === "unknown") return [];
-    if (node.type !== "creative" || !node.parentId || targets.has(node.parentId)) return [node];
-    const { parentId, position, ...child } = node;
-    const parent = parents.get(parentId);
-    return [
-      {
-        ...child,
-        position: { x: position.x + (parent?.x ?? 0), y: position.y + (parent?.y ?? 0) },
-      },
-    ];
-  });
   return {
-    nodes: editable,
+    nodes: nodes
+      .filter((node) => node.type !== "unknown")
+      .map((node) => {
+        if (node.type !== "creative" || !node.data.uploaded) return node;
+        const {
+          uploadFailed: _failed,
+          uploadPending: _pending,
+          ...data
+        }: UploadHistoryData = node.data;
+        return { ...node, data };
+      }),
+    parentOrigins: parents,
     edges: canvas.edges.filter(({ target, readOnly }) => !readOnly && targets.has(target)),
   } satisfies CanvasFragment;
 }
@@ -101,6 +149,7 @@ export function cloneSelection(
   canvas: ProjectCanvasView,
   newId: () => string,
   placement?: Position,
+  offset = 32,
 ) {
   const ids = new Map(fragment.nodes.map(({ id }) => [id, newId()]));
   const current = new Map(canvas.nodes.map((node) => [node.id, node]));
@@ -108,27 +157,48 @@ export function cloneSelection(
   const outer = fragment.nodes.filter(
     (node) => !(node.type === "creative" && node.parentId && ids.has(node.parentId)),
   );
-  const left = Math.min(...outer.map(({ position }) => position.x));
-  const top = Math.min(...outer.map(({ position }) => position.y));
+  const origin = (node: EditableCanvasNode) =>
+    node.type === "creative" && node.parentId
+      ? (current.get(node.parentId)?.position ?? fragment.parentOrigins?.get(node.parentId))
+      : undefined;
+  const left = Math.min(...outer.map((node) => node.position.x + (origin(node)?.x ?? 0)));
+  const top = Math.min(...outer.map((node) => node.position.y + (origin(node)?.y ?? 0)));
   const clamp = (value: number) => Math.min(1e7, Math.max(-1e7, value));
   const nodes = fragment.nodes.map((node): EditableCanvasNode => {
     const parentId = node.type === "creative" ? node.parentId : undefined;
     const clonedParent = parentId ? ids.get(parentId) : undefined;
+    const preservedParent =
+      parentId && current.get(parentId)?.type === "group" ? parentId : undefined;
+    const orphanOffset = !preservedParent ? origin(node) : undefined;
     const label = copyLabel(node.data.label, labels);
     const position = clonedParent
       ? node.position
       : {
-          x: clamp(node.position.x + (placement ? placement.x - left : 32)),
-          y: clamp(node.position.y + (placement ? placement.y - top : 32)),
+          x: clamp(
+            node.position.x + (placement ? placement.x - left : offset) + (orphanOffset?.x ?? 0),
+          ),
+          y: clamp(
+            node.position.y + (placement ? placement.y - top : offset) + (orphanOffset?.y ?? 0),
+          ),
         };
     const shared = { id: ids.get(node.id) as string, position };
     return node.type === "group"
-      ? { ...node, ...shared, data: { label } }
+      ? { ...node, ...shared, data: { ...node.data, label } }
       : {
           ...shared,
           type: "creative",
-          data: { ...node.data, label },
-          ...(clonedParent ? { parentId: clonedParent } : {}),
+          data: {
+            ...restoreMediaVersion(node.data),
+            label,
+            ...(node.data.director && {
+              director: cloneDirectorScene(node.data.director, newId),
+              directorThumbnailId: undefined,
+            }),
+            ...(node.data.storyboard && {
+              storyboard: node.data.storyboard.map((shot) => remapShotLinks(shot, ids)),
+            }),
+          },
+          ...(clonedParent || preservedParent ? { parentId: clonedParent ?? preservedParent } : {}),
         };
   });
   const edges = fragment.edges.flatMap(({ source, target }) => {
@@ -140,10 +210,17 @@ export function cloneSelection(
 }
 
 function copyLabel(original: string, used: Set<string>) {
-  const base = original.replace(/ 副本(?: \d+)?$/, "") || original;
+  const base = original.replace(/\s副本[一二三四五六七八九十\d]*$/, "") || original;
+  const digits = "零一二三四五六七八九";
   for (let index = 1; ; index++) {
-    const suffix = index === 1 ? " 副本" : ` 副本 ${index}`;
-    const label = base.slice(0, 255 - suffix.length).replace(/[\uD800-\uDBFF]$/, "") + suffix;
+    const number =
+      index < 10
+        ? digits[index]
+        : index < 100
+          ? `${index < 20 ? "" : digits[Math.floor(index / 10)]}十${index % 10 ? digits[index % 10] : ""}`
+          : index;
+    const suffix = index === 1 ? " 副本" : ` 副本${number}`;
+    const label = [...base].slice(0, 40 - suffix.length).join("") + suffix;
     if (used.has(label)) continue;
     used.add(label);
     return label;

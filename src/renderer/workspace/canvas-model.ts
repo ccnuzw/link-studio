@@ -8,12 +8,19 @@ export function canvasDiff(base: ProjectCanvasView, draft: ProjectCanvasView): C
   function diff<Item extends RecordWithId>(
     before: Item[],
     after: Item[],
-    put: (item: Item) => CanvasOperation,
+    put: (item: Item, beforeId?: string) => CanvasOperation,
     remove: (id: string) => CanvasOperation,
   ) {
     const previous = new Map(before.map((item) => [item.id, item]));
+    const anchors = new Map<string, string>();
+    let anchor: string | undefined;
+    for (const item of [...after].reverse()) {
+      if (previous.has(item.id)) anchor = item.id;
+      else if (anchor) anchors.set(item.id, anchor);
+    }
     for (const item of after) {
-      if (!Value.Equal(previous.get(item.id), item)) operations.push(put(item));
+      const beforeId = anchors.get(item.id);
+      if (!Value.Equal(previous.get(item.id), item)) operations.push(put(item, beforeId));
       previous.delete(item.id);
     }
     for (const id of previous.keys()) operations.push(remove(id));
@@ -21,13 +28,13 @@ export function canvasDiff(base: ProjectCanvasView, draft: ProjectCanvasView): C
   diff(
     base.nodes.filter((node) => node.type !== "unknown"),
     draft.nodes.filter((node) => node.type !== "unknown"),
-    (node) => ({ type: "putNode", node }),
+    (node, beforeId) => ({ type: "putNode", node, ...(beforeId && { beforeId }) }),
     (id) => ({ type: "removeNode", id }),
   );
   diff(
     base.edges.filter((edge) => !edge.readOnly),
     draft.edges.filter((edge) => !edge.readOnly),
-    (edge) => ({ type: "putEdge", edge }),
+    (edge, beforeId) => ({ type: "putEdge", edge, ...(beforeId && { beforeId }) }),
     (id) => ({ type: "removeEdge", id }),
   );
   if (!Value.Equal(base.viewport, draft.viewport))
@@ -46,6 +53,24 @@ export function rebaseCanvas(
   );
   const nodes = new Map(saved.nodes.map((node) => [node.id, node]));
   const edges = new Map(saved.edges.map((edge) => [edge.id, edge]));
+  function insertBefore<Item extends RecordWithId>(
+    records: Map<string, Item>,
+    item: Item,
+    beforeId?: string,
+  ) {
+    if (!beforeId) {
+      records.set(item.id, item);
+      return true;
+    }
+    if (!records.has(beforeId)) return false;
+    const ordered = [...records.values()];
+    records.clear();
+    for (const record of ordered) {
+      if (record.id === beforeId) records.set(item.id, item);
+      records.set(record.id, record);
+    }
+    return true;
+  }
   let viewport = saved.viewport;
   for (const operation of operations) {
     const remote = remoteChanges.get(operationKey(operation));
@@ -56,7 +81,7 @@ export function rebaseCanvas(
     switch (operation.type) {
       case "putNode":
         if (nodes.get(operation.node.id)?.type === "unknown") return null;
-        nodes.set(operation.node.id, operation.node);
+        if (!insertBefore(nodes, operation.node, operation.beforeId)) return null;
         break;
       case "removeNode":
         if (nodes.get(operation.id)?.type === "unknown") return null;
@@ -64,7 +89,7 @@ export function rebaseCanvas(
         break;
       case "putEdge":
         if (edges.get(operation.edge.id)?.readOnly) return null;
-        edges.set(operation.edge.id, operation.edge);
+        if (!insertBefore(edges, operation.edge, operation.beforeId)) return null;
         break;
       case "removeEdge":
         if (edges.get(operation.id)?.readOnly) return null;

@@ -1,0 +1,219 @@
+.reference-menu-positioner {
+  z-index: 2500;
+  isolation: isolate;
+  outline: none;
+}
+.reference-menu {
+  width: 256px;
+  max-height: var(--available-height);
+  overflow: hidden auto;
+  outline: none;
+  background: white;
+  color: #0a0a0a;
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgb(10 10 10 / 10%),
+    0 4px 6px -1px #0000001a,
+    0 2px 4px -2px #0000001a;
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 100ms,
+    transform 100ms;
+}
+.reference-menu:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
+.reference-menu-label,
+.reference-menu-empty {
+  padding: 4px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: #737373;
+}
+.reference-menu-empty {
+  margin: 0;
+  padding-block: 8px;
+  font-weight: 400;
+}
+.reference-menu-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  outline: none;
+  user-select: none;
+  cursor: default;
+}
+.reference-menu-item[data-highlighted] {
+  background: #f5f5f5;
+}
+.reference-menu-item .prompt-ref-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.reference-menu-item > span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.reference-menu-item small {
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 1.42857143;
+  color: #737373;
+}
+.reference-menu:not(.generation-model-menu) {
+  --ref-pop: oklch(1 0 0);
+  --ref-fg: oklch(0.145 0 0);
+  --ref-muted: oklch(0.556 0 0);
+  --ref-accent: oklch(0.97 0 0);
+  --ref-border: oklch(0.922 0 0);
+  background: var(--ref-pop);
+  color: var(--ref-fg);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--ref-fg) 10%, transparent),
+    0 4px 6px -1px #0000001a,
+    0 2px 4px -2px #0000001a;
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+}
+.reference-menu:not(.generation-model-menu)
+  :is(.reference-menu-label, .reference-menu-empty, small) {
+  color: var(--ref-muted);
+}
+.reference-menu-item .prompt-ref-thumb {
+  background: color-mix(in oklab, var(--ref-fg) 10%, transparent);
+  color: var(--ref-muted);
+}
+.reference-menu-item[data-highlighted] {
+  background: var(--ref-accent);
+  color: var(--ref-fg);
+}
+.reference-menu-item[data-highlighted] .prompt-ref-thumb {
+  color: inherit;
+}
+.reference-menu-item > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.reference-menu:not(.generation-model-menu) .reference-menu-separator {
+  margin-inline: -4px;
+  background: var(--ref-border);
+}
+@media (prefers-color-scheme: dark) {
+  .reference-menu:not(.generation-model-menu) {
+    --ref-pop: oklch(0.205 0 0);
+    --ref-fg: oklch(0.985 0 0);
+    --ref-muted: oklch(0.708 0 0);
+    --ref-accent: oklch(0.269 0 0);
+    --ref-border: oklch(1 0 0 / 0.1);
+  }
+}
+.reference-menu-separator {
+  height: 1px;
+  margin: 4px -6px;
+  background: #e5e5e5;
+}
+.reference-menu.generation-model-menu {
+  width: 288px;
+  max-height: min(320px, var(--available-height));
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+}
+.generation-model-menu .reference-menu-separator {
+  margin-inline: -4px;
+}
+.generation-model-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 32px 4px 6px;
+  border-radius: 8px;
+  outline: 0;
+  user-select: none;
+  cursor: default;
+}
+.generation-model-option[data-highlighted] {
+  background: #f5f5f5;
+}
+.generation-model-option .model-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.media-model-trigger .model-avatar {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.generation-model-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.generation-model-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.generation-model-copy small {
+  margin-left: 6px;
+  padding: 1px 4px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 10px;
+}
+.generation-model-copy > span:nth-child(2),
+.generation-model-price {
+  color: #737373;
+  font-size: 12px;
+  line-height: 16px;
+}
+.generation-model-check {
+  position: absolute;
+  right: 8px;
+  display: flex;
+}
+@media (prefers-color-scheme: dark) {
+  .reference-menu.generation-model-menu {
+    background: oklch(0.205 0 0);
+    color: oklch(0.985 0 0);
+    box-shadow:
+      0 0 0 1px oklch(0.985 0 0 / 0.1),
+      0 4px 6px -1px #0000001a,
+      0 2px 4px -2px #0000001a;
+  }
+  .generation-model-menu
+    :is(
+      .reference-menu-label,
+      .generation-model-price,
+      .generation-model-copy > span:nth-child(2)
+    ) {
+    color: oklch(0.708 0 0);
+  }
+  .generation-model-menu .reference-menu-separator {
+    background: oklch(1 0 0 / 0.1);
+  }
+  .generation-model-option[data-highlighted],
+  .generation-model-copy small {
+    background: oklch(0.269 0 0);
+  }
+}

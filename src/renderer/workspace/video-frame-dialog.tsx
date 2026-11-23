@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 export function VideoFrameDialog({
   asset,
   url,
-  linked,
   busy,
   error,
   close,
@@ -12,11 +11,10 @@ export function VideoFrameDialog({
 }: {
   asset: ProjectAsset;
   url: string;
-  linked: boolean;
   busy: boolean;
   error: string;
   close: () => void;
-  extract: (timeMs: number) => void;
+  extract: (timesMs: number[]) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -108,10 +106,10 @@ export function VideoFrameDialog({
           disabled={busy || !valid}
           onClick={() => {
             video.current?.pause();
-            extract(timeMs);
+            extract([timeMs]);
           }}
         >
-          {busy ? "正在提取…" : linked ? "提取并加入画布" : "提取并预览"}
+          {busy ? "正在提取…" : "提取并预览"}
         </button>
       </footer>
     </dialog>

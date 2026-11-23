@@ -1,0 +1,143 @@
+.node-action-strip,
+.strip-tip {
+  --bar-ink: oklch(0.145 0 0);
+  --bar-bg: oklch(1 0 0);
+  --bar-soft: oklch(0.556 0 0);
+  --bar-chrome: oklch(1 0 0 / 0.82);
+  --bar-edge: oklch(0 0 0 / 0.08);
+  --bar-hover: oklch(0 0 0 / 0.05);
+  --bar-focus: oklch(0.2 0 0 / 0.51);
+  --bar-credit: oklch(0.72 0.15 75);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+}
+@media (prefers-color-scheme: dark) {
+  .node-action-strip,
+  .strip-tip {
+    --bar-ink: oklch(0.985 0 0);
+    --bar-bg: oklch(0.145 0 0);
+    --bar-soft: oklch(0.708 0 0);
+    --bar-chrome: oklch(0.2 0 0 / 0.78);
+    --bar-edge: oklch(1 0 0 / 0.08);
+    --bar-hover: oklch(1 0 0 / 0.07);
+    --bar-focus: oklch(1 0 0 / 0.432);
+    --bar-credit: oklch(0.82 0.15 85);
+  }
+}
+.node-action-strip {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  gap: 2px;
+  height: 40px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bar-chrome);
+  color: var(--bar-ink);
+  box-shadow:
+    0 0 0 1px var(--bar-edge),
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+  backdrop-filter: blur(24px) saturate(1.5);
+}
+.node-action-strip button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  min-width: 32px;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bar-soft);
+  font: inherit;
+  white-space: nowrap;
+  user-select: none;
+  outline: none;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    opacity 0.15s;
+}
+.node-action-strip button:is(.strip-text, .canvas-frame-trigger) {
+  color: var(--bar-ink);
+  padding: 0 10px;
+}
+.node-action-strip button:hover,
+.node-action-strip button[data-popup-open] {
+  color: var(--bar-ink);
+  background: var(--bar-hover);
+}
+.node-action-strip button:disabled {
+  pointer-events: none;
+  opacity: 0.35;
+}
+.node-action-strip button:focus-visible {
+  box-shadow: 0 0 0 2px var(--bar-focus);
+}
+.node-action-strip svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.node-action-strip .strip-credit {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  stroke-width: 0;
+  color: var(--bar-credit);
+}
+.node-action-strip .canvas-frame-trigger svg:last-child {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
+}
+.node-action-strip .strip-separator {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--bar-edge);
+}
+.strip-tip-pos {
+  z-index: 1000;
+}
+.strip-tip {
+  position: relative;
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: var(--bar-bg);
+  background: var(--bar-ink);
+  font-size: 12px;
+  line-height: 16px;
+}
+.strip-tip [data-side="top"] {
+  background: inherit;
+  width: 10px;
+  height: 10px;
+  bottom: -3px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+@media (max-width: 767px) {
+  .node-action-strip button:is(.strip-text, .canvas-frame-trigger) {
+    padding: 0 8px;
+  }
+  .node-action-strip button span,
+  .node-action-strip .strip-credit {
+    display: none;
+  }
+}

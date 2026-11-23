@@ -1,0 +1,145 @@
+.node-video-player,
+.node-video-layer,
+.node-video-dim,
+.node-video-start-bg,
+.local-video-placeholder {
+  position: absolute;
+  inset: 0;
+}
+.node-video-player {
+  -webkit-font-smoothing: antialiased;
+  font-family: "Geist Variable", "PingFang SC", sans-serif;
+  color: white;
+}
+.local-video-placeholder {
+  display: grid;
+  place-items: center;
+  color: oklch(0.556 0 0 / 0.45);
+}
+.local-video-placeholder svg {
+  width: 33.333%;
+  max-width: 40px;
+}
+.node-video-dim {
+  pointer-events: none;
+  background: rgb(0 0 0 / 0.3);
+}
+.node-video-player button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  color: white;
+  background: transparent;
+}
+.node-video-start {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 100%;
+}
+.node-video-start:disabled {
+  cursor: default;
+}
+.node-video-start-bg {
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 10%),
+    0 4px 6px -4px rgb(0 0 0 / 10%);
+}
+.node-video-start-icon {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+}
+.node-video-triangle {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  transform: translateX(1px);
+}
+.node-video-ring {
+  width: 28px;
+  height: 28px;
+}
+.node-video-ring.spin {
+  animation: node-video-spin 0.9s linear infinite;
+}
+@keyframes node-video-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.node-video-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.node-video-duration {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.6);
+  padding: 2px 6px;
+  color: white;
+  font:
+    11px / 16px "Geist Variable",
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.node-video-controls {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 16px 14px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.45), transparent);
+  color: white;
+}
+.node-video-control {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.node-video-glyph {
+  width: 18px;
+  height: 18px;
+}
+.node-video-glyph.filled {
+  fill: currentColor;
+}
+.node-video-range {
+  margin: 0;
+  appearance: none;
+  height: 2px;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.node-video-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+}
+.node-video-clock {
+  line-height: calc(20 / 14);
+  flex: none;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.9);
+}

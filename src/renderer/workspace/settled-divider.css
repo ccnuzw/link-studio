@@ -1,0 +1,59 @@
+.settled-divider {
+  --settled-text: oklch(0.556 0 0);
+  --settled-line: oklch(0.145 0 0);
+  --settled-beam: oklch(0.62 0.16 55);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--settled-text);
+  font:
+    400 11.5px / 1.42857143 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.settled-divider i {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in oklab, var(--settled-line) 12%, transparent);
+}
+.assistant-surface .settled-divider .settled-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 2px 10px;
+  min-height: 0;
+  margin: 0;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: inherit;
+  font: inherit;
+  background: color-mix(in oklab, var(--settled-beam) 12%, transparent);
+}
+.settled-row {
+  position: relative;
+}
+.assistant-surface .settled-row .settled-toggle,
+.assistant-surface .settled-row .settled-toggle:hover:not(:disabled) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.assistant-surface .settled-row .settled-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+@media (prefers-color-scheme: dark) {
+  .settled-divider {
+    --settled-text: oklch(0.708 0 0);
+    --settled-line: oklch(0.985 0 0);
+    --settled-beam: oklch(0.78 0.15 70);
+  }
+}

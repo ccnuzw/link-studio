@@ -12,3 +12,5 @@ export class ProjectError extends Error {
     this.name = "ProjectError";
   }
 }
+
+export class CanvasGenerationFeedback extends ProjectError {}

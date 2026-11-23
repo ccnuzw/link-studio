@@ -1,116 +1,402 @@
-import {
-  type DirectorScene,
-  directorAspects,
-  directorPoses,
-  directorShapes,
-} from "@link-studio/core";
-import { useEffect, useRef, useState } from "react";
-import { DirectorAssets } from "./director-assets";
+import { type DirectorScene, retimeDirectorScene } from "@link-studio/core";
+import { Move, PanelLeftClose, PanelLeftOpen, RotateCw, Scan, Trash2 } from "lucide-react";
+import { motion } from "motion/react";
+import { DirectorHeader, DirectorTool } from "./director-chrome";
+import { HEADER_HEIGHT, NAV_WIDTH, type PanelKind } from "./director-layout";
+import { NUDGE_STEP, ResizeHandle } from "./director-resize";
+import { ViewModeSwitch } from "./director-view-menu";
+import { DirectorMonitor, useDirectorPanels } from "./director-workbench";
+import { useDirectorModels } from "./use-director-models";
+import "./director-workbench.css";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { disposeThumbRenderer } from "./director-asset-thumbs";
+import { type AssetTab, DirectorAssets } from "./director-assets";
+import { supportsDirectorExport } from "./director-export";
+import { DirectorExportDialog } from "./director-export-dialog";
+import { directorHistory, initDirectorHistory, type SceneEdit } from "./director-history";
 import { PROP_PRESETS } from "./director-prop-presets";
+import { type PendingPoses, sampleCamera, sampleCharacter } from "./director-sample";
+import { DirectorSidebar, type ObjectPatch } from "./director-sidebar";
+import type { DirectorTake } from "./director-take-placement";
 import { DirectorTimeline } from "./director-timeline";
-import { type CameraTransform, DirectorView, samplePose } from "./director-view";
+import { type CameraTransform, DirectorView } from "./director-view";
 
-const poseNames: Record<DirectorScene["characters"][number]["pose"], string> = {
-  stand: "站立",
-  walk: "行走",
-  run: "跑步",
-  sit: "坐姿",
-  crouch: "蹲姿",
-  point: "指向",
-  armsCrossed: "抱臂",
-  wave: "招手",
-  talk: "交谈",
-  raiseHand: "举手",
-  lookBack: "回头",
-  lying: "躺卧",
-};
+const toolPrefs = { labels: true, snap: true, rotate: false, assetTab: "character" as AssetTab };
+const emptyPoses: PendingPoses = { characters: new Map(), cameras: new Map() };
+
+function nextName(prefix: string, items: { name: string }[]) {
+  let number = 1;
+  while (items.some((item) => item.name === `${prefix}${number}`)) number++;
+  return `${prefix}${number}`;
+}
 
 export function DirectorDialog({
+  label,
   initial,
   projectHandle,
-  save,
-  close,
+  place,
+  checkCapacity,
+  write,
+  finish,
 }: {
+  label: string;
   initial: DirectorScene;
   projectHandle: string;
-  save: (scene: DirectorScene) => void;
-  close: () => void;
+  place: (takes: DirectorTake[]) => void;
+  checkCapacity: (count: number) => void;
+  write: (scene: DirectorScene) => void;
+  finish: (scene: DirectorScene, changed: boolean) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [scene, setScene] = useState(initial);
-  const [time, setTime] = useState(0);
+  const [history, dispatch] = useReducer(directorHistory, initial, initDirectorHistory);
+  const { scene } = history;
+  const models = useDirectorModels(scene.characters);
+  const setScene = (update: SceneEdit) => dispatch({ type: "edit", update });
+  const original = useRef(initial),
+    saved = useRef(initial),
+    latest = useRef(scene),
+    writer = useRef(write);
+  latest.current = scene;
+  writer.current = write;
+  const [saveStatus, setSaveStatus] = useState("已保存到节点");
+  function flush() {
+    if (saved.current === latest.current) return true;
+    const bytes = new TextEncoder().encode(JSON.stringify(latest.current)).length;
+    if (bytes > 256 * 1024) {
+      setSaveStatus(`场景数据过大（${Math.ceil(bytes / 1024)}KB，上限 256KB），请删减关键帧或对象`);
+      return false;
+    }
+    writer.current(latest.current);
+    saved.current = latest.current;
+    return true;
+  }
+  useEffect(() => {
+    if (scene === saved.current) {
+      setSaveStatus("已保存到节点");
+      return;
+    }
+    setSaveStatus("保存中…");
+    const timer = setTimeout(() => {
+      if (flush()) setSaveStatus("已保存到节点");
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [scene]);
+  useEffect(
+    () => () => {
+      if (
+        latest.current !== saved.current &&
+        new TextEncoder().encode(JSON.stringify(latest.current)).length <= 256 * 1024
+      )
+        writer.current(latest.current);
+    },
+    [],
+  );
+  function close() {
+    if (flush()) finish(scene, original.current !== scene);
+  }
+  const [pending, setPending] = useState(emptyPoses);
+  function discardPose(id: string) {
+    setPending((previous) => {
+      const characters = new Map(previous.characters),
+        cameras = new Map(previous.cameras);
+      characters.delete(id);
+      cameras.delete(id);
+      return { characters, cameras };
+    });
+  }
+  const [time, seek] = useState(0);
+  const clock = useRef(time);
+  function setTime(next: number) {
+    clock.current = next;
+    setPending(emptyPoses);
+    seek(next);
+  }
   const [cameraView, setCameraView] = useState(false);
-  const [guides, setGuides] = useState(true);
-  const [playing, setPlaying] = useState(false);
-  const playbackStart = useRef(0);
+  const panels = useDirectorPanels(),
+    { sizes } = panels,
+    main = useRef<HTMLElement>(null),
+    focusRef = useRef<(() => void) | null>(null);
+  const [labels, setLabels] = useState(toolPrefs.labels),
+    [snap, setSnap] = useState(toolPrefs.snap),
+    [rotate, setRotate] = useState(toolPrefs.rotate);
+  const [assetTab, setAssetTab] = useState<AssetTab>(toolPrefs.assetTab),
+    viewPoseRef = useRef<(() => CameraTransform | undefined) | null>(null);
+  useEffect(() => {
+    Object.assign(toolPrefs, { labels, snap, rotate, assetTab });
+  }, [labels, snap, rotate, assetTab]);
+  useEffect(() => disposeThumbRenderer, []);
+  const shortcuts = useRef<(key: string) => boolean>(() => false);
+  const [playing, play] = useState(false);
+  function setPlaying(next: boolean) {
+    setPending(emptyPoses);
+    play(next);
+  }
+  function travel(type: "undo" | "redo") {
+    setPending(emptyPoses);
+    setPicked(undefined);
+    dispatch({ type });
+  }
+  const recordSelected = useRef<() => void>(() => {});
+  const playback = useRef({ playing, time, duration: scene.duration });
+  playback.current = { playing, time, duration: scene.duration };
+  function togglePlayback() {
+    const current = playback.current;
+    if (!current.playing && current.time >= current.duration) setTime(0);
+    setPlaying(!current.playing);
+  }
   const [selectedObject, setSelectedObject] = useState("");
-  const exportController = useRef<AbortController>(undefined);
-  const [exportProgress, setExportProgress] = useState<number>();
-  const [exportError, setExportError] = useState("");
-  const [exportSaved, setExportSaved] = useState(false);
-  const [savingPreview, setSavingPreview] = useState(false);
-  const exporting = exportProgress !== undefined || savingPreview;
+  const [picked, setPicked] = useState<{ id: string; time: number }>();
+  const [exporting, setExportOpen] = useState(false),
+    [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void supportsDirectorExport().then(
+      (value) => {
+        if (mounted) setSupported(value);
+      },
+      () => {
+        if (mounted) setSupported(false);
+      },
+    );
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.altKey || event.isComposing) return;
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest(
+          'input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="separator"], [data-director-menu], [contenteditable="true"]',
+        )
+      )
+        return;
+      if (event.target instanceof HTMLElement && event.target.closest(".ds-sidebar"))
+        event.stopPropagation();
+      if (!event.ctrlKey && !event.metaKey) {
+        if (event.key === " " && !exporting) {
+          event.preventDefault();
+          event.stopPropagation();
+          togglePlayback();
+        }
+        if (event.key.toLowerCase() === "k" && !exporting) {
+          recordSelected.current();
+        }
+        if (!exporting && shortcuts.current(event.key.toLowerCase())) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!exporting) travel(key === "y" || event.shiftKey ? "redo" : "undo");
+    };
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
+  }, [exporting]);
   const camera = scene.cameras.find(({ id }) => id === scene.activeCameraId);
   const figure = scene.characters.find(({ id }) => id === selectedObject);
   const prop = scene.props.find(({ id }) => id === selectedObject);
-  const object = figure ?? prop;
   const previewTime = Math.min(time, scene.duration);
-  const editTime = Math.min(scene.duration, Number(previewTime.toFixed(1)));
+  const editTime = Math.round(previewTime * 100) / 100;
+  const cameraPose =
+    camera && (pending.cameras.get(camera.id) ?? sampleCamera(camera, previewTime));
+  const figurePose =
+    figure && (pending.characters.get(figure.id) ?? sampleCharacter(figure, previewTime));
 
-  function editCamera(move: (pose: CameraTransform) => Partial<CameraTransform>) {
+  function record(id: string) {
+    const actor = scene.characters.find((item) => item.id === id),
+      cam = scene.cameras.find((item) => item.id === id),
+      track = actor ?? cam;
+    if (!track) return;
+    function insert<Pose extends object>(
+      keys: Array<Pose & { t: number; ease: "smooth" | "linear" }>,
+      pose: Pose,
+    ) {
+      return [
+        ...keys.filter((key) => Math.round(key.t * 100) / 100 !== editTime),
+        { ...pose, t: editTime, ease: "smooth" as const },
+      ].sort((left, right) => left.t - right.t);
+    }
+    if (actor)
+      setScene({
+        ...scene,
+        characters: scene.characters.map((item) =>
+          item !== actor
+            ? item
+            : {
+                ...item,
+                keys: insert(
+                  item.keys,
+                  pending.characters.get(id) ?? sampleCharacter(item, previewTime),
+                ),
+              },
+        ),
+      });
+    else if (cam)
+      setScene({
+        ...scene,
+        cameras: scene.cameras.map((item) =>
+          item !== cam
+            ? item
+            : {
+                ...item,
+                keys: insert(item.keys, pending.cameras.get(id) ?? sampleCamera(item, previewTime)),
+              },
+        ),
+      });
+    discardPose(id);
+    setPicked({ id, time: editTime });
+  }
+  recordSelected.current = () => {
+    if (selectedObject) record(selectedObject);
+  };
+  function choose(id: string) {
+    setPicked(undefined);
+    setSelectedObject(id);
+    if (scene.cameras.some((item) => item.id === id)) dispatch({ type: "selectCamera", id });
+  }
+  function removeObject(id: string) {
+    if (!id) return;
+    const cameras = scene.cameras
+      .filter((item) => item.id !== id)
+      .map((item) => (item.lookAt === id ? { ...item, lookAt: undefined } : item));
+    setScene({
+      ...scene,
+      characters: scene.characters.filter((item) => item.id !== id),
+      props: scene.props.filter((item) => item.id !== id),
+      cameras,
+      activeCameraId: cameras.some((item) => item.id === scene.activeCameraId)
+        ? scene.activeCameraId
+        : (cameras[0]?.id ?? ""),
+    });
+    discardPose(id);
+    if (!cameras.length) setCameraView(false);
+    if (selectedObject === id) setSelectedObject("");
+    if (picked?.id === id) setPicked(undefined);
+  }
+  function removeSelected() {
+    removeObject(selectedObject);
+  }
+  function updateObject(id: string, patch: ObjectPatch) {
+    const apply = <Item extends { id: string }>(items: Item[]) =>
+      items.map((item) => (item.id === id ? { ...item, ...patch } : item));
     setScene((current) => ({
       ...current,
-      cameras: current.cameras.map((item) => {
-        if (item.id !== current.activeCameraId) return item;
-        const existing = item.keys.find(({ t }) => t === editTime);
-        if (!existing && item.keys.length >= 120) return item;
-        const sampled = samplePose(item, item.keys, editTime);
-        const pose = {
-          x: sampled.x,
-          y: sampled.y ?? item.y,
-          z: sampled.z,
-          yaw: sampled.yaw,
-          pitch: sampled.pitch ?? item.pitch,
-          fov: sampled.fov ?? item.fov,
-        };
-        const moved = move(pose);
-        const lookAt = moved.yaw === undefined ? item.lookAt : undefined;
-        if (!item.keys.length) return { ...item, ...moved, lookAt };
-        return {
-          ...item,
-          lookAt,
-          keys: [
-            ...item.keys.filter(({ t }) => t !== editTime),
-            { ...pose, ...moved, t: editTime, ease: existing?.ease ?? "smooth" },
-          ].sort((left, right) => left.t - right.t),
-        };
-      }),
+      characters: apply(current.characters),
+      props: apply(current.props),
+      cameras: apply(current.cameras),
     }));
+  }
+  function deleteSelection() {
+    if (picked) {
+      setScene({
+        ...scene,
+        characters: scene.characters.map((item) =>
+          item.id === picked.id
+            ? { ...item, keys: item.keys.filter((key) => key.t !== picked.time) }
+            : item,
+        ),
+        cameras: scene.cameras.map((item) =>
+          item.id === picked.id
+            ? { ...item, keys: item.keys.filter((key) => key.t !== picked.time) }
+            : item,
+        ),
+      });
+      setPicked(undefined);
+    } else removeSelected();
+  }
+  shortcuts.current = (key) => {
+    if (key === "1" || key === "2") setRotate(key === "2");
+    else if (key === "f") focusRef.current?.();
+    else if (key === "escape" && selectedObject) choose("");
+    else if ((key === "delete" || key === "backspace") && (picked || selectedObject))
+      deleteSelection();
+    else return false;
+    return true;
+  };
+  function transform(id: string, moved: Partial<CameraTransform>) {
+    if (camera?.id === id) {
+      editCamera(() => moved);
+      return;
+    }
+    const actor = scene.characters.find((item) => item.id === id),
+      prop = scene.props.find((item) => item.id === id);
+    if (actor?.locked || prop?.locked) return;
+    const base = actor ? (pending.characters.get(id) ?? sampleCharacter(actor, previewTime)) : prop;
+    if (!base) return;
+    const pose = { x: moved.x ?? base.x, z: moved.z ?? base.z, yaw: moved.yaw ?? base.yaw };
+    if (actor?.keys.length)
+      setPending((previous) => ({
+        ...previous,
+        characters: new Map(previous.characters).set(id, pose),
+      }));
+    else updateObject(id, pose);
+  }
+  function divider(kind: PanelKind, label: string, style: React.CSSProperties) {
+    const vertical = kind !== "timeline",
+      sign = kind === "assets" ? 1 : -1,
+      unit = () => (kind === "split" ? main.current?.clientWidth || 1 : 1);
+    return (
+      <ResizeHandle
+        orientation={vertical ? "vertical" : "horizontal"}
+        label={label}
+        style={style}
+        onStart={() => sizes[kind] * unit()}
+        onMove={(start, delta) => panels.update(kind, (start + sign * delta) / unit())}
+        onEnd={panels.save}
+        onReset={() => panels.reset(kind)}
+        onNudge={(direction) =>
+          panels.update(kind, sizes[kind] + (direction * NUDGE_STEP * sign) / unit())
+        }
+      />
+    );
+  }
+
+  function editCamera(move: (pose: CameraTransform) => Partial<CameraTransform>) {
+    if (!camera || !cameraPose) return;
+    const moved = move(cameraPose);
+    if (moved.y !== undefined) moved.y = Math.max(0.1, moved.y);
+    if (moved.pitch !== undefined) moved.pitch = Math.max(-85, Math.min(85, moved.pitch));
+    if (camera.keys.length)
+      setPending((previous) => ({
+        ...previous,
+        cameras: new Map(previous.cameras).set(camera.id, {
+          ...(previous.cameras.get(camera.id) ?? cameraPose),
+          ...moved,
+        }),
+      }));
+    else updateObject(camera.id, moved);
   }
 
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
+    element?.focus({ preventScroll: true });
     return () => {
-      exportController.current?.abort();
       element?.close();
     };
   }, []);
   useEffect(() => {
     if (!playing) return;
-    const started = performance.now();
-    const timer = window.setInterval(() => {
-      const next = Math.min(
-        scene.duration,
-        playbackStart.current + (performance.now() - started) / 1000,
-      );
+    let last = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const duration = playback.current.duration;
+      const next = Math.min(duration, clock.current + (now - last) / 1000);
+      last = now;
       setTime(next);
-      if (next >= scene.duration) setPlaying(false);
-    }, 50);
-    return () => window.clearInterval(timer);
+      if (next >= duration) setPlaying(false);
+      else frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [playing, scene.duration]);
 
-  function addCamera() {
+  function addCamera(pose?: CameraTransform) {
+    if (scene.cameras.length >= 6) return;
     const id = crypto.randomUUID();
     setScene((current) => ({
       ...current,
@@ -119,21 +405,24 @@ export function DirectorDialog({
         ...current.cameras,
         {
           id,
-          name: `机位 ${current.cameras.length + 1}`,
+          name: nextName("机位", current.cameras),
           aspect: "16:9",
-          x: 0,
-          y: 1.5,
-          z: 5,
-          yaw: 0,
-          pitch: 0,
-          fov: 45,
+          x: 3,
+          y: 1.6,
+          z: 3,
+          yaw: -45,
+          pitch: (Math.atan2(1.3 - 1.6, Math.hypot(3, 3)) * 180) / Math.PI,
+          fov: 50,
+          ...pose,
           keys: [],
         },
       ],
     }));
+    choose(id);
   }
 
   function addCharacter(model: "male" | "female" = "male") {
+    if (scene.characters.length >= 8) return;
     const id = crypto.randomUUID();
     setScene((current) => ({
       ...current,
@@ -141,11 +430,25 @@ export function DirectorDialog({
         ...current.characters,
         {
           id,
-          name: `人物 ${current.characters.length + 1}`,
-          color: "#a9bfff",
-          x: 0,
+          name: `角色${[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].find((letter) => !current.characters.some((actor) => actor.name === `角色${letter}`)) ?? current.characters.length + 1}`,
+          color:
+            [
+              "#d4d4d8",
+              "#fca5a5",
+              "#93c5fd",
+              "#86efac",
+              "#fcd34d",
+              "#c4b5fd",
+              "#f9a8d4",
+              "#67e8f9",
+            ].find((color) => !current.characters.some((actor) => actor.color === color)) ??
+            "#d4d4d8",
+          x:
+            (current.characters.length % 2 ? 1 : -1) *
+            Math.ceil(current.characters.length / 2) *
+            1.2,
           z: 0,
-          yaw: 0,
+          yaw: 180,
           model,
           pose: "stand",
           scale: 1,
@@ -153,10 +456,11 @@ export function DirectorDialog({
         },
       ],
     }));
-    setSelectedObject(id);
+    choose(id);
   }
 
   function addProp(shape: DirectorScene["props"][number]["shape"] = "box", assetLabel?: string) {
+    if (scene.props.length >= 30) return;
     const preset = PROP_PRESETS[shape];
     const id = crypto.randomUUID();
     setScene((current) => ({
@@ -165,10 +469,10 @@ export function DirectorDialog({
         ...current.props,
         {
           id,
-          name: `${assetLabel ?? "道具"} ${current.props.length + 1}`,
+          name: nextName(assetLabel ?? preset.label, current.props),
           shape,
-          x: 1,
-          z: 0,
+          x: 2 + (current.props.length % 4) * 1.5,
+          z: -1.5 - Math.floor(current.props.length / 4) * 1.5,
           yaw: 0,
           w: preset.size[0],
           h: preset.size[1],
@@ -176,142 +480,218 @@ export function DirectorDialog({
         },
       ],
     }));
-    setSelectedObject(id);
-  }
-
-  async function savePreview() {
-    if (!camera || exportController.current) return;
-    const controller = new AbortController();
-    exportController.current = controller;
-    setExportProgress(0);
-    setExportError("");
-    setExportSaved(false);
-    try {
-      const { exportDirectorVideo } = await import("./director-export");
-      const mp4 = await exportDirectorVideo(scene, controller.signal, setExportProgress);
-      controller.signal.throwIfAborted();
-      setSavingPreview(true);
-      setExportProgress(undefined);
-      const result = await window.desktop.projects.saveDirectorPreview({ projectHandle, mp4 });
-      if (!result.ok) throw new Error("无法写入预演视频，请检查存放位置后重试。");
-      setExportSaved(result.value.saved);
-    } catch (error) {
-      if (!controller.signal.aborted)
-        setExportError(error instanceof Error ? error.message : "无法导出导演台预演。");
-    } finally {
-      exportController.current = undefined;
-      setExportProgress(undefined);
-      setSavingPreview(false);
-    }
+    choose(id);
   }
 
   return (
-    <dialog
+    <motion.dialog
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}
       ref={dialog}
+      tabIndex={-1}
       className="image-doodle-dialog director-dialog"
-      aria-labelledby="director-title"
+      style={{ gridTemplateRows: `${HEADER_HEIGHT}px minmax(0,1fr) ${sizes.timeline}px` }}
+      aria-label={`导演台：${label}`}
       onCancel={(event) => {
         event.preventDefault();
-        if (savingPreview) return;
-        if (exporting) exportController.current?.abort();
-        else close();
+        if (!exporting) close();
       }}
     >
-      <header>
-        <h2 id="director-title">导演台</h2>
-        <button type="button" aria-label="关闭导演台" disabled={exporting} onClick={close}>
-          ×
-        </button>
-      </header>
-      <div className="director-editor-layout">
-        <DirectorAssets
-          addCharacter={addCharacter}
-          addProp={(shape) => addProp(shape, PROP_PRESETS[shape].label)}
-          addCamera={addCamera}
-        />
-        <div className="director-preview">
-          <DirectorView
-            scene={scene}
-            time={previewTime}
-            cameraView={cameraView && !!camera}
-            guides={guides}
-            editCamera={
-              !playing &&
-              !exporting &&
-              camera &&
-              (camera.keys.length < 120 || camera.keys.some(({ t }) => t === editTime))
-                ? editCamera
-                : undefined
-            }
-          />
-        </div>
-      </div>
-      <div className="director-controls">
-        <button type="button" onClick={() => setCameraView(false)} aria-pressed={!cameraView}>
-          场景
-        </button>
-        <button
-          type="button"
-          disabled={!camera}
-          onClick={() => setCameraView(true)}
-          aria-pressed={cameraView}
-        >
-          机位
-        </button>
-        {cameraView && camera && (
-          <button type="button" aria-pressed={guides} onClick={() => setGuides(!guides)}>
-            三分线
-          </button>
-        )}
-        <button
-          type="button"
-          disabled={exporting}
-          onClick={() => {
-            if (!playing) {
-              playbackStart.current = previewTime >= scene.duration ? 0 : previewTime;
-              setTime(playbackStart.current);
-            }
-            setPlaying(!playing);
-          }}
-        >
-          {playing ? "暂停预演" : "播放预演"}
-        </button>
-        <label>
-          时间{" "}
-          <input
-            type="range"
-            min="0"
-            max={scene.duration}
-            step="0.1"
-            value={previewTime}
-            disabled={exporting}
-            onChange={(event) => {
-              setPlaying(false);
-              setTime(event.currentTarget.valueAsNumber);
+      <DirectorHeader
+        label={label}
+        undo={history.past.length && !history.base && !exporting ? () => travel("undo") : undefined}
+        redo={
+          history.future.length && !history.base && !exporting ? () => travel("redo") : undefined
+        }
+        snap={snap}
+        labels={labels}
+        toggleSnap={() => setSnap(!snap)}
+        toggleLabels={() => setLabels(!labels)}
+        status={saveStatus}
+        close={close}
+        blocked={
+          !scene.cameras.length
+            ? "没有机位，先添加一台机位"
+            : supported === false
+              ? "当前浏览器不支持 H.264 视频编码，请用新版 Chrome / Edge 导出"
+              : null
+        }
+        onExport={() => setExportOpen(true)}
+      />
+      <div
+        className="director-editor-layout"
+        style={{
+          gridTemplateColumns: `${NAV_WIDTH}px ${panels.assets ? sizes.assets + "px " : ""}minmax(0,1fr) ${sizes.sidebar}px`,
+        }}
+      >
+        <nav aria-label="工具" className="director-tool-rail">
+          <DirectorTool
+            title={panels.assets ? "折叠资产面板" : "展开资产面板（添加人物、物体、机位）"}
+            active={panels.assets}
+            onClick={panels.toggleAssets}
+          >
+            {panels.assets ? <PanelLeftClose /> : <PanelLeftOpen />}
+          </DirectorTool>
+          <i />
+          <DirectorTool title="移动（1）" active={!rotate} onClick={() => setRotate(false)}>
+            <Move />
+          </DirectorTool>
+          <DirectorTool title="旋转（2）" active={rotate} onClick={() => setRotate(true)}>
+            <RotateCw />
+          </DirectorTool>
+          <i />
+          <DirectorTool
+            title="聚焦选中（F）"
+            disabled={!selectedObject}
+            onClick={() => focusRef.current?.()}
+          >
+            <Scan />
+          </DirectorTool>
+          <DirectorTool
+            title="删除选中（Delete）"
+            disabled={!selectedObject}
+            onClick={removeSelected}
+          >
+            <Trash2 />
+          </DirectorTool>
+        </nav>
+        {panels.assets && (
+          <DirectorAssets
+            tab={assetTab}
+            setTab={setAssetTab}
+            toggle={panels.toggleAssets}
+            onCameraFromView={() => {
+              const pose = viewPoseRef.current?.();
+              if (pose) addCamera(pose);
             }}
+            scene={scene}
+            addCharacter={addCharacter}
+            addProp={(shape) => addProp(shape, PROP_PRESETS[shape].label)}
+            addCamera={addCamera}
           />
-        </label>
-        <output aria-label="当前时间">{previewTime.toFixed(1)} 秒</output>
+        )}
+        <main ref={main} className="director-preview">
+          <div
+            className="director-view-shell"
+            style={{ right: panels.split ? `${sizes.split * 100}%` : 0 }}
+          >
+            <DirectorView
+              models={models}
+              scene={scene}
+              selectedId={selectedObject}
+              disabled={exporting}
+              pending={pending}
+              cameraGesture={(phase) => {
+                if (phase === "begin" && playing) setPlaying(false);
+                dispatch({ type: phase });
+              }}
+              time={previewTime}
+              cameraView={cameraView && !!camera}
+              select={choose}
+              transform={transform}
+              labels={labels}
+              snap={snap}
+              rotate={rotate}
+              focusRef={focusRef}
+              viewPoseRef={viewPoseRef}
+              editCamera={!exporting && camera ? editCamera : undefined}
+            />
+            <ViewModeSwitch
+              cameras={scene.cameras}
+              viewedId={cameraView && camera ? camera.id : null}
+              select={(id) => {
+                if (id) choose(id);
+                setCameraView(!!id);
+              }}
+            />
+          </div>
+          <DirectorMonitor
+            scene={scene}
+            modelStatus={models.status}
+            time={previewTime}
+            pending={pending}
+            split={panels.split}
+            share={sizes.split}
+            toggle={panels.toggleSplit}
+            select={choose}
+            add={() => addCamera()}
+          />
+          {panels.split &&
+            divider("split", "机位画面宽度", {
+              top: 0,
+              bottom: 0,
+              left: `${(1 - sizes.split) * 100}%`,
+              width: 8,
+              marginLeft: -4,
+            })}
+        </main>
+        {panels.assets &&
+          divider("assets", "资产面板宽度", {
+            left: NAV_WIDTH + sizes.assets - 4,
+            top: 0,
+            bottom: 0,
+            width: 8,
+          })}
+        {divider("sidebar", "属性栏宽度", {
+          right: sizes.sidebar - 4,
+          top: 0,
+          bottom: 0,
+          width: 8,
+        })}
+        <DirectorSidebar
+          scene={scene}
+          selectedId={selectedObject}
+          pose={figurePose ?? prop ?? cameraPose}
+          t={previewTime}
+          pending={pending.characters.has(selectedObject) || pending.cameras.has(selectedObject)}
+          select={choose}
+          removeObject={removeObject}
+          updateObject={updateObject}
+          commitTransform={(id, patch) => {
+            if (patch.w !== undefined || patch.h !== undefined || patch.d !== undefined)
+              updateObject(id, patch);
+            else transform(id, patch);
+          }}
+          add={(kind) =>
+            kind === "character" ? addCharacter() : kind === "camera" ? addCamera() : addProp()
+          }
+        />
       </div>
       <DirectorTimeline
         scene={scene}
-        time={previewTime}
-        selectedObject={selectedObject}
-        disabled={playing || exporting}
-        select={(id, kind, nextTime) => {
-          setTime(nextTime);
-          if (kind === "camera") setScene((current) => ({ ...current, activeCameraId: id }));
-          else setSelectedObject(id);
+        t={previewTime}
+        selectedId={selectedObject}
+        selectedKey={picked}
+        pending={pending}
+        playing={playing}
+        toggle={togglePlayback}
+        setTime={setTime}
+        setDuration={(value) => {
+          const next = retimeDirectorScene(scene, value);
+          if (next !== scene) {
+            setScene(next);
+            setTime(Math.min(previewTime, next.duration));
+          }
+        }}
+        select={choose}
+        selectKey={setPicked}
+        recordKey={record}
+        deleteSelectedKey={deleteSelection}
+        write={(next) => {
+          discardPose(selectedObject);
+          setScene(next);
         }}
         change={(id, from, to, ease) => {
           function update<
             Track extends DirectorScene["characters"][number] | DirectorScene["cameras"][number],
           >(track: Track): Track {
-            if (track.id !== id || track.keys.some(({ t }) => t === to && t !== from)) return track;
+            if (track.id !== id) return track;
             return {
               ...track,
               keys: track.keys
-                .map((key) => (key.t === from ? { ...key, t: to, ease } : key))
+                .filter((key) => key.t === from || key.t !== to)
+                .map((key) => (key.t === from ? { ...key, t: to, ease: ease ?? key.ease } : key))
                 .sort((left, right) => left.t - right.t),
             };
           }
@@ -320,451 +700,25 @@ export function DirectorDialog({
             characters: current.characters.map(update),
             cameras: current.cameras.map(update),
           }));
-          setTime(to);
         }}
       />
-      <fieldset className="outpaint-fields director-controls" disabled={playing || exporting}>
-        <legend>场景与机位</legend>
-        <label>
-          场景时长（秒）
-          <input
-            type="number"
-            min="1"
-            max="15"
-            step="0.1"
-            value={scene.duration}
-            onChange={(event) => {
-              const duration = event.currentTarget.valueAsNumber;
-              if (!Number.isFinite(duration) || duration < 1 || duration > 15) return;
-              if (
-                [...scene.characters, ...scene.cameras].some(({ keys }) =>
-                  keys.some(({ t }) => t > duration),
-                )
-              )
-                return;
-              setScene({ ...scene, duration });
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={scene.characters.length >= 48}
-          onClick={() => addCharacter()}
-        >
-          添加人物
-        </button>
-        <button type="button" disabled={scene.props.length >= 96} onClick={() => addProp()}>
-          添加道具
-        </button>
-        <button type="button" disabled={scene.cameras.length >= 24} onClick={addCamera}>
-          添加机位
-        </button>
-        <label>
-          人物或道具
-          <select
-            value={selectedObject}
-            onChange={(event) => setSelectedObject(event.target.value)}
-          >
-            <option value="">请选择</option>
-            {[...scene.characters, ...scene.props].map(({ id, name }) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {object && (
-          <>
-            {(
-              [
-                ["x", "横向站位", -1000, 1000],
-                ["z", "纵深站位", -1000, 1000],
-                ["yaw", "朝向", -360, 360],
-              ] as const
-            ).map(([field, label, min, max]) => (
-              <label key={field}>
-                {label}
-                <input
-                  type="number"
-                  step="0.1"
-                  min={min}
-                  max={max}
-                  value={object[field]}
-                  disabled={object.locked}
-                  onChange={(event) => {
-                    const value = event.currentTarget.valueAsNumber;
-                    if (!Number.isFinite(value) || value < min || value > max) return;
-                    setScene({
-                      ...scene,
-                      characters: scene.characters.map((item) =>
-                        item.id === object.id ? { ...item, [field]: value } : item,
-                      ),
-                      props: scene.props.map((item) =>
-                        item.id === object.id ? { ...item, [field]: value } : item,
-                      ),
-                    });
-                  }}
-                />
-              </label>
-            ))}
-            {figure && (
-              <>
-                <label>
-                  人物模型
-                  <select
-                    value={figure.model ?? "male"}
-                    disabled={figure.locked}
-                    onChange={(event) => {
-                      const model = event.target.value === "female" ? "female" : "male";
-                      setScene((current) => ({
-                        ...current,
-                        characters: current.characters.map((item) =>
-                          item.id === figure.id ? { ...item, model } : item,
-                        ),
-                      }));
-                    }}
-                  >
-                    <option value="male">男性人台</option>
-                    <option value="female">女性人台</option>
-                  </select>
-                </label>
-                <label>
-                  人物姿势
-                  <select
-                    value={figure.pose}
-                    disabled={figure.locked}
-                    onChange={(event) => {
-                      const pose = event.target.value as typeof figure.pose;
-                      setScene((current) => ({
-                        ...current,
-                        characters: current.characters.map((item) =>
-                          item.id === figure.id ? { ...item, pose } : item,
-                        ),
-                      }));
-                    }}
-                  >
-                    {directorPoses.map((pose) => (
-                      <option key={pose} value={pose}>
-                        {poseNames[pose]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <fieldset className="outpaint-full director-controls">
-                  <legend>人物走位关键帧</legend>
-                  <button
-                    type="button"
-                    disabled={
-                      figure.locked ||
-                      (figure.keys.length >= 120 && !figure.keys.some(({ t }) => t === previewTime))
-                    }
-                    onClick={() => {
-                      const t = Number(previewTime.toFixed(1));
-                      const { x, z, yaw } = figure;
-                      const keys = [
-                        ...figure.keys.filter((key) => key.t !== t),
-                        { t, x, z, yaw, ease: "smooth" as const },
-                      ].sort((left, right) => left.t - right.t);
-                      setScene({
-                        ...scene,
-                        characters: scene.characters.map((item) =>
-                          item.id === figure.id ? { ...item, keys } : item,
-                        ),
-                      });
-                    }}
-                  >
-                    记录人物关键帧
-                  </button>
-                  {figure.keys.map(({ t }) => (
-                    <span key={t} className="director-controls">
-                      <button
-                        type="button"
-                        aria-label={`跳到 ${t} 秒人物关键帧`}
-                        onClick={() => setTime(t)}
-                      >
-                        {t} 秒
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`删除 ${t} 秒人物关键帧`}
-                        disabled={figure.locked}
-                        onClick={() =>
-                          setScene({
-                            ...scene,
-                            characters: scene.characters.map((item) =>
-                              item.id === figure.id
-                                ? { ...item, keys: item.keys.filter((key) => key.t !== t) }
-                                : item,
-                            ),
-                          })
-                        }
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </fieldset>
-              </>
-            )}
-            {prop && (
-              <label>
-                形状
-                <select
-                  aria-label="道具形状"
-                  value={prop.shape}
-                  disabled={prop.locked}
-                  onChange={(event) => {
-                    const shape = event.target.value as typeof prop.shape;
-                    const [w, h, d] = PROP_PRESETS[shape].size;
-                    setScene((current) => ({
-                      ...current,
-                      props: current.props.map((item) =>
-                        item.id === prop.id ? { ...item, shape, w, h, d } : item,
-                      ),
-                    }));
-                  }}
-                >
-                  {(
-                    [
-                      ["geometry", "几何体"],
-                      ["object", "物体"],
-                    ] as const
-                  ).map(([category, label]) => (
-                    <optgroup key={category} label={label}>
-                      {directorShapes
-                        .filter((shape) => PROP_PRESETS[shape].category === category)
-                        .map((shape) => (
-                          <option key={shape} value={shape}>
-                            {PROP_PRESETS[shape].label}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-            )}
-            {prop &&
-              (
-                [
-                  ["w", "宽度"],
-                  ["h", "高度"],
-                  ["d", "深度"],
-                ] as const
-              ).map(([field, label]) => (
-                <label key={field}>
-                  {label}（米）
-                  <input
-                    type="number"
-                    min="0.05"
-                    max="100"
-                    step="0.01"
-                    value={prop[field]}
-                    disabled={prop.locked}
-                    onChange={(event) => {
-                      const value = event.currentTarget.valueAsNumber;
-                      if (!Number.isFinite(value) || value < 0.05 || value > 100) return;
-                      setScene((current) => ({
-                        ...current,
-                        props: current.props.map((item) =>
-                          item.id === prop.id ? { ...item, [field]: value } : item,
-                        ),
-                      }));
-                    }}
-                  />
-                </label>
-              ))}
-            <button
-              type="button"
-              disabled={object.locked}
-              onClick={() => {
-                setScene({
-                  ...scene,
-                  characters: scene.characters.filter(({ id }) => id !== object.id),
-                  props: scene.props.filter(({ id }) => id !== object.id),
-                  cameras: scene.cameras.map((item) =>
-                    item.lookAt === object.id ? { ...item, lookAt: undefined } : item,
-                  ),
-                });
-                setSelectedObject("");
-              }}
-            >
-              移除选中对象
-            </button>
-          </>
-        )}
-        <label>
-          当前机位
-          <select
-            value={scene.activeCameraId}
-            onChange={(event) => {
-              if (!event.target.value) setCameraView(false);
-              setScene({ ...scene, activeCameraId: event.target.value });
-            }}
-          >
-            <option value="">未选择</option>
-            {scene.cameras.map(({ id, name }) => (
-              <option value={id} key={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {camera && (
-          <>
-            <label>
-              机位看向
-              <select
-                value={camera.lookAt ?? ""}
-                onChange={(event) => {
-                  const lookAt = event.target.value || undefined;
-                  setScene({
-                    ...scene,
-                    cameras: scene.cameras.map((item) =>
-                      item.id === camera.id ? { ...item, lookAt } : item,
-                    ),
-                  });
-                }}
-              >
-                <option value="">手动设置角度</option>
-                {scene.characters.map(({ id, name }) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              画幅
-              <select
-                value={camera.aspect}
-                onChange={(event) =>
-                  setScene({
-                    ...scene,
-                    cameras: scene.cameras.map((item) =>
-                      item.id === camera.id
-                        ? { ...item, aspect: event.target.value as typeof camera.aspect }
-                        : item,
-                    ),
-                  })
-                }
-              >
-                {directorAspects.map((aspect) => (
-                  <option key={aspect}>{aspect}</option>
-                ))}
-              </select>
-            </label>
-            {(
-              [
-                ["x", "横向位置", -1000, 1000],
-                ["y", "机位高度", -1000, 1000],
-                ["z", "纵深位置", -1000, 1000],
-                ["yaw", "偏航角", -360, 360],
-                ["pitch", "俯仰角", -90, 90],
-                ["fov", "视场角", 10, 120],
-              ] as const
-            ).map(([key, label, min, max]) => (
-              <label key={key}>
-                {label}
-                <input
-                  type="number"
-                  min={min}
-                  max={max}
-                  step="0.1"
-                  value={camera[key]}
-                  disabled={!!camera.lookAt && (key === "yaw" || key === "pitch")}
-                  onChange={(event) => {
-                    const value = event.currentTarget.valueAsNumber;
-                    if (Number.isFinite(value))
-                      setScene({
-                        ...scene,
-                        cameras: scene.cameras.map((item) =>
-                          item.id === camera.id
-                            ? { ...item, [key]: Math.min(max, Math.max(min, value)) }
-                            : item,
-                        ),
-                      });
-                  }}
-                />
-              </label>
-            ))}
-            <button
-              type="button"
-              disabled={camera.keys.length >= 120}
-              onClick={() => {
-                const { x, y, z, yaw, pitch, fov } = camera;
-                const t = Number(previewTime.toFixed(1));
-                const keys = [
-                  ...camera.keys.filter((key) => key.t !== t),
-                  { t, x, y, z, yaw, pitch, fov, ease: "smooth" as const },
-                ].sort((left, right) => left.t - right.t);
-                setScene({
-                  ...scene,
-                  cameras: scene.cameras.map((item) =>
-                    item.id === camera.id ? { ...item, keys } : item,
-                  ),
-                });
-              }}
-            >
-              记录机位关键帧
-            </button>
-            <fieldset className="outpaint-full director-controls">
-              <legend>机位关键帧</legend>
-              {camera.keys.map(({ t }) => (
-                <button
-                  type="button"
-                  key={t}
-                  aria-label={`删除 ${t} 秒关键帧`}
-                  onClick={() =>
-                    setScene({
-                      ...scene,
-                      cameras: scene.cameras.map((item) =>
-                        item.id === camera.id
-                          ? { ...item, keys: item.keys.filter((key) => key.t !== t) }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  {t} 秒 ×
-                </button>
-              ))}
-            </fieldset>
-          </>
-        )}
-      </fieldset>
-      {exportError && (
-        <p role="alert" className="image-doodle-error">
-          {exportError}
-        </p>
+      {divider("timeline", "时间轴高度", {
+        left: 0,
+        right: 0,
+        bottom: sizes.timeline - 4,
+        height: 8,
+      })}
+      {exporting && (
+        <DirectorExportDialog
+          scene={scene}
+          label={label}
+          projectHandle={projectHandle}
+          place={place}
+          checkCapacity={checkCapacity}
+          close={() => setExportOpen(false)}
+          back={close}
+        />
       )}
-      {exportProgress !== undefined && (
-        <progress aria-label="预演导出进度" max={1} value={exportProgress} />
-      )}
-      {exportSaved && <p role="status">预演视频已保存。</p>}
-      <footer>
-        <button
-          type="button"
-          disabled={savingPreview}
-          onClick={exporting ? () => exportController.current?.abort() : close}
-        >
-          {savingPreview ? "正在保存…" : exporting ? "取消导出" : "取消"}
-        </button>
-        <button
-          type="button"
-          disabled={!camera || playing || exporting}
-          onClick={() => void savePreview()}
-        >
-          导出预演 MP4
-        </button>
-        <button
-          type="button"
-          className="settings-primary"
-          disabled={exporting}
-          onClick={() => save(scene)}
-        >
-          保存场景
-        </button>
-      </footer>
-    </dialog>
+    </motion.dialog>
   );
 }

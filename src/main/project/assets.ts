@@ -5,8 +5,9 @@ import { link, lstat, mkdir, open, unlink } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import type { JsonValue, ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import type { ProjectAsset } from "../../../packages/link-studio-core/src/projects-api.ts";
-import { probeMedia } from "../../../packages/media-runtime/src/probe.ts";
+import { probeMedia, videoDisplayAspect } from "../../../packages/media-runtime/src/probe.ts";
 import { ProjectError } from "./errors.ts";
+import { jpegDimensions, jpegHeaderLimit } from "./jpeg-dimensions.ts";
 import { type ProjectStore, syncDirectory } from "./store.ts";
 
 const MAX_ASSET_BYTES = 20 * 1024 ** 3;
@@ -60,20 +61,8 @@ function imageDimensions(header: Buffer, trailer: Buffer, bytes: number, extensi
     header[1] === 0xd8 &&
     trailer.subarray(-2).equals(Buffer.from("ffd9", "hex"))
   ) {
-    let offset = 2;
-    while (offset + 9 < header.length) {
-      if (header[offset] !== 0xff) break;
-      const marker = header[offset + 1];
-      const length = header.readUInt16BE(offset + 2);
-      if (
-        typeof marker === "number" &&
-        [0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(
-          marker,
-        )
-      )
-        return { width: header.readUInt16BE(offset + 7), height: header.readUInt16BE(offset + 5) };
-      offset += length + 2;
-    }
+    const dimensions = jpegDimensions(header);
+    if (dimensions) return dimensions;
   }
   if (
     extension === ".webp" &&
@@ -141,7 +130,7 @@ export class AssetService {
   }
 
   async stage(
-    store: ProjectStore,
+    store: Pick<ProjectStore, "directory">,
     sourceHandle: FileHandle,
     displayName: string,
     assetId: string,
@@ -196,7 +185,8 @@ export class AssetService {
         }
         options.signal?.throwIfAborted();
         await target.sync();
-        header = Buffer.alloc(Math.min(bytes, 65_536));
+        const headerLimit = expected.mimeType === "image/jpeg" ? jpegHeaderLimit : 65_536;
+        header = Buffer.alloc(Math.min(bytes, headerLimit));
         trailer = Buffer.alloc(Math.min(bytes, 12));
         await target.read(header, 0, header.length, 0);
         await target.read(trailer, 0, trailer.length, bytes - trailer.length);
@@ -233,9 +223,11 @@ export class AssetService {
           (item) => item.codec_type === (expected.mediaType === "video" ? "video" : "audio"),
         );
         if (!stream) throw new ProjectError("ASSET_READ_FAILED", "媒体内容与文件类型不匹配");
+        const displayAspect = videoDisplayAspect(stream);
         Object.assign(metadata, {
           durationMs: Math.round(probe.duration * 1000),
           ...(stream.width ? { width: stream.width, height: stream.height } : {}),
+          ...(displayAspect && { displayAspect }),
           ...(stream.sample_rate ? { sampleRate: Number(stream.sample_rate) } : {}),
         });
       }
@@ -269,7 +261,11 @@ export class AssetService {
     await unlink(staged.temporary).catch(() => undefined);
   }
 
-  async publishBlob(store: ProjectStore, staged: StagedAsset, signal?: AbortSignal) {
+  async publishBlob(
+    store: Pick<ProjectStore, "directory">,
+    staged: StagedAsset,
+    signal?: AbortSignal,
+  ) {
     const { sha256, sizeBytes: bytes } = staged.asset;
     const { temporary } = staged;
     let created = false;

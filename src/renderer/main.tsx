@@ -4,6 +4,7 @@ import { App } from "./workspace/app";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import "./workspace/canvas-workspace.css";
+import "./assistant/workspace-shell.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("工作区挂载点缺失");

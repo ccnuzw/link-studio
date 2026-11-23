@@ -7,10 +7,12 @@ import { pipeline } from "node:stream/promises";
 import type { ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import { contentHash } from "./encoding.ts";
 import { ProjectError } from "./errors.ts";
+import { jpegDimensions, jpegHeaderLimit } from "./jpeg-dimensions.ts";
 import { requireDirectory } from "./ownership.ts";
 import { type ProjectStore, syncDirectory } from "./store.ts";
 
 export type AssetRecord = ProjectState["assets"][string];
+export type MediaLocation = Pick<ProjectStore, "projectId" | "directory">;
 export const readOnly = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
 
 function identity(stat: Stats) {
@@ -46,11 +48,12 @@ export async function verifyContent(
 }
 
 export class AssetFiles {
+  private readonly jpegOrientations = new Map<string, number>();
   private readonly verified = new Map<string, string>();
 
   constructor(private readonly directory: string) {}
 
-  private async locator(store: ProjectStore, asset: AssetRecord) {
+  private async locator(store: MediaLocation, asset: AssetRecord) {
     if (asset.storage.kind !== "external")
       throw new ProjectError("ASSET_NOT_FOUND", "该素材未使用外部引用");
     const { dev, ino } = await lstat(store.directory);
@@ -97,7 +100,7 @@ export class AssetFiles {
     }
   }
 
-  private async resolve(store: ProjectStore, asset: AssetRecord) {
+  private async resolve(store: MediaLocation, asset: AssetRecord) {
     if (asset.availability === "deleted") throw new ProjectError("ASSET_NOT_FOUND", "素材已移除");
     if (asset.storage.kind === "blob") {
       const root = join(store.directory, "assets");
@@ -124,7 +127,7 @@ export class AssetFiles {
     }
   }
 
-  async inspect(store: ProjectStore, asset: AssetRecord, verifyBlob = false) {
+  async inspect(store: MediaLocation, asset: AssetRecord, verifyBlob = false) {
     let handle: FileHandle | undefined;
     try {
       const target = await this.resolve(store, asset);
@@ -158,7 +161,7 @@ export class AssetFiles {
   }
 
   async materialize(
-    store: ProjectStore,
+    store: MediaLocation,
     asset: AssetRecord,
     destination: string,
     signal?: AbortSignal,
@@ -187,6 +190,27 @@ export class AssetFiles {
       return false;
     }
   }
+
+  async previewMetadata(store: ProjectStore, asset: AssetRecord) {
+    const file = await this.inspect(store, asset).catch(() => undefined);
+    if (!file) return;
+    try {
+      if (asset.mimeType !== "image/jpeg" || asset.metadata.orientation !== undefined)
+        return asset.metadata;
+      const key = `${asset.sha256}:${file.stamp}`;
+      let orientation = this.jpegOrientations.get(key);
+      if (orientation === undefined) {
+        const header = Buffer.alloc(Math.min(asset.sizeBytes, jpegHeaderLimit));
+        const { bytesRead } = await file.handle.read(header, 0, header.length, 0);
+        orientation = jpegDimensions(header.subarray(0, bytesRead))?.orientation ?? 1;
+        if (this.jpegOrientations.size >= 256) this.jpegOrientations.clear();
+        this.jpegOrientations.set(key, orientation);
+      }
+      return { ...asset.metadata, orientation };
+    } finally {
+      await file.handle.close();
+    }
+  }
 }
 
 const mediaTypes = new Set([
@@ -205,7 +229,7 @@ const mediaTypes = new Set([
 export async function servePreview(
   request: Request,
   files: AssetFiles,
-  store: ProjectStore,
+  store: MediaLocation,
   asset: AssetRecord,
   stamp: string,
   active: () => boolean,

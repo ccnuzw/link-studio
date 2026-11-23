@@ -1,0 +1,166 @@
+.canvas-workspace .creative-card[data-visual="true"]:has(.node-media[data-kind="audio"]) {
+  --audio-paper: oklch(1 0 0);
+  --audio-surface-tint: oklch(0.97 0 0 / 0.4);
+  background-color: var(--audio-paper);
+}
+.canvas-workspace .creative-card[data-visual="true"] .node-media[data-kind="audio"] {
+  background-color: transparent;
+  gap: 10px;
+}
+.canvas-workspace
+  .creative-card[data-visual="true"]
+  .node-media[data-kind="audio"]:has(.node-audio-player) {
+  display: block;
+  padding: 0;
+  background-color: var(--audio-surface-tint);
+}
+.node-audio-player {
+  --audio-ink: oklch(0.145 0 0);
+  --audio-muted: oklch(0.556 0 0);
+  --audio-head: oklch(0.58 0.15 250);
+  --audio-node-ring: oklch(0.2 0 0 / 0.85);
+  --audio-secondary: oklch(0.97 0 0);
+  --audio-button-ink: oklch(0.205 0 0);
+  --audio-button-ring: oklch(0.708 0 0);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  color: var(--audio-ink);
+  font-family: "Geist Variable", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.node-audio-player audio {
+  display: none;
+}
+.node-audio-wave {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  container-type: inline-size;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.node-audio-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.node-audio-bar {
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--audio-muted) 60%, transparent);
+}
+.node-audio-bar[data-played="true"] {
+  background: currentColor;
+}
+.node-audio-head {
+  position: absolute;
+  inset: -8px auto -8px 0;
+  margin-left: -12px;
+  width: 24px;
+  outline: none;
+  will-change: transform;
+}
+.node-audio-head span {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--audio-head);
+  border-radius: 999px;
+}
+.node-audio-head:focus-visible span {
+  box-shadow: 0 0 0 2px var(--audio-node-ring);
+}
+.node-audio-head:focus-visible .node-audio-line {
+  box-shadow:
+    0 0 0 2px white,
+    0 0 0 4px var(--audio-node-ring);
+}
+.node-audio-line {
+  top: 8px;
+  bottom: 0;
+  width: 2px;
+}
+.node-audio-dot {
+  top: 6px;
+  width: 6px;
+  height: 6px;
+}
+.node-audio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.node-audio-time {
+  font-size: 20px;
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.node-audio-dim {
+  color: var(--audio-muted);
+}
+.node-audio-player button.node-audio-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  padding: 0;
+  background: var(--audio-secondary) padding-box;
+  color: var(--audio-button-ink);
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.node-audio-player button.node-audio-toggle:hover {
+  background-color: color-mix(in oklch, var(--audio-secondary), var(--audio-ink) 5%);
+}
+.node-audio-player button.node-audio-toggle:focus-visible {
+  outline: none;
+  border-color: var(--audio-button-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--audio-button-ring) 50%, transparent);
+}
+.node-audio-player button.node-audio-toggle:active {
+  translate: 0 1px;
+}
+.node-audio-player button.node-audio-toggle:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.node-audio-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.audio-play-icon {
+  translate: 1px 0;
+}
+@media (prefers-color-scheme: dark) {
+  .canvas-workspace .creative-card[data-visual="true"]:has(.node-media[data-kind="audio"]) {
+    --audio-paper: oklch(0.205 0 0);
+    --audio-surface-tint: oklch(0.269 0 0 / 0.4);
+  }
+  .node-audio-player {
+    --audio-ink: oklch(0.985 0 0);
+    --audio-muted: oklch(0.708 0 0);
+    --audio-head: oklch(0.75 0.12 240);
+    --audio-node-ring: oklch(1 0 0 / 0.72);
+    --audio-secondary: oklch(0.269 0 0);
+    --audio-button-ink: oklch(0.985 0 0);
+    --audio-button-ring: oklch(0.556 0 0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .node-audio-bar[data-pending="true"] {
+    animation: audio-peak-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes audio-peak-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+}

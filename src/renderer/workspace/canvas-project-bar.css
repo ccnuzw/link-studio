@@ -1,0 +1,102 @@
+.canvas-controls.canvas-project-zone {
+  display: flex;
+  top: 12px;
+  bottom: auto;
+  max-width: calc(100vw - 24px);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+}
+.canvas-project-zone .canvas-control-pill {
+  max-width: 100%;
+}
+.canvas-project-zone .canvas-brand-trigger {
+  gap: 4px;
+  padding: 0 6px 0 4px;
+}
+.canvas-brand-trigger svg:last-child {
+  opacity: 0.6;
+}
+.canvas-brand-logo {
+  --picker-beam: oklch(0.62 0.16 55);
+}
+.canvas-inline-title {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.canvas-inline-title :is(input, span) {
+  grid-area: 1 / 1;
+  padding: 0 8px;
+  font:
+    600 13px / 1.5 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.canvas-inline-title span {
+  visibility: hidden;
+  max-width: 28ch;
+  white-space: pre;
+}
+.canvas-inline-title input {
+  width: 100%;
+  min-width: 4ch;
+  height: 32px;
+  border: 0;
+  outline: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  transition: background-color 0.15s;
+}
+.canvas-inline-title input:is(:focus, :hover) {
+  background: var(--control-hover);
+}
+.canvas-control-pill .canvas-save-indicator {
+  min-width: 0;
+  padding: 0 10px 0 6px;
+  font-weight: 400;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 1;
+}
+.canvas-control-pill .canvas-save-indicator:disabled {
+  background: transparent;
+  color: var(--control-muted);
+  cursor: default;
+}
+.canvas-save-indicator span {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.canvas-save-indicator[data-state="error"] {
+  color: var(--destructive, oklch(0.577 0.245 27.325));
+}
+.canvas-save-indicator[data-state="saving"] svg {
+  animation: canvas-save-spin 1s linear infinite;
+}
+@keyframes canvas-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.canvas-frame-menu.canvas-view-menu.canvas-brand-menu {
+  width: 208px;
+}
+.canvas-frame-menu.canvas-brand-extras {
+  max-height: var(--available-height);
+  overflow: auto;
+}
+@media (prefers-color-scheme: dark) {
+  .canvas-brand-logo {
+    --picker-beam: oklch(0.78 0.15 70);
+  }
+}

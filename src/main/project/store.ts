@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { link, mkdir, open, readdir, rename, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readdir, realpath, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { Value } from "@sinclair/typebox/value";
 import {
@@ -13,6 +13,7 @@ import {
   normalizeProjectName,
   type ProjectState,
 } from "../../../packages/link-studio-core/src/project.ts";
+import { isLocalApfs } from "../../../packages/media-runtime/src/local-filesystem.ts";
 import { applyCanvas, projectCanvas } from "./canvas.ts";
 import { canonicalJson, contentHash } from "./encoding.ts";
 import { ProjectError } from "./errors.ts";
@@ -25,7 +26,11 @@ export function containsAssetReference(value: unknown, assetId: string): boolean
   if (Array.isArray(value)) return value.some((item) => containsAssetReference(item, assetId));
   if (!value || typeof value !== "object") return false;
   for (const [key, item] of Object.entries(value)) {
-    if (["assetId", "bgmAssetId", "audioAssetId"].includes(key) && item === assetId) return true;
+    if (
+      ["assetId", "bgmAssetId", "audioAssetId", "directorThumbnailId"].includes(key) &&
+      item === assetId
+    )
+      return true;
     if (
       (key === "assetIds" || key.endsWith("AssetIds")) &&
       Array.isArray(item) &&
@@ -50,11 +55,14 @@ export async function syncDirectory(directory: string): Promise<void> {
   }
 }
 
-async function readSnapshot(path: string): Promise<unknown> {
-  const descriptor = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+async function readSnapshot(path: string, maximum = MAX_SNAPSHOT_BYTES): Promise<unknown> {
+  const descriptor = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const entry = await descriptor.stat();
-    if (!entry.isFile() || entry.size > MAX_SNAPSHOT_BYTES) {
+    if (!entry.isFile() || entry.size > maximum) {
       throw new ProjectError("PROJECT_SCHEMA_INVALID", "快照类型或大小无效");
     }
     return JSON.parse(await descriptor.readFile("utf8"));
@@ -94,6 +102,39 @@ export class ProjectStore {
     private readonly owner: ProjectOwnership,
     private readonly options: StoreOptions,
   ) {}
+
+  static async inspectRecentJobs(directory: string, projectId: string) {
+    const stateDirectory = join(directory, "state");
+    if (
+      (await realpath(stateDirectory)) !== stateDirectory ||
+      /\/Library\/(CloudStorage|Mobile Documents)(\/|$)/.test(directory) ||
+      !(await isLocalApfs(directory))
+    )
+      return;
+    const manifest = await readSnapshot(join(directory, "manifest.json"), 8192);
+    if (
+      !manifest ||
+      typeof manifest !== "object" ||
+      !("schemaVersion" in manifest) ||
+      manifest.schemaVersion !== 1 ||
+      !("projectId" in manifest) ||
+      manifest.projectId !== projectId ||
+      !("revision" in manifest) ||
+      !Number.isSafeInteger(manifest.revision) ||
+      !("commitHash" in manifest) ||
+      typeof manifest.commitHash !== "string" ||
+      !/^[a-f0-9]{64}$/.test(manifest.commitHash)
+    )
+      return;
+    const filename = `${String(manifest.revision).padStart(12, "0")}-${manifest.commitHash}.json`;
+    const names = await readdir(stateDirectory);
+    if (names.length !== manifest.revision || !names.includes(filename)) return;
+    const revisions = new Set(names.map((name) => Number(SNAPSHOT_FILE.exec(name)?.[1])));
+    if (revisions.size !== names.length || names.some((_, index) => !revisions.has(index + 1)))
+      return;
+    const state = await readSnapshot(join(stateDirectory, filename));
+    if (verifySnapshot(state, filename) && state.projectId === projectId) return state.jobs;
+  }
 
   static async create(parent: string, inputName: string, options: StoreOptions = {}) {
     const name = normalizeProjectName(inputName);
@@ -158,8 +199,26 @@ export class ProjectStore {
     return this.state.projectId;
   }
 
+  get name() {
+    return this.state.name;
+  }
+
   get snapshot(): ProjectState {
     return structuredClone(this.state);
+  }
+
+  private filingObserver?: (state: ProjectState) => void;
+  private historyObserver?: (state: ProjectState) => void;
+
+  async observeGenerationHistory(observer: (state: ProjectState) => void) {
+    await this.owner.assertCurrent();
+    observer(this.state);
+    this.historyObserver = observer;
+  }
+
+  observeCharacterImages(observer: (state: ProjectState) => void) {
+    observer(this.state);
+    this.filingObserver = observer;
   }
 
   rename(input: { operationId: string; expectedRevision: number; name: string }) {
@@ -271,6 +330,7 @@ export class ProjectStore {
   }
 
   commitAssets(input: {
+    purpose?: "clipboard";
     operationId: string;
     expectedRevision: number;
     requestHash: string;
@@ -283,7 +343,7 @@ export class ProjectStore {
         !isOperationId(input.operationId) ||
         !Number.isSafeInteger(input.expectedRevision) ||
         input.assets.length < 1 ||
-        input.assets.length > 25 ||
+        input.assets.length > (input.purpose === "clipboard" ? 10000 : 25) ||
         new Set(input.assets.map(({ assetId }) => assetId)).size !== input.assets.length
       )
         throw new ProjectError("PROJECT_SCHEMA_INVALID", "无效的批量资产提交请求");
@@ -302,7 +362,7 @@ export class ProjectStore {
         input.assets.some(
           (asset) =>
             asset.availability !== "ready" ||
-            asset.origin !== "derived" ||
+            asset.origin !== (input.purpose === "clipboard" ? "imported" : "derived") ||
             this.state.assets[asset.assetId],
         )
       )
@@ -483,7 +543,7 @@ export class ProjectStore {
     }
     const temporary = join(this.directory, "tmp");
     for (const entry of await readdir(temporary)) {
-      if (/^[a-f0-9-]{36}\.asset$/.test(entry))
+      if (/^[a-f0-9-]{36}\.(asset|clip)$/.test(entry))
         await unlink(join(temporary, entry)).catch(() => undefined);
     }
     await syncDirectory(this.directory);
@@ -556,6 +616,7 @@ export class ProjectStore {
     await this.recover();
     this.faulted = false;
     await this.rebuildManifest();
+    this.notifyGenerationHistory();
   }
 
   private async publish(next: ProjectState, signal?: AbortSignal): Promise<void> {
@@ -594,6 +655,7 @@ export class ProjectStore {
       await syncDirectory(stateDirectory);
       await this.options.onStage?.("directory-synced");
       this.state = next;
+      this.filingObserver?.(next);
     } catch (cause) {
       if (cause instanceof ProjectError && cause.code === "ASSET_IMPORT_CANCELLED") throw cause;
       this.faulted = true;
@@ -602,6 +664,15 @@ export class ProjectStore {
       await unlink(temporary).catch(() => undefined);
     }
     await this.rebuildManifest();
+    this.notifyGenerationHistory();
+  }
+
+  private notifyGenerationHistory() {
+    try {
+      this.historyObserver?.(this.state);
+    } catch {
+      this.warnings.push("生成历史索引未更新，重新打开项目后重建");
+    }
   }
 
   private async rebuildManifest(): Promise<void> {

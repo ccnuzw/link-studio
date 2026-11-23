@@ -1,187 +1,297 @@
+import { Dialog } from "@base-ui/react/dialog";
 import {
   type CanvasShot,
   type CreativeData,
-  cameraMoves,
-  type GenerationInput,
+  canvasVideoDuration,
   type GenerationJob,
-  modelGenerationModes,
-  modelGenerationOptions,
+  jobFailureReason,
+  jobIsTerminal,
+  maxStoryboardShots,
   type ProviderView,
   type SettingsValues,
-  shotSizes,
 } from "@link-studio/core";
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2, WandSparkles, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { generationStatuses } from "./generation";
+import {
+  Crosshair,
+  GalleryHorizontalEnd,
+  Image as ImageIcon,
+  Link2,
+  Loader2,
+  Maximize2,
+  Plus,
+  RefreshCw,
+  TriangleAlert,
+  Upload,
+  X,
+} from "lucide-react";
+import { motion, Reorder } from "motion/react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useThumbURL } from "./canvas-prompt-editor";
+import { BatchShotImages } from "./shot-batch-images";
+import { newShot, ShotStats, StoryboardPlaceholder } from "./shot-card-preview";
+import { ShotConfirm } from "./shot-confirm";
+import { ShotImagePreview } from "./shot-image-preview";
+import { ShotDuration, ShotText } from "./shot-inputs";
+import { ShotModelPicker, splitModels, splitPrompt, useShotModel } from "./shot-model-picker";
+import { ShotRowMenu } from "./shot-row-menu";
+import { ShotSelect } from "./shot-select";
+import { ShotTableRow } from "./shot-table-row";
+import { shotDurationTitle, shotVideoOptions } from "./shot-video";
+import { ShotVideoCell } from "./shot-video-cell";
 
 type MediaKind = "image" | "video";
 type LinkedNode = { id: string; data: CreativeData };
-type BatchTarget = Pick<GenerationInput, "nodeId" | "prompt" | "duration">;
-type MediaOptions = ReturnType<typeof modelGenerationOptions>;
+function ShotThumbnail({
+  assetId,
+  projectHandle,
+  index,
+}: {
+  assetId: string;
+  projectHandle: string;
+  index: number;
+}) {
+  const label = `镜头 ${String(index + 1).padStart(2, "0")}`;
+  const url = useThumbURL({ assetId, id: assetId, kind: "image", label }, projectHandle);
+  return url ? (
+    <img
+      src={url}
+      alt={`${label} 的分镜图`}
+      style={{ width: 144, height: 81, objectFit: "cover", borderRadius: 8 }}
+    />
+  ) : null;
+}
 
-function allowsDuration(options: MediaOptions, duration: number) {
-  if (!Number.isInteger(duration) || duration < 1 || duration > 30) return false;
-  if (options.durations.length) return options.durations.includes(duration);
-  const range = options.durationRange;
-  return range ? duration >= range.min && duration <= range.max : options.manualDuration;
+function SplitSkeletonRows() {
+  return (
+    <div aria-hidden="true" className="split-skeleton-rows">
+      {[0, 1, 2].map((row) => (
+        <div key={row} className="shot-grid split-skeleton-row">
+          <div />
+          <i />
+          <i />
+          {Array.from({ length: 6 }, (_, column) => (
+            <i key={column} />
+          ))}
+          <div />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function StoryboardDialog({
-  initial,
+  projectHandle,
+  uploadImage,
+  prepareVideo,
+  generateImages,
+  defaultImageProvider,
+  locate,
+  initial: shots,
+  initialFocusId,
+  highlightIds,
+  resultNotice,
+  clearHighlights,
+  change,
   linkedNodes,
   jobs,
   settings,
-  submit,
-  sourceText,
+  script,
+  boardId,
+  title,
   submitSplit,
-  canSplit,
-  save,
   close,
 }: {
+  projectHandle: string;
+  prepareVideo: (id: string) => string | undefined;
+  generateImages: (
+    targets: { id: string; provider?: ProviderView }[],
+  ) => Promise<string | undefined>;
+  defaultImageProvider?: string;
+  uploadImage: (id: string, file: File, progress: (percent: number) => void) => Promise<void>;
+  locate: (id: string) => void;
   initial: CanvasShot[];
+  initialFocusId?: string;
+  highlightIds?: string[];
+  resultNotice?: ReactNode;
+  clearHighlights: (ids: string[]) => void;
+  change: (edit: (current: CanvasShot[]) => CanvasShot[]) => void;
   linkedNodes: Record<MediaKind, LinkedNode[]>;
   jobs: GenerationJob[];
   settings: SettingsValues["list"];
-  submit: (targets: BatchTarget[], provider: ProviderView) => Promise<string | undefined>;
-  sourceText: string;
+  script: { connected: boolean; text: string };
+  boardId: string;
+  title: string;
   submitSplit: (
     prompt: string,
     provider: ProviderView,
     mode: "replace" | "append",
   ) => Promise<string | undefined>;
-  canSplit: (shots: CanvasShot[], kind: MediaKind) => boolean;
-  save: (shots: CanvasShot[], split?: MediaKind) => void;
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const edited = useRef(false);
-  const [shots, setShots] = useState(initial);
-  const [invalidDuration, setInvalidDuration] = useState<string[]>([]);
-  const [kind, setKind] = useState<MediaKind>(linkedNodes.image.length ? "image" : "video");
-  const [picked, setPicked] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [batchError, setBatchError] = useState("");
-  const [splitError, setSplitError] = useState("");
-  const [splitSubmitting, setSplitSubmitting] = useState(false);
-  const [splitMode, setSplitMode] = useState<"replace" | "append">("append");
-  const [splitPicked, setSplitPicked] = useState("");
-  const models = settings.providers.flatMap((provider) => {
-    const plugin = settings.plugins.find(({ hash }) => hash === provider.pluginHash);
-    const textMode = kind === "image" ? "t2i" : "t2v";
-    if (
-      !(
-        provider.enabled &&
-        provider.channelEnabled !== false &&
-        plugin?.kind === kind &&
-        !plugin.disabled &&
-        provider.config?.kind !== "agent" &&
-        (plugin.auth === "none" || provider.hasSecret) &&
-        (provider.config?.modes?.includes(textMode) ?? true)
-      )
-    )
-      return [];
-    const options = modelGenerationOptions(
-      kind,
-      plugin.origin === "builtin" ? plugin.key : undefined,
-      provider.model,
-      provider.channel,
-      provider.config,
-    );
-    return modelGenerationModes(kind, options).includes(textMode) ? [{ provider, options }] : [];
-  });
-  const selected = models.find(({ provider }) => provider.id === picked) ?? models[0];
-  const model = selected?.provider;
-  const textModels = settings.providers.flatMap((provider) => {
-    const plugin = settings.plugins.find(({ hash }) => hash === provider.pluginHash);
-    return provider.enabled &&
-      provider.channelEnabled !== false &&
-      plugin?.kind === "text" &&
-      !plugin.disabled &&
-      provider.config?.kind !== "agent" &&
-      (plugin.auth === "none" || provider.hasSecret)
-      ? [provider]
+  const dialog = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(true);
+  const clearFresh = useRef(clearHighlights);
+  clearFresh.current = clearHighlights;
+  const firstFresh = highlightIds && shots.find((shot) => highlightIds.includes(shot.id))?.id;
+  useEffect(() => {
+    if (!firstFresh || !highlightIds) return;
+    const frame = requestAnimationFrame(() => {
+      dialog.current
+        ?.querySelector(`[data-shot-id="${CSS.escape(firstFresh)}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    const timer = setTimeout(() => clearFresh.current(highlightIds), 1200);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [firstFresh, highlightIds]);
+  const [addedId, setAddedId] = useState<string | undefined>(initialFocusId);
+  const uploading = useRef(new Set<string>());
+  const startingImages = useRef(new Set<string>());
+  const [progressByRow, setProgressByRow] = useState<Record<string, number>>({});
+  const [uploadError, setUploadError] = useState("");
+  const upload = async (id: string, file: File) => {
+    if (uploading.current.has(id)) return;
+    const node = linkedNodes.image.find((node) => node.data.shotId === id);
+    if (node && jobs.some((job) => job.nodeId === node.id && !jobIsTerminal(job.status))) {
+      setUploadError("这一镜的分镜图正在生成，生成完再上传");
+      return;
+    }
+    uploading.current.add(id);
+    setUploadError("");
+    const progress = (percent: number) =>
+      setProgressByRow((current) => ({ ...current, [id]: percent }));
+    progress(0);
+    try {
+      await uploadImage(id, file, progress);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "分镜图导入失败");
+    } finally {
+      uploading.current.delete(id);
+      setProgressByRow((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+  const [previewId, setPreviewId] = useState<string>();
+  const previews = shots.flatMap((row, index) => {
+    const image = linkedNodes.image.find((node) => node.data.shotId === row.id);
+    const assetId = image?.data.assetId ?? row.imageAssetId;
+    return assetId
+      ? [
+          {
+            id: row.id,
+            assetId,
+            nodeId: image?.id,
+            label: `镜头 ${String(index + 1).padStart(2, "0")}`,
+          },
+        ]
       : [];
   });
-  const splitModel = textModels.find(({ id }) => id === splitPicked) ?? textModels[0];
-  const splitJob = jobs.filter(({ purpose }) => purpose === "storyboard-split").at(-1);
+  const [splitError, setSplitError] = useState("");
+  const [dismissedJob, setDismissedJob] = useState<string>();
+  const [requestedMode, setRequestedMode] = useState<"append" | "replace">("append");
+  const [splitSubmitting, setSplitSubmitting] = useState(false);
+  const [overwriteCount, setOverwriteCount] = useState(0);
+  const appendButton = useRef<HTMLButtonElement>(null);
+  const textModels = splitModels(settings);
+  const splitSelection = useShotModel(textModels);
+  const splitModel = splitSelection.model;
+  const splitJob = jobs
+    .filter((job) => job.nodeId === boardId && job.purpose === "storyboard-split")
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const splitting = splitSubmitting || !!(splitJob && !jobIsTerminal(splitJob.status));
+  const failedJob =
+    splitJob?.status === "failed" && splitJob.id !== dismissedJob ? splitJob : undefined;
+  const failure = splitError || jobFailureReason(failedJob);
+  const splitReason = !script.connected
+    ? "请先连接剧本节点"
+    : !script.text
+      ? "剧本节点还没有内容"
+      : splitting
+        ? "正在拆分镜"
+        : !splitModel
+          ? "请选择可用的 Agent 模型"
+          : "";
 
-  useEffect(() => {
-    if (!edited.current) setShots(initial);
-  }, [initial]);
-  const activeNodes = linkedNodes[kind];
-  const linkedByShot = new Map(activeNodes.map((node) => [node.data.shotId, node]));
   const latestByNode = new Map<string, GenerationJob>();
   for (const job of jobs) {
     const current = latestByNode.get(job.nodeId);
     if (!current || job.updatedAt > current.updatedAt) latestByNode.set(job.nodeId, job);
   }
-  const pending = shots.flatMap(({ id }) => {
-    const node = linkedByShot.get(id);
-    return node?.data.text.trim() && !latestByNode.has(node.id) ? [node] : [];
-  });
-  const supportsShot = (shot: CanvasShot, retry = false) =>
-    kind === "image" ||
-    (!!selected &&
-      (retry ||
-        (!invalidDuration.includes(shot.id) && allowsDuration(selected.options, shot.duration))));
-  const supportedPending = pending.filter(({ data }) => {
-    const shot = shots.find(({ id }) => id === data.shotId);
-    return shot && supportsShot(shot);
-  });
-
-  async function generate(targets: LinkedNode[], retryProvider?: ProviderView) {
-    const submitModel = retryProvider ?? model;
-    if (!submitModel || submitting || !targets.length) return;
-    setSubmitting(true);
-    setBatchError("");
-    try {
-      setBatchError(
-        (await submit(
-          targets.flatMap(({ id, data }) => {
-            const shot = shots.find(({ id }) => id === data.shotId);
-            const previous = latestByNode.get(id);
-            if (
-              !shot ||
-              !supportsShot(shot, previous?.status === "failed" || previous?.status === "cancelled")
-            )
-              return [];
-            return [
-              {
-                nodeId: id,
-                prompt:
-                  kind === "video" ? data.text.replace(/\n时长：\d+(?:\.\d+)? 秒$/, "") : data.text,
-                ...(kind === "video" ? { duration: shot.duration } : {}),
-              },
-            ];
-          }),
-          submitModel,
-        )) ?? "",
+  const imageCandidates = settings.providers
+    .filter((candidate) => {
+      const plugin = settings.plugins.find((item) => item.hash === candidate.pluginHash);
+      return (
+        candidate.enabled &&
+        candidate.channelEnabled !== false &&
+        plugin?.kind === "image" &&
+        !plugin.disabled &&
+        candidate.config?.kind !== "agent" &&
+        (plugin.auth === "none" || candidate.hasSecret) &&
+        (candidate.config?.modes?.includes("t2i") ?? true)
       );
-    } catch {
-      setBatchError("暂时无法提交，请稍后重试。");
-    } finally {
-      setSubmitting(false);
+    })
+    .sort((left, right) => (left.config?.sort ?? 100) - (right.config?.sort ?? 100));
+  const imageByShot = new Map(linkedNodes.image.map((node) => [node.data.shotId, node]));
+  const planImages = () => {
+    const targets: string[] = [];
+    let missingScene = 0;
+    for (const shot of shots) {
+      const image = imageByShot.get(shot.id);
+      const job = image && latestByNode.get(image.id);
+      if (
+        shot.imageAssetId ||
+        startingImages.current.has(shot.id) ||
+        uploading.current.has(shot.id)
+      )
+        continue;
+      if (job && !jobIsTerminal(job.status)) continue;
+      if (image?.data.assetId && job?.status !== "failed") continue;
+      if (shot.scene.trim()) targets.push(shot.id);
+      else missingScene++;
     }
-  }
-  async function splitScript() {
-    if (!splitModel || !sourceText.trim() || splitSubmitting) return;
-    if (
-      splitMode === "replace" &&
-      shots.length > 0 &&
-      !window.confirm("覆盖当前分镜表？此操作仍可通过画布撤销恢复。")
-    )
-      return;
+    return { targets, missingScene };
+  };
+  const startImages = async (ids: string[]) => {
+    const targets = ids
+      .filter((id) => !startingImages.current.has(id))
+      .map((id) => {
+        const image = imageByShot.get(id);
+        const job = image && latestByNode.get(image.id);
+        const preferred = image
+          ? (image.data.generation?.providerId ??
+            image.data.generation?.modelKey ??
+            job?.providerId)
+          : defaultImageProvider;
+        return {
+          id,
+          provider: preferred
+            ? imageCandidates.find((model) => model.id === preferred)
+            : imageCandidates[0],
+        };
+      });
+    if (!targets.length) return;
+    for (const { id } of targets) startingImages.current.add(id);
+    try {
+      return await generateImages(targets);
+    } finally {
+      for (const { id } of targets) startingImages.current.delete(id);
+    }
+  };
+  async function splitScript(splitMode: "append" | "replace") {
+    setOverwriteCount(0);
+    if (!splitModel || splitReason) return;
     setSplitSubmitting(true);
+    setRequestedMode(splitMode);
+    setDismissedJob(splitJob?.id);
     setSplitError("");
     try {
-      const prompt = [
-        "请把下面的剧本按叙事顺序拆成分镜，严格只输出 JSON 数组，不要 Markdown、解释或代码围栏。",
-        "每项字段必须是 scene、shot、camera、action、dialogue、duration；duration 为 1 到 60 的数字，最多一位小数；shot 和 camera 使用常见中文术语。",
-        "剧本：",
-        sourceText.trim(),
-      ].join("\n");
+      const prompt = splitPrompt(script.text);
       const result = await submitSplit(prompt, splitModel, splitMode);
-      if (result && !result.includes("已提交")) setSplitError(result);
+      if (result) setSplitError(result);
     } catch {
       setSplitError("暂时无法提交拆镜任务，请稍后重试。");
     } finally {
@@ -189,353 +299,477 @@ export function StoryboardDialog({
     }
   }
   const update = (id: string, patch: Partial<CanvasShot>) => {
-    edited.current = true;
-    setShots((current) => current.map((shot) => (shot.id === id ? { ...shot, ...patch } : shot)));
+    change((current) => current.map((shot) => (shot.id === id ? { ...shot, ...patch } : shot)));
   };
-  const move = (index: number, offset: number) => {
-    edited.current = true;
-    setShots((current) => {
-      const next = [...current];
-      const [row] = next.splice(index, 1);
-      if (row) next.splice(index + offset, 0, row);
-      return next;
+  const [dragOrder, setDragOrder] = useState<string[]>();
+  const orderRef = useRef<string[]>(undefined);
+  const orderedRows = (current: CanvasShot[], ids: string[]) => {
+    const byId = new Map(current.map((row) => [row.id, row]));
+    const ordered = ids.flatMap((id) => byId.get(id) ?? []);
+    return [...ordered, ...current.filter((row) => !ids.includes(row.id))];
+  };
+  const visibleRows = dragOrder ? orderedRows(shots, dragOrder) : shots;
+  const finishDrag = () => {
+    const order = orderRef.current;
+    if (order) change((current) => orderedRows(current, order));
+    orderRef.current = undefined;
+    setDragOrder(undefined);
+  };
+  const requestSplit = () => {
+    if (!shots.length) return void splitScript("replace");
+    setOverwriteCount(shots.length);
+  };
+  const splitButton = (
+    <span title={splitReason || undefined}>
+      <button
+        type="button"
+        disabled={!!splitReason}
+        aria-busy={splitting || undefined}
+        onClick={requestSplit}
+      >
+        {splitting && <Loader2 size={16} className="shot-split-spinner" aria-hidden="true" />}
+        {splitting ? "拆分中" : "从剧本拆分镜"}
+      </button>
+    </span>
+  );
+  const insert = (anchor?: string, after = false) => {
+    const id = crypto.randomUUID();
+    setAddedId(id);
+    change((current) => {
+      if (current.length >= maxStoryboardShots) return current;
+      const index = current.findIndex((shot) => shot.id === anchor);
+      const at = index < 0 ? current.length : index + Number(after);
+      return [...current.slice(0, at), newShot(id), ...current.slice(at)];
     });
   };
-  const total = shots.reduce((sum, shot) => sum + shot.duration, 0);
-  const ready = shots.every(({ id }) => !invalidDuration.includes(id));
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
   return (
-    <dialog
-      ref={dialog}
-      className="image-doodle-dialog storyboard-dialog"
-      aria-labelledby="storyboard-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!submitting) close();
-      }}
-    >
-      <header>
-        <div>
-          <h2 id="storyboard-title">分镜表</h2>
-          <p>
-            {shots.length} 个镜头 · {Number(total.toFixed(1))} 秒
-          </p>
-        </div>
-        <button type="button" aria-label="关闭分镜表" disabled={submitting} onClick={close}>
-          <X size={18} />
-        </button>
-      </header>
-      {shots.map((row, index) => {
-        const node = linkedByShot.get(row.id);
-        const job = node && latestByNode.get(node.id);
-        return (
-          <fieldset className="storyboard-row outpaint-fields" key={row.id} disabled={submitting}>
-            <legend>镜头 {index + 1}</legend>
-            <label className="outpaint-full">
-              画面描述
-              <textarea
-                rows={2}
-                maxLength={2000}
-                value={row.scene}
-                onChange={(event) => update(row.id, { scene: event.target.value })}
-              />
-            </label>
-            <label>
-              景别
-              <select
-                value={row.shot}
-                onChange={(event) =>
-                  update(row.id, { shot: event.target.value as CanvasShot["shot"] })
-                }
-              >
-                <option value="">未指定</option>
-                {shotSizes.map((choice) => (
-                  <option key={choice}>{choice}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              运镜
-              <select
-                value={row.camera}
-                onChange={(event) =>
-                  update(row.id, { camera: event.target.value as CanvasShot["camera"] })
-                }
-              >
-                <option value="">未指定</option>
-                {cameraMoves.map((choice) => (
-                  <option key={choice}>{choice}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              动作 / 走位
-              <textarea
-                rows={2}
-                maxLength={1000}
-                value={row.action}
-                onChange={(event) => update(row.id, { action: event.target.value })}
-              />
-            </label>
-            <label>
-              对白
-              <textarea
-                rows={2}
-                maxLength={1000}
-                value={row.dialogue}
-                onChange={(event) => update(row.id, { dialogue: event.target.value })}
-              />
-            </label>
-            <label>
-              时长（秒）
-              <input
-                type="number"
-                min="1"
-                max="60"
-                step="0.1"
-                required
-                defaultValue={row.duration}
-                onChange={(event) => {
-                  const valid = event.currentTarget.validity.valid;
-                  setInvalidDuration((current) => [
-                    ...current.filter((id) => id !== row.id),
-                    ...(!valid ? [row.id] : []),
-                  ]);
-                  if (valid) update(row.id, { duration: event.currentTarget.valueAsNumber });
-                }}
-              />
-            </label>
-            <div className="storyboard-row-actions">
-              <button
-                type="button"
-                aria-label="上移镜头"
-                disabled={!index}
-                onClick={() => move(index, -1)}
-              >
-                <ArrowUp size={15} />
-              </button>
-              <button
-                type="button"
-                aria-label="下移镜头"
-                disabled={index === shots.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDown size={15} />
-              </button>
-              <button
-                type="button"
-                aria-label="复制镜头"
-                disabled={shots.length >= 100}
-                onClick={() => {
-                  edited.current = true;
-                  setShots([
-                    ...shots.slice(0, index + 1),
-                    { ...row, id: crypto.randomUUID() },
-                    ...shots.slice(index + 1),
-                  ]);
-                }}
-              >
-                <Copy size={15} />
-              </button>
-              <button
-                type="button"
-                aria-label="删除镜头"
-                onClick={() => {
-                  edited.current = true;
-                  setShots(shots.filter(({ id }) => id !== row.id));
-                }}
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-            {node && (
-              <div className="outpaint-full storyboard-job">
-                <span role="status">{job ? generationStatuses[job.status] : "待生成"}</span>
-                {model && !supportsShot(row) && <small>当前模型不支持此镜头时长。</small>}
-                {(job?.status === "failed" || job?.status === "cancelled") && (
-                  <button
-                    type="button"
-                    disabled={
-                      (!model && !settings.providers.some(({ id }) => id === job.providerId)) ||
-                      !supportsShot(row, true)
-                    }
-                    onClick={() => {
-                      const retryProvider = settings.providers.find(
-                        ({ id }) => id === job.providerId,
-                      );
-                      if (retryProvider) void generate([node], retryProvider);
-                    }}
-                  >
-                    重试生成
-                  </button>
-                )}
-              </div>
-            )}
-          </fieldset>
-        );
-      })}
-      <fieldset
-        className="outpaint-fields storyboard-split"
-        disabled={submitting || splitSubmitting}
-      >
-        <legend>
-          <WandSparkles size={15} /> 从上游剧本拆分镜
-        </legend>
-        <p className="outpaint-full storyboard-batch-hint">
-          {sourceText
-            ? "已读取当前分镜表上游剧本。任务完成后会按模式写回镜头。"
-            : "请先把剧本节点连到分镜表，或使用小灵读取引用剧本。"}
-        </p>
-        <label>
-          拆镜模型
-          <select
-            aria-label="拆镜模型"
-            value={splitModel?.id ?? ""}
-            onChange={(event) => setSplitPicked(event.target.value)}
-            disabled={!splitModel}
-          >
-            {!splitModel && <option value="">请在模型设置中启用文本模型</option>}
-            {textModels.map(({ id, config, model: name, label }) => (
-              <option value={id} key={id}>
-                {config?.name ?? name} · {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          写入方式
-          <select
-            aria-label="拆镜写入方式"
-            value={splitMode}
-            onChange={(event) => setSplitMode(event.target.value as typeof splitMode)}
-          >
-            <option value="append">追加到现有镜头</option>
-            <option value="replace">覆盖现有镜头</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          className="settings-primary"
-          disabled={!splitModel || !sourceText.trim()}
-          onClick={() => void splitScript()}
-        >
-          {splitSubmitting ? "正在拆分…" : "读取剧本并拆分镜"}
-        </button>
-        {splitJob && (
-          <span className="storyboard-job" role="status">
-            拆镜任务：{generationStatuses[splitJob.status]}
-            {splitJob.error ? ` · ${splitJob.error}` : ""}
-          </span>
-        )}
-        {splitError && (
-          <p className="outpaint-full image-doodle-error" role="alert">
-            {splitError}
-          </p>
-        )}
-      </fieldset>
-      <button
-        className="storyboard-add"
-        type="button"
-        disabled={submitting || shots.length >= 100}
-        onClick={() => {
-          edited.current = true;
-          setShots([
-            ...shots,
-            {
-              id: crypto.randomUUID(),
-              scene: "",
-              action: "",
-              dialogue: "",
-              shot: "中景",
-              camera: "固定",
-              duration: 3,
-            },
-          ]);
+    <>
+      <ShotConfirm
+        small
+        open={overwriteCount > 0}
+        focus={appendButton}
+        title={<>分镜表里已有 {overwriteCount} 个镜头</>}
+        change={(open) => {
+          if (!open) setOverwriteCount(0);
         }}
       >
-        <Plus size={16} /> 添加镜头
-      </button>
-      {!ready && (
-        <p className="image-doodle-error" role="alert">
-          镜头时长应为 1–60 秒，最多一位小数。
-        </p>
-      )}
-      {(linkedNodes.image.length > 0 || linkedNodes.video.length > 0) && (
-        <fieldset className="outpaint-fields storyboard-batch" disabled={submitting}>
-          <legend>批量生成</legend>
-          <label>
-            生成类型
-            <select value={kind} onChange={(event) => setKind(event.target.value as MediaKind)}>
-              <option value="image" disabled={!linkedNodes.image.length}>
-                图片
-              </option>
-              <option value="video" disabled={!linkedNodes.video.length}>
-                视频
-              </option>
-            </select>
-          </label>
-          <label>
-            批量生成模型
-            <select value={model?.id ?? ""} onChange={(event) => setPicked(event.target.value)}>
-              {!model && <option value="">请在模型设置中启用文生模型</option>}
-              {models.map(({ provider: { id, config, model, label } }) => (
-                <option value={id} key={id}>
-                  {config?.name ?? model} · {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="outpaint-full storyboard-batch-hint">
-            {kind === "video"
-              ? "按每个镜头的时长生成。时长不兼容的镜头会跳过。"
-              : "使用拆分节点的提示词与模型默认参数。"}
-          </p>
-          <button
-            className="settings-primary"
-            type="button"
-            disabled={!model || !supportedPending.length}
-            onClick={() => void generate(supportedPending)}
+        <button type="button" ref={appendButton} onClick={() => void splitScript("append")}>
+          追加到末尾
+        </button>
+        <button type="button" data-destructive onClick={() => void splitScript("replace")}>
+          覆盖
+        </button>
+      </ShotConfirm>
+      <Dialog.Root
+        open={open}
+        onOpenChange={setOpen}
+        onOpenChangeComplete={(next) => {
+          if (!next) close();
+        }}
+      >
+        <Dialog.Portal
+          className="storyboard-layer"
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          <Dialog.Backdrop className="storyboard-backdrop" />
+          <Dialog.Popup
+            ref={dialog}
+            className="image-doodle-dialog storyboard-dialog"
+            initialFocus={
+              initialFocusId
+                ? () =>
+                    dialog.current?.querySelector<HTMLTextAreaElement>(
+                      `[data-shot-id="${CSS.escape(initialFocusId)}"] textarea`,
+                    ) ?? true
+                : undefined
+            }
           >
-            {submitting ? "正在提交…" : `生成 ${supportedPending.length} 个镜头`}
-          </button>
-          {batchError && (
-            <p className="outpaint-full image-doodle-error" role="alert">
-              {batchError}
-            </p>
-          )}
-        </fieldset>
-      )}
-      <footer>
-        <button type="button" disabled={submitting} onClick={close}>
-          取消
-        </button>
-        <button
-          type="button"
-          disabled={submitting || !ready || !canSplit(shots, "image")}
-          onClick={() => save(shots, "image")}
-        >
-          拆为图片节点
-        </button>
-        <button
-          type="button"
-          disabled={submitting || !ready || !canSplit(shots, "video")}
-          onClick={() => save(shots, "video")}
-        >
-          拆为视频节点
-        </button>
-        <button
-          type="button"
-          className="settings-primary"
-          disabled={submitting || !ready}
-          onClick={() => save(shots)}
-        >
-          保存分镜
-        </button>
-      </footer>
-    </dialog>
+            {resultNotice}
+            <header className="storyboard-heading">
+              <GalleryHorizontalEnd size={16} />
+              <Dialog.Title id="storyboard-title">{title}</Dialog.Title>
+              {shots.length > 0 && <BatchShotImages plan={planImages} generate={startImages} />}
+              <div className="storyboard-split-pill">
+                <ShotModelPicker models={textModels} selection={splitSelection} busy={splitting} />
+                <div
+                  className="shot-split-separator"
+                  role="separator"
+                  aria-orientation="vertical"
+                />
+                {splitButton}
+              </div>
+              <ShotStats shots={shots} />
+            </header>
+            {splitting && (
+              <div role="progressbar" aria-label="拆分中" className="storyboard-split-progress">
+                <div />
+              </div>
+            )}
+            {failure && (
+              <div role="alert" className="storyboard-split-error">
+                <TriangleAlert size={16} />
+                <span title={failure}>拆分镜失败：{failure}</span>
+                <button
+                  type="button"
+                  disabled={!!splitReason}
+                  onClick={() => void splitScript(failedJob?.storyboardSplitMode ?? requestedMode)}
+                >
+                  重试
+                </button>
+                <button
+                  type="button"
+                  aria-label="关闭"
+                  onClick={() => {
+                    setSplitError("");
+                    setDismissedJob(splitJob?.id);
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+            {!shots.length && (
+              <section className="storyboard-empty">
+                {!splitting && <StoryboardPlaceholder />}
+                <p>{splitting ? "正在拆分镜" : "还没有镜头"}</p>
+                {splitting && <SplitSkeletonRows />}
+                {!splitting && (
+                  <div>
+                    {splitButton}
+                    <button type="button" onClick={() => insert()}>
+                      <Plus size={16} />
+                      添加镜头
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+            {uploadError && <p role="alert">{uploadError}</p>}
+            {shots.length > 0 && (
+              <motion.div className="shot-table-scroll" layoutScroll>
+                <div inert={splitting} className="shot-table-content">
+                  <div className="shot-grid shot-table-head">
+                    {[
+                      "",
+                      "镜号",
+                      "分镜图",
+                      "画面描述",
+                      "景别",
+                      "运镜",
+                      "动作/走位",
+                      "对白",
+                      "时长",
+                      "视频",
+                      "",
+                    ].map((label, index) => (
+                      <div key={index}>
+                        {label}
+                        {index === 3 && <span> *</span>}
+                      </div>
+                    ))}
+                  </div>
+                  <Reorder.Group
+                    axis="y"
+                    as="div"
+                    values={visibleRows.map((row) => row.id)}
+                    onReorder={(ids: string[]) => {
+                      orderRef.current = ids;
+                      setDragOrder(ids);
+                    }}
+                  >
+                    {visibleRows.map((row, index) => {
+                      const imageNode = linkedNodes.image.find(
+                        (image) => image.data.shotId === row.id,
+                      );
+                      const videoNode = linkedNodes.video.find(
+                        (node) => node.data.shotId === row.id,
+                      );
+                      const actualSeconds = videoNode && canvasVideoDuration(videoNode.data);
+                      const prepare = () => setUploadError(prepareVideo(row.id) ?? "");
+                      const progress = progressByRow[row.id];
+                      const imageJob = imageNode && latestByNode.get(imageNode.id);
+                      const generating =
+                        !row.imageAssetId && imageJob && !jobIsTerminal(imageJob.status);
+                      const failed =
+                        !row.imageAssetId &&
+                        imageJob &&
+                        ["failed", "outcome_unknown", "cancelled"].includes(imageJob.status);
+                      const imageAssetId =
+                        row.imageAssetId ??
+                        (!generating && !failed ? imageNode?.data.assetId : undefined);
+                      const regenerate = !row.imageAssetId && (failed || !!imageAssetId);
+                      const imageStatus =
+                        imageJob?.status === "queued"
+                          ? "排队中"
+                          : imageJob?.status === "running" && imageJob.progress > 0
+                            ? `生成中 ${Math.round(imageJob.progress)}%`
+                            : "生成中";
+                      const startImage = async () => {
+                        if (generating || startingImages.current.has(row.id)) return;
+                        try {
+                          setUploadError((await startImages([row.id])) ?? "");
+                        } catch {
+                          setUploadError("暂时无法生成分镜图，请重试。");
+                        }
+                      };
+                      return (
+                        <ShotTableRow
+                          key={row.id}
+                          id={row.id}
+                          number={index + 1}
+                          highlight={highlightIds?.includes(row.id)}
+                          disabled={splitting}
+                          finish={finishDrag}
+                          dropImage={(file) => void upload(row.id, file)}
+                        >
+                          <div className="shot-image-cell">
+                            <div
+                              tabIndex={0}
+                              className="shot-image-frame"
+                              data-state={failed ? "failed" : generating ? "running" : undefined}
+                              title={failed ? jobFailureReason(imageJob) || "生成失败" : undefined}
+                            >
+                              {imageAssetId ? (
+                                <ShotThumbnail
+                                  assetId={imageAssetId}
+                                  projectHandle={projectHandle}
+                                  index={index}
+                                />
+                              ) : failed ? (
+                                <span className="shot-image-failed">
+                                  <TriangleAlert size={16} />
+                                  生成失败
+                                </span>
+                              ) : generating ? (
+                                <span>{imageStatus}</span>
+                              ) : (
+                                progress === undefined && <ImageIcon size={24} />
+                              )}
+                              {imageNode && imageAssetId && !row.imageAssetId && (
+                                <Link2 className="shot-image-linked" size={16} />
+                              )}
+                              <span aria-hidden="true" className="shot-image-drop-hint">
+                                <Upload size={16} />
+                              </span>
+                              {progress !== undefined ? (
+                                <span className="shot-image-progress" role="status">
+                                  上传中 {progress}%
+                                </span>
+                              ) : (
+                                <div className="shot-image-actions">
+                                  {!generating && (
+                                    <button
+                                      className="shot-image-primary"
+                                      type="button"
+                                      title={regenerate ? "重新生成" : "生成分镜图"}
+                                      aria-label={regenerate ? "重新生成" : "生成分镜图"}
+                                      onClick={() => void startImage()}
+                                    >
+                                      {regenerate ? <RefreshCw /> : <ImageIcon />}
+                                      {regenerate ? "重新生成" : "生成"}
+                                    </button>
+                                  )}
+                                  <div className="shot-image-secondary">
+                                    {!generating && (
+                                      <button
+                                        type="button"
+                                        aria-label={imageAssetId ? "替换" : "上传分镜图"}
+                                        onClick={() => {
+                                          const input = document.createElement("input");
+                                          input.type = "file";
+                                          input.accept = "image/*";
+                                          input.onchange = () => {
+                                            const file = input.files?.[0];
+                                            if (file) void upload(row.id, file);
+                                          };
+                                          input.click();
+                                        }}
+                                      >
+                                        <Upload />
+                                        {imageAssetId ? "替换" : "上传"}
+                                      </button>
+                                    )}
+                                    {imageAssetId && (
+                                      <button
+                                        type="button"
+                                        aria-label="查看大图"
+                                        onClick={() => setPreviewId(row.id)}
+                                      >
+                                        <Maximize2 />
+                                        查看
+                                      </button>
+                                    )}
+                                    {imageNode && !row.imageAssetId && (
+                                      <button
+                                        type="button"
+                                        aria-label="在画布中定位"
+                                        onClick={() => {
+                                          close();
+                                          locate(imageNode.id);
+                                        }}
+                                      >
+                                        <Crosshair />
+                                        定位
+                                      </button>
+                                    )}
+                                    {row.imageAssetId && (
+                                      <button
+                                        type="button"
+                                        aria-label="移除分镜图"
+                                        onClick={() => {
+                                          change((current) =>
+                                            current.map((shot) => {
+                                              if (shot.id !== row.id) return shot;
+                                              const { imageAssetId: _removed, ...withoutImage } =
+                                                shot;
+                                              return withoutImage;
+                                            }),
+                                          );
+                                        }}
+                                      >
+                                        移除
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <ShotText
+                            label={`第 ${index + 1} 镜的画面描述`}
+                            focus={addedId === row.id}
+                            placeholder="必填"
+                            required
+                            maxLength={2000}
+                            value={row.scene}
+                            commit={(scene) => update(row.id, { scene })}
+                          />
+                          <ShotSelect
+                            label="景别"
+                            container={dialog}
+                            value={row.shot}
+                            change={(shot) => update(row.id, { shot })}
+                          />
+                          <ShotSelect
+                            label="运镜"
+                            container={dialog}
+                            value={row.camera}
+                            change={(camera) => update(row.id, { camera })}
+                          />
+                          <ShotText
+                            label={`第 ${index + 1} 镜的动作和走位`}
+                            placeholder="角色动作、走位、朝向"
+                            maxLength={1000}
+                            value={row.action}
+                            commit={(action) => update(row.id, { action })}
+                          />
+                          <ShotText
+                            label={`第 ${index + 1} 镜的对白`}
+                            placeholder="台词或旁白"
+                            maxLength={1000}
+                            value={row.dialogue}
+                            commit={(dialogue) => update(row.id, { dialogue })}
+                          />
+                          <div>
+                            <ShotDuration
+                              value={row.duration}
+                              change={(duration) => update(row.id, { duration })}
+                            />
+                            {videoNode &&
+                              actualSeconds !== undefined &&
+                              actualSeconds !== Math.round(row.duration) && (
+                                <small
+                                  title={shotDurationTitle(
+                                    shotVideoOptions(
+                                      settings,
+                                      videoNode.data.generation?.providerId ??
+                                        videoNode.data.generation?.modelKey ??
+                                        latestByNode.get(videoNode.id)?.providerId,
+                                    ),
+                                  )}
+                                >
+                                  实际 {actualSeconds}s
+                                </small>
+                              )}
+                          </div>
+                          <ShotVideoCell
+                            nodeId={videoNode?.id}
+                            assetId={videoNode?.data.assetId}
+                            job={videoNode && latestByNode.get(videoNode.id)}
+                            prepare={prepare}
+                            locate={(id) => {
+                              close();
+                              locate(id);
+                            }}
+                          />
+                          <div className="storyboard-row-actions">
+                            <ShotRowMenu
+                              number={index + 1}
+                              full={shots.length >= maxStoryboardShots}
+                              hasVideo={!!videoNode}
+                              prepareVideo={prepare}
+                              hasImage={!!imageNode}
+                              generateImage={() => void startImage()}
+                              insert={(after) => insert(row.id, after)}
+                              remove={() =>
+                                change((current) => current.filter((shot) => shot.id !== row.id))
+                              }
+                              duplicate={() => {
+                                const id = crypto.randomUUID();
+                                change((current) => {
+                                  const at = current.findIndex((shot) => shot.id === row.id);
+                                  if (at < 0 || current.length >= maxStoryboardShots)
+                                    return current;
+                                  const {
+                                    imageNodeId: _image,
+                                    videoNodeId: _video,
+                                    ...copy
+                                  } = current[at]!;
+                                  return [
+                                    ...current.slice(0, at + 1),
+                                    { ...copy, id },
+                                    ...current.slice(at + 1),
+                                  ];
+                                });
+                              }}
+                            />
+                          </div>
+                        </ShotTableRow>
+                      );
+                    })}
+                  </Reorder.Group>
+                  {splitting &&
+                    (splitSubmitting ? requestedMode : splitJob?.storyboardSplitMode) ===
+                      "append" && <SplitSkeletonRows />}
+                </div>
+                <div className="shot-table-add">
+                  <button
+                    className="storyboard-add"
+                    type="button"
+                    disabled={splitting || shots.length >= maxStoryboardShots}
+                    onClick={() => insert()}
+                  >
+                    <Plus size={16} /> 添加镜头
+                  </button>
+                </div>
+              </motion.div>
+            )}
+            {previewId && previews.length > 0 && (
+              <ShotImagePreview
+                items={previews}
+                activeId={previewId}
+                select={setPreviewId}
+                projectHandle={projectHandle}
+                locate={locate}
+                close={() => setPreviewId(undefined)}
+              />
+            )}
+            <Dialog.Close aria-label="关闭分镜表" className="storyboard-close">
+              <X size={16} />
+            </Dialog.Close>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
   );
 }

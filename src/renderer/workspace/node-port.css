@@ -1,0 +1,121 @@
+.canvas-workspace .react-flow__handle.canvas-node-port {
+  width: 6px;
+  height: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.canvas-node-port::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 192px;
+  transform: translateY(-50%);
+}
+
+.canvas-node-port.target::before {
+  transform: translate(-100%, -50%);
+}
+
+.canvas-port-icon {
+  pointer-events: none;
+  position: absolute;
+  top: var(--port-y, 50%);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  translate: -50% -50%;
+  scale: 0.6;
+  opacity: 0;
+  border-radius: 50%;
+  background: var(--canvas-bg);
+  color: var(--node-muted);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--node-ink) 30%, transparent);
+  transition:
+    opacity 200ms cubic-bezier(0.2, 0, 0, 1),
+    scale 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.canvas-node-port.target .canvas-port-icon {
+  left: min(var(--port-x, calc(50% - 14px)), calc(50% - 14px));
+}
+.canvas-node-port.source .canvas-port-icon {
+  left: max(var(--port-x, calc(50% + 14px)), calc(50% + 14px));
+}
+.creative-card:hover .canvas-port-icon,
+.react-flow__node.selected .canvas-port-icon {
+  scale: 1;
+  opacity: 1;
+}
+
+.canvas-workspace .react-flow__node .creative-card:not(.compatibility-card) {
+  border-color: transparent;
+  border-radius: 8px;
+  background-color: var(--node-paper);
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--node-ink) 8%, transparent);
+  transition: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.canvas-workspace .react-flow__node:not(.ref-hl) .creative-card[data-image-frame] {
+  outline: none;
+}
+
+.canvas-workspace .react-flow__node .creative-card:not(.compatibility-card):hover {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--node-ink) 20%, transparent);
+}
+
+.canvas-workspace .react-flow__node .creative-card:not(.compatibility-card):focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--node-selection) 60%, transparent);
+}
+.canvas-workspace .react-flow__node.selected .creative-card:not(.compatibility-card) {
+  box-shadow:
+    0 0 0 2px var(--node-selection),
+    0 25px 50px -12px #00000040;
+}
+
+.canvas-workspace {
+  --node-ink: oklch(0.145 0 0);
+  --node-paper: oklch(1 0 0);
+  --node-muted: oklch(0.556 0 0);
+  --node-selection: oklch(0.2 0 0 / 0.85);
+  --agent-touched: oklch(0.55 0.2 295);
+  --agent-danger: oklch(0.577 0.245 27.325);
+}
+@media (prefers-color-scheme: dark) {
+  .canvas-workspace {
+    --node-ink: oklch(0.985 0 0);
+    --node-paper: oklch(0.205 0 0);
+    --node-muted: oklch(0.708 0 0);
+    --node-selection: oklch(1 0 0 / 0.72);
+    --agent-touched: oklch(0.6 0.19 295);
+    --agent-danger: oklch(0.704 0.191 22.216);
+  }
+}
+.canvas-workspace [data-agent-mark="touched"] {
+  --agent-ring: var(--agent-touched);
+}
+.canvas-workspace [data-agent-mark="danger"] {
+  --agent-ring: var(--agent-danger);
+}
+.canvas-workspace .react-flow__node .creative-card[data-agent-mark]:not(.compatibility-card) {
+  box-shadow: 0 0 0 2px var(--agent-ring);
+}
+.canvas-workspace
+  .react-flow__node
+  .creative-card[data-agent-mark="touched"]:not(.compatibility-card),
+.canvas-workspace
+  .react-flow__node.selected
+  .creative-card[data-agent-mark]:not(.compatibility-card) {
+  box-shadow:
+    0 0 0 2px var(--agent-ring),
+    0 25px 50px -12px #00000040;
+}
+.canvas-workspace .canvas-group[data-agent-mark] > .canvas-group-frame {
+  border-color: var(--agent-ring) !important;
+}

@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -10,9 +11,24 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import { Value } from "@sinclair/typebox/value";
-import { app, type BrowserWindow, dialog, ipcMain } from "electron";
+import {
+  app,
+  type BrowserWindow,
+  ClipboardItem,
+  clipboard,
+  dialog,
+  ipcMain,
+  Notification,
+} from "electron";
+import { canvasNoticeTitle } from "../../../packages/link-studio-core/src/agent-notice.ts";
+import { canvasAgentMediaModels } from "../../../packages/link-studio-core/src/canvas-agent.ts";
+import {
+  dramaAgentModels,
+  dramaVideoModelIssue,
+} from "../../../packages/link-studio-core/src/drama.ts";
+import { dramaImageFields } from "../../../packages/link-studio-core/src/drama-image-params.ts";
 import { jobIsTerminal } from "../../../packages/link-studio-core/src/generation.ts";
 import type { ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import type {
@@ -25,21 +41,49 @@ import type {
 import {
   ProjectChannels,
   ProjectRequests,
+  projectImportConcurrency,
 } from "../../../packages/link-studio-core/src/projects-api.ts";
 import { MediaComposer } from "../../../packages/media-runtime/src/composition.ts";
 import { MediaError } from "../../../packages/media-runtime/src/process.ts";
+import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
 import { isTrustedDocument } from "../security.ts";
 import type { SettingsIpc } from "../settings/ipc.ts";
+import { imagePreviewBlob } from "../settings/trial-media.ts";
 import { SkillLibrary } from "../skills/library.ts";
 import { AssetFiles, servePreview } from "./asset-files.ts";
 import { AssetService, copyCandidates, type StagedAsset } from "./assets.ts";
 import { CanvasAgentService } from "./canvas-agent.ts";
+import { CanvasClipboardMedia } from "./canvas-clipboard.ts";
 import { CanvasMedia } from "./canvas-media.ts";
 import { ProjectCoordinator, type WindowLease } from "./coordinator.ts";
+import { attachDirectorTake } from "./director-take.ts";
+import {
+  addDramaEpisode,
+  addDramaSegment,
+  chooseDramaTake,
+  createDrama,
+  deleteDramaEpisode,
+  dramaDocument,
+  saveDramaScript,
+  updateDramaBoardSettings,
+} from "./drama.ts";
+import { DramaDrafts, expiredDramaSource } from "./drama-drafts.ts";
+import {
+  estimateDramaJob,
+  estimateDramaSource,
+  quoteDramaContinuation,
+  quoteDramaSource,
+} from "./drama-estimate.ts";
+import { dramaImageModels } from "./drama-image-models.ts";
+import { storyboardClearHash, submitApprovedDramaJob } from "./drama-job.ts";
+import { controlDramaPlanning, extendDramaPlanning } from "./drama-planning.ts";
+import { preflightDramaSource } from "./drama-source.ts";
 import { contentHash } from "./encoding.ts";
-import { ProjectError } from "./errors.ts";
+import { CanvasGenerationFeedback, ProjectError } from "./errors.ts";
 import { type ExportTargetTransaction, installExportTarget } from "./export-target.ts";
+import { FilingHistory, type HistoryCursor } from "./filing-history.ts";
 import { GenerationService } from "./generation.ts";
+import { PersonalLibrary } from "./personal-library.ts";
 import type { ProjectStore } from "./store.ts";
 
 interface RecentEntry {
@@ -51,7 +95,15 @@ interface RecentEntry {
   lastOpenedAt: string;
 }
 
+const mediaFilters = {
+  image: { name: "图片", extensions: ["png", "jpg", "jpeg", "webp"] },
+  video: { name: "视频", extensions: ["mp4", "mov", "webm"] },
+  audio: { name: "音频", extensions: ["mp3", "wav", "m4a", "ogg"] },
+};
+
 interface ImportJob {
+  forCanvasUpload?: boolean;
+  forLibrary?: boolean;
   id: string;
   owner: number;
   projectHandle: string;
@@ -68,6 +120,7 @@ interface ImportJob {
 }
 
 interface PreviewGrant {
+  library?: boolean;
   owner: number;
   projectHandle: string;
   assetId: string;
@@ -76,6 +129,7 @@ interface PreviewGrant {
 }
 
 interface FileGrant {
+  clipboard?: { size: number; received: number; kind: "image" | "video" | "audio" };
   owner: number;
   projectHandle: string;
   displayName: string;
@@ -85,9 +139,48 @@ interface FileGrant {
   expiry?: ReturnType<typeof setTimeout>;
 }
 
+interface FilingUploads {
+  session: string;
+  abort: AbortController;
+  active: Map<string, AbortController>;
+  receipts: Map<string, string>;
+  destinations: Map<string, string | undefined>;
+}
+
+interface FilingPage {
+  historyCursor?: HistoryCursor;
+  carryOrigin?: { project: string; asset: string; sha256: string; choice: string };
+  history?: ProjectRequest<"filingLibraryPage">["history"];
+  page: string;
+  channel: string;
+  revision: number;
+  folder?: string;
+  search?: string;
+  next?: number;
+  choices: Map<string, string>;
+  tokens: Map<string, string>;
+  expires: number;
+  abort: AbortController;
+  uploads: FilingUploads;
+}
+
+function filingChoice(grant: FilingPage, assetId: string) {
+  const choice = grant.tokens.get(assetId) ?? randomUUID();
+  grant.choices.set(choice, assetId);
+  grant.tokens.set(assetId, choice);
+  return choice;
+}
+
 export class ProjectIpc {
   private readonly coordinator = new ProjectCoordinator();
   private readonly windows = new Map<number, BrowserWindow>();
+  private readonly noticeScopes = new Map<number, { handle: string; hidden: boolean }>();
+  private readonly notices = new Map<number, { handle: string; notice: Notification }>();
+  private libraryChanged() {
+    for (const window of this.windows.values())
+      if (!window.isDestroyed() && !window.webContents.isDestroyed())
+        window.webContents.send("link-studio:library:changed");
+  }
   private readonly trustedDocuments = new Map<number, string>();
   private readonly leases = new Map<number, WindowLease>();
   private recents: RecentEntry[] = [];
@@ -98,7 +191,12 @@ export class ProjectIpc {
   private readonly fileGrants = new Map<string, FileGrant>();
   private readonly assetService: AssetService;
   private readonly assetFiles: AssetFiles;
+  private readonly clipboardMedia: CanvasClipboardMedia;
+  private readonly library: PersonalLibrary;
+  private readonly filingHistory: FilingHistory;
+  private readonly dramaDrafts: DramaDrafts;
   private readonly composer: MediaComposer;
+  private readonly canvasMedia: CanvasMedia;
   private readonly generation: GenerationService;
   private readonly projectOwners = new Map<string, { owner: number; store: ProjectStore }>();
   private readonly canvasAgent: CanvasAgentService;
@@ -113,6 +211,30 @@ export class ProjectIpc {
     }
   >();
   private readonly previews = new Map<string, PreviewGrant>();
+  private readonly filingPages = new Map<number, FilingPage>();
+  private closeFilingPage(owner: number) {
+    const grant = this.filingPages.get(owner);
+    grant?.abort.abort();
+    grant?.uploads.abort.abort();
+    this.filingPages.delete(owner);
+  }
+  private filingPageGrant(owner: number, page: string) {
+    const grant = this.filingPages.get(owner);
+    if (
+      !grant ||
+      grant.page !== page ||
+      grant.expires <= Date.now() ||
+      [...this.projectOwners.values()].some((entry) => entry.owner === owner)
+    )
+      throw new ProjectError("ASSET_NOT_FOUND", "图片选择已失效，请重新选择");
+    return grant;
+  }
+  private filingSession(owner: number, session: string) {
+    const grant = this.filingPages.get(owner);
+    if (!grant || grant.uploads.session !== session)
+      throw new ProjectError("ASSET_NOT_FOUND", "上传窗口已关闭");
+    return this.filingPageGrant(owner, grant.page);
+  }
   private readonly closing = new Set<string>();
   private readonly pendingCanvas = new Set<number>();
   private readonly closingWindows = new Set<number>();
@@ -124,6 +246,8 @@ export class ProjectIpc {
     userData: string,
     developmentMediaPath: string,
     private readonly settings: () => ReturnType<SettingsIpc["open"]>,
+    private readonly trialMedia: SettingsIpc["trialMedia"],
+    private readonly providerRunner: string,
   ) {
     this.skills = new SkillLibrary(join(userData, "skills"));
     this.recentFile = join(userData, "projects", "recent.json");
@@ -137,7 +261,20 @@ export class ProjectIpc {
     const ffprobe = join(binaries, process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
     const ffmpeg = join(binaries, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
     this.assetService = new AssetService(ffprobe);
+    this.clipboardMedia = new CanvasClipboardMedia(this.assetFiles, this.assetService);
+    this.library = new PersonalLibrary(
+      join(userData, "personal-library"),
+      this.assetFiles,
+      this.assetService,
+    );
+    this.filingHistory = new FilingHistory(
+      join(userData, "projects", "generated-images.sqlite"),
+      this.assetFiles,
+      () => this.recents,
+    );
+    this.dramaDrafts = new DramaDrafts(join(userData, "projects", "drama-drafts.sqlite"));
     this.composer = new MediaComposer({ ffmpeg, ffprobe });
+    this.canvasMedia = new CanvasMedia(this.assetFiles, this.assetService, ffmpeg);
     this.generation = new GenerationService(
       async () => (await this.settings()).registry,
       this.assetService,
@@ -146,17 +283,18 @@ export class ProjectIpc {
     this.canvasAgent = new CanvasAgentService(
       this.generation,
       async () => (await this.settings()).registry,
-      new CanvasMedia(
-        this.assetFiles,
-        this.assetService,
-        join(binaries, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
-      ),
+      this.canvasMedia,
       {
         catalog: (query) => this.skills.agentCatalog(query),
-        content: (name, version) => this.skills.agentContent(name, version),
+        page: (id, offset, file, pinned) => this.skills.agentPage(id, offset, file, pinned),
       },
     );
     this.register();
+    app.once("will-quit", () => {
+      this.library.close();
+      this.filingHistory.close();
+      this.dramaDrafts.close();
+    });
     app.on("before-quit", (event) => {
       if (this.confirmingQuit) {
         event.preventDefault();
@@ -180,6 +318,13 @@ export class ProjectIpc {
       if (typeof pending !== "boolean" || !this.isWindowSender(event)) return;
       if (pending) this.pendingCanvas.add(event.sender.id);
       else this.pendingCanvas.delete(event.sender.id);
+    });
+    ipcMain.on("link-studio:canvas:noticeScope", (event, handle: unknown, hidden: unknown) => {
+      if (typeof hidden !== "boolean" || !this.isWindowSender(event)) return;
+      const owner = event.sender.id;
+      if (handle === null) this.noticeScopes.delete(owner);
+      else if (typeof handle === "string" && this.projectOwners.get(handle)?.owner === owner)
+        this.noticeScopes.set(owner, { handle, hidden });
     });
     ipcMain.on("link-studio:canvas:closeResult", (event, saved: unknown) => {
       if (typeof saved !== "boolean" || !this.isWindowSender(event)) return;
@@ -248,9 +393,49 @@ export class ProjectIpc {
     session.protocol.handle("link-media", async (request) => {
       try {
         const url = new URL(request.url);
+        if (url.hostname === "filing-library") {
+          const parts = url.pathname.split("/");
+          if (
+            request.method !== "GET" ||
+            url.search ||
+            url.hash ||
+            parts.length !== 3 ||
+            !parts[1] ||
+            !parts[2] ||
+            this.windows.get(id) !== window ||
+            window.isDestroyed() ||
+            !isTrustedDocument(window.webContents.getURL(), rendererUrl)
+          )
+            return new Response(null, { status: 404 });
+          const grant = this.filingPageGrant(id, parts[1]);
+          const item = grant.choices.get(parts[2]);
+          if (!item) return new Response(null, { status: 404 });
+          const { registry } = await this.settings();
+          registry.checkFilingLibrary(grant.channel, grant.revision);
+          const { bytes, asset } = await this.filingImage(item);
+          const blob = imagePreviewBlob(bytes);
+          if (blob.type !== asset.mimeType) return new Response(null, { status: 404 });
+          this.filingPageGrant(id, parts[1]);
+          registry.checkFilingLibrary(grant.channel, grant.revision);
+          return new Response(blob, {
+            headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" },
+          });
+        }
+        if (
+          url.hostname === "trial" &&
+          this.windows.get(id) === window &&
+          !window.isDestroyed() &&
+          isTrustedDocument(window.webContents.getURL(), rendererUrl)
+        )
+          return this.trialMedia.serve(id, request);
         if (url.hostname !== "preview" || url.search || url.hash)
           return new Response(null, { status: 404 });
-        const token = url.pathname.slice(1);
+        const [token, action, encodedName, ...extra] = url.pathname.slice(1).split("/");
+        if (
+          !token ||
+          (action !== undefined && (action !== "download" || !encodedName || extra.length))
+        )
+          return new Response(null, { status: 404 });
         const grant = this.previews.get(token);
         const active = () =>
           Boolean(
@@ -264,17 +449,32 @@ export class ProjectIpc {
           );
         if (!grant || !active()) return new Response(null, { status: 404 });
         const store = this.coordinator.getStore(id, grant.projectHandle);
-        const asset = store.snapshot.assets[grant.assetId];
+        const asset = grant.library
+          ? await this.library.get(grant.assetId)
+          : store.snapshot.assets[grant.assetId];
         if (!asset || asset.availability === "deleted") return new Response(null, { status: 404 });
+        const downloadName = encodedName && decodeURIComponent(encodedName);
+        if (
+          downloadName &&
+          (downloadName.length > 300 ||
+            /[\\/:*?"<>|\u0000-\u001f\u007f]/u.test(downloadName) ||
+            extname(downloadName).toLowerCase() !== extname(asset.displayName).toLowerCase())
+        )
+          return new Response(null, { status: 404 });
         const response = await servePreview(
           request,
           this.assetFiles,
-          store,
+          grant.library ? this.library : store,
           asset,
           grant.stamp,
           active,
         );
         const rendererOrigin = new URL(rendererUrl).origin;
+        if (response.ok && downloadName)
+          response.headers.set(
+            "content-disposition",
+            `attachment; filename*=UTF-8''${encodeURIComponent(downloadName).replace(/['()*]/g, (char) => "%" + char.charCodeAt(0).toString(16))}`,
+          );
         if (
           response.ok &&
           asset.mediaType === "image" &&
@@ -288,6 +488,12 @@ export class ProjectIpc {
     });
     this.windows.set(id, window);
     this.trustedDocuments.set(id, rendererUrl);
+    window.webContents.on("did-start-navigation", (event) => {
+      if (event.isMainFrame && !event.isSameDocument) {
+        this.closeFilingPage(id);
+        this.clipboardMedia.forget(id);
+      }
+    });
     const lease = this.coordinator.registerWindow(id, () => {
       if (!window.isDestroyed()) {
         if (window.isMinimized()) window.restore();
@@ -305,6 +511,10 @@ export class ProjectIpc {
       window.webContents.send("link-studio:canvas:saveBeforeClose");
     });
     window.once("closed", () => {
+      this.clipboardMedia.forget(id);
+      this.noticeScopes.delete(id);
+      this.clearNotice(id);
+      this.closeFilingPage(id);
       this.pendingCanvas.delete(id);
       this.closingWindows.delete(id);
       this.windows.delete(id);
@@ -328,13 +538,23 @@ export class ProjectIpc {
     });
   }
 
+  private filingImage(key: string) {
+    return key.startsWith("history:")
+      ? this.filingHistory.image(key)
+      : this.library.filingImage(key);
+  }
+
   private startProjectWork(owner: number, handle: string) {
+    this.closeFilingPage(owner);
     const store = this.coordinator.getStore(owner, handle);
     this.projectOwners.set(handle, { owner, store });
     this.canvasAgent.attach(store);
     this.generation.start(store);
     void this.settings()
-      .then(({ agent }) => agent.openCanvas(this.canvasAgent.key(store)))
+      .then(({ agent, registry }) => {
+        store.observeCharacterImages((state) => registry.indexFilingReferences(state));
+        return agent.openCanvas(this.canvasAgent.key(store));
+      })
       .catch(() => undefined);
   }
 
@@ -342,6 +562,9 @@ export class ProjectIpc {
     const entry = this.projectOwners.get(handle);
     if (!entry) return;
     this.projectOwners.delete(handle);
+    if (this.noticeScopes.get(entry.owner)?.handle === handle)
+      this.noticeScopes.delete(entry.owner);
+    if (this.notices.get(entry.owner)?.handle === handle) this.clearNotice(entry.owner);
     this.canvasAgent.detach(entry.store);
     const media = this.mediaTools.get(handle);
     media?.abort.abort();
@@ -356,8 +579,73 @@ export class ProjectIpc {
     ]);
   }
 
+  private clearNotice(owner: number) {
+    const notice = this.notices.get(owner);
+    this.notices.delete(owner);
+    notice?.notice.close();
+  }
+
+  private async showCanvasNotice(args: unknown) {
+    const data = args as { project?: unknown; kind?: unknown } | null;
+    if ((data?.kind !== "approval" && data?.kind !== "settled") || !Notification.isSupported())
+      return;
+    const isBackground = (owner: number, hidden: boolean) => {
+      const window = this.windows.get(owner);
+      return (
+        window && !window.isDestroyed() && (hidden || !window.isVisible() || window.isMinimized())
+      );
+    };
+    const candidates = [...this.noticeScopes].filter(([owner, scope]) =>
+      isBackground(owner, scope.hidden),
+    );
+    if (!candidates.length) return;
+    const { registry } = await this.settings();
+    if (registry.agentNoticePermission({}).permission !== "granted") return;
+    for (const [owner, scope] of candidates) {
+      const { handle } = scope;
+      if (this.noticeScopes.get(owner) !== scope || !isBackground(owner, scope.hidden)) continue;
+      const entry = this.projectOwners.get(handle),
+        window = this.windows.get(owner);
+      if (
+        !entry ||
+        entry.owner !== owner ||
+        this.canvasAgent.key(entry.store) !== data.project ||
+        !window ||
+        window.isDestroyed() ||
+        !isTrustedDocument(window.webContents.getURL(), this.trustedDocuments.get(owner) ?? "")
+      )
+        continue;
+      this.clearNotice(owner);
+      const notice = new Notification({ title: canvasNoticeTitle(data.kind, entry.store.name) });
+      this.notices.set(owner, { handle, notice });
+      const forget = () => {
+        if (this.notices.get(owner)?.notice === notice) this.notices.delete(owner);
+      };
+      notice.once("close", forget);
+      notice.once("failed", forget);
+      notice.once("click", () => {
+        if (
+          this.notices.get(owner)?.notice !== notice ||
+          this.projectOwners.get(handle) !== entry ||
+          window.isDestroyed()
+        )
+          return;
+        if (window.isMinimized()) window.restore();
+        window.show();
+        window.focus();
+        this.clearNotice(owner);
+      });
+      notice.show();
+    }
+  }
+
   canvasCommand(command: string, args: unknown) {
-    return this.canvasAgent.command(command, args);
+    if (command === "notice") return this.showCanvasNotice(args);
+    return this.canvasAgent.command(command, args).catch((error) => {
+      if (command === "generate-preview" && error instanceof CanvasGenerationFeedback)
+        return { previewError: error.message };
+      throw error;
+    });
   }
 
   private register() {
@@ -435,6 +723,12 @@ export class ProjectIpc {
       method !== "splitAsset" &&
       method !== "trimAsset" &&
       method !== "inspectAsset" &&
+      method !== "attachImage" &&
+      method !== "attachDirectorTake" &&
+      method !== "attachFiledImage" &&
+      method !== "attachLibrary" &&
+      method !== "pasteCanvasClipboard" &&
+      method !== "enrollImage" &&
       method !== "annotateAsset" &&
       method !== "exportComposition"
     )
@@ -478,33 +772,406 @@ export class ProjectIpc {
     const input = request as Record<string, unknown>;
     const id = window.webContents.id;
     switch (method) {
-      case "saveDirectorPreview": {
-        const { projectHandle, mp4 } = request as ProjectRequest<"saveDirectorPreview">;
-        const bytes = Buffer.from(mp4.buffer, mp4.byteOffset, mp4.byteLength);
-        if (bytes.toString("ascii", 4, 8) !== "ftyp")
-          throw new ProjectError("VALIDATION_FAILED", "无效的预演视频");
-        this.coordinator.getStore(id, projectHandle);
-        const { canceled, filePath } = await dialog.showSaveDialog(window, {
-          title: "保存导演台预演",
-          defaultPath: "导演台预演.mp4",
-          filters: [{ name: "MP4", extensions: ["mp4"] }],
-        });
-        if (canceled || !filePath) return { saved: false } as ProjectValues[Method];
-        this.coordinator.getStore(id, projectHandle);
-        const temporary = join(dirname(filePath), `.link-studio-${randomUUID()}.tmp`);
-        const file = await open(temporary, "wx", 0o600);
-        try {
-          try {
-            await file.writeFile(bytes);
-            await file.sync();
-          } finally {
-            await file.close();
-          }
-          await rename(temporary, filePath);
-        } finally {
-          await rm(temporary, { force: true }).catch(() => undefined);
+      case "filingLibraryClose": {
+        const input = request as ProjectRequest<"filingLibraryClose">,
+          current = this.filingPages.get(id);
+        const closed =
+          "page" in input
+            ? current?.page === input.page
+            : current?.uploads.session === input.session;
+        if (closed) this.closeFilingPage(id);
+        return { closed } as ProjectValues[Method];
+      }
+      case "filingLibraryMore":
+      case "filingLibraryPage": {
+        const input = request as ProjectRequest<"filingLibraryPage" | "filingLibraryMore">;
+        const { channelId, channelRevision, before } = input;
+        if ([...this.projectOwners.values()].some((entry) => entry.owner === id))
+          throw new ProjectError("PROJECT_CONFLICT", "请使用当前项目的素材选择器");
+        const continuation = "page" in input ? this.filingPageGrant(id, input.page) : undefined;
+        if (
+          (continuation &&
+            (continuation.channel !== channelId ||
+              continuation.revision !== channelRevision ||
+              continuation.next !== before)) ||
+          (!continuation && before !== undefined)
+        )
+          throw new ProjectError("VALIDATION_FAILED", "无效的续读位置");
+        const folder = "page" in input ? continuation?.folder : input.folder,
+          search = "page" in input ? continuation?.search : input.search,
+          carry = "carry" in input ? input.carry : undefined;
+        const history = "page" in input ? continuation?.history : input.history;
+        if (history && folder)
+          throw new ProjectError("VALIDATION_FAILED", "生成历史不属于个人库文件夹");
+        let carriedId: string | undefined;
+        if (carry) {
+          const previous = this.filingPageGrant(id, carry.page);
+          carriedId = previous.choices.get(carry.choice);
+          if (!carriedId || previous.channel !== channelId || previous.revision !== channelRevision)
+            throw new ProjectError("VALIDATION_FAILED", "无法保留此图片选择");
         }
-        return { saved: true } as ProjectValues[Method];
+        const previous =
+          "session" in input && input.session ? this.filingSession(id, input.session) : undefined;
+        if (previous && (previous.channel !== channelId || previous.revision !== channelRevision))
+          throw new ProjectError("VALIDATION_FAILED", "上传目标与渠道不一致");
+        const grant: FilingPage = continuation ?? {
+          page: randomUUID(),
+          channel: channelId,
+          revision: channelRevision,
+          folder,
+          search,
+          history,
+          expires: Date.now() + 15 * 60 * 1000,
+          choices: new Map(),
+          tokens: new Map(),
+          abort: new AbortController(),
+          uploads: previous?.uploads ?? {
+            session: randomUUID(),
+            abort: new AbortController(),
+            active: new Map(),
+            receipts: new Map(),
+            destinations: new Map(),
+          },
+        };
+        if (!continuation && !previous) {
+          this.closeFilingPage(id);
+          this.filingPages.set(id, grant);
+        }
+        const { registry } = await this.settings();
+        registry.checkFilingLibrary(channelId, channelRevision);
+        if (history) await this.loadRecents();
+        const results =
+          history &&
+          (await this.filingHistory.page(history, search ?? "", continuation?.historyCursor));
+        const { assets, folders, next } = results
+          ? {
+              assets: results.items.map((entry) => entry.asset),
+              folders: [],
+              next: results.next ? (before ?? 0) + 1 : undefined,
+            }
+          : await this.library.filingPage(before, search, folder);
+        const listed = assets.find((asset) => asset.assetId === carriedId);
+        const carriedHistory =
+          !listed && carriedId?.startsWith("history:")
+            ? await this.filingHistory.selection(carriedId)
+            : undefined;
+        const carried =
+          listed ??
+          carriedHistory?.asset ??
+          (carriedId && !carriedId.startsWith("history:")
+            ? await this.library.filingSelection(carriedId)
+            : undefined);
+        const candidates = carried && !assets.includes(carried) ? [...assets, carried] : assets;
+        const origins = await this.library.filingOrigins(
+          candidates.filter((asset) => !asset.assetId.startsWith("history:")),
+        );
+        for (const entry of results?.items ?? []) origins.set(entry.asset.assetId, entry.origin);
+        if (carriedHistory) origins.set(carriedHistory.asset.assetId, carriedHistory.origin);
+        const members = await this.library.filingMembership(results?.items ?? []);
+        const owners = registry.projectFilings(
+          this.library.projectId,
+          candidates,
+          channelId,
+          origins,
+        );
+        this.filingPageGrant(id, previous?.page ?? grant.page);
+        registry.checkFilingLibrary(channelId, channelRevision);
+        if (continuation && grant.next !== before)
+          throw new ProjectError("VALIDATION_FAILED", "此页已读取");
+        if (previous) {
+          previous.abort.abort();
+          this.filingPages.set(id, grant);
+        }
+        if (carried) {
+          const origin = origins.get(carried.assetId);
+          if (origin)
+            grant.carryOrigin = {
+              ...origin,
+              sha256: carried.sha256,
+              choice: filingChoice(grant, carried.assetId),
+            };
+        }
+        const choices = candidates.map((asset, index) => {
+          const origin = origins.get(asset.assetId),
+            alias = grant.carryOrigin;
+          if (
+            index < assets.length &&
+            alias &&
+            origin?.project === alias.project &&
+            origin.asset === alias.asset &&
+            asset.sha256 === alias.sha256
+          )
+            grant.tokens.set(asset.assetId, alias.choice);
+          const choice = filingChoice(grant, asset.assetId);
+          const reason = owners.get(asset.assetId)?.filingHumanName
+            ? "已在真人库"
+            : asset.sizeBytes > 10 * 1024 * 1024 ||
+                !["image/png", "image/jpeg", "image/webp"].includes(asset.mimeType)
+              ? "请选择 10 MiB 以内的 PNG、JPEG 或 WebP 图片"
+              : undefined;
+          const entry = results?.items[index];
+          return {
+            choice,
+            name: asset.displayName,
+            ...(reason && { reason }),
+            ...(entry && {
+              prompt: entry.prompt,
+              model: entry.model,
+              createdAt: asset.createdAt,
+              inLibrary: members.has(asset.assetId),
+            }),
+          };
+        });
+        const carriedChoice = carried && choices[candidates.indexOf(carried)];
+        const selected =
+          carriedChoice && choices.find((entry) => entry.choice === carriedChoice.choice);
+        if (selected && carried && selected !== carriedChoice)
+          grant.choices.set(selected.choice, assets[choices.indexOf(selected)]!.assetId);
+        grant.next = next;
+        grant.historyCursor = results?.next;
+        const destinations = grant.uploads.destinations;
+        const destination =
+          Array.from(destinations).find(([, entry]) => entry === folder)?.[0] ?? randomUUID();
+        if (!history && (!folder || folders.some((entry) => entry.id === folder)))
+          destinations.set(destination, folder);
+        return {
+          page: grant.page,
+          session: grant.uploads.session,
+          destination: history ? "" : destination,
+          items: choices.slice(0, assets.length),
+          folders,
+          next,
+          ...(results && { canvases: results.canvases }),
+          ...(selected && !selected.reason && { selected }),
+        } as ProjectValues[Method];
+      }
+      case "filingLibraryUpload": {
+        const {
+          session,
+          destination,
+          channelId,
+          channelRevision,
+          name,
+          bytes,
+          uploadId = randomUUID(),
+        } = request as ProjectRequest<"filingLibraryUpload">;
+        const grant = this.filingSession(id, session),
+          uploads = grant.uploads;
+        if (
+          grant.channel !== channelId ||
+          grant.revision !== channelRevision ||
+          !uploads.destinations.has(destination)
+        )
+          throw new ProjectError("VALIDATION_FAILED", "上传目标与渠道不一致");
+        if (uploads.active.has(uploadId) || uploads.active.size >= projectImportConcurrency)
+          throw new ProjectError("PROJECT_CONFLICT", "图片正在上传，请稍后再试");
+        const control = new AbortController(),
+          signal = AbortSignal.any([control.signal, uploads.abort.signal]);
+        uploads.active.set(uploadId, control);
+        try {
+          const { registry } = await this.settings();
+          signal.throwIfAborted();
+          registry.checkFilingLibrary(channelId, channelRevision);
+          const asset = await this.library.importFilingImage(
+            name,
+            bytes,
+            uploads.destinations.get(destination),
+            signal,
+          );
+          this.libraryChanged();
+          this.filingSession(id, session);
+          registry.checkFilingLibrary(channelId, channelRevision);
+          const receipt = randomUUID();
+          uploads.receipts.set(receipt, asset.assetId);
+          return { receipt } as ProjectValues[Method];
+        } finally {
+          uploads.active.delete(uploadId);
+        }
+      }
+      case "filingLibraryUploaded": {
+        const { page, channelId, channelRevision, receipt } =
+          request as ProjectRequest<"filingLibraryUploaded">;
+        const grant = this.filingPageGrant(id, page),
+          assetId = grant.uploads.receipts.get(receipt);
+        if (!assetId || grant.channel !== channelId || grant.revision !== channelRevision)
+          throw new ProjectError("VALIDATION_FAILED", "无法选择已上传的图片");
+        const { registry } = await this.settings();
+        const asset = await this.library.filingSelection(assetId);
+        if (!asset) throw new ProjectError("ASSET_NOT_FOUND", "图片已移除");
+        const origins = await this.library.filingOrigins([asset]),
+          folders = await this.library.listFolders();
+        this.filingPageGrant(id, page);
+        registry.checkFilingLibrary(channelId, channelRevision);
+        const reason = registry
+          .projectFilings(this.library.projectId, [asset], channelId, origins)
+          .get(assetId)?.filingHumanName
+          ? "已在真人库"
+          : undefined;
+        const choice = filingChoice(grant, assetId);
+        grant.uploads.receipts.delete(receipt);
+        return {
+          item: { choice, name: asset.displayName, reason },
+          folders,
+        } as ProjectValues[Method];
+      }
+      case "filingLibraryCancelUpload": {
+        const { session, uploadId } = request as ProjectRequest<"filingLibraryCancelUpload">;
+        const control = this.filingSession(id, session).uploads.active.get(uploadId);
+        control?.abort();
+        return { cancelled: !!control } as ProjectValues[Method];
+      }
+      case "filingLibraryEnroll": {
+        const { page, choice, channelId, channelRevision, name, humanId } =
+          request as ProjectRequest<"filingLibraryEnroll">;
+        const grant = this.filingPageGrant(id, page),
+          item = grant.choices.get(choice);
+        if (!item || grant.channel !== channelId || grant.revision !== channelRevision)
+          throw new ProjectError("VALIDATION_FAILED", "图片选择与渠道不一致");
+        try {
+          const { registry } = await this.settings();
+          registry.checkFilingLibrary(channelId, channelRevision);
+          const { asset, bytes, origin } = await this.filingImage(item);
+          this.filingPageGrant(id, page);
+          const result = await registry.enrollProjectImage(
+            {
+              id: channelId,
+              expectedRevision: channelRevision,
+              name,
+              humanId,
+              libraryOrigin: origin,
+            },
+            item.startsWith("history:") ? origin.project : this.library.projectId,
+            asset,
+            bytes,
+            grant.abort.signal,
+          );
+          return { status: result[0]!.status } as ProjectValues[Method];
+        } catch (error) {
+          if (error instanceof ProviderError) return { error: error.code } as ProjectValues[Method];
+          throw error;
+        }
+      }
+      case "enrollImage": {
+        const { projectHandle, assetId, channelId, channelRevision, name, humanId } =
+          request as ProjectRequest<"enrollImage">;
+        const store = this.coordinator.getStore(id, projectHandle);
+        const asset = store.snapshot.assets[assetId];
+        if (
+          asset?.availability !== "ready" ||
+          asset.mediaType !== "image" ||
+          asset.sizeBytes > 10 * 1024 * 1024
+        )
+          throw new ProjectError("ASSET_TYPE_UNSUPPORTED", "请选择 10 MiB 以内的可用图片");
+        const { handle } = await this.assetFiles.inspect(store, asset, true);
+        try {
+          const bytes = Buffer.alloc(asset.sizeBytes);
+          const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+          if (bytesRead !== asset.sizeBytes)
+            throw new ProjectError("ASSET_READ_FAILED", "图片读取失败");
+          const { registry } = await this.settings();
+          const libraryOrigin =
+            typeof asset.metadata.libraryItemId === "string"
+              ? (await this.library.filingOrigins([asset])).get(assetId)
+              : undefined;
+          const result = await registry.enrollProjectImage(
+            { id: channelId, expectedRevision: channelRevision, name, humanId, libraryOrigin },
+            store.projectId,
+            asset,
+            bytes,
+            mediaSignal,
+          );
+          return { status: result[0]!.status } as ProjectValues[Method];
+        } catch (error) {
+          if (error instanceof ProviderError) return { error: error.code } as ProjectValues[Method];
+          throw error;
+        } finally {
+          await handle.close();
+        }
+      }
+      case "attachFiledImage":
+      case "attachImage": {
+        const { projectHandle, operationId } = request as ProjectRequest<"attachImage">;
+        const store = this.coordinator.getStore(id, projectHandle);
+        let { name, bytes } = request as ProjectRequest<"attachImage">;
+        let filing: { scope: string; image: string; name: string } | undefined;
+        if (method === "attachFiledImage") {
+          const { channelId, channelRevision, imageId } =
+            request as ProjectRequest<"attachFiledImage">;
+          const { registry } = await this.settings();
+          const input = { id: channelId, expectedRevision: channelRevision, assetId: imageId };
+          filing = registry.filingImageIdentity(input);
+          const state = store.snapshot;
+          const existing = Object.values(state.assets).find(
+            (asset) =>
+              asset.availability === "ready" &&
+              asset.metadata.filingScope === filing?.scope &&
+              asset.metadata.filingImage === imageId,
+          );
+          if (existing)
+            return { asset: existing, revision: state.revision } as ProjectValues[Method];
+          const blob = await registry.filingPreview(input);
+          if (!blob) throw new ProjectError("ASSET_READ_FAILED", "无法取得真人图片，请稍后重试");
+          filing = registry.filingImageIdentity(input);
+          const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[
+            blob.type
+          ];
+          if (!extension) throw new ProjectError("ASSET_TYPE_UNSUPPORTED", "图片格式暂不支持");
+          name = `${filing.name
+            .replace(/[^\p{L}\p{N} ._-]/gu, "_")
+            .replace(/\.(png|jpe?g|webp)$/i, "")
+            .slice(0, 180)}.${extension}`;
+          bytes = new Uint8Array(await blob.arrayBuffer());
+        }
+        if (
+          !/\.(png|jpe?g|webp)$/i.test(name) ||
+          /[/\\]/u.test(name) ||
+          Array.from(name).some((char) => char.charCodeAt(0) < 32)
+        )
+          throw new ProjectError("ASSET_TYPE_UNSUPPORTED", "请选择 PNG、JPEG 或 WebP 图片");
+        const source = join(store.directory, "tmp", `${randomUUID()}.attachment`);
+        const handle = await open(source, "wx+", 0o600);
+        let staged: StagedAsset | undefined;
+        try {
+          await handle.writeFile(bytes, { signal: mediaSignal });
+          staged = await this.assetService.stage(store, handle, name, operationId, {
+            signal: mediaSignal,
+          });
+          if (filing && method === "attachFiledImage")
+            Object.assign(staged.asset.metadata, {
+              filingScope: filing.scope,
+              filingImage: filing.image,
+              filingChannel: (request as ProjectRequest<"attachFiledImage">).channelId,
+            });
+          const requestHash = contentHash({
+            kind: "agent-image",
+            ...(filing && { filing }),
+            name,
+            sha256: staged.asset.sha256,
+          });
+          const previous = store.replayAssetImport(operationId, requestHash);
+          if (previous) return previous as ProjectValues[Method];
+          await this.assetService.publishBlob(store, staged, mediaSignal);
+          return (await store.commitAsset({
+            operationId,
+            expectedRevision: store.snapshot.revision,
+            requestHash,
+            asset: staged.asset,
+            signal: mediaSignal,
+          })) as ProjectValues[Method];
+        } finally {
+          await handle.close();
+          await rm(source, { force: true });
+          if (staged) await this.assetService.discard(staged);
+        }
+      }
+      case "attachDirectorTake": {
+        const input = request as ProjectRequest<"attachDirectorTake">;
+        return (await attachDirectorTake(
+          this.coordinator.getStore(id, input.projectHandle),
+          this.assetService,
+          input,
+          mediaSignal,
+        )) as ProjectValues[Method];
       }
       case "exportComposition": {
         const input = request as ProjectRequest<"exportComposition">;
@@ -727,12 +1394,307 @@ export class ProjectIpc {
       case "submitJob":
       case "submitJobs":
       case "cancelJob":
+      case "retryCharacterImage":
       case "recheckJob":
+      case "drama":
+      case "estimateDramaScripts":
+      case "estimateDramaBreakdown":
+      case "estimateDramaStoryboard":
+      case "estimateDramaContinuation":
+      case "previewDramaSource":
       case "canvasAgent": {
         const handle = String(input.projectHandle);
         if (this.closing.has(handle)) throw new ProjectError("PROJECT_CLOSED", "项目正在关闭");
         return this.coordinator.withStore(id, handle, async (store) => {
           switch (method) {
+            case "estimateDramaContinuation": {
+              const doc = dramaDocument(store.snapshot);
+              if (!doc) throw new ProjectError("DRAMA_STEP_NOT_READY", "未创建短剧");
+              return (
+                await quoteDramaContinuation(
+                  doc,
+                  (request as ProjectRequest<"estimateDramaContinuation">).rangeEnd,
+                  (
+                    await this.settings()
+                  ).registry,
+                  store.directory,
+                )
+              ).estimate as ProjectValues[Method];
+            }
+            case "estimateDramaStoryboard": {
+              const { episodeNo, maxSeconds, previewClear } =
+                request as ProjectRequest<"estimateDramaStoryboard">;
+              const state = store.snapshot,
+                doc = dramaDocument(state);
+              if (!doc) throw new ProjectError("DRAMA_STEP_NOT_READY", "未创建短剧");
+              const clearHash = previewClear ? storyboardClearHash(doc, episodeNo) : undefined;
+              const preview = previewClear
+                ? {
+                    ...doc,
+                    segments: doc.segments?.filter((segment) => segment.episode_no !== episodeNo),
+                  }
+                : doc;
+              const { estimate } = await estimateDramaJob(
+                preview,
+                { step: "storyboard", episodes: [episodeNo], max_seconds: maxSeconds },
+                (await this.settings()).registry,
+                state,
+              );
+              return {
+                credits: estimate,
+                ...(clearHash && { clearHash }),
+              } as ProjectValues[Method];
+            }
+            case "estimateDramaBreakdown":
+            case "estimateDramaScripts": {
+              const { episodes } = request as ProjectRequest<"estimateDramaScripts">;
+              const state = store.snapshot,
+                doc = dramaDocument(state);
+              if (!doc || (method === "estimateDramaScripts" && !doc.planning))
+                throw new ProjectError("DRAMA_STEP_NOT_READY", "请先生成分集");
+              return (
+                await estimateDramaJob(
+                  doc,
+                  { step: method === "estimateDramaScripts" ? "scripts" : "breakdown", episodes },
+                  (
+                    await this.settings()
+                  ).registry,
+                  state,
+                )
+              ).estimate as ProjectValues[Method];
+            }
+            case "previewDramaSource": {
+              const input = request as ProjectRequest<"previewDramaSource">;
+              if (input.preflightOnly) {
+                if (
+                  input.sourceToken ||
+                  (input.fileBytes !== undefined) === (input.script !== undefined)
+                )
+                  throw new ProjectError("VALIDATION_FAILED", "请选择文件或粘贴原文");
+                let script = input.script;
+                if (input.fileBytes && input.filename) {
+                  const output = await new Promise<string>((resolve, reject) => {
+                    const proc = execFile(
+                      this.providerRunner,
+                      ["drama-source", input.filename!],
+                      { timeout: 15000, maxBuffer: 32 * 1024 * 1024, signal: mediaSignal },
+                      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+                    );
+                    proc.stdin!.on("error", reject);
+                    proc.stdin!.end(input.fileBytes);
+                  });
+                  const result = JSON.parse(output);
+                  if (!result.ok) throw new ProjectError("VALIDATION_FAILED", result.code);
+                  script = result.result;
+                }
+                if (!script) throw new ProjectError("VALIDATION_FAILED", "预检须提供原文");
+                const parsed = preflightDramaSource(script, input.sourceKind);
+                const { registry } = await this.settings();
+                const guess =
+                  !input.sourceKind && parsed.kindGuess === "unknown"
+                    ? await registry.dramaGuessKind(
+                        parsed.source.text,
+                        input.textModel,
+                        mediaSignal,
+                      )
+                    : undefined;
+                const sourceKind =
+                  input.sourceKind ??
+                  guess?.kind ??
+                  (parsed.kindGuess === "script" ? "script" : "novel");
+                const estimated = await estimateDramaSource(
+                  { ...input, script, sourceKind },
+                  registry,
+                );
+                const sourceToken = this.dramaDrafts.save(
+                  store.projectId,
+                  input.filename ?? "source.txt",
+                  parsed.source,
+                );
+                return {
+                  ...estimated,
+                  sourceToken,
+                  ...(guess && {
+                    kindGuess: guess.kind,
+                    kindSignals: `AI 判断为${guess.kind === "script" ? "剧本" : "小说"}${guess.reason ? `（${guess.reason}）` : ""}；规则统计：${parsed.kindSignals}`,
+                  }),
+                } as ProjectValues[Method];
+              }
+              if (
+                !input.sourceToken ||
+                input.script !== undefined ||
+                input.fileBytes !== undefined ||
+                input.filename !== undefined
+              )
+                throw new ProjectError("VALIDATION_FAILED", "重新估价须使用预检草稿");
+              if (dramaDocument(store.snapshot)?.source?.draftToken === input.sourceToken)
+                return expiredDramaSource();
+              const draft = this.dramaDrafts.read(store.projectId, input.sourceToken);
+              return {
+                ...(await estimateDramaSource(
+                  { ...input, script: draft.text },
+                  (
+                    await this.settings()
+                  ).registry,
+                )),
+                chars: draft.chars,
+              } as ProjectValues[Method];
+            }
+            case "drama": {
+              const {
+                create,
+                addSegment,
+                addEpisode,
+                saveScript,
+                deleteEpisode,
+                chooseTake,
+                boardSettings,
+                planningAction,
+                writeScripts,
+                breakdown,
+                cancelBreakdown,
+                storyboard,
+                cancelStoryboard,
+                extendPlanning,
+              } = request as ProjectRequest<"drama">;
+              if (
+                [
+                  create,
+                  addSegment,
+                  addEpisode,
+                  saveScript,
+                  deleteEpisode,
+                  chooseTake,
+                  boardSettings,
+                  planningAction,
+                  writeScripts,
+                  breakdown,
+                  cancelBreakdown,
+                  storyboard,
+                  cancelStoryboard,
+                  extendPlanning,
+                ].filter(Boolean).length > 1
+              )
+                throw new ProjectError("VALIDATION_FAILED", "一次只能执行一个短剧操作");
+              if (cancelBreakdown || cancelStoryboard) {
+                await this.canvasAgent.cancelStudioJob(
+                  store,
+                  cancelBreakdown ?? cancelStoryboard!,
+                  cancelBreakdown ? "breakdown" : "storyboard",
+                );
+                return dramaDocument(store.snapshot) as ProjectValues[Method];
+              }
+              if (deleteEpisode)
+                return (await deleteDramaEpisode(store, deleteEpisode)) as ProjectValues[Method];
+              if (extendPlanning) {
+                const doc = await extendDramaPlanning(
+                  store,
+                  (await this.settings()).registry,
+                  extendPlanning.rangeEnd,
+                  extendPlanning.previousEnd,
+                );
+                this.canvasAgent.startPlanning(store);
+                return doc as ProjectValues[Method];
+              }
+              const production = storyboard ?? breakdown ?? writeScripts;
+              if (production) {
+                const args =
+                  "episodeNo" in production
+                    ? {
+                        step: "storyboard" as const,
+                        episodes: [production.episodeNo],
+                        max_seconds: production.maxSeconds,
+                      }
+                    : {
+                        step: breakdown ? ("breakdown" as const) : ("scripts" as const),
+                        episodes: production.episodes,
+                      };
+                const job = await submitApprovedDramaJob(
+                  store,
+                  (await this.settings()).registry,
+                  "workspace",
+                  `workspace:${production.operationId}`,
+                  {
+                    args,
+                    estimate: production.estimate,
+                    ...(production.episodeOrder && { episodeOrder: production.episodeOrder }),
+                    ...(storyboard?.clearHash && { clearHash: storyboard.clearHash }),
+                    ...(storyboard?.batch && {batch:true}),
+                  },
+                );
+                if (job.status === "queued") this.canvasAgent.startDramaAssetJob(store, job.id);
+                return dramaDocument(store.snapshot) as ProjectValues[Method];
+              }
+              if (planningAction) {
+                const doc = await controlDramaPlanning(store, planningAction);
+                if (planningAction !== "pause") this.canvasAgent.startPlanning(store);
+                return doc as ProjectValues[Method];
+              }
+              if (boardSettings) {
+                const { registry } = await this.settings();
+                const list = registry.list();
+                return (await updateDramaBoardSettings(
+                  store,
+                  boardSettings,
+                  dramaImageModels(list),
+                  dramaAgentModels(list.providers),
+                  () => registry.dramaPromptLibrary({ action: "list" }).entries,
+                  (step, name) => this.skills.dramaSnapshot(step, name),
+                )) as ProjectValues[Method];
+              }
+              if (chooseTake)
+                return (await chooseDramaTake(store, chooseTake)) as ProjectValues[Method];
+              if (create) {
+                if (dramaDocument(store.snapshot)?.source?.draftToken === create.sourceToken)
+                  return expiredDramaSource();
+                const draft = this.dramaDrafts.read(store.projectId, create.sourceToken);
+                const source = { ...create, script: draft.text };
+                const { registry } = await this.settings();
+                const { model } = await quoteDramaSource(source, registry);
+                const list = registry.list();
+                const media = canvasAgentMediaModels(list);
+                const images = media
+                  .filter((entry) => entry.kind === "image")
+                  .map(({ provider }) => ({
+                    id: provider.id,
+                    fields: dramaImageFields(provider, list.plugins),
+                  }));
+                const document = await createDrama(
+                  store,
+                  source,
+                  images,
+                  media
+                    .filter(
+                      (entry) =>
+                        entry.kind === "video" &&
+                        !dramaVideoModelIssue(entry.provider, list.plugins),
+                    )
+                    .map((entry) => entry.provider),
+                  () => registry.dramaPromptLibrary({ action: "list" }).entries,
+                  (step, name) => this.skills.dramaSnapshot(step, name),
+                  model,
+                  () => {
+                    const { chars, filename, sha256 } = this.dramaDrafts.read(
+                      store.projectId,
+                      create.sourceToken,
+                    );
+                    return { chars, filename, sha256, draftToken: create.sourceToken };
+                  },
+                );
+                this.dramaDrafts.remove(store.projectId, create.sourceToken);
+                this.canvasAgent.startPlanning(store);
+                return document as ProjectValues[Method];
+              }
+              return (
+                saveScript
+                  ? await saveDramaScript(store, saveScript)
+                  : addEpisode
+                    ? await addDramaEpisode(store, addEpisode)
+                    : addSegment
+                      ? await addDramaSegment(store, addSegment)
+                      : dramaDocument(store.snapshot)
+              ) as ProjectValues[Method];
+            }
             case "listJobs":
               return this.generation.list(store) as ProjectValues[Method];
             case "submitJob": {
@@ -752,17 +1714,29 @@ export class ProjectIpc {
                 store,
                 String(input.jobId),
               )) as ProjectValues[Method];
+            case "retryCharacterImage": {
+              const { jobId, operationId, expectedCanvasRevision } =
+                request as ProjectRequest<"retryCharacterImage">;
+              return (await this.generation.retryCharacterImage(
+                store,
+                jobId,
+                operationId,
+                expectedCanvasRevision,
+              )) as ProjectValues[Method];
+            }
             case "recheckJob":
               return (await this.generation.recheck(
                 store,
                 String(input.jobId),
               )) as ProjectValues[Method];
             case "canvasAgent": {
-              const { action } = request as ProjectRequest<"canvasAgent">;
-              const result = await (await this.settings()).agent.runCanvas(
-                this.canvasAgent.key(store),
-                action,
-              );
+              const { action, mode } = request as ProjectRequest<"canvasAgent">;
+              if (mode === "drama" && !dramaDocument(store.snapshot))
+                throw new ProjectError("AGENT_SCOPE_DENIED", "当前项目没有短剧");
+              const { agent, observeSession } = await this.settings();
+              const result = await agent.runCanvas(this.canvasAgent.key(store), action, mode);
+              if (action.method === "state")
+                observeSession(window.webContents.id, mode ?? "canvas", action.sessionId);
               if (action.method !== "exportDiagnostics") return result as ProjectValues[Method];
               const file = await dialog.showSaveDialog(window, {
                 title: "导出小灵运行诊断",
@@ -833,6 +1807,7 @@ export class ProjectIpc {
           projects: this.recents.map(({ directory: _directory, ...entry }) => entry),
         } as ProjectValues[Method];
       case "openRecent": {
+        await this.loadRecents();
         const recent = this.recents.find((entry) => entry.recentEntryId === input.recentEntryId);
         if (!recent) throw new ProjectError("PROJECT_PATH_DENIED", "最近项目入口已失效");
         const directoryToken = await this.coordinator.authorizeRecent(id, recent.directory);
@@ -844,8 +1819,10 @@ export class ProjectIpc {
         return result as ProjectValues[Method];
       }
       case "removeRecent":
+        await this.loadRecents();
         this.recents = this.recents.filter((entry) => entry.recentEntryId !== input.recentEntryId);
         await this.persistRecents();
+        await this.forgetRecentHistory(input.recentEntryId as string);
         return { removed: true } as ProjectValues[Method];
       case "getState":
         return (await this.coordinator.getState(
@@ -908,33 +1885,106 @@ export class ProjectIpc {
         }
         return { closed: true } as ProjectValues[Method];
       }
+      case "beginClipboardFile": {
+        const { projectHandle, name, kind, size } = request as ProjectRequest<"beginClipboardFile">;
+        if (/[\\/\x00-\x1f]/u.test(name) || name === "." || name === "..")
+          throw new ProjectError("ASSET_READ_FAILED", "无效的媒体文件名");
+        return this.coordinator.withStore(id, projectHandle, async (store) => {
+          const held = [
+            ...this.fileGrants.values(),
+            ...Array.from(this.imports.values(), (job) => job.grant),
+          ];
+          if (
+            size > { image: 20, video: 200, audio: 50 }[kind] * 1024 * 1024 ||
+            this.fileGrants.size >= 32 ||
+            held.reduce((total, grant) => total + (grant?.clipboard?.size ?? 0), size) >
+              600 * 1024 * 1024
+          )
+            throw new ProjectError("ASSET_SIZE_LIMIT", "剪贴板文件过大或当前导入过多");
+          const directory = join(store.directory, "tmp");
+          if (!(await lstat(directory)).isDirectory())
+            throw new ProjectError("PROJECT_PATH_DENIED", "项目临时目录无效");
+          const path = join(directory, `${randomUUID()}.clip`),
+            handle = await open(path, "wx+", 0o600);
+          try {
+            await rm(path);
+            if (this.windows.get(id) !== window || this.closing.has(projectHandle))
+              throw new ProjectError("PROJECT_CLOSED", "项目正在关闭");
+            const fileToken = randomUUID();
+            this.putFileGrant(fileToken, {
+              clipboard: { size, received: 0, kind },
+              owner: id,
+              projectHandle,
+              path: "",
+              displayName: name,
+              handle,
+              expiresAt: Date.now() + 600_000,
+            });
+            return { fileToken, displayName: name } as ProjectValues[Method];
+          } catch (error) {
+            await handle.close();
+            throw error;
+          }
+        });
+      }
+      case "appendClipboardFile": {
+        const { projectHandle, fileToken, offset, bytes } =
+          request as ProjectRequest<"appendClipboardFile">;
+        return this.coordinator.withStore(id, projectHandle, async () => {
+          const grant = this.fileGrants.get(fileToken),
+            clip = grant?.clipboard;
+          if (
+            !grant ||
+            !clip ||
+            grant.owner !== id ||
+            grant.projectHandle !== projectHandle ||
+            grant.expiresAt <= Date.now()
+          )
+            throw new ProjectError("TOKEN_INVALID_OR_EXPIRED", "剪贴板文件已释放");
+          if (offset !== clip.received || offset + bytes.byteLength > clip.size)
+            throw new ProjectError("ASSET_READ_FAILED", "剪贴板分块不连续");
+          let written = 0;
+          while (written < bytes.byteLength) {
+            const result = await grant.handle.write(
+              bytes,
+              written,
+              bytes.byteLength - written,
+              offset + written,
+            );
+            if (!result.bytesWritten)
+              throw new ProjectError("ASSET_STORAGE_FAILED", "无法写入剪贴板文件");
+            written += result.bytesWritten;
+          }
+          clip.received += written;
+          return { received: clip.received } as ProjectValues[Method];
+        });
+      }
+      case "droppedMedia":
       case "selectMedia": {
         const projectHandle = input.projectHandle as string;
         this.coordinator.getSession(id, projectHandle);
         const testFiles = process.env.LINK_STUDIO_TEST_MEDIA_FILES?.split("\n").filter(Boolean);
-        const selected = testFiles
-          ? { canceled: false, filePaths: input.multiSelect ? testFiles : testFiles.slice(0, 1) }
-          : await dialog.showOpenDialog(window, {
-              properties: input.multiSelect ? ["openFile", "multiSelections"] : ["openFile"],
-              filters: [
-                {
-                  name: "媒体文件",
-                  extensions: [
-                    "png",
-                    "jpg",
-                    "jpeg",
-                    "webp",
-                    "mp4",
-                    "mov",
-                    "webm",
-                    "mp3",
-                    "wav",
-                    "m4a",
-                    "ogg",
+        const selected =
+          method === "droppedMedia"
+            ? { canceled: false, filePaths: input.paths as string[] }
+            : testFiles
+              ? {
+                  canceled: false,
+                  filePaths: input.multiSelect ? testFiles : testFiles.slice(0, 1),
+                }
+              : await dialog.showOpenDialog(window, {
+                  properties: input.multiSelect ? ["openFile", "multiSelections"] : ["openFile"],
+                  filters: [
+                    input.mediaType
+                      ? mediaFilters[input.mediaType as keyof typeof mediaFilters]
+                      : {
+                          name: "媒体文件",
+                          extensions: Object.values(mediaFilters).flatMap(
+                            (filter) => filter.extensions,
+                          ),
+                        },
                   ],
-                },
-              ],
-            });
+                });
         if (selected.canceled) return { cancelled: true } as ProjectValues[Method];
         return this.coordinator.withStore(id, projectHandle, async () => {
           if (this.fileGrants.size + selected.filePaths.length > 32)
@@ -1038,6 +2088,7 @@ export class ProjectIpc {
           const grant = this.fileGrants.get(fileToken);
           if (
             !grant ||
+            grant.clipboard ||
             grant.owner !== id ||
             grant.projectHandle !== projectHandle ||
             grant.expiresAt <= Date.now()
@@ -1082,29 +2133,219 @@ export class ProjectIpc {
           (asset) => asset.availability !== "deleted",
         );
         const result = [];
+        const images = assets.filter((asset) => asset.mediaType === "image");
+        const origins = await this.library.filingOrigins(
+          images.filter((asset) => typeof asset.metadata.libraryItemId === "string"),
+        );
+        const filings = images.length
+          ? (await this.settings()).registry.projectFilings(
+              store.projectId,
+              images,
+              (request as ProjectRequest<"listAssets">).filingChannelId,
+              origins,
+            )
+          : undefined;
         for (const asset of assets) {
-          const available = await this.assetFiles.available(store, asset);
-          result.push({ ...asset, availability: available ? "ready" : "missing" });
+          const available = await this.assetFiles.previewMetadata(store, asset);
+          const {
+            filingImage,
+            filingScope,
+            filingChannel,
+            filingSourceChannel,
+            filingHumanName,
+            filingEnabled,
+            ...metadata
+          } = available ?? asset.metadata;
+          result.push({
+            ...asset,
+            metadata: { ...metadata, ...filings?.get(asset.assetId) },
+            availability: available ? "ready" : "missing",
+          });
         }
         return {
           assets: result,
         } as ProjectValues[Method];
       }
-      case "getAssetPreview": {
-        const { projectHandle, assetId } = request as ProjectRequest<"getAssetPreview">;
+      case "saveAssetCopy": {
+        const { projectHandle, assetId } = request as ProjectRequest<"saveAssetCopy">;
+        return this.coordinator.withStore(id, projectHandle, async (store) => {
+          const asset = store.snapshot.assets[assetId];
+          if (!asset || asset.availability !== "ready")
+            throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
+          const save = await dialog.showSaveDialog(window, {
+            title: "下载原文件",
+            defaultPath: basename(asset.displayName),
+            properties: ["showOverwriteConfirmation"],
+          });
+          if (save.canceled || !save.filePath) return { saved: false } as ProjectValues[Method];
+          const target = save.filePath;
+          const previous = await lstat(target).catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== "ENOENT") throw error;
+            return undefined;
+          });
+          const temporary = join(dirname(target), `.link-studio-copy-${randomUUID()}`);
+          try {
+            await this.assetFiles.materialize(store, asset, temporary);
+            const installed = await installExportTarget(
+              temporary,
+              target,
+              previous
+                ? {
+                    exists: true,
+                    dev: previous.dev,
+                    ino: previous.ino,
+                    size: previous.size,
+                    mtimeMs: previous.mtimeMs,
+                    ctimeMs: previous.ctimeMs,
+                  }
+                : { exists: false },
+            );
+            await installed.finalize();
+            return { saved: true } as ProjectValues[Method];
+          } finally {
+            await rm(temporary, { force: true });
+          }
+        });
+      }
+      case "copyAssetImage": {
+        const { projectHandle, assetId } = request as ProjectRequest<"copyAssetImage">;
+        const store = this.coordinator.getStore(id, projectHandle),
+          asset = store.snapshot.assets[assetId];
+        if (!asset) throw new ProjectError("ASSET_NOT_FOUND", "图片素材不可用");
+        const bytes = await this.canvasMedia.readClipboardImage(
+          store,
+          asset,
+          mediaSignal ?? new AbortController().signal,
+        );
+        const image = imagePreviewBlob(bytes);
+        if (image.type !== asset.mimeType)
+          throw new ProjectError("ASSET_TYPE_UNSUPPORTED", "图片格式不符");
+        this.coordinator.getSession(id, projectHandle);
+        await clipboard.write([new ClipboardItem({ [image.type]: image })]);
+        return { copied: true } as ProjectValues[Method];
+      }
+      case "readAudioForWaveform": {
+        const { projectHandle, assetId } = request as ProjectRequest<"readAudioForWaveform">;
         const store = this.coordinator.getStore(id, projectHandle);
         const asset = store.snapshot.assets[assetId];
+        if (!asset) throw new ProjectError("ASSET_NOT_FOUND", "音频素材不可用");
+        const bytes = await this.canvasMedia.readAudioForWaveform(store, asset);
+        this.coordinator.getSession(id, projectHandle);
+        const value: ProjectValues["readAudioForWaveform"] = { bytes };
+        return value as ProjectValues[Method];
+      }
+      case "listLibrary": {
+        const { projectHandle, before, filingChannelId } = request as ProjectRequest<"listLibrary">;
+        const project = this.coordinator.getStore(id, projectHandle).projectId;
+        const page = await this.library.list(project, before);
+        if (filingChannelId) {
+          const images = page.items
+            .map((item) => item.asset)
+            .filter((asset) => asset.mediaType === "image");
+          const owners = (await this.settings()).registry.projectFilings(
+            project,
+            images,
+            filingChannelId,
+            await this.library.filingOrigins(images),
+          );
+          for (const { asset } of page.items) {
+            const name = owners.get(asset.assetId)?.filingHumanName;
+            if (name) asset.metadata.filingHumanName = name;
+          }
+        }
+        return page as ProjectValues[Method];
+      }
+      case "listLibraryFolders": {
+        const { projectHandle } = request as ProjectRequest<"listLibraryFolders">;
+        this.coordinator.getSession(id, projectHandle);
+        return (await this.library.listFolders()) as ProjectValues[Method];
+      }
+      case "registerLibrary": {
+        const { projectHandle, assetId, folderId } = request as ProjectRequest<"registerLibrary">;
+        const value = await this.coordinator.withStore(id, projectHandle, (store) =>
+          this.library.register(store, assetId, folderId),
+        );
+        this.libraryChanged();
+        return value as ProjectValues[Method];
+      }
+      case "createLibraryFolder": {
+        const { projectHandle, name } = request as ProjectRequest<"createLibraryFolder">;
+        this.coordinator.getSession(id, projectHandle);
+        const value = await this.library.createFolder(name);
+        this.libraryChanged();
+        return value as ProjectValues[Method];
+      }
+      case "renameLibraryFolder": {
+        const { projectHandle, folderId, name } = request as ProjectRequest<"renameLibraryFolder">;
+        this.coordinator.getSession(id, projectHandle);
+        await this.library.renameFolder(folderId, name);
+        this.libraryChanged();
+        return { updated: true } as ProjectValues[Method];
+      }
+      case "deleteLibraryFolder": {
+        const { projectHandle, folderId } = request as ProjectRequest<"deleteLibraryFolder">;
+        this.coordinator.getSession(id, projectHandle);
+        const removed = await this.library.deleteFolder(folderId);
+        this.libraryChanged();
+        return { removed } as ProjectValues[Method];
+      }
+      case "moveLibraryItem": {
+        const { projectHandle, itemId, folderId } = request as ProjectRequest<"moveLibraryItem">;
+        this.coordinator.getSession(id, projectHandle);
+        await this.library.moveItem(itemId, folderId);
+        this.libraryChanged();
+        return { updated: true } as ProjectValues[Method];
+      }
+      case "removeLibraryItem": {
+        const { projectHandle, itemId } = request as ProjectRequest<"removeLibraryItem">;
+        this.coordinator.getSession(id, projectHandle);
+        await this.library.removeItem(itemId);
+        this.libraryChanged();
+        return { updated: true } as ProjectValues[Method];
+      }
+      case "attachLibrary": {
+        const { projectHandle, itemId, operationId } = request as ProjectRequest<"attachLibrary">;
+        return (await this.coordinator.withStore(id, projectHandle, (store) =>
+          this.library.attach(store, itemId, operationId, mediaSignal),
+        )) as ProjectValues[Method];
+      }
+      case "captureCanvasClipboard": {
+        const { projectHandle, assetIds } = request as ProjectRequest<"captureCanvasClipboard">;
+        return this.clipboardMedia.capture(
+          id,
+          this.coordinator.getStore(id, projectHandle),
+          assetIds,
+        ) as ProjectValues[Method];
+      }
+      case "pasteCanvasClipboard": {
+        const { projectHandle, token } = request as ProjectRequest<"pasteCanvasClipboard">;
+        return (await this.coordinator.withStore(id, projectHandle, (store) =>
+          this.clipboardMedia.paste(id, token, store, mediaSignal),
+        )) as ProjectValues[Method];
+      }
+      case "getAssetPreview": {
+        const { projectHandle, assetId, variant, library } =
+          request as ProjectRequest<"getAssetPreview">;
+        const store = this.coordinator.getStore(id, projectHandle);
+        const asset = library ? await this.library.get(assetId) : store.snapshot.assets[assetId];
         if (!asset || asset.availability === "deleted")
           throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
-        const { handle, stamp } = await this.assetFiles.inspect(store, asset, true);
+        const location = library ? this.library : store;
+        const { handle, stamp } = await this.assetFiles.inspect(location, asset, true);
         await handle.close();
         this.coordinator.getSession(id, projectHandle);
+        if (variant === "poster") {
+          const url = await this.canvasMedia.poster(location, asset);
+          this.coordinator.getSession(id, projectHandle);
+          return { url, mimeType: "image/png" } as ProjectValues[Method];
+        }
         for (const [token, grant] of this.previews) {
           if (grant.expiresAt <= Date.now()) {
             this.previews.delete(token);
           } else if (
             grant.owner === id &&
             grant.assetId === assetId &&
+            !!grant.library === !!library &&
             grant.projectHandle === projectHandle
           ) {
             if (grant.stamp === stamp) {
@@ -1125,6 +2366,7 @@ export class ProjectIpc {
           projectHandle,
           assetId,
           stamp,
+          library,
           expiresAt: Date.now() + 600_000,
         });
         return {
@@ -1140,7 +2382,7 @@ export class ProjectIpc {
           throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
         if (asset.mediaType !== "video")
           throw new ProjectError("VALIDATION_FAILED", "只有视频素材支持提取关键帧");
-        const digest = contentHash({ kind: "frame", assetId, timeMs });
+        const digest = contentHash({ kind: "canvas-frame-at-time-v2", assetId, timeMs });
         const frameId = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
         const frame = await this.canvasAgent.inspectMedia(
           store,
@@ -1328,11 +2570,17 @@ export class ProjectIpc {
     }
   }
 
-  private claimFileGrant(owner: number, projectHandle: string, token: string) {
+  private claimFileGrant(
+    owner: number,
+    projectHandle: string,
+    token: string,
+    allowClipboard = false,
+  ) {
     if (this.closing.has(projectHandle)) throw new ProjectError("PROJECT_CLOSED", "项目正在关闭");
     const grant = this.fileGrants.get(token);
     if (
       !grant ||
+      (grant.clipboard && (!allowClipboard || grant.clipboard.size !== grant.clipboard.received)) ||
       grant.owner !== owner ||
       grant.projectHandle !== projectHandle ||
       grant.expiresAt <= Date.now()
@@ -1348,6 +2596,8 @@ export class ProjectIpc {
     if (this.closing.has(projectHandle)) throw new ProjectError("PROJECT_CLOSED", "项目正在关闭");
     const requestHash = contentHash({
       kind: "import-start",
+      ...(input.forLibrary && { forLibrary: true }),
+      ...(input.forCanvasUpload && { forCanvasUpload: true }),
       fileToken,
       expectedRevision,
       importMode,
@@ -1373,7 +2623,7 @@ export class ProjectIpc {
     if (
       this.imports.size >= 128 ||
       [...this.imports.values()].filter((job) => job.projectHandle === projectHandle && job.grant)
-        .length >= 2
+        .length >= projectImportConcurrency
     )
       throw new ProjectError("ASSET_SIZE_LIMIT", "请先完成现有导入");
     const job: ImportJob = {
@@ -1383,6 +2633,8 @@ export class ProjectIpc {
       requestHash,
       operationId,
       mode: importMode,
+      forLibrary: input.forLibrary,
+      forCanvasUpload: input.forCanvasUpload,
       abort: new AbortController(),
       status: prior
         ? {
@@ -1393,7 +2645,13 @@ export class ProjectIpc {
           }
         : { phase: "copying", copiedBytes: 0, totalBytes: 0 },
     };
-    if (!prior) job.grant = this.claimFileGrant(owner, projectHandle, fileToken);
+    if (!prior)
+      job.grant = this.claimFileGrant(
+        owner,
+        projectHandle,
+        fileToken,
+        !!input.forCanvasUpload && !input.forLibrary && importMode === "copy",
+      );
     this.imports.set(job.id, job);
     this.scheduleExpiry(job);
     if (job.grant) job.work = this.stageImport(job, store, job.grant, expectedRevision);
@@ -1419,6 +2677,9 @@ export class ProjectIpc {
           },
         },
       );
+      if (grant.clipboard && grant.clipboard.kind !== job.staged.asset.mediaType)
+        throw new ProjectError("ASSET_TYPE_UNSUPPORTED", "剪贴板媒体种类与文件内容不一致");
+      if (job.forLibrary) job.staged.asset.metadata.libraryUpload = true;
       if (job.mode === "reference") {
         job.staged.asset.importMode = "reference";
         job.staged.asset.storage = { kind: "external", locatorId: randomUUID() };
@@ -1503,6 +2764,22 @@ export class ProjectIpc {
   }
 
   private async failImport(job: ImportJob, error: unknown) {
+    let retryToken: string | undefined;
+    if (
+      job.forCanvasUpload &&
+      !job.abort.signal.aborted &&
+      job.grant &&
+      !job.grant.clipboard &&
+      job.grant.expiresAt > Date.now() &&
+      this.imports.has(job.id) &&
+      this.windows.has(job.owner) &&
+      !this.closing.has(job.projectHandle) &&
+      this.fileGrants.size < 32
+    ) {
+      retryToken = randomUUID();
+      this.putFileGrant(retryToken, job.grant);
+      job.grant = undefined;
+    }
     await this.cleanJob(job);
     const { copiedBytes, totalBytes } = job.status;
     job.status =
@@ -1514,6 +2791,7 @@ export class ProjectIpc {
             copiedBytes,
             totalBytes,
             code: error instanceof ProjectError ? error.code : "PROJECT_SAVE_FAILED",
+            ...(retryToken && { retryToken }),
           };
   }
 
@@ -1586,6 +2864,7 @@ export class ProjectIpc {
   }
 
   private async recordRecent(session: { projectId: string; name: string; directory: string }) {
+    await this.loadRecents();
     const canonical = await import("node:fs/promises").then(({ realpath }) =>
       realpath(session.directory),
     );
@@ -1598,11 +2877,30 @@ export class ProjectIpc {
       directory: canonical,
       lastOpenedAt: new Date().toISOString(),
     };
+    const previous = this.recents;
     this.recents = [entry, ...this.recents.filter((item) => item.directory !== canonical)].slice(
       0,
       30,
     );
     await this.persistRecents();
+    for (const prior of previous)
+      if (!this.recents.some((item) => item.recentEntryId === prior.recentEntryId))
+        await this.forgetRecentHistory(prior.recentEntryId);
+    const store = [...this.projectOwners.values()].find(
+      (item) => item.store.directory === canonical && item.store.projectId === entry.projectId,
+    )?.store;
+    if (store)
+      await this.filingHistory
+        .observe(store, entry)
+        .catch(() => store.warnings.push("生成历史索引不可用，重新打开项目后重建"));
+  }
+
+  private async forgetRecentHistory(id: string) {
+    try {
+      await this.filingHistory.forget(id);
+    } catch {
+      console.warn("最近项目的访问权限已移除，生成历史缓存未清理");
+    }
   }
 
   private async loadRecents() {
@@ -1629,6 +2927,11 @@ export class ProjectIpc {
         });
     }
     await this.loadingRecents;
+  }
+
+  async recentProjectLocations() {
+    await this.loadRecents();
+    return this.recents.map(({ projectId, directory }) => ({ projectId, directory }));
   }
 
   private persistRecents() {

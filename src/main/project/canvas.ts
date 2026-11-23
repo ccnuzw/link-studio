@@ -8,6 +8,7 @@ import {
   CanvasViewport,
   CreativeCanvasNode,
   type EditableCanvasNode,
+  isPlainGeneratedMedia,
   outputKindForNode,
   type ProjectCanvasView,
   validStoryboard,
@@ -126,15 +127,18 @@ function applyRecords(
   previous: JsonValue[],
   editableIds: Set<string>,
   changes: Map<string, JsonValue | null>,
+  insertions: Map<string, JsonValue[]>,
 ) {
   const used = new Set<string>();
   const next = previous.flatMap((entry) => {
     const id = idOf(entry);
-    if (id === undefined || !changes.has(id)) return [entry];
+    const preceding = id === undefined ? [] : (insertions.get(id) ?? []);
+    for (const item of preceding) used.add(idOf(item)!);
+    if (id === undefined || !changes.has(id)) return [...preceding, entry];
     if (!editableIds.has(id)) invalid();
     used.add(id);
     const change = changes.get(id);
-    return change == null ? [] : [change];
+    return change == null ? preceding : [...preceding, change];
   });
   for (const [id, change] of changes) {
     if (used.has(id)) continue;
@@ -154,6 +158,12 @@ function validateCreativeOutputs(
   node: Extract<EditableCanvasNode, { type: "creative" }>,
 ) {
   const { character, kind, assetId } = node.data;
+  if (node.data.directorThumbnailId) {
+    if (!node.data.director) invalid();
+    const thumb = state.assets[node.data.directorThumbnailId];
+    if (!thumb || thumb.availability === "deleted" || thumb.mediaType !== "image")
+      throw new ProjectError("CANVAS_REFERENCE_MISSING", "导演台缩略图不存在或类型不匹配");
+  }
   if (
     node.data.director &&
     (kind !== "script" || node.data.storyboard || !validDirectorScene(node.data.director))
@@ -163,7 +173,7 @@ function validateCreativeOutputs(
     invalid();
   if (node.data.shotId && kind !== "image" && kind !== "video") invalid();
   if (character) {
-    if (kind !== "image" || !character.name.trim() || !character.look.trim()) invalid();
+    if (kind !== "image" || !character.name.trim()) invalid();
     for (const [id, mediaType] of [
       ...character.extraAssetIds.map((id) => [id, "image"] as const),
       ...(character.voice ? [[character.voice.assetId, "audio"] as const] : []),
@@ -179,6 +189,15 @@ function validateCreativeOutputs(
     }
   }
   const outputs = node.data.outputs ?? [];
+  const pending = node.data.pendingMediaVersion;
+  if (
+    pending &&
+    (!isPlainGeneratedMedia(node.data) ||
+      assetId ||
+      node.data.activeOutputId ||
+      !outputs.some((output) => output.id === pending.outputId && output.assetId))
+  )
+    invalid();
   const expectedKind = outputKindForNode(node.data.kind);
   const ids = new Set<string>();
   for (const output of outputs) {
@@ -214,6 +233,8 @@ export function applyCanvas(state: ProjectState, operations: CanvasOperation[]):
   );
   const nodeChanges = new Map<string, JsonValue | null>();
   const edgeChanges = new Map<string, JsonValue | null>();
+  const nodeInsertions = new Map<string, JsonValue[]>();
+  const edgeInsertions = new Map<string, JsonValue[]>();
   let viewport: CanvasViewport | undefined;
   for (const operation of operations) {
     switch (operation.type) {
@@ -236,6 +257,12 @@ export function applyCanvas(state: ProjectState, operations: CanvasOperation[]):
         }
         if (node.type === "creative") validateCreativeOutputs(state, node);
         setChange(nodeChanges, node.id, node);
+        if (operation.beforeId) {
+          if (existing || !editableNodes.has(operation.beforeId)) invalid();
+          const siblings = nodeInsertions.get(operation.beforeId) ?? [];
+          siblings.push(node);
+          nodeInsertions.set(operation.beforeId, siblings);
+        }
         break;
       }
       case "removeNode":
@@ -243,6 +270,16 @@ export function applyCanvas(state: ProjectState, operations: CanvasOperation[]):
         break;
       case "putEdge":
         setChange(edgeChanges, operation.edge.id, operation.edge);
+        if (operation.beforeId) {
+          if (
+            view.edges.some((edge) => edge.id === operation.edge.id) ||
+            !view.edges.some((edge) => edge.id === operation.beforeId && !edge.readOnly)
+          )
+            invalid();
+          const siblings = edgeInsertions.get(operation.beforeId) ?? [];
+          siblings.push(operation.edge);
+          edgeInsertions.set(operation.beforeId, siblings);
+        }
         break;
       case "removeEdge":
         setChange(edgeChanges, operation.id, null);
@@ -254,8 +291,13 @@ export function applyCanvas(state: ProjectState, operations: CanvasOperation[]):
     }
   }
   const editableEdges = new Set(view.edges.filter((edge) => !edge.readOnly).map((edge) => edge.id));
-  const nodes = applyRecords(previous.nodes, new Set(editableNodes.keys()), nodeChanges);
-  const edges = applyRecords(previous.edges, editableEdges, edgeChanges);
+  const nodes = applyRecords(
+    previous.nodes,
+    new Set(editableNodes.keys()),
+    nodeChanges,
+    nodeInsertions,
+  );
+  const edges = applyRecords(previous.edges, editableEdges, edgeChanges, edgeInsertions);
   if (
     nodes.length > Math.max(1000, previous.nodes.length) ||
     edges.length > Math.max(4000, previous.edges.length)

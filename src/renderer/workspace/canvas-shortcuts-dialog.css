@@ -1,0 +1,73 @@
+.canvas-shortcuts-dialog {
+  position: fixed;
+  z-index: 1000;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  display: grid;
+  gap: 16px;
+  width: min(448px, calc(100% - 32px));
+  padding: 16px;
+  border-radius: 14px;
+  outline: none;
+  background: var(--canvas-paper);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+.canvas-shortcuts-dialog[data-open] {
+  animation: shot-confirm-in 200ms;
+}
+.canvas-shortcuts-dialog[data-closed] {
+  animation: shot-confirm-out 150ms;
+}
+.canvas-shortcuts-dialog h2 {
+  margin: 0;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1;
+}
+.canvas-shortcuts-dialog dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 24px;
+  font: inherit;
+}
+.canvas-shortcuts-dialog dl > div {
+  display: contents;
+}
+.canvas-shortcuts-dialog dt {
+  color: var(--muted-foreground);
+}
+.canvas-shortcuts-dialog dd {
+  margin: 0;
+  text-align: start;
+  overflow-wrap: normal;
+}
+.canvas-shortcuts-dialog .storyboard-close:focus-visible {
+  outline: none;
+}
+.canvas-shortcuts-dialog .storyboard-close:hover {
+  background-clip: padding-box;
+}
+.canvas-shortcuts-dialog kbd {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--board-muted, oklch(0.97 0 0));
+  font:
+    12px / 16px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+}
+@media (max-width: 639px) {
+  .canvas-shortcuts-dialog {
+    width: calc(100% - 32px);
+  }
+}

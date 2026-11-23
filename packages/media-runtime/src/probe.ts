@@ -6,12 +6,28 @@ export interface MediaStream {
   codec_name: string;
   width?: number;
   height?: number;
+  sample_aspect_ratio?: string;
+  side_data_list?: { rotation?: number }[];
   r_frame_rate?: string;
   duration?: string;
   sample_rate?: string;
   channels?: number;
   pix_fmt?: string;
   start_time?: string;
+}
+export function videoDisplayAspect(stream: MediaStream) {
+  if (stream.codec_type !== "video" || !stream.width || !stream.height) return undefined;
+  const sample = /^(\d+):(\d+)$/.exec(stream.sample_aspect_ratio ?? "");
+  const numerator = Number(sample?.[1]),
+    denominator = Number(sample?.[2]);
+  const scale = numerator > 0 && denominator > 0 ? numerator / denominator : 1;
+  const width = Math.round(stream.width * Math.max(1, scale));
+  const height = Math.round(stream.height / Math.min(1, scale));
+  if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height)))
+    return undefined;
+  const rotation =
+    stream.side_data_list?.find((side) => typeof side.rotation === "number")?.rotation ?? 0;
+  return Math.abs(rotation) % 180 === 90 ? height / width : width / height;
 }
 export interface MediaProbe {
   streams: MediaStream[];

@@ -1,29 +1,34 @@
 import type { CreativeOutput } from "@link-studio/core";
 import {
+  configuredGenerationInput,
   type GenerationInput,
   type GenerationJob,
   isPublicReferenceURL,
+  jobFailureReason,
   jobIsTerminal,
+  mediaReferenceBytes,
+  missingJobBindingMessage,
   modelGenerationOptions,
+  modelPriceLabel,
   type ProjectAsset,
   type ProjectCanvasView,
-  type ProviderView,
-  providerVendorLabel,
-  type SettingsValues,
+  quoteModel,
+  quoteQuantity,
 } from "@link-studio/core";
 import {
   ArrowUp,
-  Check,
   ChevronDown,
-  Film,
-  Link2,
+  Loader2,
   Maximize2,
-  Minimize2,
-  Plus,
   SlidersHorizontal,
+  Sparkle,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
+import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CanvasPromptEditor, type CanvasPromptHandle } from "./canvas-prompt-editor";
+import { GenerationModelMenu } from "./generation-model-menu";
+import { mediaGenerationDraft, type ProviderSettings } from "./media-generation-draft";
 import {
   MediaParameterPicker,
   type MediaParameters,
@@ -34,9 +39,19 @@ import {
   selectedPresetText,
 } from "./media-pickers";
 import type { PresetKind } from "./media-presets";
-import { type linkedMediaSources, mediaReferences } from "./media-references";
+import type { linkedMediaSources } from "./media-references";
+import { mentionSources } from "./mention-sources";
+import { planModelSwitch } from "./model-switch";
+import { ModelSwitchDialog } from "./model-switch-dialog";
+import { promptPresets, promptTextLength } from "./prompt-tokens";
+import { RefHighlightProvider } from "./ref-highlight";
+import { ReferenceMenu } from "./reference-menu";
+import { ReferenceStrip } from "./reference-strip";
+import { ReferenceTile } from "./reference-tile";
+import { VideoModeTabs } from "./video-mode-tabs";
+import { mediaModeForSource, referenceUsed } from "./video-modes";
 
-type Picker = "references" | "parameters" | "models" | PresetKind;
+type Picker = "parameters" | PresetKind;
 
 export const generationStatuses: Record<GenerationJob["status"], string> = {
   queued: "排队中",
@@ -49,136 +64,277 @@ export const generationStatuses: Record<GenerationJob["status"], string> = {
   outcome_unknown: "结果未知",
 };
 type Node = Extract<ProjectCanvasView["nodes"][number], { type: "creative" }>;
-export type VisualMediaKind = "image" | "video";
-
-export function isVisualMedia(kind: string): kind is VisualMediaKind {
-  return kind === "image" || kind === "video";
+type NodeSettings = Pick<
+  Node["data"],
+  "generation" | "videoDuration" | "videoMode" | "manualReferenceIds"
+>;
+export function isGenerationMedia(kind: string): kind is ProjectAsset["mediaType"] {
+  return kind === "audio" || kind === "image" || kind === "video";
 }
 
 export function GenerationForm({
+  formRef,
+  reportDraft,
   node,
   settings,
   assets,
   linkedSources = [],
+  graph,
+  projectHandle,
+  runningNodes,
+  runningReferenceNodes,
+  onMentionLink,
   inline = false,
+  dialogOnly = false,
   blocked = false,
+  generating = false,
   onPromptChange,
+  onSettingsChange,
   onUnlinkReference,
-  openSettings,
+  onLocateReference,
+  onManualReferencesChange,
+  onUploadReference,
+  voiceSubmission,
+  editCharacter,
   close,
   submit,
 }: {
+  formRef?: Ref<HTMLFormElement>;
+  reportDraft?: (draft?: { id: string; reason?: string }) => void;
   node: Node;
-  settings: SettingsValues["list"];
+  settings: ProviderSettings;
   assets: ProjectAsset[];
   linkedSources?: ReturnType<typeof linkedMediaSources>;
+  graph?: ProjectCanvasView;
+  projectHandle?: string;
+  runningNodes?: ReadonlySet<string>;
+  runningReferenceNodes?: ReadonlySet<string>;
+  onMentionLink?: (id: string, withTyping?: boolean) => void;
   inline?: boolean;
+  dialogOnly?: boolean;
   blocked?: boolean;
+  generating?: boolean;
   onPromptChange?: (prompt: string) => void;
-  onUnlinkReference?: (assetId: string) => void;
-  openSettings?: () => void;
+  onSettingsChange?: (patch: Partial<NodeSettings>) => void;
+  onUnlinkReference?: (nodeId: string) => void;
+  onLocateReference?: (nodeId: string) => void;
+  onManualReferencesChange?: (ids: string[]) => void;
+  onUploadReference?: (file: File) => Promise<void>;
+  voiceSubmission?: {
+    reason?: string;
+    credits: number;
+    input?: Pick<GenerationInput, "prompt" | "providerId" | "expectedProviderRevision">;
+  };
+  editCharacter?: () => void;
   close: () => void;
   submit: (
     input: Omit<GenerationInput, "expectedCanvasRevision">,
     operationId: string,
+    voice?: {
+      id: string;
+      input: Pick<GenerationInput, "prompt" | "providerId" | "expectedProviderRevision">;
+    },
   ) => Promise<string | undefined>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const anchor = useRef<HTMLButtonElement>(null);
+  const anchor = useRef<HTMLElement>(null);
+  const editorHandle = useRef<CanvasPromptHandle>(null);
+  const presetIndex = useRef<number>(undefined);
   const parametersButton = useRef<HTMLButtonElement>(null);
-  const compatible = settings.providers
-    .filter((provider) => {
-      const plugin = settings.plugins.find(({ hash }) => hash === provider.pluginHash);
-      return (
-        provider.enabled &&
-        provider.channelEnabled !== false &&
-        provider.config?.kind !== "agent" &&
-        !plugin?.disabled &&
-        plugin?.kind === (node.data.kind === "script" ? "text" : node.data.kind) &&
-        (plugin.auth === "none" || provider.hasSecret)
+  const [localSettings, setLocalSettings] = useState<NodeSettings>(() => node.data);
+  const stored = onSettingsChange ? node.data : localSettings;
+  const settingsChanged = (patch: Partial<NodeSettings>) => {
+    if (patch.generation) {
+      const { providerId, modelKey, params, sizeInput, durationInput } = patch.generation;
+      const entries = Object.entries(params ?? {}).filter(
+        ([, value]) => value !== undefined && (typeof value !== "number" || Number.isFinite(value)),
       );
-    })
-    .sort((left, right) => (left.config?.sort ?? 100) - (right.config?.sort ?? 100));
-  const [picked, setPicked] = useState(compatible[0]?.id ?? "");
-  const [prompt, setPrompt] = useState(node.data.text.slice(0, 16000));
-  const [size, setSize] = useState("");
-  const [duration, setDuration] = useState("");
-  const [params, setParams] = useState<MediaParameters>({});
-  const [presets, setPresets] = useState<PickedPresets>({ style: [], tpl: [], motion: [] });
-  const [videoMode, setVideoMode] = useState<GenerationInput["op"]>();
-  const [references, setReferences] = useState<string[]>([]);
+      patch = {
+        ...patch,
+        generation: {
+          ...(providerId && { providerId }),
+          ...(modelKey && { modelKey }),
+          ...(entries.length && { params: Object.fromEntries(entries) }),
+          ...(sizeInput && { sizeInput }),
+          ...(durationInput && { durationInput }),
+        },
+      };
+    }
+    if (onSettingsChange) onSettingsChange(patch);
+    else setLocalSettings((current) => ({ ...current, ...patch }));
+  };
+  const config = stored.generation;
+  const [pendingSwitch, setPendingSwitch] = useState<{ id: string; labels: string[] }>();
+  const [prompt, setPrompt] = useState(node.data.text);
+  const params = config?.params ?? {};
+  const size = config?.sizeInput ?? "";
+  const duration =
+    config?.durationInput ??
+    (params.duration === undefined ? stored.videoDuration?.toString() : "") ??
+    "";
+  const setSize = (value: string) =>
+    settingsChanged({ generation: { ...config, sizeInput: value || undefined } });
+  const setDuration = (value: string) =>
+    settingsChanged({
+      generation: {
+        ...config,
+        durationInput: value || undefined,
+        params: { ...params, duration: undefined },
+      },
+      videoDuration: undefined,
+    });
+  const changeParams = (update: MediaParameters) => {
+    const changed = { ...params, ...update };
+    if ("duration" in update)
+      settingsChanged({
+        generation: { ...config, params: changed, durationInput: undefined },
+        videoDuration: undefined,
+      });
+    else
+      settingsChanged({
+        generation: {
+          ...config,
+          params: changed,
+          ...("size" in update && { sizeInput: undefined }),
+        },
+      });
+  };
+  const [detachedPresets, setPresets] = useState<PickedPresets>({ style: [], tpl: [], motion: [] });
+  const videoMode = stored.videoMode;
+  const setVideoMode = (value: GenerationInput["op"]) => settingsChanged({ videoMode: value });
+  const references = (onManualReferencesChange ? node.data : stored).manualReferenceIds ?? [];
+  const setReferences =
+    onManualReferencesChange ?? ((ids: string[]) => settingsChanged({ manualReferenceIds: ids }));
   const [referenceURLs, setReferenceURLs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [referenceError, setReferenceError] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const settingsDialog = useRef<HTMLDialogElement>(null);
+  const expandedDialog = useRef<HTMLDialogElement>(null);
+  const menuContainer = expanded ? expandedDialog : dialogOnly ? settingsDialog : undefined;
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const panelHeight = useRef<number>(0);
+  const restorePrompt = () => {
+    setPicker(undefined);
+    setExpanded(false);
+    requestAnimationFrame(() => expandButton.current?.focus({ preventScroll: true }));
+  };
+  useLayoutEffect(() => {
+    if (!dialogOnly) return;
+    const element = settingsDialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, [dialogOnly]);
+  useLayoutEffect(() => {
+    if (!expanded) return;
+    const element = expandedDialog.current;
+    element?.showModal();
+    const focus = requestAnimationFrame(() => editorHandle.current?.focus());
+    return () => {
+      cancelAnimationFrame(focus);
+      element?.close();
+    };
+  }, [expanded]);
   const [picker, setPicker] = useState<Picker>();
-  const attempt = useRef<{ key: string; id: string } | undefined>(undefined);
-  const compact = inline && isVisualMedia(node.data.kind);
-  const draft = onPromptChange ? node.data.text.slice(0, 16000) : prompt;
-  const target = compatible.find(({ id }) => id === picked) ?? compatible[0];
-  const plugin = settings.plugins.find(({ hash }) => hash === target?.pluginHash);
-  const options = modelGenerationOptions(
-    node.data.kind === "script" ? "text" : node.data.kind,
-    plugin?.origin === "builtin" ? plugin.key : undefined,
-    target?.model ?? "",
-    target?.channel,
-    target?.config,
-  );
-  const canReference = !!target && options.referenceLimit > 0;
-  const video = node.data.kind === "video";
-  const linkedKind = linkedSources.some(({ assetId }) =>
-    assets.some(
-      (asset) =>
-        asset.assetId === assetId &&
-        asset.availability === "ready" &&
-        asset.mediaType !== "image" &&
-        (options.references[asset.mediaType] ?? 0) > 0,
-    ),
-  );
-  const inferredMode =
-    options.requiresAudio ||
-    (options.omni && (linkedKind || (options.requiresReference && !options.requiresImage)))
-      ? "omni"
-      : options.requiresImage ||
-          (options.references.image &&
-            linkedSources.some(({ assetId }) =>
-              assets.some(
-                (asset) =>
-                  asset.assetId === assetId &&
-                  asset.availability === "ready" &&
-                  asset.mediaType === "image",
-              ),
-            ))
-        ? "i2v"
-        : "t2v";
-  const preferredMode = videoMode ?? (canReference ? inferredMode : "t2v");
-  const op = video
-    ? options.modes?.includes(preferredMode) === false
-      ? options.modes.find((mode) => mode === "t2v" || mode === "i2v" || mode === "omni")
-      : preferredMode
-    : undefined;
-  const referenceLimit = op === "i2v" ? options.frameLimit : options.referenceLimit;
-  const media = mediaReferences({
+  const attempt = useRef<{ key: string; id: string; voiceId?: string } | undefined>(undefined);
+  const compact = inline && isGenerationMedia(node.data.kind);
+  const draft = onPromptChange ? node.data.text : prompt;
+  const inlinePresets = !!(graph && onPromptChange && onMentionLink);
+  const presets = inlinePresets
+    ? promptPresets(draft).reduce<PickedPresets>(
+        (picked, item) => {
+          picked[item.kind].push(item.id);
+          return picked;
+        },
+        { style: [], tpl: [], motion: [] },
+      )
+    : detachedPresets;
+  const selectedPresets = inlinePresets ? [] : selectedPresetText(presets);
+  const {
+    compatible,
+    target,
+    modelsStatus,
+    offline,
+    plugin,
+    options,
+    canReference,
+    usesReferences,
+    video,
+    modes,
+    op,
+    media,
+    chosenReferences,
+    hasImage,
+    needsURL,
+    videoInput,
+    hasAudio,
+    requestPrompt,
+    referenceIssue,
+    voiceNeedsSound,
+    promptTooLong,
+    blockedReason,
+  } = mediaGenerationDraft({
+    id: node.id,
+    data: { ...node.data, generation: config, videoMode, manualReferenceIds: references },
+    settings,
     assets,
+    graph,
+    runningNodes,
+    referenceRunningNodes: runningReferenceNodes,
     linked: linkedSources,
-    manual: references,
-    imageOnly: op === "i2v",
-    limit: referenceLimit,
-    counts: options.references,
-    bytes: options.referenceBytes,
+    draft,
+    template: !!presets.tpl.length,
+    extraPrompts: selectedPresets.map((item) => item.prompt),
+    urls: referenceURLs,
   });
-  const usesReferences = canReference && op !== "t2v";
-  const chosenReferences = usesReferences ? media.chosen : [];
-  const hasImage = chosenReferences.some(({ mediaType }) => mediaType === "image");
-  const hasAudio = chosenReferences.some(({ mediaType }) => mediaType === "audio");
-  const needsURL = chosenReferences.filter(
-    ({ mediaType }) => plugin?.origin === "builtin" && options.referenceNeedsURL(mediaType),
-  );
-  const invalidURL = needsURL.some(
-    ({ assetId }) => !isPublicReferenceURL(referenceURLs[assetId]?.trim() ?? ""),
-  );
-  const videoInput =
-    options.videoAction && chosenReferences.some(({ mediaType }) => mediaType === "video");
+  const showModes = !expanded && modes.length > 1;
+  const uploadKinds = (["image", "video", "audio"] as const)
+    .filter(
+      (kind) =>
+        usesReferences && (op !== "i2v" || kind === "image") && (options.references[kind] ?? 0) > 0,
+    )
+    .map((kind) => ({
+      kind,
+      label: { image: "图片", video: "视频", audio: "音频" }[kind],
+      maxBytes: options.referenceBytes[kind] ?? mediaReferenceBytes,
+    }));
+  const manualTiles = references.flatMap((id) => {
+    const asset = assets.find((candidate) => candidate.assetId === id);
+    return asset && uploadKinds.some((type) => type.kind === asset.mediaType) ? [asset] : [];
+  });
+  const sources =
+    graph &&
+    mentionSources(
+      graph,
+      node.id,
+      assets,
+      runningNodes ?? new Set(),
+      (kind) => !target || mediaModeForSource(kind, node.data.kind, options, op) !== false,
+    );
+  const hasRefNodes =
+    references.length > 0 ||
+    (sources
+      ? [...sources.linked].some((id) => {
+          const kind = sources.byId.get(id)?.kind;
+          return kind === "character" || kind === "image" || kind === "video" || kind === "audio";
+        })
+      : linkedSources.length > 0);
+  const hasImageBinding =
+    node.data.kind === "image" &&
+    (sources
+      ? [...sources.linked].some((id) => {
+          const source = sources.byId.get(id);
+          return source?.assetId && (source.kind === "image" || source.kind === "character");
+        }) ||
+        assets.some((asset) => asset.mediaType === "image" && references.includes(asset.assetId))
+      : hasImage);
+  const referenceMode =
+    node.data.kind === "image"
+      ? options.requiresImage || (options.references.image && hasImageBinding)
+        ? "i2i"
+        : "t2i"
+      : op;
   const referenceResolution =
     plugin?.key === "xai" && (op === "omni" || chosenReferences.length > 1);
   const pickerOptions = {
@@ -190,11 +346,11 @@ export function GenerationForm({
       ? []
       : options.resolutions.filter(
           (resolution) =>
-            (!referenceResolution || resolution !== "1080p") &&
+            (!referenceResolution || resolution.toLowerCase() !== "1080p") &&
             (plugin?.key !== "vidu" ||
               target?.model !== "vidu2.0" ||
               params.duration !== 8 ||
-              resolution === "720p"),
+              resolution.toLowerCase() === "720p"),
         ),
     audio: options.audio && !videoInput,
     speaker: options.speaker && !hasImage,
@@ -207,30 +363,41 @@ export function GenerationForm({
     autoDuration: options.autoDuration && !videoInput,
   };
   const defaultParameters = pickerOptions.defaultParameters;
-  const shownDuration = params.duration ?? (duration || defaultParameters.duration);
-  const selectedPresets = selectedPresetText(presets);
-  const requestPrompt = [draft.trim(), ...selectedPresets.map(({ prompt }) => prompt)]
-    .filter(Boolean)
-    .join("\n\n");
-  const missingReference =
-    (op === "i2v" && !hasImage) ||
-    (op === "omni" && chosenReferences.length === 0) ||
-    (options.requiresImage && !hasImage) ||
-    (node.data.kind === "image" && options.modes?.includes("i2i") === false && hasImage) ||
-    (options.requiresAudio && !hasAudio) ||
-    (presets.tpl.length > 0 && !hasImage);
-  const promptTooLong =
-    requestPrompt.length > 16000 || Array.from(requestPrompt).length > options.promptLimit;
-  const ready =
-    !busy &&
-    !blocked &&
-    !!target &&
-    !!requestPrompt &&
-    !missingReference &&
-    !invalidURL &&
-    !(videoInput && (hasImage || hasAudio)) &&
-    !promptTooLong;
+  const price = target?.config?.pricing;
+  const quoteParams = configuredGenerationInput(videoInput ? undefined : target?.config, {
+    ...params,
+    ...(size && { size }),
+    ...(duration && { duration: Number(duration) }),
+  });
+  const shownDuration = quoteParams.duration;
+  const quote =
+    price && (price.unit !== "second" || Number(shownDuration) > 0)
+      ? quoteModel(
+          price,
+          {
+            op: referenceMode,
+            params: {
+              ...quoteParams,
+              ...quoteParams.customParams,
+              aspect_ratio: quoteParams.aspectRatio,
+              generate_audio: quoteParams.generateAudio,
+              audio_format: quoteParams.audioFormat,
+            },
+            refVideo: chosenReferences.some(({ mediaType }) => mediaType === "video"),
+            promptChars: Array.from(requestPrompt).length,
+            outputTokens: target?.config?.maxOutputTokens,
+          },
+          quoteQuantity(target?.config, { ...quoteParams, ...quoteParams.customParams }),
+        )
+      : undefined;
+  const locked = busy || blocked || generating;
+  const ready = !locked && !blockedReason;
+  useLayoutEffect(() => {
+    reportDraft?.({ id: node.id, reason: blockedReason });
+    return () => reportDraft?.(undefined);
+  }, [node.id, blockedReason, reportDraft]);
   const togglePicker = (next: Picker, button: HTMLButtonElement) => {
+    presetIndex.current = undefined;
     anchor.current = button;
     setPicker(picker === next ? undefined : next);
   };
@@ -238,18 +405,67 @@ export function GenerationForm({
     setPicker(undefined);
     if (restoreFocus) anchor.current?.focus({ preventScroll: true });
   };
-  const chooseModel = (id: string) => {
-    if (id === target?.id) return;
-    setPicked(id);
-    setSize("");
-    setDuration("");
-    setParams({});
-    setReferences([]);
-    setReferenceURLs({});
-    setVideoMode(undefined);
+  const chooseModel = (id: string, approved?: string[]) => {
+    const next = compatible.find((provider) => provider.id === id);
+    if (!next || id === target?.id) {
+      setPendingSwitch(undefined);
+      return true;
+    }
+    const adapter = settings.plugins.find((entry) => entry.hash === next.pluginHash);
+    const nextOptions = modelGenerationOptions(
+      node.data.kind === "script" ? "text" : node.data.kind,
+      adapter?.origin === "builtin" ? adapter.key : undefined,
+      next.model,
+      next.channel,
+      next.config,
+    );
+    const plan = planModelSwitch(
+      options,
+      nextOptions,
+      { params, size, duration, mode: videoMode ?? op, references },
+      assets,
+      video,
+    );
+    if (
+      plan.droppedLabels.length &&
+      (!approved || plan.droppedLabels.some((label) => !approved.includes(label)))
+    ) {
+      setPendingSwitch({ id, labels: plan.droppedLabels });
+      return false;
+    }
+    setPendingSwitch(undefined);
+    const lostReferences = plan.references.length !== references.length;
+    settingsChanged({
+      generation: {
+        providerId: id,
+        params: plan.params,
+        sizeInput: plan.size || undefined,
+        durationInput: plan.duration || undefined,
+      },
+      videoMode: plan.effectiveMode,
+      videoDuration: undefined,
+      ...(lostReferences && { manualReferenceIds: plan.references }),
+    });
+    if (lostReferences && !onSettingsChange) onManualReferencesChange?.(plan.references);
+    setReferenceURLs((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([assetId]) =>
+            plan.references.includes(assetId) ||
+            linkedSources.some((link) => link.assetId === assetId),
+        ),
+      ),
+    );
     setError("");
+    return true;
   };
   const choosePreset = (kind: PresetKind, id: string) => {
+    if (inlinePresets) {
+      if (!editorHandle.current?.applyPreset(kind, id, presetIndex.current)) return;
+      closePicker();
+      editorHandle.current.focus();
+      return;
+    }
     setPresets((current) => ({
       ...current,
       [kind]: current[kind].includes(id)
@@ -260,7 +476,15 @@ export function GenerationForm({
     }));
     if (kind !== "motion") closePicker(true);
   };
-  const presetKinds: PresetKind[] = video ? ["motion"] : ["style", "tpl"];
+  const audio = node.data.kind === "audio";
+  const promptLength = promptTextLength(draft);
+  const presetKinds: PresetKind[] = video ? ["motion"] : audio ? [] : ["style", "tpl"];
+  const textBinding = sources?.entries.find(
+    (entry) => entry.linked && entry.source.kind === "script",
+  );
+  const placeholder = textBinding
+    ? `上游「${textBinding.source.label}」的文字会自动并入，输入 @ 引用素材`
+    : `${audio ? "写下要念的台词，或想要的配乐氛围。例如：低沉男声，念一段独白。" : video ? "描述镜头怎么动、画面里发生什么。例如：镜头缓缓推近，海浪拍上礁石。" : "描述要生成的画面，或对已有画面下修改指令。例如：把背景改为雪夜。"}输入 @ 引用画布里的素材。`;
   const referenceLinks = needsURL.map(({ assetId, displayName }) => (
     <label className="media-manual-param" key={assetId}>
       公网 HTTPS 链接 · {displayName}
@@ -282,12 +506,82 @@ export function GenerationForm({
     element?.showModal();
     return () => element?.close();
   }, [inline]);
+  const expandControl = (
+    <button
+      type="button"
+      ref={expandButton}
+      className="media-generation-expand"
+      aria-label="放大编辑提示词"
+      title="放大编辑"
+      aria-haspopup="dialog"
+      onClick={(event) => {
+        panelHeight.current =
+          event.currentTarget
+            .closest(dialogOnly ? ".asset-prompt-body" : "section.media-generation")
+            ?.getBoundingClientRect().height ?? 0;
+        setPicker(undefined);
+        setExpanded(true);
+      }}
+    >
+      <Maximize2 size={14} />
+    </button>
+  );
+  const referenceTiles = compact
+    ? [
+        ...(sources
+          ? [...sources.linked].flatMap((id) => {
+              const source = sources.byId.get(id);
+              return source
+                ? [
+                    <ReferenceTile
+                      key={id}
+                      source={source}
+                      projectHandle={projectHandle}
+                      used={referenceUsed(source.kind, target ? options : undefined, referenceMode)}
+                      running={runningReferenceNodes?.has(id)}
+                      disabled={locked}
+                      locate={onLocateReference}
+                      remove={() => onUnlinkReference?.(id)}
+                    />,
+                  ]
+                : [];
+            })
+          : []),
+        ...manualTiles.map((asset) => (
+          <ReferenceTile
+            key={`manual:${asset.assetId}`}
+            source={{
+              id: asset.assetId,
+              assetId: asset.assetId,
+              kind: asset.mediaType,
+              label: asset.displayName,
+            }}
+            projectHandle={projectHandle}
+            used
+            disabled={locked}
+            remove={() => setReferences(references.filter((id) => id !== asset.assetId))}
+          />
+        )),
+      ]
+    : [];
   const form = (
     <form
+      ref={formRef}
+      data-generation-node={node.id}
       className={compact ? "media-generation-form" : undefined}
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!target || !ready) return;
+        if (busy || generating) return;
+        const withVoice = (event.nativeEvent as SubmitEvent).submitter?.hasAttribute(
+          "data-with-voice",
+        );
+        if (withVoice && (!voiceSubmission?.input || voiceSubmission.reason)) return;
+        if (!target || !ready) {
+          if (!referenceIssue && !voiceNeedsSound)
+            setError(blockedReason ?? "此节点暂时无法提交任务。");
+          return;
+        }
+        if (expanded) restorePrompt();
         if (size && !/^[1-9][0-9]{1,3}x[1-9][0-9]{1,3}$/.test(size)) {
           setError("请输入有效的尺寸，例如 1024x1024。");
           if (compact && parametersButton.current && picker !== "parameters")
@@ -336,14 +630,29 @@ export function GenerationForm({
             target.model === "vidu2.0" &&
             params.duration === 8 && { resolution: "720p" }),
         };
-        const key = JSON.stringify(input);
-        if (attempt.current?.key !== key) attempt.current = { key, id: crypto.randomUUID() };
+        const voice = withVoice ? voiceSubmission?.input : undefined;
+        const key = JSON.stringify([input, voice]);
+        if (attempt.current?.key !== key)
+          attempt.current = {
+            key,
+            id: crypto.randomUUID(),
+            ...(voice && { voiceId: crypto.randomUUID() }),
+          };
         setBusy(true);
         setError("");
         try {
-          const failure = await submit(input, attempt.current.id);
+          const failure = await submit(
+            input,
+            attempt.current.id,
+            voice && attempt.current.voiceId
+              ? { id: attempt.current.voiceId, input: voice }
+              : undefined,
+          );
           if (failure) setError(failure);
-          else close();
+          else {
+            attempt.current = undefined;
+            if (!dialogOnly) close();
+          }
         } finally {
           setBusy(false);
         }
@@ -351,184 +660,93 @@ export function GenerationForm({
     >
       {compact ? (
         <>
-          <div className="media-generation-top">
-            {video && (
-              <fieldset className="media-video-modes" aria-label="视频生成模式">
-                <button
-                  type="button"
-                  aria-pressed={op === "t2v"}
-                  disabled={
-                    options.requiresImage ||
-                    options.requiresReference ||
-                    options.requiresAudio ||
-                    options.modes?.includes("t2v") === false
-                  }
-                  onClick={() => setVideoMode("t2v")}
-                >
-                  文生视频
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={op === "i2v"}
-                  disabled={
-                    !canReference ||
-                    !options.references.image ||
-                    options.requiresAudio ||
-                    options.modes?.includes("i2v") === false
-                  }
-                  title={
-                    !target
-                      ? "请先配置视频模型"
-                      : canReference
-                        ? "选择图片作为视频参考"
-                        : "当前适配器不接收参考图片"
-                  }
-                  onClick={(event) => {
-                    setVideoMode("i2v");
-                    if (!media.chosen.length) togglePicker("references", event.currentTarget);
-                  }}
-                >
-                  图生视频
-                </button>
-                {options.omni && (
-                  <button
-                    type="button"
-                    aria-pressed={op === "omni"}
-                    onClick={(event) => {
-                      setVideoMode("omni");
-                      if (!media.chosen.length) togglePicker("references", event.currentTarget);
-                    }}
-                  >
-                    全能参考
-                  </button>
-                )}
-              </fieldset>
-            )}
-            {usesReferences && (
-              <button
-                type="button"
-                className="media-reference-add"
-                aria-label="添加参考素材"
-                title="添加参考素材"
-                aria-expanded={picker === "references"}
-                onClick={(event) => togglePicker("references", event.currentTarget)}
-              >
-                <Plus size={20} />
-              </button>
-            )}
-            {chosenReferences.map(({ assetId, displayName }) =>
-              media.sources.has(assetId) && !references.includes(assetId) ? (
-                <button
-                  type="button"
-                  key={assetId}
-                  className="media-reference-chip media-linked-reference"
-                  title={`${displayName} · 点击断开素材连线，可撤销`}
-                  aria-label={`断开素材连线 ${media.sources.get(assetId)}`}
-                  disabled={busy || blocked}
-                  onClick={() => onUnlinkReference?.(assetId)}
-                >
-                  <Link2 size={14} /> 连线：{media.sources.get(assetId)} <X size={12} />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="media-reference-chip"
-                  key={assetId}
-                  title={displayName}
-                  aria-label={`移除手动参考素材 ${displayName}`}
-                  onClick={() =>
-                    setReferences((current) => current.filter((item) => item !== assetId))
-                  }
-                >
-                  {displayName} ×
-                </button>
-              ),
-            )}
-            <button
-              type="button"
-              className="media-generation-expand"
-              aria-label={expanded ? "收起提示词编辑区" : "放大提示词编辑区"}
-              title={expanded ? "收起提示词编辑区" : "放大提示词编辑区"}
-              aria-expanded={expanded}
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
+          {showModes && (
+            <div className="media-generation-top">
+              <VideoModeTabs
+                id={node.id}
+                value={op}
+                options={options}
+                hasRefs={hasRefNodes}
+                disabled={locked}
+                choose={(mode) => {
+                  setError("");
+                  setVideoMode(mode);
+                }}
+              />
+              {expandControl}
+            </div>
+          )}
+          <div className="media-reference-row">
+            <ReferenceStrip
+              error={referenceError || referenceIssue}
+              notices={media.notices}
+              tiles={referenceTiles}
+              menu={
+                sources &&
+                onMentionLink &&
+                onUploadReference && (
+                  <ReferenceMenu
+                    setError={setReferenceError}
+                    container={menuContainer}
+                    candidates={sources.entries
+                      .filter((entry) => !entry.linked)
+                      .map((entry) => entry.source)}
+                    handle={projectHandle}
+                    disabled={locked}
+                    link={(id) => onMentionLink(id)}
+                    kinds={uploadKinds}
+                    upload={onUploadReference}
+                  />
+                )
+              }
+            />
+            {!expanded && !showModes && expandControl}
           </div>
-          {usesReferences && picker === "references" && (
-            <MediaPopover anchor={anchor} label="参考素材" close={closePicker}>
-              <div className="media-reference-picker">
-                {media.available.length ? (
-                  media.available.map(({ assetId, displayName }) => (
-                    <label key={assetId}>
-                      <input
-                        type="checkbox"
-                        checked={
-                          references.includes(assetId) ||
-                          chosenReferences.some((asset) => asset.assetId === assetId)
-                        }
-                        disabled={
-                          (media.sources.has(assetId) &&
-                            !references.includes(assetId) &&
-                            chosenReferences.some((asset) => asset.assetId === assetId)) ||
-                          (references.length >= referenceLimit &&
-                            referenceLimit > 1 &&
-                            !references.includes(assetId))
-                        }
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setReferences((current) =>
-                            checked
-                              ? referenceLimit === 1
-                                ? [assetId]
-                                : [...current, assetId]
-                              : current.filter((id) => id !== assetId),
-                          );
-                        }}
-                      />
-                      {displayName}
-                    </label>
-                  ))
-                ) : (
-                  <p className="media-reference-empty">暂无可用参考素材，请先导入素材。</p>
-                )}
-              </div>
-            </MediaPopover>
-          )}
-          {linkedSources.length > 0 && target && !canReference && (
-            <p className="media-popover-hint">当前模型不发送连线素材。</p>
-          )}
-          {usesReferences && media.unavailable.length > 0 && (
-            <p className="media-popover-hint" title={media.unavailable.join("、")}>
-              {media.unavailable.length} 个连线来源没有符合当前模型要求的素材。
-            </p>
-          )}
-          {usesReferences && media.overflow > 0 && (
-            <p className="media-popover-hint">
-              有 {media.overflow} 个素材超出当前模式的数量限制，优先使用手动添加的素材。
-            </p>
-          )}
           {referenceLinks}
           {videoInput && (hasImage || hasAudio) && (
             <p role="alert">视频编辑或延长只接受一个视频素材。</p>
           )}
-          <textarea
-            className="media-generation-prompt"
-            aria-label="生成提示词"
-            value={draft}
-            readOnly={busy || blocked}
-            onChange={(event) => {
-              if (onPromptChange) onPromptChange(event.target.value);
-              else setPrompt(event.target.value);
-            }}
-            placeholder={
-              node.data.kind === "video"
-                ? "描述想生成的镜头、动作和运镜…"
-                : "描述要生成的画面，或写下对参考素材的修改指令…"
-            }
-            maxLength={16000}
-            rows={expanded ? 6 : 3}
-          />
+          {sources && onMentionLink && onPromptChange ? (
+            <CanvasPromptEditor
+              ref={editorHandle}
+              openPreset={(kind, index, element) => {
+                presetIndex.current = index;
+                anchor.current = element;
+                setPicker(kind);
+              }}
+              value={draft}
+              change={onPromptChange}
+              disabled={busy || blocked}
+              expanded={expanded}
+              projectHandle={projectHandle}
+              sources={sources}
+              link={(id) => {
+                onMentionLink(id, true);
+              }}
+              placeholder={placeholder}
+            />
+          ) : (
+            <textarea
+              className="media-generation-prompt"
+              aria-label="生成提示词"
+              value={draft}
+              readOnly={busy || blocked}
+              onChange={(event) => {
+                if (onPromptChange) onPromptChange(event.target.value);
+                else setPrompt(event.target.value);
+              }}
+              placeholder={placeholder}
+              maxLength={Math.min(options.promptLimit, 40000)}
+              rows={expanded ? 6 : 3}
+            />
+          )}
+          <span
+            className="media-prompt-count"
+            data-empty={!expanded && promptLength === 0}
+            data-warning={promptLength > 16000 * 0.94}
+          >
+            {promptLength}/16000
+          </span>
           {selectedPresets.length > 0 && (
             <section className="media-applied-presets" aria-label="已选预设">
               {presetKinds.flatMap((kind) =>
@@ -554,55 +772,21 @@ export function GenerationForm({
               )}
             </section>
           )}
-          {missingReference && (
-            <p className="media-popover-hint">
-              {presets.tpl.length ? "此模板需要一张参考图。" : "请添加一张参考图。"}
-            </p>
-          )}
+          {voiceNeedsSound && <p role="alert">使用角色音色时请开启声音生成</p>}
           {promptTooLong && <p role="alert">提示词和预设合计最多 {options.promptLimit} 字符。</p>}
           {picker === "parameters" && (
             <MediaPopover anchor={anchor} label="生成参数" close={closePicker}>
-              <MediaParameterPicker
-                options={pickerOptions}
-                value={params}
-                size={size}
-                duration={duration}
-                setSize={setSize}
-                setDuration={setDuration}
-                change={(update) => setParams((current) => ({ ...current, ...update }))}
-              />
-            </MediaPopover>
-          )}
-          {picker === "models" && (
-            <MediaPopover anchor={anchor} label="选择生成模型" close={closePicker}>
-              <div className="media-model-options">
-                {compatible.map(({ id, label, model, pluginHash, config }) => (
-                  <button
-                    type="button"
-                    key={id}
-                    aria-pressed={target?.id === id}
-                    onClick={() => {
-                      chooseModel(id);
-                      closePicker(true);
-                    }}
-                  >
-                    <span className="media-model-icon">
-                      <Film size={17} />
-                    </span>
-                    <span>
-                      <strong>{config?.name ?? model}</strong>
-                      <small>
-                        {label} ·{" "}
-                        {providerVendorLabel(
-                          settings.plugins.find(({ hash }) => hash === pluginHash)?.vendor,
-                        )}{" "}
-                        · {settings.plugins.find(({ hash }) => hash === pluginHash)?.name}
-                      </small>
-                    </span>
-                    {target?.id === id && <Check size={16} />}
-                  </button>
-                ))}
-              </div>
+              <fieldset className="media-parameter-fields" disabled={locked}>
+                <MediaParameterPicker
+                  options={pickerOptions}
+                  value={params}
+                  size={size}
+                  duration={duration}
+                  setSize={setSize}
+                  setDuration={setDuration}
+                  change={changeParams}
+                />
+              </fieldset>
             </MediaPopover>
           )}
           {presetKinds.map(
@@ -613,6 +797,7 @@ export function GenerationForm({
                   anchor={anchor}
                   label={presetLabels[kind]}
                   wide={kind !== "tpl"}
+                  presetPanel
                   close={closePicker}
                 >
                   <MediaPresetPicker
@@ -620,58 +805,65 @@ export function GenerationForm({
                     selected={presets[kind]}
                     onPick={(id) => choosePreset(kind, id)}
                     hasReference={hasImage}
+                    maxLength={target ? options.promptLimit : undefined}
                   />
                 </MediaPopover>
               ),
           )}
-          {error && <p role="alert">{error}</p>}
+          {(error || offline) && (
+            <p role="alert">{error || "这个模型已经下线，请换一个模型后再生成"}</p>
+          )}
           <div className="media-generation-toolbar">
-            {target ? (
+            <GenerationModelMenu
+              models={compatible}
+              plugins={settings.plugins}
+              current={target}
+              status={modelsStatus}
+              offline={offline}
+              choose={chooseModel}
+              disabled={busy}
+              container={menuContainer}
+            />
+            {(!audio ||
+              (target &&
+                (pickerOptions.speaker ||
+                  pickerOptions.instrumental ||
+                  pickerOptions.audioFormats.length > 0 ||
+                  pickerOptions.durationRange ||
+                  pickerOptions.durations.length > 0 ||
+                  pickerOptions.counts.some((count) => count > 1) ||
+                  Object.values(pickerOptions.customParameters).some((field) => field.open)))) && (
               <button
-                className="media-model-trigger"
                 type="button"
-                aria-label="生成模型"
-                title={target.model}
-                disabled={busy}
-                aria-expanded={picker === "models"}
-                onClick={(event) => togglePicker("models", event.currentTarget)}
+                ref={parametersButton}
+                aria-label="生成参数"
+                aria-expanded={picker === "parameters"}
+                onClick={(event) => togglePicker("parameters", event.currentTarget)}
               >
-                <span>{target.config?.name ?? target.model}</span>
+                <SlidersHorizontal size={14} />
+                {[
+                  params.aspectRatio ??
+                    params.size ??
+                    (size || defaultParameters.size || defaultParameters.aspectRatio),
+                  params.resolution ??
+                    (params.size || size ? undefined : defaultParameters.resolution),
+                  shownDuration === -1 ? "智能时长" : shownDuration ? `${shownDuration} 秒` : "",
+                  (params.count ?? defaultParameters.count)
+                    ? `${params.count ?? defaultParameters.count} ${options.countUnit}`
+                    : "",
+                  audio ? (params.audioFormat ?? defaultParameters.audioFormat) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "默认参数"}
                 <ChevronDown size={13} />
               </button>
-            ) : (
-              <button type="button" onClick={openSettings}>
-                配置{node.data.kind === "video" ? "视频" : "图片"}模型 <ChevronDown size={13} />
-              </button>
             )}
-            <button
-              type="button"
-              ref={parametersButton}
-              aria-label="生成参数"
-              aria-expanded={picker === "parameters"}
-              onClick={(event) => togglePicker("parameters", event.currentTarget)}
-            >
-              <SlidersHorizontal size={14} />
-              {[
-                params.aspectRatio ??
-                  params.size ??
-                  (size || defaultParameters.size || defaultParameters.aspectRatio),
-                params.resolution ??
-                  (params.size || size ? undefined : defaultParameters.resolution),
-                shownDuration === -1 ? "智能时长" : shownDuration ? `${shownDuration} 秒` : "",
-                (params.count ?? defaultParameters.count)
-                  ? `${params.count ?? defaultParameters.count} 张`
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" · ") || "默认参数"}
-              <ChevronDown size={13} />
-            </button>
             {presetKinds.map((kind) => (
               <button
                 type="button"
                 key={kind}
                 aria-label={presetLabels[kind]}
+                disabled={locked}
                 aria-expanded={picker === kind}
                 onClick={(event) => togglePicker(kind, event.currentTarget)}
               >
@@ -685,20 +877,67 @@ export function GenerationForm({
             <span
               className="media-generation-send"
               title={
-                target
+                blockedReason ??
+                (target
                   ? `发送提示词${chosenReferences.length ? "和参考素材" : ""}至 ${target.endpoint}，供应商可能计费。`
-                  : "请先启用匹配的模型"
+                  : "请先启用匹配的模型")
               }
             >
-              {target && <small>可能计费</small>}
-              <button
+              <span
+                className="media-credit"
+                data-blocked={!ready}
+                aria-label={quote === undefined ? "积分未知" : `预估 ${quote} 积分`}
+              >
+                <Sparkle size={14} strokeWidth={0} />
+                {quote ?? "—"}
+              </span>
+              <motion.button
                 className="media-submit"
                 type="submit"
-                aria-label="确认生成"
+                whileTap={ready ? { scale: 0.92 } : undefined}
+                whileHover={ready ? { scale: 1.05 } : undefined}
+                aria-label={busy || generating ? "生成中" : "开始生成"}
                 disabled={!ready}
               >
-                <ArrowUp size={19} />
-              </button>
+                {busy || generating ? (
+                  <Loader2 size={16} className="shot-split-spinner" />
+                ) : (
+                  <ArrowUp size={16} strokeWidth={2.5} />
+                )}
+              </motion.button>
+              {voiceSubmission && (
+                <span
+                  className="media-with-voice"
+                  title={
+                    busy || generating
+                      ? "生成中"
+                      : (blockedReason ??
+                        voiceSubmission.reason ??
+                        `形象 ${quote ?? "—"} 积分，音色约 ${voiceSubmission.credits} 积分`)
+                  }
+                >
+                  <span className="media-credit" data-blocked={!ready || !!voiceSubmission.reason}>
+                    <Sparkle size={14} strokeWidth={0} />
+                    {quote === undefined ? "—" : quote + voiceSubmission.credits}
+                  </span>
+                  <motion.button
+                    className="media-submit"
+                    data-with-voice
+                    type="submit"
+                    disabled={!ready || !!voiceSubmission.reason}
+                    aria-label={busy || generating ? "生成中" : "含音色"}
+                    whileTap={ready && !voiceSubmission.reason ? { scale: 0.92 } : undefined}
+                    whileHover={ready && !voiceSubmission.reason ? { scale: 1.05 } : undefined}
+                  >
+                    含音色
+                    {busy || generating ? (
+                      <Loader2 size={16} className="shot-split-spinner" />
+                    ) : (
+                      <ArrowUp size={16} strokeWidth={2.5} />
+                    )}
+                  </motion.button>
+                </span>
+              )}
             </span>
           </div>
         </>
@@ -716,6 +955,8 @@ export function GenerationForm({
               {compatible.map(({ id, label, model, config }) => (
                 <option key={id} value={id}>
                   {config?.name ?? model} · {label}
+                  {!!config?.tags?.length && ` · ${config.tags.join(" · ")}`}
+                  {config?.pricing && ` · ${modelPriceLabel(config.pricing)}`}
                 </option>
               ))}
             </select>
@@ -726,7 +967,7 @@ export function GenerationForm({
               value={draft}
               onChange={(event) => setPrompt(event.target.value)}
               required
-              maxLength={16000}
+              maxLength={options.promptLimit}
               rows={4}
             />
           </label>
@@ -739,11 +980,7 @@ export function GenerationForm({
                 size={Math.min(4, Math.max(2, assets.length))}
                 value={references}
                 onChange={(event) =>
-                  setReferences(
-                    [...event.target.selectedOptions]
-                      .map(({ value }) => value)
-                      .slice(0, options.referenceLimit),
-                  )
+                  setReferences([...event.target.selectedOptions].map(({ value }) => value))
                 }
               >
                 {media.available.map(({ assetId, displayName }) => (
@@ -754,23 +991,26 @@ export function GenerationForm({
               </select>
             </label>
           )}
+          {referenceIssue && <p role="alert">{referenceIssue}</p>}
           {referenceLinks}
-          {node.data.kind === "audio" && target && (
-            <MediaParameterPicker
-              options={pickerOptions}
-              value={params}
-              size={size}
-              duration={duration}
-              change={(update) => setParams({ ...params, ...update })}
-              setSize={setSize}
-              setDuration={setDuration}
-            />
-          )}
+          {(node.data.kind === "audio" || Object.keys(options.customParameters).length > 0) &&
+            target && (
+              <MediaParameterPicker
+                options={pickerOptions}
+                value={params}
+                size={size}
+                duration={duration}
+                change={changeParams}
+                setSize={setSize}
+                setDuration={setDuration}
+              />
+            )}
           {target && (
             <p className="muted">
               将发送提示词
               {canReference && references.length ? `和 ${references.length} 个参考素材` : ""}至{" "}
               {target.endpoint}。供应商可能计费。
+              {quote !== undefined && `本次预估 ${quote} 积分。`}
             </p>
           )}
           {error && <p role="alert">{error}</p>}
@@ -786,13 +1026,128 @@ export function GenerationForm({
       )}
     </form>
   );
+  const switchDialog = pendingSwitch && (
+    <ModelSwitchDialog
+      labels={pendingSwitch.labels}
+      cancel={() => setPendingSwitch(undefined)}
+      confirm={() => chooseModel(pendingSwitch.id, pendingSwitch.labels)}
+    />
+  );
   if (inline)
     return (
       <section
         className={`canvas-surface nodrag nopan nowheel ${compact ? "media-generation" : "generation-dialog node-generation"}`}
+        style={expanded ? { height: panelHeight.current, visibility: "hidden" } : undefined}
         aria-label="生成确认"
       >
-        {form}
+        <RefHighlightProvider>
+          {dialogOnly && (
+            <dialog
+              ref={settingsDialog}
+              className="asset-prompt-settings nodrag nopan nowheel"
+              aria-labelledby={`asset-prompt-title-${node.id}`}
+              aria-describedby={`asset-prompt-help-${node.id}`}
+              onCancel={(event) => {
+                event.preventDefault();
+                if (!expanded && !picker) close();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (event.target !== event.currentTarget) return;
+                const box = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < box.left ||
+                  event.clientX > box.right ||
+                  event.clientY < box.top ||
+                  event.clientY > box.bottom
+                )
+                  close();
+              }}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <header>
+                <div>
+                  <h2 id={`asset-prompt-title-${node.id}`}>{node.data.label}</h2>
+                  <p id={`asset-prompt-help-${node.id}`}>提示词与生成设置</p>
+                </div>
+                {editCharacter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      editCharacter();
+                    }}
+                  >
+                    角色详情与音色
+                  </button>
+                )}
+                <button type="button" aria-label="关闭" onClick={close}>
+                  <X size={16} />
+                </button>
+              </header>
+              <div
+                className="asset-prompt-body"
+                style={expanded ? { height: panelHeight.current } : undefined}
+              >
+                {!expanded && form}
+              </div>
+            </dialog>
+          )}
+          {!expanded ? (
+            !dialogOnly && form
+          ) : (
+            <dialog
+              ref={expandedDialog}
+              className="media-prompt-dialog nodrag nopan nowheel"
+              aria-label="编辑提示词"
+              onCancel={(event) => {
+                event.preventDefault();
+                restorePrompt();
+              }}
+              onKeyDownCapture={(event) => {
+                if (
+                  event.key !== "Escape" ||
+                  event.nativeEvent.isComposing ||
+                  picker ||
+                  event.currentTarget.querySelector(
+                    "[role=listbox], [aria-haspopup=menu][aria-expanded=true], .canvas-ref-peek",
+                  )
+                )
+                  return;
+                event.preventDefault();
+                event.stopPropagation();
+                restorePrompt();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (event.target !== event.currentTarget) return;
+                const bounds = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < bounds.left ||
+                  event.clientX > bounds.right ||
+                  event.clientY < bounds.top ||
+                  event.clientY > bounds.bottom
+                )
+                  restorePrompt();
+              }}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.stopPropagation()}
+            >
+              {form}
+              <button
+                className="media-prompt-close"
+                type="button"
+                onClick={restorePrompt}
+                aria-label="关闭编辑提示词"
+              >
+                <X size={16} />
+              </button>
+            </dialog>
+          )}
+          {switchDialog}
+        </RefHighlightProvider>
       </section>
     );
   return (
@@ -806,6 +1161,7 @@ export function GenerationForm({
       }}
     >
       {form}
+      {switchDialog}
     </dialog>
   );
 }
@@ -860,7 +1216,7 @@ export function JobCenter({
           {!jobIsTerminal(job.status) && (
             <progress aria-label="生成进度" value={job.progress} max={100} />
           )}
-          {job.status === "succeeded" && job.purpose === "character-voice" && (
+          {job.status === "succeeded" && job.purpose === "character-voice" && !job.bound && (
             <small>试听后，可在角色卡中采用此音色。</small>
           )}
           {job.status === "succeeded" && !job.bound && !job.purpose && (
@@ -868,11 +1224,15 @@ export function JobCenter({
           )}
           {job.error && (
             <small>
-              {job.error === "JOB_OUTCOME_UNKNOWN"
-                ? "请核对供应商状态，避免重复消费。"
-                : job.error === "JOB_IMAGE_DEPENDENCY_FAILED"
-                  ? "本次形象未能用作主图参考，音色未发送。"
-                  : `任务详情 · ${job.error}`}
+              {job.error === "JOB_ORIGINAL_BINDING_MISSING"
+                ? missingJobBindingMessage
+                : job.error === "JOB_OUTCOME_UNKNOWN"
+                  ? "请核对供应商状态，避免重复消费。"
+                  : job.error === "JOB_QUEUE_TIMEOUT"
+                    ? "排队超时，任务未提交给供应商。"
+                    : job.error === "JOB_IMAGE_DEPENDENCY_FAILED"
+                      ? "本次形象未能用作主图参考，音色未发送。"
+                      : `任务详情 · ${jobFailureReason(job)}`}
             </small>
           )}
           {job.outputs.map((output) => {
@@ -925,6 +1285,7 @@ export function NodeGenerationHistory({
   onOpenJobs,
   outputs = [],
   activeOutputId,
+  versionLocked = false,
   onSelectOutput,
   onAddAll,
   onDownloadAll,
@@ -938,6 +1299,7 @@ export function NodeGenerationHistory({
   onOpenJobs: () => void;
   outputs?: CreativeOutput[];
   activeOutputId?: string;
+  versionLocked?: boolean;
   onSelectOutput?: (output: CreativeOutput) => void;
   onAddAll?: () => void;
   onDownloadAll?: () => void;
@@ -966,8 +1328,15 @@ export function NodeGenerationHistory({
                   type="button"
                   key={output.id}
                   className={output.id === activeOutputId ? "is-active" : ""}
+                  disabled={versionLocked}
                   onClick={() => onSelectOutput?.(output)}
-                  title={output.id === activeOutputId ? "当前主输出" : "设为当前主输出"}
+                  title={
+                    versionLocked
+                      ? "生成中，出第一张后可切换"
+                      : output.id === activeOutputId
+                        ? "当前主输出"
+                        : "设为当前主输出"
+                  }
                 >
                   {asset
                     ? asset.displayName
@@ -1013,7 +1382,12 @@ export function NodeGenerationHistory({
                 <button type="button" onClick={() => onPreview(asset)}>
                   预览 {asset.displayName}
                 </button>
-                <button type="button" onClick={() => onBind(asset.assetId)}>
+                <button
+                  type="button"
+                  disabled={versionLocked}
+                  title={versionLocked ? "生成中，出第一张后可切换" : undefined}
+                  onClick={() => onBind(asset.assetId)}
+                >
                   设为当前素材
                 </button>
               </div>
@@ -1031,16 +1405,28 @@ export function NodeGenerationHistory({
 }
 
 export function useGenerationProviders(open: boolean) {
-  const [settings, setSettings] = useState<{
-    providers: ProviderView[];
-    plugins: SettingsValues["list"]["plugins"];
-  }>({ providers: [], plugins: [] });
+  const [settings, setSettings] = useState<ProviderSettings>({
+    providers: [],
+    plugins: [],
+    status: "loading",
+  });
   useEffect(() => {
     if (!open) return;
     let current = true;
-    void window.desktop.settings.list({}).then((result) => {
-      if (result.ok && current) setSettings(result.value);
-    });
+    setSettings({ providers: [], plugins: [], status: "loading" });
+    void window.desktop.settings
+      .list({})
+      .then((result) => {
+        if (current)
+          setSettings(
+            result.ok
+              ? { ...result.value, status: "ready" }
+              : { providers: [], plugins: [], status: "error" },
+          );
+      })
+      .catch(() => {
+        if (current) setSettings({ providers: [], plugins: [], status: "error" });
+      });
     return () => {
       current = false;
     };

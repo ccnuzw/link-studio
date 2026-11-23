@@ -1,18 +1,24 @@
-import { createHash } from "node:crypto";
-import { lstat, mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { lstat, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
+import type { DramaJobRecord } from "../../../packages/link-studio-core/src/drama.ts";
 import {
   evenGridLines,
   GRID_MAX,
   gridBounds,
   validGridLines,
 } from "../../../packages/link-studio-core/src/grid-split.ts";
+import { imageDisplaySize } from "../../../packages/link-studio-core/src/image-display-size.ts";
+import { probeMedia } from "../../../packages/media-runtime/src/probe.ts";
 import { runMediaProcess } from "../../../packages/media-runtime/src/process.ts";
 import type { AssetFiles, AssetRecord } from "./asset-files.ts";
 import type { AssetService } from "./assets.ts";
+import { dramaDocument } from "./drama.ts";
+import { recordDramaProgress } from "./drama-job.ts";
 import { ProjectError } from "./errors.ts";
+import { jpegDimensions } from "./jpeg-dimensions.ts";
 import type { ProjectStore } from "./store.ts";
 
 const imageLimit = 384 * 1024;
@@ -28,6 +34,15 @@ const splitFormats: Record<string, string> = {
   "image/webp": "webp_pipe",
 };
 const frameSide = 320;
+const orientationFilters: Record<number, string> = {
+  2: "hflip",
+  3: "hflip,vflip",
+  4: "vflip",
+  5: "transpose=cclock_flip",
+  6: "transpose=clock",
+  7: "transpose=clock_flip",
+  8: "transpose=cclock",
+};
 
 function pngChunk(type: string, bytes: Buffer) {
   const chunk = Buffer.alloc(bytes.length + 12);
@@ -59,11 +74,196 @@ function encodeFrame(rgb: Buffer) {
 }
 
 export class CanvasMedia {
+  private readonly posterQueue = [Promise.resolve(), Promise.resolve()];
+  private posterSlot = 0;
+  private readonly posterCache = new Map<string, string>();
+  private readonly pendingPosters = new Map<string, Promise<string>>();
+
+  poster(store: Pick<ProjectStore, "directory" | "projectId">, asset: AssetRecord) {
+    if (
+      asset.mediaType !== "video" ||
+      asset.availability !== "ready" ||
+      asset.sizeBytes > trimInputLimit
+    )
+      throw new ProjectError("ASSET_READ_FAILED", "无法读取视频封面");
+    const key = asset.sha256;
+    const existing = this.posterCache.get(key) ?? this.pendingPosters.get(key);
+    if (existing) return existing;
+    const slot = this.posterSlot++ % this.posterQueue.length;
+    const task = this.posterQueue[slot]!.then(async () => {
+      const directory = await mkdtemp(join(tmpdir(), "link-studio-poster-"));
+      try {
+        const source = join(directory, "source");
+        await this.files.materialize(store, asset, source);
+        const image = join(directory, "poster.png");
+        await runMediaProcess(
+          this.ffmpeg,
+          [
+            "-nostdin",
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            "file,pipe",
+            "-max_alloc",
+            "67108864",
+            "-f",
+            asset.mimeType === "video/webm" ? "matroska" : "mov",
+            "-i",
+            source,
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=w='min(576,iw)':h='min(576,ih)':force_original_aspect_ratio=decrease",
+            "-threads",
+            "1",
+            "-c:v",
+            "png",
+            "-f",
+            "image2",
+            "-update",
+            "1",
+            image,
+          ],
+          { timeoutMs: 15000, maxStdoutBytes: 2 * 1024 * 1024, maxRssMiB: 384 },
+        );
+        const frame = await readFile(image);
+        if (!frame.length) throw new ProjectError("ASSET_READ_FAILED", "无法读取视频封面");
+        const url = `data:image/png;base64,${frame.toString("base64")}`;
+        if (this.posterCache.size >= 32)
+          this.posterCache.delete(this.posterCache.keys().next().value!);
+        this.posterCache.set(key, url);
+        return url;
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }).finally(() => this.pendingPosters.delete(key));
+    this.pendingPosters.set(key, task);
+    this.posterQueue[slot] = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
+  }
   constructor(
     private readonly files: AssetFiles,
     private readonly assets: AssetService,
     private readonly ffmpeg: string,
   ) {}
+
+  async composeDrama(store: ProjectStore, job: DramaJobRecord, session: AbortSignal) {
+    const input = job.compose_input;
+    if (!input?.asset_ids.length) throw Error("转码失败：合成输入不可用");
+    const signal = AbortSignal.any([session, AbortSignal.timeout(600_000)]);
+    const directory = await mkdtemp(join(tmpdir(), "link-drama-compose-"));
+    const args = ["-nostdin", "-v", "error"];
+    const filters: string[] = [];
+    const pads: string[] = [];
+    let dimensions = "";
+    try {
+      for (const [index, assetId] of input.asset_ids.entries()) {
+        const asset = store.snapshot.assets[assetId];
+        if (asset?.availability !== "ready" || asset.mediaType !== "video")
+          throw Error("下载失败：无法读取采用视频");
+        const path = join(directory, `input-${index}`);
+        await this.files.materialize(store, asset, path, signal).catch(() => {
+          throw Error("下载失败：无法读取采用视频");
+        });
+        const format = asset.mimeType === "video/webm" ? "matroska" : "mov";
+        const probe = await probeMedia(
+          join(dirname(this.ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe"),
+          path,
+          { signal, inputFormat: format },
+        );
+        const video = probe.streams.find((stream) => stream.codec_type === "video");
+        if (!video?.width || !video.height) throw Error("转码失败：无法合成视频");
+        dimensions ||= `${video.width}:${video.height}`;
+        const duration = Number(video.duration) > 0 ? Number(video.duration) : probe.duration;
+        args.push("-protocol_whitelist", "file", "-f", format, "-i", path);
+        filters.push(
+          `[${index}:v:0]scale=${dimensions}:force_original_aspect_ratio=decrease,pad=${dimensions}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p,setpts=PTS-STARTPTS[v${index}]`,
+        );
+        const audio = probe.streams.some((stream) => stream.codec_type === "audio")
+          ? `[${index}:a:0]aresample=48000,aformat=channel_layouts=stereo,apad`
+          : "anullsrc=channel_layout=stereo:sample_rate=48000";
+        filters.push(
+          `${audio},atrim=duration=${duration.toFixed(6)},asetpts=PTS-STARTPTS[a${index}]`,
+        );
+        pads.push(`[v${index}][a${index}]`);
+        await recordDramaProgress(
+          store,
+          job.id,
+          ((index + 1) * 40) / input.asset_ids.length,
+          signal,
+        );
+      }
+      filters.push(`${pads.join("")}concat=n=${pads.length}:v=1:a=1[video][audio]`);
+      const output = join(directory, "final.mp4");
+      await runMediaProcess(
+        this.ffmpeg,
+        [
+          ...args,
+          "-filter_complex",
+          filters.join(";"),
+          "-map",
+          "[video]",
+          "-map",
+          "[audio]",
+          "-c:v",
+          "h264_videotoolbox",
+          "-allow_sw",
+          "1",
+          "-pix_fmt",
+          "yuv420p",
+          "-c:a",
+          "aac",
+          "-ar",
+          "48000",
+          "-ac",
+          "2",
+          "-video_track_timescale",
+          "90000",
+          "-movflags",
+          "+faststart",
+          output,
+        ],
+        { signal, timeoutMs: 600_000, maxRssMiB: 1024 },
+      ).catch(() => {
+        throw Error("转码失败：无法合成视频");
+      });
+      await recordDramaProgress(store, job.id, 80, signal);
+      const handle = await open(output, "r");
+      const staged = await this.assets
+        .stage(store, handle, `第${job.episodes[0]}集成片.mp4`, randomUUID(), { signal })
+        .finally(() => handle.close());
+      try {
+        staged.asset.origin = "derived";
+        await store.updateGeneration(async (state) => {
+          const document = dramaDocument(state);
+          const task = document?.jobs?.find((entry) => entry.id === job.id);
+          const episode = document?.episodes.find((entry) => entry.episode_no === job.episodes[0]);
+          if (!document || !episode || task?.status !== "running")
+            return { changed: false, result: null };
+          await this.assets.publishBlob(store, staged, signal);
+          state.assets[staged.asset.assetId] = staged.asset;
+          episode.final_asset_id = staged.asset.assetId;
+          episode.final_segment_version = input.segment_version;
+          episode.revision = (episode.revision ?? 1) + 1;
+          document.overview_revision ??= document.revision;
+          document.revision++;
+          task.final_asset_id = staged.asset.assetId;
+          task.status = "succeeded";
+          task.progress = 100;
+          return { changed: true, result: null };
+        }, signal);
+      } finally {
+        await this.assets.discard(staged);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
 
   async trim(
     store: ProjectStore,
@@ -189,8 +389,10 @@ export class CanvasMedia {
       throw new ProjectError("VALIDATION_FAILED", "拆图分割线的位置无效");
     if (asset.sizeBytes > imageMediaLimit)
       throw new ProjectError("ASSET_SIZE_LIMIT", "图片超过拆图大小限制");
-    const width = Number(asset.metadata.width);
-    const height = Number(asset.metadata.height);
+    const sourceBytes = await this.read(store, asset, imageMediaLimit, signal);
+    const dimensions = asset.mimeType === "image/jpeg" ? jpegDimensions(sourceBytes) : undefined;
+    const { width, height } = imageDisplaySize(dimensions ?? asset.metadata);
+    const transform = orientationFilters[dimensions?.orientation ?? 1];
     if (
       !Number.isSafeInteger(width) ||
       !Number.isSafeInteger(height) ||
@@ -204,7 +406,7 @@ export class CanvasMedia {
     const staged: Awaited<ReturnType<AssetService["stage"]>>[] = [];
     try {
       const source = join(directory, "source");
-      await writeFile(source, await this.read(store, asset, imageMediaLimit, signal), {
+      await writeFile(source, sourceBytes, {
         mode: 0o600,
         signal,
       });
@@ -219,6 +421,17 @@ export class CanvasMedia {
           const bottom = yBounds[row + 1] ?? top;
           const tileWidth = right - left;
           const tileHeight = bottom - top;
+          const factor = Math.min(1, 4096 / Math.max(tileWidth, tileHeight));
+          const filters = [
+            "format=rgba",
+            transform,
+            `crop=${tileWidth}:${tileHeight}:${left}:${top}:exact=1`,
+          ];
+          if (factor < 1) {
+            const outputWidth = Math.max(1, Math.round(tileWidth * factor));
+            const outputHeight = Math.max(1, Math.round(tileHeight * factor));
+            filters.push(`scale=${outputWidth}:${outputHeight}:flags=bilinear`);
+          }
           const output = join(directory, `tile-${row}-${column}.png`);
           await runMediaProcess(
             this.ffmpeg,
@@ -235,7 +448,7 @@ export class CanvasMedia {
               "-i",
               source,
               "-vf",
-              `format=rgba,crop=${tileWidth}:${tileHeight}:${left}:${top}:exact=1`,
+              filters.filter(Boolean).join(","),
               "-frames:v",
               "1",
               "-c:v",
@@ -264,7 +477,7 @@ export class CanvasMedia {
             const tile = await this.assets.stage(
               store,
               handle,
-              `${asset.displayName.replace(/\.[^.]+$/, "")}-${row + 1}-${column + 1}.png`,
+              `grid-${row + 1}-${column + 1}.png`,
               tileId,
               { signal },
             );
@@ -326,7 +539,9 @@ export class CanvasMedia {
         const staged = await this.assets.stage(
           store,
           handle,
-          `${asset.displayName.replace(/\.[^.]+$/, "")}-${purpose === "outpaint" ? "扩图底图" : "标注"}.png`,
+          purpose === "outpaint"
+            ? `${asset.displayName.replace(/\.[^.]+$/, "")}-扩图底图.png`
+            : "doodle.png",
           operationId,
           { signal },
         );
@@ -366,12 +581,99 @@ export class CanvasMedia {
     }
   }
 
-  async attachment(store: ProjectStore, asset: AssetRecord, signal: AbortSignal) {
+  async videoInput(store: ProjectStore, asset: AssetRecord, signal: AbortSignal) {
+    const bytes = await this.read(store, asset, 20 * 1024 * 1024, signal);
+    return { mime_type: asset.mimeType, data: bytes.toString("base64") };
+  }
+
+  async readAudioForWaveform(store: ProjectStore, asset: AssetRecord) {
+    if (asset.mediaType !== "audio" || asset.availability !== "ready")
+      throw new ProjectError("ASSET_NOT_FOUND", "音频素材不可用");
+    return this.read(store, asset, 50 * 1024 * 1024, new AbortController().signal);
+  }
+
+  async readClipboardImage(store: ProjectStore, asset: AssetRecord, signal: AbortSignal) {
+    if (
+      asset.mediaType !== "image" ||
+      asset.availability !== "ready" ||
+      !splitFormats[asset.mimeType]
+    )
+      throw new ProjectError("ASSET_NOT_FOUND", "图片素材不可用");
+    return this.read(store, asset, imageMediaLimit, signal);
+  }
+
+  async attachment(
+    store: ProjectStore,
+    asset: AssetRecord,
+    signal: AbortSignal,
+    requestBudget = imageLimit,
+  ) {
     if (asset.availability !== "ready")
       throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "素材不可用");
     const digest = createHash("sha256").update(`agent-attachment:${asset.assetId}`).digest("hex");
     const frameId = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
-    const result = await this.inspect(store, asset, 0, frameId, signal);
+    let result: { assetId: string; mime: string; data: string };
+    const limit = Math.min(requestBudget, imageLimit);
+    if (asset.mediaType === "image" && asset.sizeBytes > limit) {
+      const format = splitFormats[asset.mimeType];
+      if (!format) throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "不支持此图片格式");
+      const directory = await mkdtemp(join(tmpdir(), "link-studio-agent-image-"));
+      try {
+        const source = join(directory, "source");
+        await writeFile(source, await this.read(store, asset, imageMediaLimit, signal), {
+          signal,
+          mode: 0o600,
+        });
+        const image = join(directory, "preview.png");
+        let data = "";
+        for (const side of [1280, 768, 512, 320, 224]) {
+          await runMediaProcess(
+            this.ffmpeg,
+            [
+              "-nostdin",
+              "-v",
+              "error",
+              "-y",
+              "-protocol_whitelist",
+              "file,pipe",
+              "-max_pixels",
+              "100000000",
+              "-f",
+              format,
+              "-i",
+              source,
+              "-vf",
+              `scale=w='min(${side},iw)':h='min(${side},ih)':force_original_aspect_ratio=decrease`,
+              "-frames:v",
+              "1",
+              "-threads",
+              "1",
+              "-c:v",
+              "png",
+              "-pix_fmt",
+              "rgba",
+              "-f",
+              "image2",
+              "-update",
+              "1",
+              image,
+            ],
+            { signal, timeoutMs: 15000, maxRssMiB: 384 },
+          );
+          const bytes = await readFile(image, { signal });
+          if (bytes.length && bytes.length <= limit) {
+            data = bytes.toString("base64");
+            break;
+          }
+        }
+        if (!data) throw new ProjectError("AGENT_MEDIA_LIMIT", "图片预览超过模型请求限制");
+        result = { assetId: asset.assetId, mime: "image/png", data };
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    } else {
+      result = await this.inspect(store, asset, 0, frameId, signal);
+    }
     return {
       asset_id: result.assetId,
       kind: "image" as const,
@@ -383,12 +685,99 @@ export class CanvasMedia {
     };
   }
 
+  async sampleVideo(store: ProjectStore, asset: AssetRecord, count: number, signal: AbortSignal) {
+    if (
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > 6 ||
+      asset.mediaType !== "video" ||
+      asset.availability !== "ready"
+    )
+      throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "请选择可用视频，抽取 1 到 6 帧");
+    const directory = await mkdtemp(join(tmpdir(), "link-studio-video-preview-"));
+    try {
+      const source = join(directory, "source");
+      await writeFile(source, await this.read(store, asset, videoLimit, signal), {
+        mode: 0o600,
+        signal,
+      });
+      const format = asset.mimeType === "video/webm" ? "matroska" : "mov";
+      const probe = await probeMedia(
+        join(dirname(this.ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe"),
+        source,
+        { signal, inputFormat: format },
+      );
+      const track = probe.streams.find((stream) => stream.codec_type === "video");
+      if (!track) throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "素材缺少视频轨道");
+      const duration = Number(track.duration) > 0 ? Number(track.duration) : probe.duration;
+      const last = duration <= 0.2 ? duration / 2 : duration - 0.1;
+      const frames = [];
+      for (let index = 0; index < count; index++) {
+        const at = count === 1 ? duration / 2 : (index * last) / (count - 1);
+        const image = join(directory, "frame.png");
+        for (const side of [1024, 512, 256]) {
+          await runMediaProcess(
+            this.ffmpeg,
+            [
+              "-nostdin",
+              "-v",
+              "error",
+              "-y",
+              "-protocol_whitelist",
+              "file,pipe",
+              "-max_alloc",
+              "67108864",
+              "-f",
+              format,
+              "-copyts",
+              "-start_at_zero",
+              "-noaccurate_seek",
+              "-ss",
+              String(at),
+              "-i",
+              source,
+              "-map",
+              "0:v:0",
+              "-frames:v",
+              "1",
+              "-vf",
+              `fps=fps=1000:start_time=${at}:round=up:eof_action=pass,scale=w='min(${side},iw)':h='min(${side},ih)':force_original_aspect_ratio=decrease`,
+              "-threads",
+              "1",
+              "-c:v",
+              "png",
+              "-f",
+              "image2",
+              "-update",
+              "1",
+              image,
+            ],
+            { signal, timeoutMs: 15000, maxRssMiB: 384 },
+          );
+          const bytes = await readFile(image, { signal });
+          await rm(image);
+          if (bytes.length > imageLimit) continue;
+          if (!bytes.length) throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "未能提取预览帧");
+          frames.push({ at, mime_type: "image/png", data: bytes.toString("base64") });
+          break;
+        }
+        if (frames.length <= index)
+          throw new ProjectError("AGENT_MEDIA_LIMIT", "预览帧超过模型请求限制");
+      }
+      return { duration, frames };
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
   async inspect(
     store: ProjectStore,
     asset: AssetRecord,
     timeMs: number,
     frameId: string,
     signal: AbortSignal,
+    fullFrame = false,
+    collect?: (asset: AssetRecord) => void,
   ) {
     if (asset.mediaType === "image") {
       if (!["image/png", "image/jpeg", "image/webp"].includes(asset.mimeType))
@@ -404,6 +793,7 @@ export class CanvasMedia {
       previous.metadata.sourceAssetId === asset.assetId &&
       previous.metadata.timeMs === timeMs
     ) {
+      if (fullFrame) return { assetId: previous.assetId, mime: previous.mimeType, data: "" };
       const bytes = await this.read(store, previous, imageLimit, signal);
       return { assetId: previous.assetId, mime: previous.mimeType, data: bytes.toString("base64") };
     }
@@ -416,10 +806,27 @@ export class CanvasMedia {
     const directory = await mkdtemp(join(tmpdir(), "link-studio-frame-"));
     try {
       const source = join(directory, "video");
-      await writeFile(source, await this.read(store, asset, videoLimit, signal), {
-        mode: 0o600,
-        signal,
-      });
+      await writeFile(
+        source,
+        await this.read(store, asset, fullFrame ? trimInputLimit : videoLimit, signal),
+        {
+          mode: 0o600,
+          signal,
+        },
+      );
+      const image = join(directory, "frame.png");
+      let sampleTime = timeMs / 1000;
+      if (fullFrame) {
+        const probe = await probeMedia(
+          join(dirname(this.ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe"),
+          source,
+          { signal, inputFormat: format },
+        );
+        const track = probe.streams.find((stream) => stream.codec_type === "video");
+        const end = Number(track?.duration) + (Number(track?.start_time) || 0);
+        if (Number.isFinite(end) && end > 0)
+          sampleTime = Math.min(sampleTime, Math.max(0, end - 0.001));
+      }
       const pixels = await runMediaProcess(
         this.ffmpeg,
         [
@@ -432,8 +839,9 @@ export class CanvasMedia {
           "67108864",
           "-f",
           format,
+          ...(fullFrame ? ["-copyts", "-start_at_zero", "-noaccurate_seek"] : []),
           "-ss",
-          String(timeMs / 1000),
+          String(sampleTime),
           "-i",
           source,
           "-map",
@@ -441,24 +849,24 @@ export class CanvasMedia {
           "-frames:v",
           "1",
           "-vf",
-          `scale=${frameSide}:${frameSide}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${frameSide}:${frameSide}:(ow-iw)/2:(oh-ih)/2`,
+          fullFrame
+            ? `fps=fps=1000:start_time=${sampleTime}:round=up:eof_action=pass,scale=w='min(4096,iw)':h='min(4096,ih)':force_original_aspect_ratio=decrease`
+            : `scale=${frameSide}:${frameSide}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${frameSide}:${frameSide}:(ow-iw)/2:(oh-ih)/2`,
           "-pix_fmt",
           "rgb24",
           "-c:v",
-          "rawvideo",
+          fullFrame ? "png" : "rawvideo",
           "-threads",
           "1",
           "-f",
-          "rawvideo",
-          "pipe:1",
+          ...(fullFrame ? ["image2", "-update", "1", image] : ["rawvideo", "pipe:1"]),
         ],
         { signal, maxStdoutBytes: frameSide * frameSide * 3, timeoutMs: 15_000, maxRssMiB: 384 },
       ).catch(() => {
         throw new ProjectError("AGENT_MEDIA_UNAVAILABLE", "视频提帧失败");
       });
-      const frame = encodeFrame(pixels);
-      const image = join(directory, "frame.png");
-      await writeFile(image, frame, { mode: 0o600, signal });
+      const frame = fullFrame ? undefined : encodeFrame(pixels);
+      if (frame) await writeFile(image, frame, { mode: 0o600, signal });
       const handle = await open(image, "r");
       try {
         const staged = await this.assets.stage(store, handle, `关键帧-${timeMs}ms.png`, frameId, {
@@ -467,6 +875,11 @@ export class CanvasMedia {
         try {
           staged.asset.origin = "derived";
           Object.assign(staged.asset.metadata, { sourceAssetId: asset.assetId, timeMs });
+          if (collect) {
+            await this.assets.publishBlob(store, staged, signal);
+            collect(staged.asset);
+            return { assetId: frameId, mime: "image/png", data: "" };
+          }
           await store.updateGeneration(async (state) => {
             if (state.assets[frameId]?.availability === "ready")
               return { changed: false, result: undefined };
@@ -482,7 +895,7 @@ export class CanvasMedia {
       } finally {
         await handle.close();
       }
-      return { assetId: frameId, mime: "image/png", data: frame.toString("base64") };
+      return { assetId: frameId, mime: "image/png", data: frame?.toString("base64") ?? "" };
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

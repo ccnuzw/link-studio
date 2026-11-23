@@ -1,5 +1,15 @@
 import type { DirectorScene } from "@link-studio/core";
-import { Box3, Group, MeshStandardMaterial, type Object3D, SkinnedMesh, Vector3 } from "three";
+import {
+  Box3,
+  CapsuleGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Object3D,
+  SkinnedMesh,
+  SphereGeometry,
+  Vector3,
+} from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
 import femaleAsset from "./director-assets/female.glb?inline";
@@ -15,7 +25,7 @@ const files = { male: maleAsset, female: femaleAsset };
 const heights = { male: 1.78, female: 1.68 };
 const models = new Map<Model, Promise<boolean>>();
 const templates = new Map<Model, Template>();
-const poses = new Map<string, { body: Group; aim: number }>();
+const poses = new Map<string, Group>();
 const sharedGeometry = new WeakSet<object>();
 
 function findSkin(root: Object3D) {
@@ -39,7 +49,12 @@ function bounds(mesh: SkinnedMesh) {
   return box;
 }
 
-function loadModel(model: Model) {
+export function measureFigure(group: Group) {
+  group.updateMatrixWorld(true);
+  return bounds(findSkin(group));
+}
+
+export function loadFigureModel(model: Model) {
   const existing = models.get(model);
   if (existing) return existing;
   const result = Promise.resolve()
@@ -60,21 +75,26 @@ function loadModel(model: Model) {
       templates.set(model, { body, mesh, scale: heights[model] / height });
       return true;
     })
-    .catch(() => false);
+    .catch(() => false)
+    .then((ready) => {
+      if (!ready) models.delete(model);
+      return ready;
+    });
   models.set(model, result);
   return result;
 }
 
+export const figureModelStatus = (model: Model = "male") =>
+  templates.has(model) ? "ready" : "unavailable";
+
 export async function loadDirectorFigures(characters: Figure[]) {
   const results = await Promise.all(
-    [
-      ...new Set(characters.filter(({ hidden }) => !hidden).map(({ model }) => model ?? "male")),
-    ].map(loadModel),
+    [...new Set(characters.map(({ model }) => model ?? "male"))].map(loadFigureModel),
   );
   return results.every(Boolean);
 }
 
-function posedFigure(figure: Figure) {
+function posedFigure(figure: Pick<Figure, "model" | "pose">) {
   const model = figure.model ?? "male";
   const key = `${model}:${figure.pose}`;
   const cached = poses.get(key);
@@ -96,26 +116,36 @@ function posedFigure(figure: Figure) {
   const group = new Group();
   group.add(body);
   body.position.y = -extent.min.y;
-  const entry = { body: group, aim: (extent.max.y - extent.min.y) * 0.72 };
-  poses.set(key, entry);
-  return entry;
-}
-
-export function createDirectorFigure(figure: Figure) {
-  const posed = posedFigure(figure);
-  if (!posed) return undefined;
-  const group = clone(posed.body);
-  const mesh = findSkin(group);
-  mesh.material = new MeshStandardMaterial({ color: figure.color, roughness: 0.7 });
-  mesh.frustumCulled = false;
+  poses.set(key, group);
   return group;
 }
 
-export function figureAimHeight(figure: Figure) {
-  return (
-    (posedFigure(figure)?.aim ?? (figure.pose === "sit" || figure.pose === "crouch" ? 0.8 : 1.2)) *
-    figure.scale
-  );
+export function createFigure(figure: Pick<Figure, "model" | "pose" | "color">) {
+  const posed = posedFigure(figure);
+  const material = new MeshStandardMaterial({
+    color: figure.color,
+    roughness: 0.7,
+    metalness: 0.05,
+  });
+  if (!posed) {
+    const group = new Group(),
+      body = new Mesh(new CapsuleGeometry(0.24, 1.1, 4, 12), material),
+      head = new Mesh(new SphereGeometry(0.115, 20, 14), material);
+    body.position.y = 0.83;
+    head.position.y = 1.66;
+    body.castShadow = head.castShadow = true;
+    group.add(body, head);
+    return { group, material };
+  }
+  const group = clone(posed) as Group;
+  group.traverse((node) => {
+    if (node instanceof Mesh) {
+      node.material = material;
+      node.castShadow = true;
+      node.frustumCulled = false;
+    }
+  });
+  return { group, material };
 }
 
 export function disposeDirectorMesh(

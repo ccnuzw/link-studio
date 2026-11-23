@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { APP_INFO_CHANNEL, type AppInfo } from "@link-studio/core";
-import { app, BrowserWindow, ipcMain, protocol } from "electron";
+import {
+  APP_INFO_CHANNEL,
+  type AppInfo,
+  OPEN_SOURCE_CHANNEL,
+  sourceWebUrl,
+} from "@link-studio/core";
+import { app, BrowserWindow, ipcMain, nativeTheme, protocol, shell } from "electron";
 import { getAppInfo } from "./app-info";
 import { ProjectIpc } from "./project/ipc";
 import { isTrustedDocument } from "./security";
 import { SettingsIpc } from "./settings/ipc";
+import { SettingsRegistry } from "./settings/registry";
 import { SkillsIpc } from "./skills/ipc";
 
 const mainDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -42,7 +48,7 @@ function createWindow() {
     height: 920,
     minWidth: 1024,
     minHeight: 700,
-    backgroundColor: "#15191f",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#15191f" : "#ffffff",
     show: false,
     webPreferences: {
       preload: join(mainDirectory, "../preload/index.cjs"),
@@ -67,6 +73,21 @@ function createWindow() {
     if (!isTrustedDocument(destination, rendererUrl)) event.preventDefault();
   });
   window.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  ipcMain.removeHandler(OPEN_SOURCE_CHANNEL);
+  ipcMain.handle(OPEN_SOURCE_CHANNEL, async (event, raw: unknown) => {
+    const url = sourceWebUrl(raw);
+    if (
+      !url ||
+      event.sender !== window.webContents ||
+      event.senderFrame !== window.webContents.mainFrame ||
+      !isTrustedDocument(event.senderFrame?.url ?? "", rendererUrl)
+    )
+      return false;
+    return shell.openExternal(url).then(
+      () => true,
+      () => false,
+    );
+  });
   ipcMain.removeHandler(APP_INFO_CHANNEL);
   ipcMain.handle(APP_INFO_CHANNEL, (event, request: unknown) => {
     const trusted =
@@ -89,6 +110,7 @@ function createWindow() {
   window.once("ready-to-show", () => window.show());
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = null;
+    ipcMain.removeHandler(OPEN_SOURCE_CHANNEL);
     ipcMain.removeHandler(APP_INFO_CHANNEL);
   });
   window.loadURL(rendererUrl).catch(() => {
@@ -109,18 +131,33 @@ else
 if (primaryInstance)
   app.whenReady().then(() => {
     const runtimeRoot = app.isPackaged ? process.resourcesPath : join(mainDirectory, "..");
-    skillsIpc = new SkillsIpc(join(app.getPath("userData"), "skills"));
+    const providerRunner = join(
+      runtimeRoot,
+      "provider-runtime",
+      process.platform === "win32" ? "runner.exe" : "runner",
+    );
+    skillsIpc = new SkillsIpc(
+      join(app.getPath("userData"), "skills"),
+      async () => (await settingsIpc.open()).registry,
+    );
+    const settingsDirectory = join(app.getPath("userData"), "settings");
+    nativeTheme.themeSource = SettingsRegistry.startupTheme(settingsDirectory);
     settingsIpc = new SettingsIpc(
-      join(app.getPath("userData"), "settings"),
+      settingsDirectory,
       app.isPackaged
         ? join(process.resourcesPath, "provider-plugins")
         : join(mainDirectory, "../../resources/provider-plugins"),
-      join(runtimeRoot, "provider-runtime", process.platform === "win32" ? "runner.exe" : "runner"),
+      providerRunner,
       join(runtimeRoot, "agent-runtime/worker.mjs"),
       (command, args) => projectIpc.canvasCommand(command, args),
+      () => projectIpc.recentProjectLocations(),
     );
-    projectIpc = new ProjectIpc(app.getPath("userData"), join(mainDirectory, "../media"), () =>
-      settingsIpc.open(),
+    projectIpc = new ProjectIpc(
+      app.getPath("userData"),
+      join(mainDirectory, "../media"),
+      () => settingsIpc.open(),
+      settingsIpc.trialMedia,
+      providerRunner,
     );
     if (process.platform === "darwin" && !app.isPackaged) app.dock?.setIcon(iconPath);
     createWindow();

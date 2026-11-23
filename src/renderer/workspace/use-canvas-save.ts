@@ -119,9 +119,18 @@ export function useCanvasSave(
     return () => window.clearTimeout(timer);
   }, [session, dirtyKey, editing, projectBusy, saving, error, save]);
 
-  const recover = async (active: ProjectSession, discard: boolean) => {
+  const recover = async (
+    active: ProjectSession,
+    discard: boolean,
+    expectedCanvasRevision?: number,
+  ) => {
     const result = await window.desktop.projects.getCanvas({ projectHandle: active.projectHandle });
-    if (!result.ok) return null;
+    if (
+      !result.ok ||
+      (expectedCanvasRevision !== undefined &&
+        result.value.canvasRevision !== expectedCanvasRevision)
+    )
+      return null;
     const current = latest.current;
     const merged = discard
       ? result.value.canvas

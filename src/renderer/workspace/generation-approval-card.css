@@ -1,0 +1,130 @@
+.assistant-surface .generation-approval {
+  --welcome-muted: oklch(0.556 0 0);
+  --welcome-ink: oklch(0.145 0 0);
+  --chrome-hover: oklch(0 0 0 / 0.05);
+  --drawer-line: oklch(0 0 0 / 0.08);
+  --change-input: oklch(0.922 0 0);
+  text-rendering: auto;
+  font-synthesis: weight style small-caps;
+}
+@media (prefers-color-scheme: dark) {
+  .assistant-surface .generation-approval {
+    --welcome-muted: oklch(0.708 0 0);
+    --welcome-ink: oklch(0.985 0 0);
+    --chrome-hover: oklch(1 0 0 / 0.07);
+    --drawer-line: oklch(1 0 0 / 0.08);
+    --change-input: oklch(1 0 0 / 0.15);
+  }
+}
+.generation-approval h3 > span:first-of-type,
+.generation-label {
+  min-width: 0;
+  flex: 1;
+}
+.generation-approval h3 svg,
+.generation-items li small {
+  flex: none;
+}
+.generation-items,
+.generation-items ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+.generation-items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+.generation-items li small {
+  color: var(--welcome-muted);
+  font: inherit;
+}
+@media (prefers-contrast: more) {
+  .generation-items li small {
+    color: var(--welcome-ink);
+  }
+}
+.generation-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.generation-items [role="checkbox"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--change-input);
+  border-radius: 4px;
+  background: var(--change-check-bg);
+}
+.generation-items [role="checkbox"] > span {
+  display: grid;
+  place-content: center;
+}
+.generation-items [role="checkbox"] {
+  outline: none;
+  transition:
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.generation-items [role="checkbox"]:focus-visible {
+  border-color: oklch(0.708 0 0);
+  box-shadow: 0 0 0 3px oklch(0.708 0 0 / 0.5);
+}
+.generation-items [role="checkbox"][aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.generation-items [role="checkbox"]::after {
+  content: "";
+  position: absolute;
+  inset: -8px -12px;
+}
+.generation-items [role="checkbox"][aria-checked="true"] {
+  background: var(--change-primary);
+  border-color: var(--change-primary);
+  color: var(--change-on-primary);
+}
+.generation-items .change-more {
+  display: inline-flex;
+  align-items: center;
+}
+.assistant-surface .generation-approval .change-decision-options button:disabled {
+  color: inherit;
+}
+.generation-approval .change-decision-options button[aria-selected="true"] {
+  background: transparent;
+}
+.generation-approval .change-decision-options button > .generation-choice-highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--welcome-ink) 7%, transparent);
+  pointer-events: none;
+}
+.generation-approval .change-decision-options button > span {
+  position: relative;
+}
+.generation-request-details {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.generation-request-details summary {
+  cursor: pointer;
+}
+.generation-request-details p {
+  white-space: pre-wrap;
+}
