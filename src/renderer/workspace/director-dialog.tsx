@@ -2,13 +2,13 @@ import { type DirectorScene, retimeDirectorScene } from "@link-studio/core";
 import { Move, PanelLeftClose, PanelLeftOpen, RotateCw, Scan, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import { DirectorHeader, DirectorTool } from "./director-chrome";
-import { HEADER_HEIGHT, NAV_WIDTH, type PanelKind } from "./director-layout";
+import { HEADER_HEIGHT, NAV_WIDTH, PANEL_LIMITS, type PanelKind } from "./director-layout";
 import { NUDGE_STEP, ResizeHandle } from "./director-resize";
 import { ViewModeSwitch } from "./director-view-menu";
 import { DirectorMonitor, useDirectorPanels } from "./director-workbench";
 import { useDirectorModels } from "./use-director-models";
 import "./director-workbench.css";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { disposeThumbRenderer } from "./director-asset-thumbs";
 import { type AssetTab, DirectorAssets } from "./director-assets";
 import { supportsDirectorExport } from "./director-export";
@@ -70,6 +70,7 @@ export function DirectorDialog({
     saved.current = latest.current;
     return true;
   }
+  const flushPending = useEffectEvent(flush);
   useEffect(() => {
     if (scene === saved.current) {
       setSaveStatus("已保存到节点");
@@ -77,7 +78,7 @@ export function DirectorDialog({
     }
     setSaveStatus("保存中…");
     const timer = setTimeout(() => {
-      if (flush()) setSaveStatus("已保存到节点");
+      if (flushPending()) setSaveStatus("已保存到节点");
     }, 500);
     return () => clearTimeout(timer);
   }, [scene]);
@@ -162,6 +163,8 @@ export function DirectorDialog({
       mounted = false;
     };
   }, []);
+  const shortcutPlayback = useEffectEvent(togglePlayback);
+  const shortcutTravel = useEffectEvent(travel);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.isComposing) return;
@@ -172,13 +175,19 @@ export function DirectorDialog({
         )
       )
         return;
+      if (
+        event.key === " " &&
+        event.target instanceof HTMLElement &&
+        event.target.closest("button, input")
+      )
+        return;
       if (event.target instanceof HTMLElement && event.target.closest(".ds-sidebar"))
         event.stopPropagation();
       if (!event.ctrlKey && !event.metaKey) {
         if (event.key === " " && !exporting) {
           event.preventDefault();
           event.stopPropagation();
-          togglePlayback();
+          shortcutPlayback();
         }
         if (event.key.toLowerCase() === "k" && !exporting) {
           recordSelected.current();
@@ -193,7 +202,7 @@ export function DirectorDialog({
       if (key !== "z" && key !== "y") return;
       event.preventDefault();
       event.stopPropagation();
-      if (!exporting) travel(key === "y" || event.shiftKey ? "redo" : "undo");
+      if (!exporting) shortcutTravel(key === "y" || event.shiftKey ? "redo" : "undo");
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
@@ -343,6 +352,8 @@ export function DirectorDialog({
       unit = () => (kind === "split" ? main.current?.clientWidth || 1 : 1);
     return (
       <ResizeHandle
+        value={sizes[kind]}
+        limits={PANEL_LIMITS[kind]}
         orientation={vertical ? "vertical" : "horizontal"}
         label={label}
         style={style}
@@ -381,6 +392,10 @@ export function DirectorDialog({
       element?.close();
     };
   }, []);
+  const advancePlayback = useEffectEvent((next: number, duration: number) => {
+    setTime(next);
+    if (next >= duration) setPlaying(false);
+  });
   useEffect(() => {
     if (!playing) return;
     let last = performance.now();
@@ -388,9 +403,8 @@ export function DirectorDialog({
       const duration = playback.current.duration;
       const next = Math.min(duration, clock.current + (now - last) / 1000);
       last = now;
-      setTime(next);
-      if (next >= duration) setPlaying(false);
-      else frame = requestAnimationFrame(tick);
+      advancePlayback(next, duration);
+      if (next < duration) frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
   }, [playing, scene.duration]);

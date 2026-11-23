@@ -1,5 +1,5 @@
 import type { ProjectAsset } from "@link-studio/core";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { canvasNotice } from "./canvas-toaster";
 
@@ -25,7 +25,7 @@ export function useDoodleUploads(handle: string | undefined, callbacks: Callback
   const tasks = useRef(new Map<string, Task>());
   const queue = useRef(Promise.resolve());
   const active = (task: Task) => tasks.current.get(task.id) === task;
-  const forget = (id: string) => {
+  const forget = useCallback((id: string) => {
     const task = tasks.current.get(id);
     if (!task) return;
     tasks.current.delete(id);
@@ -33,12 +33,12 @@ export function useDoodleUploads(handle: string | undefined, callbacks: Callback
       void window.desktop.projects
         .cancelMediaTool({ projectHandle: task.handle, operationId: task.operationId })
         .catch(() => {});
-  };
+  }, []);
   useEffect(
     () => () => {
       for (const task of tasks.current.values()) if (task.handle === handle) forget(task.id);
     },
-    [handle],
+    [handle, forget],
   );
 
   const write = (task: Task) => {

@@ -185,7 +185,8 @@ export function DirectorView({
     const dpr = Math.min(2, window.devicePixelRatio || 1),
       aspect = box.width / box.height,
       ratioValue = directorAspectRatio(ratio);
-    const viewed = cameraView && active && pose;
+    const viewed =
+      cameraView && active && (pending.cameras.get(active.id) ?? sampleCamera(active, time));
     const current = viewed
       ? {
           ...viewed,

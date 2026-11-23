@@ -10,7 +10,14 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import { AssetUploadCard } from "../workspace/asset-upload-card";
 import { PickerEmptyLogo } from "../workspace/picker-empty-logo";
@@ -44,11 +51,12 @@ function LibraryMore({ load }: { load: () => Promise<void> }) {
       setState("failed");
     }
   }
+  const loadVisiblePage = useEffectEvent(readMore);
   useEffect(() => {
     if (!footer.current || state !== "ready") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void readMore();
+        if (entries.some((entry) => entry.isIntersecting)) void loadVisiblePage();
       },
       { root: footer.current.parentElement, rootMargin: "400px 0px" },
     );
@@ -224,6 +232,8 @@ export function FilingPersonalPicker({
     const timer = setTimeout(() => setSearch(query.trim()), 300);
     return () => clearTimeout(timer);
   }, [query]);
+  const pickFromResponse = useEffectEvent(pick);
+  const publishPageReceipts = useEffectEvent(publishReceipts);
   useEffect(
     () => () => {
       lifetime.current++;
@@ -233,7 +243,7 @@ export function FilingPersonalPicker({
       grant.current = undefined;
       uploadSession.current = "";
       receipts.current.clear();
-      pick();
+      pickFromResponse();
     },
     [channel.id, channel.revision, uploads],
   );
@@ -278,10 +288,10 @@ export function FilingPersonalPicker({
             destination: result.value.destination,
           };
           uploadSession.current = result.value.session;
-          if (carry.current === prior) pick(result.value.selected);
+          if (carry.current === prior) pickFromResponse(result.value.selected);
         } else if (result.error.code === "ASSET_NOT_FOUND") {
           grant.current = undefined;
-          pick();
+          pickFromResponse();
           uploadSession.current = "";
           uploads.clear();
           receipts.current.clear();
@@ -292,7 +302,7 @@ export function FilingPersonalPicker({
         else if (result.ok) {
           setPage(result.value);
           if (result.value.canvases) setCanvases(result.value.canvases);
-          await publishReceipts();
+          await publishPageReceipts();
         } else setError(result.error.message ?? "无法读取个人库");
       })
       .catch(() => {

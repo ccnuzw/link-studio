@@ -68,7 +68,12 @@
   line-height: 16px;
   opacity: 1;
 }
-.canvas-control-pill .canvas-save-indicator:disabled {
+.canvas-control-pill output.canvas-save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  flex-shrink: 0;
   background: transparent;
   color: var(--control-muted);
   cursor: default;

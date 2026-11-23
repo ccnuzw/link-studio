@@ -76,7 +76,7 @@ export function EpisodeDeleteDialog({
         <AlertDialog.Backdrop className="shot-confirm-backdrop" />
         <AlertDialog.Popup className="shot-confirm drama-delete-confirm">
           <AlertDialog.Title
-            render={<h3 />}
+            render={(props) => <h3 {...props}>{props.children}</h3>}
           >{`删除第 ${no} 集${title.trim() ? `「${title.trim()}」` : ""}？`}</AlertDialog.Title>
           <AlertDialog.Description>{description}</AlertDialog.Description>
           {(error || blocked) && <p role="alert">{blocked || error}</p>}

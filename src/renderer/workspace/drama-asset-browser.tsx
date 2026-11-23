@@ -28,7 +28,7 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocalPreviewResult } from "./character-card-body";
 import { characterShowsGenerator } from "./character-pick";
@@ -571,10 +571,10 @@ export function StageAssets({
   const selected = items.find((item) => item.node.id === editor.selected);
   const [multi, setMulti] = useState(false),
     [checked, setChecked] = useState<Set<string>>(() => new Set());
-  const clear = () => {
+  const clear = useCallback(() => {
     setMulti(false);
     setChecked(new Set());
-  };
+  }, []);
   const candidates = items.filter((item) => {
     if (
       item.type !== type ||
@@ -620,7 +620,7 @@ export function StageAssets({
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [multi]);
+  }, [multi, clear]);
   const library = items.filter(
     (item) =>
       (!ep || item.numbers !== null) &&

@@ -1,32 +1,24 @@
 import { Popover } from "@base-ui/react/popover";
 import type { ProviderView, SettingsValues } from "@link-studio/core";
 import { Bot, Check, ChevronDown } from "lucide-react";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { vendors } from "../settings/model-logos/vendors";
 
 const preferenceKey = "storyboard-split-model";
 const vendorGraphics = import.meta.glob<string>("../settings/model-logos/*.svg", {
   eager: true,
-  query: "?raw",
+  query: "?url",
   import: "default",
 });
 export function ShotModelLogo({ logo }: { logo?: string }) {
-  const instance = useId();
   if (!logo || !Object.hasOwn(vendors, logo)) return <Bot size={16} aria-hidden="true" />;
   const graphic = vendorGraphics[`../settings/model-logos/${logo}.svg`];
   if (!graphic) return <Bot size={16} aria-hidden="true" />;
   const label = vendors[logo as keyof typeof vendors];
   return (
-    <span
-      className="model-avatar"
-      data-vendor={logo}
-      role="img"
-      aria-label={label}
-      title={label}
-      dangerouslySetInnerHTML={{
-        __html: graphic.replaceAll("lobe-icons-", `${instance}-lobe-icons-`),
-      }}
-    />
+    <span className="model-avatar" data-vendor={logo} role="img" aria-label={label} title={label}>
+      <img src={graphic} alt="" />
+    </span>
   );
 }
 type Preference = { id: string; name: string };

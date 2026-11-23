@@ -228,12 +228,13 @@ export function DramaStudio({
     ({ chapter: "章", episode: "集", scene: "场" } as Record<string, string>)[
       sourceUnits?.kind ?? ""
     ] ?? "段";
+  const hasCurrentPreview = !!currentPreview;
   useEffect(() => {
     if (
       !setupOpen ||
       !sourceKind ||
       !sourceToken ||
-      currentPreview ||
+      hasCurrentPreview ||
       !Number.isInteger(Number(seconds)) ||
       Number(seconds) < 30 ||
       Number(seconds) > 180
@@ -276,8 +277,7 @@ export function DramaStudio({
     };
   }, [
     setupOpen,
-    matchesInitial,
-    preview?.key,
+    hasCurrentPreview,
     projectHandle,
     sourceToken,
     seconds,

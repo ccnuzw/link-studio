@@ -1513,8 +1513,8 @@
   border: 0;
   box-shadow: none;
 }
-.drama-field-trigger .model-avatar svg,
-.drama-menu-row .model-avatar svg {
+.drama-field-trigger .model-avatar img,
+.drama-menu-row .model-avatar img {
   width: 68%;
   height: 68%;
 }

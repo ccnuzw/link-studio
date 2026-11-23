@@ -15,6 +15,7 @@ import {
 import { Box, FileText, GalleryHorizontalEnd, Group, Lightbulb, UserRound } from "lucide-react";
 import {
   type RefObject,
+  useCallback,
   useId,
   useImperativeHandle,
   useLayoutEffect,
@@ -143,31 +144,34 @@ export function AssistantEditor({
     setSuggestion(next?.kind === "skill" && live.current.running ? null : next);
     setActive(0);
   }
-  function insert(
-    current: Editor,
-    kind: Kind,
-    id: string,
-    name: string,
-    range: Range = current.state.selection,
-  ) {
-    const chain = current.chain().insertContentAt({ from: range.from, to: range.to }, [
-      {
-        type: "mention",
-        attrs: {
-          kind,
-          id,
-          name,
-          nodeKind:
-            kind === "node"
-              ? live.current.options.find((option) => option.id === id)?.nodeKind
-              : undefined,
+  const insert = useCallback(
+    (
+      current: Editor,
+      kind: Kind,
+      id: string,
+      name: string,
+      range: Range = current.state.selection,
+    ) => {
+      const chain = current.chain().insertContentAt({ from: range.from, to: range.to }, [
+        {
+          type: "mention",
+          attrs: {
+            kind,
+            id,
+            name,
+            nodeKind:
+              kind === "node"
+                ? live.current.options.find((option) => option.id === id)?.nodeKind
+                : undefined,
+          },
         },
-      },
-      { type: "text", text: " " },
-    ]);
-    chain.run();
-    setSuggestion(null);
-  }
+        { type: "text", text: " " },
+      ]);
+      chain.run();
+      setSuggestion(null);
+    },
+    [],
+  );
   const editor: Editor | null = useEditor({
     extensions,
     content: draftDocument(message, mentions),
@@ -260,7 +264,7 @@ export function AssistantEditor({
         if (editor) insert(editor, kind, id, name);
       },
     }),
-    [editor],
+    [editor, insert],
   );
   useLayoutEffect(() => {
     if (!editor) return;

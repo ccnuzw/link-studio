@@ -185,6 +185,8 @@
   border-radius: 2px;
 }
 .dt-key {
+  border: 0;
+  padding: 0;
   cursor: grab;
   background: oklch(0.985 0 0);
 }

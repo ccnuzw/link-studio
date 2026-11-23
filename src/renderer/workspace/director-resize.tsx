@@ -4,6 +4,8 @@ export const NUDGE_STEP = 16;
 
 export function ResizeHandle({
   orientation,
+  value,
+  limits,
   label,
   style,
   onStart,
@@ -13,6 +15,8 @@ export function ResizeHandle({
   onNudge,
 }: {
   orientation: "vertical" | "horizontal";
+  value: number;
+  limits: { min: number; max: number };
   label: string;
   style: CSSProperties;
   onStart: () => number;
@@ -32,6 +36,9 @@ export function ResizeHandle({
       <div
         role="separator"
         aria-orientation={vertical ? "vertical" : "horizontal"}
+        aria-valuemin={limits.min}
+        aria-valuemax={limits.max}
+        aria-valuenow={value}
         aria-label={label}
         title={`${label}：拖动调节，双击还原`}
         tabIndex={0}

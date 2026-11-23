@@ -1,7 +1,7 @@
 import { NodeToolbar, Position, useStore, ViewportPortal } from "@xyflow/react";
 import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { canvasNotice } from "./canvas-toaster";
 import { DOODLE_COLORS, DOODLE_WIDTH_DEFAULT, doodleCanvasSize, doodleDisplayRect } from "./doodle";
@@ -53,10 +53,10 @@ export function ImageDoodleOverlay({
   const display = useRef(rect);
   display.current = rect;
   const hasRect = !!rect;
-  const fail = () => {
+  const fail = useCallback(() => {
     toast.error("涂鸦组件加载失败，请检查网络后重试", canvasNotice);
     close.current();
-  };
+  }, []);
   useEffect(() => {
     let disposed = false;
     const image = new Image();
@@ -74,7 +74,7 @@ export function ImageDoodleOverlay({
     return () => {
       disposed = true;
     };
-  }, [url]);
+  }, [url, fail]);
   useEffect(() => {
     const stage = host.current;
     if (!hasRect || !stage || !source) return;
@@ -104,7 +104,7 @@ export function ImageDoodleOverlay({
       engine.current?.dispose();
       engine.current = null;
     };
-  }, [source, hasRect]);
+  }, [source, hasRect, fail]);
   useEffect(() => {
     if (display.current) engine.current?.setDisplay(display.current);
   }, [rect?.width, rect?.height]);

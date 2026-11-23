@@ -7,7 +7,7 @@ import {
   useMotionValue,
   useTransform,
 } from "motion/react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { initialTakeIndex, snapTakeIndex } from "./drama-take-index";
 import { LocalVideoPoster } from "./local-video-poster";
 
@@ -201,11 +201,12 @@ export function TakeCarousel({
   }, [step, x]);
 
   // 采用在别处变了（第一版成功被自动采用、别的标签页改了）：滑过去
-  useEffect(() => {
-    const index = takes.findIndex((take) => take.taskId === chosenTaskId);
+  const followChoice = useEffectEvent((taskId: typeof chosenTaskId) => {
+    const index = takes.findIndex((take) => take.taskId === taskId);
     if (index >= 0 && index !== focusRef.current) goTo(index, false);
-    // 只跟着采用变化走，不因 takes 引用变化反复触发
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    followChoice(chosenTaskId);
   }, [chosenTaskId]);
 
   // 新提交了一版：滑到最新那一版看进度

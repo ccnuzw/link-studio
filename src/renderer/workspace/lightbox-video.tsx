@@ -1,6 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
 import { Check, Pause, Play, Repeat, Volume2, VolumeX } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function clock(seconds: number) {
   const total = Math.round(seconds);
@@ -26,20 +26,20 @@ export function LightboxVideo({
   const [plainSrc, setPlainSrc] = useState<string | null>(null);
   const crossOrigin = plainSrc === src ? null : "anonymous";
   const [state, setState] = useState({ paused: false, muted: false, current: 0, duration: 0 });
-  const wake = () => {
+  const wake = useCallback(() => {
     clearTimeout(timer.current);
     setIdle(false);
     timer.current = window.setTimeout(() => setIdle(true), 2500);
-  };
-  const toggle = () => {
+  }, []);
+  const toggle = useCallback(() => {
     const video = player.current;
     if (!video) return;
     if (video.paused || video.ended) void video.play().catch(() => {});
     else video.pause();
-  };
-  const mute = () => {
+  }, []);
+  const mute = useCallback(() => {
     if (player.current) player.current.muted = !player.current.muted;
-  };
+  }, []);
   useEffect(() => {
     const video = player.current!;
     const sync = () =>
@@ -77,7 +77,7 @@ export function LightboxVideo({
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, crossOrigin]);
+  }, [src, crossOrigin, wake, toggle, mute]);
   return (
     <div className="lightbox-video" onPointerMove={wake}>
       <video

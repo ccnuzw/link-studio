@@ -1,7 +1,7 @@
 import type { ProjectAsset, ProjectSession } from "@link-studio/core";
 import { projectImportConcurrency } from "@link-studio/core";
 import { Loader2, RotateCcw, TriangleAlert } from "lucide-react";
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useEffectEvent, useRef } from "react";
 import {
   type CanvasUploadSelection,
   type ClipboardUploadSelection,
@@ -91,9 +91,11 @@ export function useCanvasUploads(
       void discard(retry);
     }
   }
+  const forgetTask = useEffectEvent(forget);
   useEffect(
     () => () => {
-      for (const id of [...tasks.current.keys(), ...retries.current.keys()]) forget(id);
+      for (const task of [...tasks.current.values(), ...retries.current.values()])
+        if (task.session.projectHandle === handle) forgetTask(task.id);
     },
     [handle],
   );

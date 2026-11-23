@@ -198,7 +198,8 @@ export function AssistantQuestionnaire({
         ) => {
           const control = `${prefix}-${id}`;
           const items =
-            choices ?? options?.map((option) => ({ value: option, label: option, hint: "" }));
+            choices?.slice() ??
+            options?.map((option) => ({ value: option, label: option, hint: "" }));
           const picked = Array.isArray(raw) ? raw : [raw];
           if (allowCustom) items?.push({ value: customChoice, label: "其他，我来说", hint: "" });
           return (

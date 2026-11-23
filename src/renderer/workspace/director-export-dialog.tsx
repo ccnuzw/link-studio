@@ -1,4 +1,4 @@
-import type { DirectorScene } from "@link-studio/core";
+import { type DirectorScene, sanitizeFileName } from "@link-studio/core";
 import { X } from "lucide-react";
 import "./director-export-dialog.css";
 import { useEffect, useRef, useState } from "react";
@@ -93,7 +93,7 @@ export function DirectorExportDialog({
       for (const { camera, output } of encoded) {
         controller.signal.throwIfAborted();
         const stem = (prefix: string) =>
-          `${prefix}_${camera.name}`.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").slice(0, 251);
+          sanitizeFileName(`${prefix}_${camera.name}`, "-").slice(0, 251);
         try {
           const result = await window.desktop.projects.attachDirectorTake({
             projectHandle,

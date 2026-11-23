@@ -277,9 +277,15 @@ export function DirectorTimeline({
                 const chosen =
                   selectedKey?.id === item.id && Math.abs(selectedKey.time - key.t) < 0.005;
                 return (
-                  <span
+                  <button
                     key={key.t}
-                    role="button"
+                    type="button"
+                    onClick={(event) => {
+                      if (event.detail === 0) {
+                        selectKey({ id: item.id, time: key.t });
+                        setTime(key.t);
+                      }
+                    }}
                     aria-label={`${item.name} · ${key.t} 秒`}
                     title={`${key.t.toFixed(2)}s · ${key.ease === "linear" ? "线性" : "缓入缓出"}（右键切换）`}
                     onPointerDown={(event) => grabKey(event, item.id, key.t)}

@@ -78,6 +78,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -1515,6 +1516,7 @@ export function App() {
     canvasUploads.forget(id);
     doodleUploads.forget(id);
   };
+  const forgetRemovedUpload = useEffectEvent(forgetUpload);
   const previousUploadIds = useRef<string[]>([]);
   useLayoutEffect(() => {
     const ids = nodes
@@ -1524,7 +1526,7 @@ export function App() {
           (node.data.uploadProgress !== undefined || node.data.uploadFailed),
       )
       .map((node) => node.id);
-    for (const id of previousUploadIds.current) if (!ids.includes(id)) forgetUpload(id);
+    for (const id of previousUploadIds.current) if (!ids.includes(id)) forgetRemovedUpload(id);
     previousUploadIds.current = ids;
   }, [nodes]);
   const persistence = useCanvasSave(
@@ -4028,7 +4030,7 @@ export function App() {
     }
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([exported.json], { type: "application/json" }));
-    link.download = `${projectSession.name.trim().replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, "_") || "未命名画布"}.canvas.json`;
+    link.download = `${sanitizeFileName(projectSession.name.trim()) || "未命名画布"}.canvas.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
     setProjectError(exported.skippedAssets ? `已跳过 ${exported.skippedAssets} 个缺失素材` : "");
@@ -4089,9 +4091,9 @@ export function App() {
     });
     if (!result.ok) return;
     const link = document.createElement("a");
-    const fileName = (
-      name ? name + (asset.displayName.match(/\.[a-z0-9]{1,8}$/i)?.[0] ?? "") : asset.displayName
-    ).replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/gu, "_");
+    const fileName = sanitizeFileName(
+      name ? name + (asset.displayName.match(/\.[a-z0-9]{1,8}$/i)?.[0] ?? "") : asset.displayName,
+    );
     link.href = `${result.value.url}/download/${encodeURIComponent(fileName)}`;
     link.download = fileName;
     link.click();
@@ -7309,3 +7311,5 @@ export function App() {
     </AgentMarks.Provider>
   );
 }
+
+import { sanitizeFileName } from "@link-studio/core";

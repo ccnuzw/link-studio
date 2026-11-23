@@ -35,10 +35,14 @@ export function ShotConfirm({
         >
           {small ? (
             <section className="shot-confirm-heading">
-              <AlertDialog.Title render={<h3 />}>{title}</AlertDialog.Title>
+              <AlertDialog.Title render={(props) => <h3 {...props}>{props.children}</h3>}>
+                {title}
+              </AlertDialog.Title>
             </section>
           ) : (
-            <AlertDialog.Title render={<h3 />}>{title}</AlertDialog.Title>
+            <AlertDialog.Title render={(props) => <h3 {...props}>{props.children}</h3>}>
+              {title}
+            </AlertDialog.Title>
           )}
           {description && <AlertDialog.Description>{description}</AlertDialog.Description>}
           <div>

@@ -44,16 +44,8 @@ function SaveIndicator({ state, retry }: { state: SaveState; retry: () => void }
         : state === "conflict"
           ? RefreshCw
           : Check;
-  return (
-    <button
-      type="button"
-      className="canvas-save-indicator"
-      role="status"
-      data-state={state}
-      aria-label={saveLabels[state]}
-      disabled={state !== "error"}
-      onClick={retry}
-    >
+  const content = (
+    <>
       <Icon size={14} />
       <AnimatePresence>
         {!quiet && (
@@ -67,7 +59,19 @@ function SaveIndicator({ state, retry }: { state: SaveState; retry: () => void }
           </motion.span>
         )}
       </AnimatePresence>
+    </>
+  );
+  const props = {
+    className: "canvas-save-indicator",
+    "data-state": state,
+    "aria-label": saveLabels[state],
+  };
+  return state === "error" ? (
+    <button type="button" {...props} onClick={retry}>
+      {content}
     </button>
+  ) : (
+    <output {...props}>{content}</output>
   );
 }
 

@@ -327,7 +327,9 @@ export function DramaStoryboardGate({
           <AlertDialog.Portal className="storyboard-layer drama-delete-layer">
             <AlertDialog.Backdrop className="shot-confirm-backdrop" />
             <AlertDialog.Popup className="shot-confirm drama-delete-confirm">
-              <AlertDialog.Title render={<h3 />}>重新生成第 {no} 集的分镜脚本？</AlertDialog.Title>
+              <AlertDialog.Title render={(props) => <h3 {...props}>{props.children}</h3>}>
+                重新生成第 {no} 集的分镜脚本？
+              </AlertDialog.Title>
               <AlertDialog.Description>
                 这一集已经有生成结果，重新生成会清空已有片段（片段提示词和采用状态）。已生成的视频文件不会被删除。
               </AlertDialog.Description>
