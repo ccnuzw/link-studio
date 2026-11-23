@@ -407,8 +407,9 @@ try {
                 document.getAnimations().map((animation) => animation.finished.catch(() => {})),
               );
             });
-            const key = `${theme}-${width}-${state}`,
-              row = (report.states[key] ??= {});
+            const key = `${theme}-${width}-${state}`;
+            report.states[key] ??= {};
+            const row = report.states[key];
             row[side] = await (deletion ? popup : rings ? ringButton : dialog).boundingBox();
             if (rings && state !== "done") {
               const arc = ringButton.locator("circle[stroke-dasharray]");

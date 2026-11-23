@@ -37,6 +37,8 @@ export function channelHeaderIssue(rawName: string, value: string, seen: Set<str
   if (seen.has(key)) return `请求头 ${name} 重复（名称不区分大小写）`;
   seen.add(key);
   if (value.length > 1024) return "请求头值不能超过 1024 个字符";
-  if (/[\x00-\x1f\x7f]/.test(value)) return "请求头值不能包含换行或控制字符";
+  if (hasAsciiControl(value)) return "请求头值不能包含换行或控制字符";
   if (/[^\x20-\x7e]/.test(value)) return "请求头值只能包含可打印的 ASCII 字符";
 }
+
+import { hasAsciiControl } from "./file-name.ts";

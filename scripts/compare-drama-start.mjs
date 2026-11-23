@@ -528,7 +528,8 @@ try {
               );
               const scrollTop = await scroll.evaluate((element) => element.scrollTop);
               const image = await settledImage(page, path.join(output, `${side}-${name}.png`));
-              const state = (report.states[name] ??= {});
+              report.states[name] ??= {};
+              const state = report.states[name];
               state[side] = {
                 box: await dialog.boundingBox(),
                 ratio: position === "prompt-editor" ? null : await keyButton.boundingBox(),

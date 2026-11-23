@@ -127,10 +127,10 @@ try {
         let enabled = false;
         window.desktop = {
           settings: {
-            agentPreferences: async ({ showThinking }) => ({
-              ok: true,
-              value: { showThinking: (enabled = showThinking ?? enabled) },
-            }),
+            agentPreferences: async ({ showThinking }) => {
+              enabled = showThinking ?? enabled;
+              return { ok: true, value: { showThinking: enabled } };
+            },
           },
         };
       });

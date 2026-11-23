@@ -238,8 +238,9 @@ try {
                   ? ["missing", "ready", "blocked", "finished", "empty", "hover", "focus"]
                   : labels) {
             let clip;
-            const key = `${theme}-${width}-${label}`,
-              row = (report.states[key] ??= {});
+            const key = `${theme}-${width}-${label}`;
+            report.states[key] ??= {};
+            const row = report.states[key];
             if (gate) {
               await page.mouse.move(0, 500);
               await page.evaluate((phase) => window.show(phase), label);

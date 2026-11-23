@@ -2,6 +2,9 @@ import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import type { ProjectDialogsAPI, ProjectsAPI } from "./projects-api.ts";
 import type { SettingsAPI } from "./settings-api.ts";
+
+export { sanitizeFileName } from "./file-name.ts";
+
 import type { SkillsAPI } from "./skills-api.ts";
 
 export * from "./canvas.ts";

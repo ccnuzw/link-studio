@@ -203,7 +203,8 @@ try {
               await pill.waitFor();
               await page.evaluate(() => document.fonts.ready);
               const key = `${theme}-${width}-drop`;
-              (report.states[key] ??= {})[side] = await pill.boundingBox();
+              report.states[key] ??= {};
+              report.states[key][side] = await pill.boundingBox();
               await region.screenshot({ path: path.join(output, `${side}-${key}.png`) });
               continue;
             }
@@ -235,7 +236,8 @@ try {
                 });
                 const region = start.locator(".."),
                   key = `${theme}-${width}-${state}`;
-                (report.states[key] ??= {})[side] = await region.boundingBox();
+                report.states[key] ??= {};
+                report.states[key][side] = await region.boundingBox();
                 await region.screenshot({ path: path.join(output, `${side}-${key}.png`) });
               }
               continue;
@@ -412,7 +414,8 @@ try {
                   observed.pill,
                   state.startsWith("multi") ? null : state === "tab-locate" ? "0" : "1",
                 );
-                (report.states[key] ??= {})[side] = observed;
+                report.states[key] ??= {};
+                report.states[key][side] = observed;
               }
               continue;
             }
@@ -434,7 +437,8 @@ try {
                     (style.transform === "none" || new DOMMatrix(style.transform).isIdentity)
                   );
                 });
-                (report.states[key] ??= {})[side] = await bar.boundingBox();
+                report.states[key] ??= {};
+                report.states[key][side] = await bar.boundingBox();
                 if (
                   process.env.PARITY_STYLES &&
                   theme === "light" &&
@@ -560,7 +564,8 @@ try {
                 path: path.join(output, `${side}-${key}.png`),
                 animations: "disabled",
               });
-              (report.states[key] ??= {})[side] = await card.evaluate((el) => ({
+              report.states[key] ??= {};
+              report.states[key][side] = await card.evaluate((el) => ({
                 width: el.offsetWidth,
                 height: el.offsetHeight,
               }));

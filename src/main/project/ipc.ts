@@ -29,6 +29,10 @@ import {
   dramaVideoModelIssue,
 } from "../../../packages/link-studio-core/src/drama.ts";
 import { dramaImageFields } from "../../../packages/link-studio-core/src/drama-image-params.ts";
+import {
+  hasAsciiControl,
+  sanitizeFileName,
+} from "../../../packages/link-studio-core/src/file-name.ts";
 import { jobIsTerminal } from "../../../packages/link-studio-core/src/generation.ts";
 import type { ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import type {
@@ -457,7 +461,7 @@ export class ProjectIpc {
         if (
           downloadName &&
           (downloadName.length > 300 ||
-            /[\\/:*?"<>|\u0000-\u001f\u007f]/u.test(downloadName) ||
+            sanitizeFileName(downloadName) !== downloadName ||
             extname(downloadName).toLowerCase() !== extname(asset.displayName).toLowerCase())
         )
           return new Response(null, { status: 404 });
@@ -1887,7 +1891,7 @@ export class ProjectIpc {
       }
       case "beginClipboardFile": {
         const { projectHandle, name, kind, size } = request as ProjectRequest<"beginClipboardFile">;
-        if (/[\\/\x00-\x1f]/u.test(name) || name === "." || name === "..")
+        if (hasAsciiControl(name) || /[\\/]/.test(name) || name === "." || name === "..")
           throw new ProjectError("ASSET_READ_FAILED", "无效的媒体文件名");
         return this.coordinator.withStore(id, projectHandle, async (store) => {
           const held = [

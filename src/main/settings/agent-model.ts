@@ -237,7 +237,10 @@ async function agentAttempt(
       }
     }
     if (whole && !translator) {
-      let result;
+      let result: {
+        choices?: { message?: { role?: string; tool_calls?: object[] }; finish_reason?: string }[];
+        usage?: unknown;
+      } | null;
       try {
         result = JSON.parse(buffer);
       } catch {
@@ -257,7 +260,7 @@ async function agentAttempt(
           `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: choice.finish_reason || "stop" }] })}`,
         ),
       );
-      if (result.usage)
+      if (result?.usage)
         yield Buffer.from(clean(`data: ${JSON.stringify({ choices: [], usage: result.usage })}`));
       yield Buffer.from("data: [DONE]\n\n");
     } else if (translator) {

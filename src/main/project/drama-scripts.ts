@@ -120,7 +120,8 @@ export async function writeDramaScripts(
         target.revision = expected + 1;
         if (text !== undefined) {
           target.script_md = text;
-          (active.done_episodes ??= []).push(number);
+          active.done_episodes ??= [];
+          active.done_episodes.push(number);
           active.progress = progressBucket(
             (active.done_episodes.length * 90) / active.episodes.length,
           );
