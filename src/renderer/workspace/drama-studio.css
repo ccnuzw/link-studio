@@ -1,0 +1,2426 @@
+.drama-studio {
+  height: 100dvh;
+  overflow: auto;
+  padding: 20px;
+  background: #f7f7f7;
+  color: #202020;
+}
+.drama-studio header,
+.drama-studio form > label {
+  display: flex;
+  gap: 12px;
+}
+.drama-studio header {
+  align-items: center;
+}
+.drama-studio h1 {
+  font-size: 22px;
+}
+.drama-stage-tabs {
+  --stage-bg: oklch(0.95 0.007 85 / 0.78);
+  --stage-edge: oklch(0.22 0.02 85 / 0.1);
+  --stage-hover: oklch(0.22 0.02 85 / 0.06);
+  --stage-fg: oklch(0.22 0.01 85);
+  --stage-muted: oklch(0.5 0.015 85);
+  --stage-primary: oklch(0.67 0.14 78);
+  display: flex;
+  flex: none;
+  width: max-content;
+  gap: 2px;
+  padding: 4px;
+  margin-inline: auto;
+  border-radius: 2147483647px;
+  background: var(--stage-bg);
+  box-shadow:
+    0 0 0 1px var(--stage-edge),
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+  backdrop-filter: blur(24px) saturate(150%);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: initial;
+  text-rendering: auto;
+}
+.drama-stage-tabs button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--stage-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.42857143;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.drama-stage-tabs button[aria-selected="true"],
+.drama-stage-tabs button:hover {
+  color: var(--stage-fg);
+}
+.drama-stage-tabs button[aria-selected="false"]:hover,
+.drama-stage-tabs i {
+  background: var(--stage-hover);
+}
+.drama-stage-tabs i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1px var(--stage-edge);
+}
+.drama-stage-tabs span,
+.drama-stage-tabs b {
+  position: relative;
+}
+.drama-stage-tabs b {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--stage-primary);
+}
+.drama-stage-tabs button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--stage-primary) 50%, transparent);
+  outline-offset: 0;
+}
+@media (width < 768px) {
+  .drama-stage-tabs button {
+    padding-inline: 10px;
+  }
+}
+@media (width < 640px) {
+  .drama-studio > header {
+    flex-wrap: wrap;
+  }
+  .drama-studio > header > .drama-stage-tabs {
+    order: 1;
+    flex-basis: auto;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-stage-tabs {
+    --stage-bg: oklch(0.145 0.002 286 / 0.72);
+    --stage-edge: oklch(1 0 0 / 0.08);
+    --stage-hover: oklch(1 0 0 / 0.06);
+    --stage-muted: oklch(0.75 0.015 85);
+    --stage-fg: oklch(0.955 0.008 85);
+    --stage-primary: oklch(0.81 0.15 82);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drama-stage-tabs [data-hint="run"] {
+    animation: episode-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+.drama-scripts-dialog {
+  --paper: white;
+  --ink: oklch(0.145 0 0);
+  --muted: oklch(0.97 0 0);
+  --soft: oklch(0.556 0 0);
+  --line: oklch(0.922 0 0);
+  --input: var(--line);
+  --field: transparent;
+  --primary: oklch(0.205 0 0);
+  --on-primary: oklch(0.985 0 0);
+  --warning: oklch(0.7 0.16 70);
+  --credit: oklch(0.72 0.15 75);
+  box-sizing: border-box;
+  width: min(576px, calc(100vw - 32px));
+  max-height: 94vh;
+  overflow: auto;
+  margin: auto;
+  padding: 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--ink) 10%, transparent);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-scripts-dialog {
+    --paper: oklch(0.205 0 0);
+    --ink: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --soft: oklch(0.708 0 0);
+    --line: #ffffff1a;
+    --input: #ffffff26;
+    --field: color-mix(in oklch, var(--input) 30%, transparent);
+    --primary: oklch(0.922 0 0);
+    --on-primary: oklch(0.205 0 0);
+    --warning: oklch(0.8 0.15 75);
+    --credit: oklch(0.82 0.15 85);
+  }
+}
+.drama-scripts-dialog::backdrop {
+  background: rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(4px);
+}
+.drama-scripts-dialog[open],
+.drama-scripts-dialog fieldset {
+  display: grid;
+  gap: 16px;
+}
+.drama-scripts-dialog {
+  max-width: none;
+  position: fixed;
+  inset: 50% auto auto 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  font-synthesis: initial;
+}
+.drama-scripts-dialog h2 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.drama-scripts-dialog fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  gap: 8px;
+}
+.script-selection,
+.script-range,
+.script-estimate,
+.drama-scripts-dialog [role="note"],
+.drama-scripts-dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drama-scripts-dialog button {
+  box-sizing: border-box;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 20px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+.drama-scripts-dialog button:focus-visible {
+  outline: none;
+  border-color: var(--focus-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.script-selection {
+  gap: 4px;
+}
+.script-selection button {
+  height: 32px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.script-selection small,
+.script-estimate small {
+  flex: 1;
+  color: var(--soft);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.script-selection small {
+  margin-left: 4px;
+  flex: initial;
+}
+.script-selection > span {
+  flex: 1;
+}
+.script-estimate small {
+  text-align: right;
+  color: inherit;
+}
+.script-estimate small b {
+  color: var(--credit);
+  font-size: 14px;
+}
+.script-range {
+  color: var(--soft);
+  font-size: 13px;
+}
+.script-range input {
+  width: 80px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  border-radius: 10px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.script-range button {
+  flex: none;
+  height: 28px;
+  padding: 0 8px;
+  border-color: var(--input);
+  background: var(--field);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.script-range {
+  line-height: 1.42857143;
+}
+.script-range input {
+  min-width: 0;
+}
+.script-episodes {
+  max-height: 288px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.script-episodes > div {
+  position: relative;
+}
+.script-episode-window {
+  position: absolute;
+  inset-inline: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.script-episodes::-webkit-scrollbar {
+  width: 8px;
+}
+.script-episodes::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--soft) 40%, transparent);
+  border-radius: 99px;
+}
+.script-episodes button {
+  min-width: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+}
+.script-episodes button span:first-of-type {
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+.script-episodes button span:nth-of-type(2) {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.script-episodes small {
+  flex: none;
+  border-radius: 99px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  background: var(--muted);
+  color: var(--soft);
+}
+.script-episodes i {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+}
+.script-episodes button[aria-pressed="true"] {
+  background: var(--muted);
+  border-color: currentColor;
+}
+.drama-scripts-dialog button:disabled {
+  opacity: 0.5;
+}
+.drama-scripts-dialog .script-episodes button:disabled {
+  opacity: 0.45;
+}
+.script-estimate,
+.drama-scripts-dialog [role="note"] {
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  border-radius: 10px;
+}
+.script-estimate[data-overwrite="true"],
+.drama-scripts-dialog [role="note"] {
+  background: color-mix(in oklab, var(--warning) 10%, transparent);
+}
+.drama-scripts-dialog [role="note"] svg {
+  color: var(--warning);
+  flex: none;
+}
+.drama-scripts-dialog footer {
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 0 -16px -16px;
+  padding: 16px;
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  border-top: 1px solid var(--line);
+}
+.drama-scripts-dialog footer button {
+  height: 36px;
+  font-weight: 500;
+  border-radius: 10px;
+}
+.drama-scripts-dialog footer button:last-child {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.drama-scripts-dialog .script-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.drama-scripts-dialog footer {
+  border-radius: 0 0 14px 14px;
+}
+.drama-scripts-dialog footer button {
+  background-clip: padding-box;
+}
+.drama-scripts-dialog .script-estimate small b {
+  line-height: 20px;
+}
+.drama-scripts-dialog[data-breakdown] .script-selection {
+  gap: 8px;
+}
+.drama-scripts-dialog[data-breakdown] .script-selection small {
+  margin-left: 0;
+}
+.drama-scripts-dialog[data-breakdown] footer button:last-child {
+  background-clip: padding-box;
+}
+.drama-scripts-dialog[data-breakdown] .script-selection button:hover:not(:disabled) {
+  background: var(--muted);
+}
+.drama-scripts-dialog[data-breakdown]
+  .script-episodes
+  button:not(:disabled):not([aria-pressed="true"]):hover {
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+.drama-scripts-dialog[data-breakdown] .script-episodes {
+  max-height: 224px;
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate > svg {
+  flex: none;
+  color: var(--warning);
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate > span {
+  flex: 1;
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate > span > b:first-child {
+  font-variant-numeric: tabular-nums;
+}
+.drama-scripts-dialog[data-breakdown] .script-range button {
+  background-clip: padding-box;
+}
+@media (prefers-color-scheme: light) {
+  .drama-scripts-dialog[data-breakdown] {
+    --paper: oklch(1 0 0);
+  }
+  .drama-scripts-dialog[data-breakdown] .script-range button {
+    background-color: var(--paper);
+  }
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate small {
+  flex: none;
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate small span {
+  color: var(--soft);
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate small [data-error],
+.drama-scripts-dialog[data-breakdown] [role="alert"] {
+  color: var(--quote-error, oklch(0.577 0.245 27.325));
+}
+.drama-scripts-dialog[data-breakdown] [role="alert"] {
+  margin: 0;
+}
+.drama-scripts-dialog[data-breakdown] footer button:last-child {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.drama-scripts-dialog[data-breakdown] footer button svg {
+  animation: breakdown-submit-spin 1s linear infinite;
+}
+@keyframes breakdown-submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-scripts-dialog[data-breakdown] {
+    --quote-error: oklch(0.704 0.191 22.216);
+  }
+}
+.drama-continue-dialog {
+  width: min(448px, calc(100vw - 32px));
+}
+@media (prefers-color-scheme: light) {
+  .drama-continue-dialog {
+    --paper: oklch(1 0 0);
+    --continue-bg: oklch(1 0 0);
+  }
+}
+@media (min-height: 480px) {
+  .drama-continue-dialog {
+    overflow: visible;
+  }
+}
+.drama-continue-dialog [role="tablist"] {
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+.drama-continue-dialog [role="tab"] {
+  border: 0;
+  padding: 0 16px;
+  height: 32px;
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.42857143;
+  border-radius: 999px;
+}
+.drama-continue-dialog [role="tab"][aria-selected="true"] {
+  background: var(--continue-bg, white);
+  color: var(--ink);
+  font-weight: 500;
+  --tab-shadow: 0 1px 3px #0000001a, 0 1px 2px -1px #0000001a;
+  box-shadow: var(--tab-shadow);
+}
+.drama-continue-dialog [role="tab"]:hover {
+  color: var(--ink);
+}
+.drama-continue-dialog [role="tab"]:focus-visible {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent),
+    var(--tab-shadow, 0 0 transparent);
+}
+.continue-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.continue-end input {
+  box-sizing: border-box;
+  width: 112px;
+  height: 36px;
+  border: 1px solid var(--input);
+  border-radius: 10px;
+  background: var(--field);
+  color: inherit;
+  padding: 4px 12px;
+  font: inherit;
+}
+.continue-end input {
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.continue-end input:focus-visible {
+  border-color: var(--focus-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.drama-continue-dialog footer button:last-child {
+  background-clip: padding-box;
+}
+.continue-estimate {
+  font-variant-numeric: tabular-nums;
+}
+.continue-estimate > span {
+  min-width: 0;
+  flex: 1;
+}
+.continue-estimate small {
+  flex: none;
+}
+.continue-estimate small span {
+  color: var(--soft);
+}
+.continue-estimate small [data-error="true"],
+.drama-continue-dialog [role="alert"] {
+  color: oklch(0.577 0.245 27.325);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-continue-dialog {
+    --continue-bg: oklch(0.145 0 0);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-scripts-dialog {
+    --focus-ring: oklch(0.556 0 0);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .script-episodes i {
+    background: oklch(0.145 0 0);
+  }
+  .drama-scripts-dialog {
+    color-scheme: dark;
+    --line: oklch(1 0 0 / 0.1);
+    --input: oklch(1 0 0 / 0.15);
+    --field: color-mix(in oklab, var(--input) 30%, transparent);
+  }
+}
+@media (max-width: 639px) {
+  .drama-scripts-dialog footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}
+.drama-take-carousel {
+  position: relative;
+  height: min(55vh, 702px);
+  touch-action: pan-y;
+  user-select: none;
+  overflow: hidden;
+}
+.drama-ref-bar {
+  font-size: 12px;
+}
+.drama-ref-bar > header {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.drama-ref-bar > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.drama-ref-bar > div > :is(span, button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 8px 0 3px;
+  background: var(--muted, #ededed);
+  font: inherit;
+  color: inherit;
+}
+.drama-ref-bar i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 60%);
+}
+.drama-ref-bar i img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drama-ref-bar > div > span > span {
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-ref-bar [data-dead="true"] > span {
+  text-decoration: line-through;
+}
+.drama-ref-bar small {
+  font-variant-numeric: tabular-nums;
+}
+.drama-preview-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.drama-preview-switch button[role="radio"] {
+  padding: 0 12px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  background: transparent;
+}
+.drama-preview-switch button[aria-checked="true"] {
+  background: var(--background);
+  color: var(--foreground);
+}
+.drama-board-frame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  max-width: 860px;
+  border: 1.5px dashed var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.drama-board-frame:has(img) {
+  background: #000;
+  border-color: transparent;
+}
+.drama-board-frame img,
+.drama-board-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.drama-board-strip {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 52px;
+  gap: 6px;
+  overflow-x: auto;
+}
+.drama-board-strip button {
+  height: 44px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 8px;
+  opacity: 0.6;
+}
+.drama-board-strip button[aria-current="true"] {
+  outline: 2px solid var(--primary);
+  opacity: 1;
+}
+.drama-ref-bar .drama-board-empty {
+  padding-inline: 8px;
+  color: var(--muted-foreground);
+}
+.drama-ref-bar .drama-board-chip {
+  padding-right: 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.drama-ref-bar .drama-board-chip:is([data-state="off"], [data-state="unsupported"]) {
+  opacity: 0.6;
+  box-shadow: none;
+}
+.drama-ref-bar .drama-board-chip button {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.drama-ref-bar .drama-board-chip button:hover {
+  background: var(--background);
+}
+.drama-take-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: black;
+  color: white;
+  box-shadow: 0 0 0 1px #ffffff1a;
+  cursor: pointer;
+}
+.drama-take-card.focused {
+  cursor: auto;
+  box-shadow: 0 40px 80px -30px rgb(0 0 0 / 90%);
+}
+.drama-take-card.chosen {
+  outline: 2px solid var(--primary, #171717);
+}
+.drama-take-card video,
+.drama-take-play,
+.drama-take-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.drama-take-play {
+  position: relative;
+  border: 0;
+  background: black;
+  padding: 0;
+  color: white;
+}
+.drama-take-play > span:last-child {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.drama-take-chosen {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  border-radius: 6px;
+  background: var(--primary, #171717);
+  color: white;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.drama-take-drag {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.drama-take-dots {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.drama-take-dots button {
+  height: 6px;
+  width: 6px;
+  border: 0;
+  padding: 0;
+  border-radius: 99px;
+  background: #888;
+  transition: width 200ms;
+}
+.drama-take-dots button.focused {
+  width: 20px;
+}
+.drama-take-dots button.failed {
+  background: #c94747;
+}
+.drama-take-dots button.chosen {
+  background: var(--primary, #171717);
+}
+.drama-source {
+  margin: 6vh auto;
+  padding: 24px;
+  max-width: 700px;
+  border-radius: 20px;
+  background: white;
+}
+.drama-source fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.drama-source fieldset > label {
+  display: grid;
+  gap: 6px;
+}
+.drama-source footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+}
+.drama-source fieldset footer {
+  justify-content: space-between;
+  font-size: 13px;
+}
+.drama-source fieldset footer button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #171717;
+  color: white;
+}
+.drama-source fieldset footer button:disabled {
+  background: #eee;
+  color: #777;
+}
+.drama-start-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 86vh;
+  margin: auto;
+  padding: 20px;
+  border: 0;
+  border-radius: 24px;
+  color: #202020;
+  background: rgb(255 255 255 / 88%);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow:
+    0 0 0 1px #00000014,
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+}
+.drama-start-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+.drama-start-dialog form {
+  display: grid;
+  gap: 16px;
+}
+.drama-start-dialog h2,
+.drama-start-dialog p {
+  margin: 0;
+}
+.drama-start-dialog h2 {
+  font-size: 16px;
+}
+.drama-ratio legend {
+  margin-bottom: 8px;
+}
+.drama-ratio button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: min(112px, 30%);
+  height: 64px;
+  margin-right: 8px;
+  border: 0;
+  border-radius: 16px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: #00000006;
+  box-shadow: 0 0 0 1px #00000014;
+}
+.drama-ratio button[aria-pressed="true"] {
+  font-weight: 500;
+  background: #0000000d;
+  box-shadow: 0 0 0 1.5px #17171799;
+}
+.drama-ratio i {
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+.drama-source [role="group"] {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.drama-source [aria-pressed="true"] {
+  font-weight: 600;
+  background: #eaeaea;
+}
+.drama-file-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 110px;
+  padding: 16px;
+  border: 1px dashed #aaa;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.drama-file-drop p {
+  flex-basis: 100%;
+  text-align: center;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) {
+  box-sizing: border-box;
+  max-width: calc(100vw - 32px);
+  padding: 0;
+  overflow: visible;
+  backdrop-filter: none;
+  --start-muted: oklch(0.556 0 0);
+  --start-hover: oklch(0 0 0 / 0.05);
+  --start-line: oklch(0 0 0 / 0.08);
+  --start-bg: oklch(1 0 0 / 0.82);
+  background: transparent;
+  color: oklch(0.145 0 0);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: initial;
+  text-rendering: auto;
+  border-radius: 22px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::backdrop {
+  background: rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(4px);
+}
+.drama-start-dialog[aria-label="开拍设置"] {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  margin: 0;
+  translate: -50% -50%;
+  background: var(--start-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow:
+    0 0 0 1px var(--start-line),
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+}
+.drama-start-dialog[aria-label="开拍设置"]::before {
+  display: none;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) h2 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  padding-inline: 12px;
+}
+.drama-start-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--start-hover) 50%, transparent);
+  box-shadow: 0 0 0 1px var(--start-line);
+}
+.drama-start-file > span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  background: var(--start-hover);
+}
+.drama-start-file > div {
+  min-width: 0;
+  flex: 1;
+}
+.drama-start-file strong,
+.drama-start-file small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drama-start-file strong {
+  font-weight: 500;
+}
+.drama-start-file small {
+  color: var(--start-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-start-file b {
+  border-radius: 999px;
+  background: var(--start-hover);
+  padding: 5px 12px;
+  font-weight: 500;
+}
+.drama-start-field {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding-inline: 12px;
+}
+.drama-start-field > span {
+  color: var(--start-muted);
+  font-size: 13px;
+}
+.drama-start-basis {
+  color: var(--start-muted);
+  margin-top: -8px;
+  padding-inline: 16px;
+  font-size: 12.5px;
+  line-height: 20px;
+}
+.drama-start-basis details,
+.drama-start-basis summary {
+  display: inline;
+}
+.drama-start-basis summary {
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.drama-start-divider {
+  height: 1px;
+  background: var(--start-line);
+}
+.drama-start-chips {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--start-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  z-index: -1;
+  pointer-events: none;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form {
+  padding: 20px;
+  max-height: 86vh;
+  overflow: auto;
+  overflow-x: hidden;
+  border-radius: inherit;
+}
+.drama-start-dialog[aria-label="开拍设置"] form {
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--start-muted) 40%, transparent);
+  border-radius: 999px;
+}
+.drama-start-dialog[aria-label="开拍设置"] .drama-ratio {
+  min-width: min-content;
+}
+.drama-start-dialog[aria-label="开拍设置"] .drama-ratio button {
+  width: 112px;
+}
+.drama-start-chips:has(.drama-range-estimate) {
+  column-gap: 12px;
+}
+.drama-range-estimate[aria-busy="true"] {
+  opacity: 0.5;
+}
+.drama-start-field p[role="alert"] {
+  color: var(--error-ink, oklch(0.577 0.245 27.325));
+  font-size: 13px;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-start-dialog {
+    --error-ink: oklch(0.704 0.191 22.216);
+  }
+}
+.drama-start-file .drama-field-trigger[data-unconfirmed="true"] {
+  color: var(--start-warning, oklch(0.7 0.16 70));
+  box-shadow: 0 0 0 1px currentColor;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-start-dialog {
+    --start-warning: oklch(0.8 0.15 75);
+  }
+}
+.drama-start-dialog .drama-field-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--start-hover);
+  box-shadow: 0 0 0 1px var(--start-line);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.drama-field-trigger > span:not(.model-avatar) {
+  max-width: 288px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drama-field-trigger svg {
+  flex: none;
+}
+.drama-field-trigger > svg:last-child {
+  opacity: 0.5;
+}
+.drama-field-trigger:not(:disabled):hover {
+  background: color-mix(in oklab, var(--start-hover) 70%, transparent);
+}
+.drama-field-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.drama-field-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+.drama-field-portal[popover] {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.drama-field-portal::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+.drama-menu-position {
+  z-index: 50;
+  isolation: isolate;
+  pointer-events: auto;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form[hidden] {
+  display: none;
+}
+.drama-prompts {
+  display: grid;
+  gap: 4px;
+}
+.drama-prompts > span {
+  font-size: 13px;
+  padding-inline: 12px;
+  color: var(--start-muted);
+  line-height: 1.42857143;
+}
+.drama-prompt-row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  gap: 12px;
+  padding-inline: 12px;
+}
+.drama-prompt-row > span {
+  width: 96px;
+  flex: none;
+  color: var(--start-muted);
+}
+.drama-prompt-row[data-missing] .drama-field-trigger {
+  color: var(--destructive, #b42318);
+}
+.drama-skill-choice > span {
+  min-width: 0;
+}
+.drama-skill-choice > span > * {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-skill-choice > span > small {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--start-muted);
+  font-weight: 400;
+}
+.drama-field-menu[data-kind="prompt"] {
+  width: min(320px, 92vw);
+  max-height: var(--available-height);
+  overflow: auto;
+  gap: 2px;
+}
+.drama-field-menu[data-kind="prompt"] > small {
+  color: var(--start-muted);
+  padding: 8px 8px 2px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row {
+  justify-content: flex-start;
+  padding: 0 10px;
+  min-width: 0;
+  border-radius: 10px;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row > small {
+  color: var(--start-muted);
+  background: var(--menu-muted);
+  border-radius: 999px;
+  padding-inline: 6px;
+  font-size: 10px;
+  line-height: 16px;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--start-muted) 50%, transparent);
+  outline-offset: 0;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row:disabled:hover {
+  background: transparent;
+  cursor: not-allowed;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row svg:last-child:not(:first-child) {
+  margin-left: auto;
+}
+.drama-prompt-choice {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.drama-prompt-choice > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.drama-prompt-choice > button:not(:first-child) {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+}
+.drama-prompt-editor {
+  display: grid;
+  gap: 16px;
+  max-height: 86vh;
+  overflow: auto;
+  padding: 20px;
+}
+.drama-prompt-editor {
+  scrollbar-gutter: stable;
+}
+.drama-prompt-editor::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.drama-prompt-editor::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--start-muted) 40%, transparent);
+}
+.drama-prompt-editor header,
+.drama-prompt-editor footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drama-prompt-editor header strong {
+  font-size: 16px;
+}
+.drama-prompt-editor button {
+  color: inherit;
+  font: inherit;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+}
+.drama-prompt-editor button:hover {
+  background: var(--start-hover);
+}
+.drama-prompt-editor > input,
+.drama-prompt-body {
+  border: 1px solid var(--start-line);
+  color: inherit;
+  background: var(--start-hover);
+}
+.drama-prompt-editor > input {
+  border-radius: 999px;
+  height: 40px;
+  padding: 0 16px;
+  font: inherit;
+}
+.drama-prompt-body {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 288px;
+  overflow: auto;
+  border-radius: 16px;
+  resize: none;
+  padding: 12px 16px;
+  font:
+    13px / 1.625 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+}
+.drama-prompt-editor [data-slot="placeholder-toolbar"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.drama-prompt-editor [data-slot="placeholder-toolbar"] button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  border: 1px solid var(--start-line);
+  font-size: 12.5px;
+}
+.drama-prompt-body .ProseMirror {
+  white-space: pre-wrap;
+  outline: none;
+  min-height: 100%;
+}
+.drama-prompt-body [data-placeholder] {
+  padding: 1px 8px;
+  border: 1px solid var(--start-line);
+  border-radius: 999px;
+  font: 500 12.5px / 1.5 sans-serif;
+}
+.drama-prompt-editor small {
+  display: block;
+  text-align: right;
+  color: var(--start-muted);
+  font:
+    11.5px / 1.42857143 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  margin-top: 6px;
+}
+.drama-prompt-editor footer {
+  justify-content: space-between;
+  padding: 0;
+}
+.drama-prompt-editor footer button,
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
+  height: 36px;
+}
+.drama-prompt-editor header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer {
+  padding: 0 4px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 500;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])
+  form
+  footer
+  button[type="submit"] {
+  background: var(--start-primary, #171717);
+  color: var(--start-on-primary, #fafafa);
+  padding: 0 24px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])
+  form
+  footer
+  button:disabled {
+  opacity: 0.5;
+}
+.drama-prompt-editor footer button:last-child {
+  padding-inline: 20px;
+  color: var(--start-on-primary, #fafafa);
+  background: var(--start-primary, #171717);
+}
+.drama-field-menu {
+  --menu-bg: oklch(1 0 0);
+  --menu-muted: oklch(0.97 0 0);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--menu-bg);
+  color: inherit;
+  font: inherit;
+  outline: 0;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, currentColor 10%, transparent),
+    0 4px 6px -1px #0000001a,
+    0 2px 4px -2px #0000001a;
+}
+.drama-field-menu[data-kind="genre"] {
+  width: min(320px, 92vw);
+}
+.drama-field-menu:is([data-kind="agent"], [data-kind="media"]) {
+  width: 320px;
+  max-height: min(320px, var(--available-height));
+  overflow: auto;
+}
+.drama-field-menu[data-kind="agent"] {
+  width: 288px;
+}
+.drama-field-menu .drama-model-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-model-name small {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--start-muted);
+}
+.drama-model-empty {
+  padding: 12px 8px;
+  color: var(--start-muted);
+}
+.drama-field-menu .drama-menu-row:disabled {
+  opacity: 0.4;
+}
+.drama-field-trigger .model-avatar,
+.drama-menu-row .model-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 0;
+  box-shadow: none;
+}
+.drama-field-trigger .model-avatar svg,
+.drama-menu-row .model-avatar svg {
+  width: 68%;
+  height: 68%;
+}
+.drama-field-menu[data-kind="seconds"] {
+  width: 220px;
+}
+.drama-field-menu[data-kind="source"] {
+  width: min(224px, 92vw);
+}
+.drama-field-menu[data-kind="source"] small {
+  display: block;
+  color: var(--start-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-field-menu[data-kind="range"] {
+  width: min(256px, 92vw);
+}
+.drama-field-menu[data-kind="range"] label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.drama-field-menu[data-kind="range"] input {
+  width: 96px;
+  height: 32px;
+}
+.drama-field-menu:is([data-kind="source"], [data-kind="range"]) .drama-menu-row {
+  min-height: 32px;
+  padding-block: 0;
+}
+.drama-field-menu[data-kind="range"] input {
+  border: 1px solid var(--start-line);
+  border-radius: 8px;
+  background: transparent;
+  padding: 4px 12px;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+.drama-field-menu[data-kind="range"] input {
+  border-color: oklch(0.922 0 0);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-field-menu[data-kind="range"] input {
+    border-color: oklch(1 0 0 / 0.15);
+    background: oklab(1 0 0 / 0.045);
+  }
+}
+.drama-field-menu[data-kind="range"] input:focus-visible {
+  border-color: var(--start-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.drama-start-dialog .drama-field-trigger:focus-visible,
+.drama-field-menu .drama-menu-row:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-start-dialog {
+    --start-ring: oklch(0.556 0 0);
+  }
+}
+.drama-range-estimate {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--start-muted);
+  font-variant-numeric: tabular-nums;
+}
+.drama-range-estimate span {
+  white-space: nowrap;
+}
+.drama-range-estimate i {
+  font-style: normal;
+  opacity: 0.5;
+}
+.drama-range-estimate em {
+  font-style: normal;
+  color: oklch(0.72 0.15 75);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-range-estimate em {
+    color: oklch(0.82 0.15 85);
+  }
+}
+.drama-field-menu[data-kind="params"] {
+  --param-border: oklch(0.922 0 0);
+  --param-selected: oklch(1 0 0);
+  width: min(320px, 92vw);
+  max-height: var(--available-height);
+  overflow: auto;
+  gap: 10px;
+  padding: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-field-menu[data-kind="params"] {
+    --param-border: oklch(1 0 0 / 0.1);
+    --param-selected: oklch(0.145 0 0);
+  }
+}
+.drama-start-dialog .drama-field-trigger > svg {
+  width: 16px;
+  height: 16px;
+}
+.drama-param-row {
+  display: grid;
+  gap: 4px;
+}
+.drama-param-row > span {
+  color: var(--start-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-param-row [data-param="aspectRatio"] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.drama-param-row [data-param="resolution"] {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--menu-muted);
+}
+.drama-param-row [data-param] button {
+  color: var(--start-muted);
+}
+.drama-param-row [role="radio"]:focus-visible {
+  outline: 1px auto color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+  outline-offset: 0;
+}
+.drama-param-row [data-param="aspectRatio"] button {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--param-border);
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.42857143;
+}
+.drama-param-row [data-param="resolution"] button {
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-param-row [data-param] button:is(:hover, [aria-checked="true"]) {
+  color: inherit;
+}
+.drama-param-row [data-param="aspectRatio"] button[aria-checked="true"] {
+  background: var(--menu-muted);
+  border-color: color-mix(in oklab, currentColor 60%, transparent);
+}
+.drama-param-row [data-param="resolution"] button[aria-checked="true"] {
+  background: var(--param-selected);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+.drama-field-menu[data-kind="style"] {
+  width: min(736px, 92vw);
+  max-height: min(70vh, 560px);
+  overflow: auto;
+}
+.drama-field-menu {
+  border-radius: 10px;
+  transform-origin: var(--transform-origin);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drama-field-menu[data-open] {
+    animation: drama-menu-enter 0.1s both;
+  }
+}
+@keyframes drama-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.drama-genre-grid,
+.drama-style-grid,
+.drama-seconds-list {
+  display: grid;
+}
+.drama-genre-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+}
+.drama-style-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.drama-seconds-list {
+  gap: 4px;
+}
+.drama-field-menu button {
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+}
+.drama-field-menu .drama-menu-row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.drama-field-menu[data-kind="agent"] .drama-menu-row {
+  min-height: 32px;
+  padding-block: 0;
+}
+.drama-field-menu .drama-menu-row[aria-pressed="true"] {
+  font-weight: 500;
+}
+.drama-field-menu .drama-menu-row:is(:hover, [aria-pressed="true"]) {
+  background: var(--menu-muted);
+}
+.drama-field-menu .drama-style-grid button {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.drama-style-grid button:hover {
+  background: color-mix(in oklab, var(--menu-muted) 60%, transparent);
+}
+.drama-field-menu .drama-style-grid button[aria-pressed="true"] {
+  background: var(--menu-muted);
+}
+.drama-style-poster,
+.drama-style-grid i {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--menu-muted);
+}
+.drama-style-poster {
+  position: relative;
+}
+.drama-style-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drama-style-grid i {
+  display: grid;
+  place-items: center;
+  color: var(--start-muted);
+}
+.drama-style-grid span {
+  max-width: 100%;
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-field-menu textarea {
+  box-sizing: border-box;
+  margin-top: 4px;
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--start-line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 8px 12px;
+  font: inherit;
+  resize: vertical;
+}
+.drama-custom-seconds {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 8px 0;
+  border-top: 1px solid var(--start-line);
+  font-size: 12px;
+  color: var(--start-muted);
+}
+.drama-custom-seconds input {
+  height: 40px;
+  width: 112px;
+  padding: 0 8px;
+  border: 1px solid var(--start-line);
+  border-radius: 12px;
+  background: var(--start-hover);
+  color: inherit;
+  font-size: 16px;
+}
+@media (max-width: 639px) {
+  .drama-style-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-field-menu {
+    --menu-bg: oklch(0.205 0 0);
+    --menu-muted: oklch(0.269 0 0);
+  }
+}
+.drama-start-field > .drama-start-episodes {
+  justify-self: stretch;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-start-dialog .drama-ratio legend {
+  color: var(--start-muted);
+  font-size: 13px;
+  padding: 0;
+}
+.drama-start-field > span,
+.drama-start-dialog .drama-ratio legend,
+.drama-start-file small {
+  line-height: 1.42857143;
+}
+.drama-start-dialog .drama-ratio > div {
+  display: flex;
+  gap: 8px;
+}
+.drama-start-dialog .drama-ratio button {
+  flex: 0 0 112px;
+  margin: 0;
+  border-radius: 18px;
+  line-height: 1.42857143;
+}
+.drama-start-dialog .drama-ratio {
+  padding-inline: 12px;
+}
+.drama-start-dialog .drama-ratio button {
+  color: inherit;
+  background: color-mix(in oklab, var(--start-hover) 50%, transparent);
+  box-shadow: 0 0 0 1px var(--start-line);
+}
+.drama-start-dialog .drama-ratio button[aria-pressed="true"] {
+  background: var(--start-hover);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, currentColor 60%, transparent);
+}
+.drama-start-dialog .drama-ratio button[aria-pressed="false"]:hover {
+  background: var(--start-hover);
+}
+.drama-start-dialog .drama-ratio button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) {
+    --start-muted: oklch(0.708 0 0);
+    --start-hover: oklch(1 0 0 / 0.07);
+    --start-line: oklch(1 0 0 / 0.08);
+    --start-bg: oklch(0.2 0 0 / 0.78);
+    color-scheme: dark;
+    color: oklch(0.985 0 0);
+  }
+  .drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) {
+    --start-primary: oklch(0.922 0 0);
+    --start-on-primary: oklch(0.205 0 0);
+  }
+  .drama-prompt-editor > input,
+  .drama-prompt-editor textarea {
+    background: oklab(1 0 0 / 0.045);
+  }
+}
+.drama-studio form > label {
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+.drama-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 16px;
+}
+.drama-columns:not(:has(> .drama-assistant)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.drama-columns > article {
+  display: flex;
+  min-width: 0;
+  height: calc(100dvh - 92px);
+  overflow-wrap: anywhere;
+}
+.drama-script-area {
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+.drama-stage-frame {
+  display: contents;
+}
+.drama-script-frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.drama-script-frame:has(.drama-script-next) .drama-script-area {
+  padding-bottom: 100px;
+}
+.drama-script-next {
+  --pill: oklch(0.95 0.007 85 / 0.78);
+  --action-ink: oklch(1 0 0);
+  --credit: oklch(0.72 0.15 75);
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  translate: -50% 0;
+  overflow-wrap: normal;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  border-radius: 9999px;
+  padding: 6px 6px 6px 16px;
+  background: var(--pill);
+  box-shadow:
+    0 0 0 1px var(--rail-line),
+    0 10px 15px -3px #0000001a,
+    0 4px 6px -4px #0000001a;
+  backdrop-filter: blur(24px);
+  color: var(--rail-ink);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  font-synthesis: initial;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-script-next[data-step="scripts"] > span,
+.drama-script-next[data-step="scripts"] > small:not(.drama-script-blocked) {
+  font-variant-numeric: tabular-nums;
+}
+.drama-script-next small {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--rail-soft);
+}
+.drama-script-next em {
+  color: var(--credit);
+  font-style: normal;
+}
+.drama-script-next button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 2147483647px;
+  background: var(--rail-primary) padding-box;
+  color: var(--action-ink);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.drama-script-next button:hover {
+  background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
+}
+.drama-script-next button:focus-visible {
+  outline: none;
+  border-color: var(--rail-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.drama-script-next button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.drama-script-blocked {
+  max-width: 192px;
+  padding-right: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-script-next {
+    --pill: oklch(0.145 0.002 286 / 0.72);
+    --action-ink: oklch(0.2 0.03 85);
+    --credit: oklch(0.82 0.15 85);
+  }
+}
+.drama-columns,
+.drama-episode-rail,
+.drama-episode-tabs {
+  --rail-bg: oklch(0.95 0.007 85);
+  --rail-ink: oklch(0.22 0.01 85);
+  --rail-soft: oklch(0.5 0.015 85);
+  --rail-muted: oklch(0.92 0.008 85);
+  --rail-line: oklch(0.22 0.02 85 / 0.1);
+  --rail-primary: oklch(0.67 0.14 78);
+  --status-success: oklch(0.6 0.13 160);
+  --paper: oklch(0.99 0.006 90);
+  --paper-ink: oklch(0.26 0.012 85);
+  color: var(--rail-ink);
+  background: var(--rail-bg);
+}
+.drama-episode-rail,
+.drama-episode-tabs {
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: initial;
+  text-rendering: auto;
+  --rail-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+}
+.drama-episode-rail {
+  box-sizing: border-box;
+  display: flex;
+  width: 78px;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--rail-line);
+}
+.drama-episode-rail small {
+  padding: 4px 0;
+  text-align: center;
+  line-height: 15px;
+  letter-spacing: 0.12em;
+  font-size: 10.5px;
+  font-family: var(--rail-mono);
+  color: var(--rail-soft);
+}
+.drama-episode-rail button,
+.drama-episode-tabs button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--rail-soft);
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+.drama-episode-rail button:hover:not(:disabled),
+.drama-episode-tabs button:hover {
+  background: color-mix(in oklab, var(--rail-muted) 60%, transparent);
+  color: var(--rail-ink);
+}
+.drama-episode-rail button[aria-current="true"],
+.drama-episode-tabs button[aria-current="true"] {
+  color: var(--rail-ink);
+  background: var(--rail-muted);
+}
+.drama-episode-rail button[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  width: 3px;
+  top: 10px;
+  bottom: 10px;
+  background: var(--rail-primary);
+  border-radius: 0 3px 3px 0;
+}
+.drama-episode-rail button:is([title="仅资产管理可按全集筛选"], [title="全集"]) {
+  font-size: 13px;
+  line-height: 1.42857143;
+  font-weight: 600;
+}
+.drama-episode-rail > .episode-rows ~ button {
+  gap: 4px;
+  line-height: 1.42857143;
+}
+.drama-episode-rail hr {
+  border: 0;
+  border-top: 1px solid var(--rail-line);
+  margin: 4px 8px;
+}
+.drama-episode-rail button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.episode-rows {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.episode-rows::-webkit-scrollbar {
+  width: 8px;
+}
+.episode-rows::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--rail-soft) 40%, transparent);
+  border-radius: 999px;
+}
+.episode-rows > div {
+  position: relative;
+}
+.episode-rows button {
+  position: absolute;
+  width: 100%;
+  height: 52px;
+  padding: 0;
+}
+.episode-rows b {
+  font: 600 15px / 1 var(--rail-mono);
+  letter-spacing: -0.025em;
+}
+.drama-episode-menu-position {
+  isolation: isolate;
+  z-index: 1000;
+}
+.drama-episode-menu {
+  --menu-danger: oklch(0.577 0.245 27.325);
+  --menu-edge: oklch(0 0 0 / 0.08);
+  min-width: 160px;
+  max-height: var(--available-height);
+  overflow: hidden auto;
+  padding: 6px;
+  border-radius: 14px;
+  background: oklch(1 0 0 / 0.82);
+  box-shadow:
+    0 0 0 1px var(--menu-edge),
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(24px) saturate(150%);
+  outline: none;
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-episode-menu [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  color: var(--menu-danger);
+  outline: none;
+  user-select: none;
+}
+.drama-episode-menu [data-highlighted] {
+  background: color-mix(in oklab, var(--menu-danger) 10%, transparent);
+}
+.drama-episode-menu [data-disabled] {
+  opacity: 0.5;
+}
+.drama-delete-layer {
+  --delete-bg: oklch(1 0 0 / 0.82);
+  --delete-edge: oklch(0 0 0 / 0.08);
+  font-synthesis: initial;
+}
+.drama-delete-layer .shot-confirm-backdrop {
+  background: rgb(0 0 0 / 0.25);
+  backdrop-filter: blur(8px);
+}
+.shot-confirm.drama-delete-confirm {
+  width: min(448px, 100%);
+  padding: 24px;
+  border-radius: 22px;
+  background: var(--delete-bg);
+  box-shadow:
+    0 0 0 1px var(--delete-edge),
+    0 25px 50px -12px rgb(0 0 0 / 0.25);
+  backdrop-filter: blur(40px) saturate(150%);
+}
+.drama-delete-confirm [role="alert"] {
+  color: var(--destructive);
+  margin-top: 12px;
+}
+.shot-confirm.drama-delete-confirm > div {
+  margin: 20px -24px -24px;
+  padding: 16px 24px;
+  border-color: var(--delete-edge);
+  background: transparent;
+}
+@media (max-width: 639px) {
+  .shot-confirm.drama-delete-confirm {
+    width: min(320px, 100%);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-delete-layer {
+    --delete-bg: oklch(0.2 0 0 / 0.78);
+    --delete-edge: oklch(1 0 0 / 0.08);
+  }
+}
+.drama-delete-confirm button[data-destructive] {
+  gap: 8px;
+}
+.drama-delete-confirm button:disabled {
+  opacity: 0.5;
+}
+.drama-delete-confirm button svg {
+  animation: drama-delete-spin 1s linear infinite;
+}
+@keyframes drama-delete-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-episode-menu {
+    --menu-danger: oklch(0.704 0.191 22.216);
+    --menu-edge: oklch(1 0 0 / 0.08);
+    background: oklch(0.2 0 0 / 0.78);
+  }
+}
+.episode-pips {
+  display: flex;
+  gap: 3px;
+}
+.episode-pips i {
+  width: 6px;
+  height: 3px;
+  background: color-mix(in oklab, var(--rail-soft) 25%, transparent);
+  border-radius: 999px;
+}
+.episode-pips [data-state="on"] {
+  background: var(--status-success, #008e68);
+}
+.episode-pips :is([data-state="part"], [data-state="run"]) {
+  background: var(--rail-primary);
+}
+.episode-lock,
+.episode-progress {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+}
+.episode-progress {
+  flex-shrink: 0;
+  rotate: -90deg;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .episode-pips [data-state="run"] {
+    animation: episode-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes episode-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+}
+.drama-episode-paper {
+  max-width: 720px;
+  margin: 16px auto;
+  padding: 48px clamp(20px, 6vw, 72px);
+  background: var(--paper, #fff);
+  border-radius: 6px 6px 16px 16px;
+  box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.5);
+}
+.drama-paper-prose {
+  min-height: 50vh;
+  outline: none;
+  font-family: "Songti SC", "Noto Serif SC", STSong, serif;
+  color: var(--paper-ink);
+}
+.drama-paper-prose p {
+  margin: 6px 0;
+}
+.drama-episode-paper .text-format-bar button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+.drama-episode-paper .text-format-bar button:is(:hover, [aria-pressed="true"]) {
+  background: var(--rail-muted);
+}
+@media (prefers-color-scheme: dark) {
+  .drama-columns,
+  .drama-episode-rail,
+  .drama-episode-tabs {
+    --rail-bg: oklch(0.145 0.002 286);
+    --rail-ink: oklch(0.955 0.008 85);
+    --rail-soft: oklch(0.75 0.015 85);
+    --rail-muted: oklch(0.275 0.01 286);
+    --rail-line: oklch(1 0 0 / 0.08);
+    --rail-primary: oklch(0.81 0.15 82);
+    --status-success: oklch(0.8 0.15 160);
+    --paper: oklch(0.19 0.004 286);
+    --paper-ink: oklch(0.925 0.01 85);
+  }
+}
+@media (max-width: 639px) {
+  .drama-columns > article {
+    flex-direction: column;
+  }
+  .drama-episode-tabs {
+    flex: none;
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--rail-line);
+  }
+  .drama-episode-tabs button {
+    flex: none;
+    padding: 0 8px;
+    height: 32px;
+    font-size: 14px;
+  }
+}
+.drama-columns article p,
+.drama-columns del,
+.drama-columns ins {
+  white-space: pre-wrap;
+}
+.drama-assistant {
+  --welcome-bg: oklch(0.95 0.007 85);
+  --welcome-ink: oklch(0.22 0.01 85);
+  --welcome-muted: oklch(0.5 0.015 85);
+  --welcome-fill: oklch(0.92 0.008 85);
+  --welcome-hover: oklch(0.22 0.02 85 / 0.06);
+  height: calc(100dvh - 92px);
+  border-radius: 24px;
+}
+.assistant-surface.drama-assistant:has(.canvas-assistant-welcome),
+.assistant-surface.drama-model-state {
+  background: var(--welcome-bg);
+}
+.drama-assistant .assistant-transcript:has(.canvas-assistant-welcome) {
+  background: transparent;
+  border: 0;
+}
+.assistant-surface.drama-model-state {
+  padding: 0;
+  border: 0;
+  color: var(--welcome-ink);
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-assistant {
+    --welcome-bg: oklch(0.145 0.002 286);
+    --welcome-ink: oklch(0.955 0.008 85);
+    --welcome-muted: oklch(0.75 0.015 85);
+    --welcome-fill: oklch(0.275 0.01 286);
+    --welcome-hover: oklch(1 0 0 / 0.06);
+    --welcome-focus: oklch(1 0 0 / 0.72);
+    --welcome-beam: oklch(0.78 0.15 70);
+  }
+}
+.drama-assistant del,
+.drama-assistant ins {
+  display: block;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .drama-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

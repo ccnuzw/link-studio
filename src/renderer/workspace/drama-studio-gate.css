@@ -1,0 +1,196 @@
+.drama-studio-gate {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--rail-ink);
+  background: var(--rail-bg);
+  overflow-wrap: normal;
+  font:
+    14px / 1.42857143 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: initial;
+  text-rendering: auto;
+}
+.drama-studio-gate > span {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--rail-muted);
+  color: var(--rail-soft);
+}
+.drama-studio-gate > span svg {
+  width: 28px;
+  height: 28px;
+}
+.drama-studio-gate h3 {
+  margin: 0;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+}
+.drama-columns .drama-studio-gate p {
+  white-space: normal;
+}
+.drama-studio-gate p {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--rail-soft);
+  font-size: 13px;
+}
+.drama-studio-gate button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--rail-primary) padding-box;
+  color: oklch(1 0 0);
+  font: inherit;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+.drama-studio-gate button svg {
+  width: 16px;
+  height: 16px;
+}
+.drama-studio-gate button:hover {
+  background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
+}
+.drama-studio-gate button[data-outline] {
+  border-color: var(--rail-line);
+  background-color: var(--rail-bg);
+  color: var(--rail-ink);
+}
+.drama-studio-gate button[data-outline]:hover {
+  background-color: var(--rail-muted);
+}
+.drama-studio-gate button:focus-visible {
+  outline: none;
+  border-color: var(--rail-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.drama-studio-gate button:active {
+  translate: 0 1px;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-studio-gate button {
+    color: oklch(0.2 0.03 85);
+  }
+  .drama-studio-gate button[data-outline] {
+    border-color: oklch(1 0 0 / 0.13);
+    background-color: oklch(1 0 0 / 0.039);
+  }
+  .drama-studio-gate button[data-outline]:hover {
+    background-color: oklch(1 0 0 / 0.065);
+  }
+}
+.drama-studio-gate button[data-storyboard] {
+  height: 32px;
+  border-radius: 8px;
+}
+.drama-studio-gate button[data-storyboard] b {
+  color: oklch(0.72 0.15 75);
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-gate button:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.drama-storyboard-progress {
+  display: grid;
+  width: 256px;
+  max-width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+}
+.drama-storyboard-progress > div {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--rail-muted);
+}
+.drama-storyboard-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  background: var(--rail-primary);
+}
+.drama-storyboard-progress small {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--rail-soft);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-gate .drama-storyboard-progress button {
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-studio-gate .drama-storyboard-progress button:hover {
+  background: var(--rail-muted);
+  color: var(--rail-ink);
+}
+.drama-storyboard-error {
+  align-self: center;
+  max-width: 240px;
+  color: var(--rail-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drama-storyboard-pulse {
+    animation: episode-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .drama-studio-gate [data-storyboard] svg {
+    animation: storyboard-spin 1s linear infinite;
+  }
+  @keyframes storyboard-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-studio-gate button[data-storyboard] b {
+    color: oklch(0.82 0.15 85);
+  }
+}
+.drama-script-area button.drama-storyboard-redo {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--rail-ink);
+  border: 0;
+  border-radius: 8px;
+}
+.drama-script-area button.drama-storyboard-redo:hover {
+  background: var(--rail-muted);
+}
