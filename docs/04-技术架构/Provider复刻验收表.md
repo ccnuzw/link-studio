@@ -141,7 +141,7 @@
 
 | 桌面待确认状态 | 宽／窄整窗差异 | 宽／窄仅排除新增确认标签后的差异 |
 |---|---|---|
-| 更换端点 [宽](Provider对照图/渠道编辑-更换端点.png)／[窄](Provider对照图/渠道编辑-更换端点-窄窗口.png) | 2.91%／2.90% | 2.53%／2.52% |
-| 仅改本机或内网授权 [宽](Provider对照图/渠道编辑-内网授权.png)／[窄](Provider对照图/渠道编辑-内网授权-窄窗口.png) | 3.02%／3.01% | 2.50%／2.49% |
+| 更换端点 [宽](https://github.com/ccnuzw/link-studio/blob/565a478bddc7126bd3d9df8ea454f585cdf72188/docs/04-技术架构/Provider对照图/渠道编辑-更换端点.png)／[窄](https://github.com/ccnuzw/link-studio/blob/565a478bddc7126bd3d9df8ea454f585cdf72188/docs/04-技术架构/Provider对照图/渠道编辑-更换端点-窄窗口.png) | 2.91%／2.90% | 2.53%／2.52% |
+| 仅改本机或内网授权 [宽](https://github.com/ccnuzw/link-studio/blob/565a478bddc7126bd3d9df8ea454f585cdf72188/docs/04-技术架构/Provider对照图/渠道编辑-内网授权.png)／[窄](https://github.com/ccnuzw/link-studio/blob/565a478bddc7126bd3d9df8ea454f585cdf72188/docs/04-技术架构/Provider对照图/渠道编辑-内网授权-窄窗口.png) | 3.02%／3.01% | 2.50%／2.49% |
 
 任一 RGB 通道差超过 16 计入差异；右栏以确认标签边界外的像素为分母，仍含 Base URL 下的桌面内网开关。截图不遮挡内容。门限为标签外差异 ≤3%，另验标签完整、位置及空格勾选和取消。复现：构建 Electron 后，将 `VIDEO_CANVAS_WEB` 指向该基准的 `web`，运行 `node scripts/compare-provider-dialog.mjs --channel-approval=endpoint` 或 `--channel-approval=network`，窄窗加 `--compact`。行为复测 `等价地址不清除|渠道表单在首次保存后` 2/2。此基线不代表备案、错误态或整个设置页相同。

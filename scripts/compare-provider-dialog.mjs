@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -5363,10 +5363,11 @@ comparison: try {
       `${captureName}: equal crop dimensions and at most ${maximum}% RGB differences in compared area required`,
     );
   }
+  const proofDir = join(root, "test-results", "provider-parity");
+  await mkdir(proofDir, { recursive: true });
   await proof.screenshot({
     path: join(
-      root,
-      "docs/04-技术架构/Provider对照图",
+      proofDir,
       deleteVersionState
         ? `插件历史-删除版本-${deleteVersionState === "error" ? "占用错误" : "提交中"}${compact ? "-窄窗口" : ""}.png`
         : pluginDelete

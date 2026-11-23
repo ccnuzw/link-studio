@@ -9,6 +9,8 @@ release/
 coverage/
 playwright-report/
 test-results/
+/docs/04-技术架构/Provider对照图/*.png
+/docs/05-测试与发布/小灵空会话同状态对照.png
 .cache/
 *.log
 *.tsbuildinfo
