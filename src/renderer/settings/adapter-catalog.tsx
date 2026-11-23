@@ -1,16 +1,29 @@
-import { type PluginView, providerVendorLabel, type SettingsValues } from "@link-studio/core";
+import { Menu } from "@base-ui/react/menu";
+import { Select } from "@base-ui/react/select";
+import type { PluginView, SettingsValues } from "@link-studio/core";
 import {
   ArrowUpCircle,
   AudioLines,
+  Bot,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronUp,
   Clapperboard,
   Image,
   Layers3,
+  MoreHorizontal,
   Search,
+  Trash2,
   Type,
+  Upload,
+  X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { olderCatalogVersions } from "./catalog-version-order";
 
 export const adapterOrigins = { builtin: "内置", manual: "手动导入", agent: "小灵草稿" };
 export const adapterKinds = {
@@ -20,47 +33,109 @@ export const adapterKinds = {
   audio: { label: "音频", Icon: AudioLines },
 };
 type AdapterKind = keyof typeof adapterKinds;
+export const capabilityKinds = { ...adapterKinds, agent: { label: "Agent", Icon: Bot } };
 const kindKeys = Object.keys(adapterKinds) as AdapterKind[];
-const collator = new Intl.Collator("en", { numeric: true });
+const sources = [
+  ["", "全部来源"],
+  ["builtin", "内置"],
+  ["uploaded", "已上传"],
+] as const;
+const statuses = [
+  ["", "全部状态"],
+  ["enabled", "已启用"],
+  ["disabled", "已停用"],
+  ["outdated", "有旧版模型"],
+] as const;
+const sizes = ["10", "20", "30", "40", "50"].map((size) => [size, size] as const);
 
-function compareVersion(left: PluginView, right: PluginView) {
-  const leftSplit = left.version.indexOf("-");
-  const rightSplit = right.version.indexOf("-");
-  const leftCore = leftSplit < 0 ? left.version : left.version.slice(0, leftSplit);
-  const rightCore = rightSplit < 0 ? right.version : right.version.slice(0, rightSplit);
-  const core = collator.compare(leftCore, rightCore);
-  if (core) return core;
-  if (leftSplit < 0 || rightSplit < 0) return Number(leftSplit < 0) - Number(rightSplit < 0);
-  const leftParts = left.version.slice(leftSplit + 1).split(".");
-  const rightParts = right.version.slice(rightSplit + 1).split(".");
-  for (const [index, part] of leftParts.entries()) {
-    const other = rightParts[index];
-    if (other === undefined) return 1;
-    const numeric = /^\d+$/.test(part);
-    const otherNumeric = /^\d+$/.test(other);
-    if (numeric !== otherNumeric) return numeric ? -1 : 1;
-    const precedence = numeric
-      ? collator.compare(part, other)
-      : part < other
-        ? -1
-        : part > other
-          ? 1
-          : 0;
-    if (precedence) return precedence;
-  }
-  return leftParts.length - rightParts.length;
-}
-
-export function groupAdapters(plugins: PluginView[]) {
-  const groups = new Map<string, PluginView[]>();
-  for (const plugin of plugins) {
-    const group = groups.get(plugin.key);
-    if (group) group.push(plugin);
-    else groups.set(plugin.key, [plugin]);
-  }
-  return [...groups.values()]
-    .map((versions) => versions.sort((left, right) => compareVersion(right, left)))
-    .sort(([left], [right]) => collator.compare(left?.key ?? "", right?.key ?? ""));
+export function CatalogSelect({
+  label,
+  value,
+  options,
+  change,
+  side = "bottom",
+  container,
+  description,
+  id,
+  disabled,
+  viewportPopup,
+  field,
+  invalid,
+}: {
+  label: string;
+  value: string;
+  options: ReadonlyArray<readonly [string, string]>;
+  change: (value: string) => void;
+  side?: "top" | "bottom";
+  container?: HTMLElement | null;
+  description?: string;
+  id?: string;
+  disabled?: boolean;
+  viewportPopup?: boolean;
+  field?: string;
+  invalid?: boolean;
+}) {
+  let empty = "__all__";
+  while (options.some(([key]) => key === empty)) empty += "_";
+  const items = options.map(([key, text]) => ({ value: key || empty, label: text }));
+  return (
+    <Select.Root
+      items={items}
+      disabled={disabled}
+      value={value || empty}
+      onValueChange={(next) => {
+        if (next != null) change(next === empty ? "" : next);
+      }}
+    >
+      <Select.Trigger
+        id={id}
+        aria-label={label}
+        aria-describedby={description}
+        data-field={field}
+        aria-invalid={invalid}
+        data-filtered={side === "bottom" && !!value}
+        className="adapter-select-trigger"
+      >
+        <Select.Value />
+        <Select.Icon render={<ChevronDown size={16} />} />
+      </Select.Trigger>
+      <Select.Portal container={container ?? undefined}>
+        <Select.Positioner
+          className="adapter-select-position"
+          side={side}
+          sideOffset={4}
+          positionMethod={viewportPopup ? "fixed" : undefined}
+          collisionBoundary={viewportPopup ? [] : undefined}
+          align={container && !viewportPopup ? "start" : "center"}
+          alignItemWithTrigger={false}
+          collisionAvoidance={
+            container && !viewportPopup
+              ? undefined
+              : { side: "none", align: "shift", fallbackAxisSide: "none" }
+          }
+        >
+          <Select.Popup className="adapter-select-popup">
+            <Select.ScrollUpArrow className="adapter-select-scroll">
+              <ChevronUp size={16} />
+            </Select.ScrollUpArrow>
+            <Select.List>
+              {items.map((item) => (
+                <Select.Item className="adapter-select-option" key={item.value} value={item.value}>
+                  <Select.ItemText>{item.label}</Select.ItemText>
+                  <Select.ItemIndicator>
+                    <Check size={16} />
+                  </Select.ItemIndicator>
+                </Select.Item>
+              ))}
+            </Select.List>
+            <Select.ScrollDownArrow className="adapter-select-scroll">
+              <ChevronDown size={16} />
+            </Select.ScrollDownArrow>
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
+  );
 }
 
 export function adapterUpgradeTargets(plugin: PluginView, versions: PluginView[]) {
@@ -77,7 +152,12 @@ export function adapterUpgradeTargets(plugin: PluginView, versions: PluginView[]
 }
 
 export function Capability({ kind, iconOnly = false }: { kind: string; iconOnly?: boolean }) {
-  const { label, Icon } = adapterKinds[kind as AdapterKind] ?? { label: kind, Icon: Layers3 };
+  if (iconOnly && !Object.hasOwn(adapterKinds, kind))
+    return <span className="adapter-capability-empty">—</span>;
+  const { label, Icon } = capabilityKinds[kind as keyof typeof capabilityKinds] ?? {
+    label: kind,
+    Icon: Layers3,
+  };
   return (
     <span className={`adapter-kind${iconOnly ? " adapter-kind-icon" : ""}`} data-kind={kind}>
       <Icon aria-hidden="true" size={iconOnly ? 20 : 14} />
@@ -87,63 +167,118 @@ export function Capability({ kind, iconOnly = false }: { kind: string; iconOnly?
 }
 
 export function AdapterCatalog({
+  state,
+  reload,
+  upload,
   groups,
   providers,
   initialHash,
   busy,
+  toggling,
   open,
   toggle,
+  remove,
 }: {
+  state: "loading" | "error" | "ready";
+  reload: () => void;
+  upload: () => void;
   groups: PluginView[][];
   providers: SettingsValues["list"]["providers"];
   initialHash: string;
   busy: boolean;
+  toggling: ReadonlySet<string>;
   open: (plugin: PluginView, showUpgrade?: boolean) => void;
   toggle: (plugin: PluginView) => void;
+  remove: (plugin: PluginView) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [committedQuery, setCommittedQuery] = useState("");
   const [kind, setKind] = useState("");
   const [origin, setOrigin] = useState("");
   const [status, setStatus] = useState("");
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
   const scroll = useRef<HTMLDivElement>(null);
-  const search = query.trim().toLowerCase();
-  const matching = groups.filter(([plugin]) => {
-    if (!plugin) return false;
-    return (
-      (!kind || plugin.kind === kind) &&
-      (!origin || plugin.origin === origin) &&
-      (!status || plugin.disabled === (status === "disabled")) &&
-      [plugin.name, plugin.key, plugin.vendor, providerVendorLabel(plugin.vendor)].some((value) =>
-        value?.toLowerCase().includes(search),
-      )
-    );
-  });
+  useEffect(() => {
+    if (query === committedQuery) return;
+    const timer = window.setTimeout(() => {
+      setCommittedQuery(query);
+      setPage(1);
+      if (scroll.current) scroll.current.scrollTop = 0;
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [query, committedQuery]);
+  const search = committedQuery.trim().toLowerCase();
+  const references = new Map<string, number>();
+  for (const profile of providers)
+    references.set(profile.pluginHash, (references.get(profile.pluginHash) ?? 0) + 1);
+  const matching = groups
+    .map((versions) => {
+      const builtin = versions.some((version) => version.origin === "builtin");
+      const count = versions.reduce(
+        (total, version) => total + (references.get(version.hash) ?? 0),
+        0,
+      );
+      const outdated = olderCatalogVersions(versions).reduce(
+        (total, version) => total + (references.get(version.hash) ?? 0),
+        0,
+      );
+      return { versions, builtin, count, outdated };
+    })
+    .filter(({ versions: [plugin], builtin, outdated }) => {
+      if (!plugin) return false;
+      return (
+        (!kind || plugin.kind === kind) &&
+        (!origin || builtin === (origin === "builtin")) &&
+        (!status ||
+          (status === "outdated" ? outdated > 0 : plugin.disabled === (status === "disabled"))) &&
+        [plugin.name, plugin.key].some((value) => value?.toLowerCase().includes(search))
+      );
+    });
   const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
   const pageNumber = Math.min(page, pageCount);
   const offset = (pageNumber - 1) * pageSize;
-  const visible = matching.slice(offset, offset + pageSize);
+  const visible = state === "ready" ? matching.slice(offset, offset + pageSize) : [];
   const goToPage = (value: number) => {
     setPage(value);
     if (scroll.current) scroll.current.scrollTop = 0;
   };
+  if (state === "ready" && !groups.length && !search && !kind && !origin && !status)
+    return (
+      <section className="adapter-empty" aria-label="插件目录">
+        <p>还没有插件</p>
+        <button type="button" className="settings-primary" onClick={upload}>
+          <Upload size={16} /> 上传插件
+        </button>
+      </section>
+    );
   return (
     <section className="adapter-catalog" aria-label="插件目录">
       <div className="adapter-toolbar">
-        <label className="adapter-search">
+        <div className="adapter-search">
           <Search aria-hidden="true" size={17} />
           <input
             type="search"
             aria-label="搜索插件"
-            placeholder="搜索名称、厂商或插件标识"
+            placeholder="搜索名称或 key"
             value={query}
-            onChange={({ target }) => {
-              setQuery(target.value);
-              goToPage(1);
-            }}
+            autoComplete="off"
+            onChange={({ target }) => setQuery(target.value)}
           />
-        </label>
+          {query && (
+            <button
+              type="button"
+              aria-label="清空搜索"
+              onClick={() => {
+                setQuery("");
+                setCommittedQuery("");
+                goToPage(1);
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         <fieldset className="adapter-filter" aria-label="按能力筛选">
           {["", ...kindKeys].map((entry) => (
             <button
@@ -159,33 +294,42 @@ export function AdapterCatalog({
             </button>
           ))}
         </fieldset>
-        <select
-          aria-label="最新版本来源"
+        <CatalogSelect
+          label="按来源筛选"
           value={origin}
-          onChange={({ target }) => {
-            setOrigin(target.value);
+          options={sources}
+          change={(next) => {
+            setOrigin(next);
             goToPage(1);
           }}
-        >
-          <option value="">全部来源</option>
-          {Object.entries(adapterOrigins).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="最新版本状态"
+        />
+        <CatalogSelect
+          label="按状态筛选"
           value={status}
-          onChange={({ target }) => {
-            setStatus(target.value);
+          options={statuses}
+          change={(next) => {
+            setStatus(next);
             goToPage(1);
           }}
-        >
-          <option value="">全部状态</option>
-          <option value="enabled">已启用</option>
-          <option value="disabled">已停用</option>
-        </select>
+        />
+        {(committedQuery || kind || origin || status) && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCommittedQuery("");
+              setKind("");
+              setOrigin("");
+              setStatus("");
+              goToPage(1);
+            }}
+          >
+            <X size={14} /> 重置
+          </button>
+        )}
+        <span className="adapter-toolbar-count">
+          {visible.length} / {matching.length}
+        </span>
       </div>
       <div className="adapter-table-scroll" ref={scroll}>
         <table className="adapter-table" aria-label="Provider 插件">
@@ -194,48 +338,67 @@ export function AdapterCatalog({
               <th scope="col">插件</th>
               <th scope="col">能力</th>
               <th scope="col">最新版本</th>
-              <th scope="col">引用模型</th>
-              <th scope="col">启用最新版本</th>
+              <th scope="col">模型</th>
+              <th scope="col">启用</th>
               <th scope="col">操作</th>
             </tr>
           </thead>
           <tbody>
-            {visible.map((versions) => {
+            {state === "loading" &&
+              [0, 1, 2].map((index) => (
+                <tr key={index} className="adapter-loading">
+                  <td colSpan={6}>
+                    <div aria-label="加载中" />
+                  </td>
+                </tr>
+              ))}
+            {state === "error" && (
+              <tr>
+                <td colSpan={6} className="adapter-load-error">
+                  <span role="alert">加载失败</span>{" "}
+                  <button type="button" onClick={reload}>
+                    重试
+                  </button>
+                </td>
+              </tr>
+            )}
+            {state === "ready" && !visible.length && (
+              <tr>
+                <td className="adapter-no-match" colSpan={6}>
+                  没有匹配的插件
+                </td>
+              </tr>
+            )}
+            {visible.map(({ versions, builtin, count, outdated }) => {
               const latest = versions[0];
               if (!latest) return null;
-              const hashes = new Set(versions.map(({ hash }) => hash));
-              const references = providers.filter(({ pluginHash }) => hashes.has(pluginHash));
-              const locked =
-                !latest.disabled &&
-                references.some(({ enabled, pluginHash }) => enabled && pluginHash === latest.hash);
-              const older = versions.find(
-                (entry) =>
-                  references.some(({ pluginHash }) => pluginHash === entry.hash) &&
-                  entry.hash !== latest.hash &&
-                  adapterUpgradeTargets(entry, [latest]).length,
-              );
               const selected = versions.find(({ hash }) => hash === initialHash);
               return (
-                <tr key={latest.key}>
+                <tr
+                  key={latest.key}
+                  onClick={(event) => {
+                    if (
+                      !(event.target as HTMLElement).closest("button,input,label,summary,details")
+                    )
+                      open(selected ?? latest);
+                  }}
+                >
                   <th scope="row">
-                    <button
-                      type="button"
-                      className="adapter-row-name"
-                      aria-label={`查看 ${latest.name}`}
-                      onClick={() => open(selected ?? latest)}
-                    >
-                      <Capability kind={latest.kind} iconOnly />
-                      <span className="adapter-row-label">
-                        <span>
-                          <strong>{latest.name}</strong>{" "}
-                          <span className="adapter-badge">{adapterOrigins[latest.origin]}</span>
-                        </span>
-                        <small>
-                          {providerVendorLabel(latest.vendor)} <span aria-hidden="true">·</span>{" "}
-                          <code>{latest.key}</code>
-                        </small>
-                      </span>
-                    </button>
+                    <div className="adapter-plugin-name">
+                      <button
+                        type="button"
+                        className="adapter-row-name"
+                        aria-label={`查看 ${latest.name}`}
+                        onClick={() => open(selected ?? latest)}
+                      >
+                        {latest.name}
+                      </button>
+                      {builtin && <span className="adapter-badge">内置</span>}
+                    </div>
+                    <div className="adapter-plugin-key">
+                      {latest.vendor && `${latest.vendor} · `}
+                      <code>{latest.key}</code>
+                    </div>
                   </th>
                   <td>
                     <div className="adapter-capability">
@@ -245,124 +408,150 @@ export function AdapterCatalog({
                   </td>
                   <td>
                     <code>v{latest.version}</code>
-                    {versions.length > 1 && (
-                      <small className="adapter-cell-note">{versions.length} 个版本</small>
-                    )}
                   </td>
                   <td>
-                    {references.length > 0 ? (
-                      `${references.length} 个`
-                    ) : (
-                      <span className="adapter-muted">未使用</span>
-                    )}
-                    {references.some(({ enabled }) => enabled) && (
-                      <small className="adapter-cell-note">
-                        {references.filter(({ enabled }) => enabled).length} 个启用
-                      </small>
-                    )}
+                    {count > 0 ? `${count} 个在用` : <span className="adapter-muted">未使用</span>}
+                    {outdated > 0 && <small className="adapter-cell-note">{outdated} 个旧版</small>}
                   </td>
-                  <td>
-                    <label
-                      className="adapter-switch"
-                      title={
-                        locked ? "先停用引用此版本的模型" : `${latest.name} v${latest.version}`
-                      }
-                    >
+                  <td onClick={(event) => event.stopPropagation()}>
+                    <label className="adapter-switch" title={`${latest.name} · 所有版本`}>
                       <input
                         type="checkbox"
                         role="switch"
                         aria-checked={!latest.disabled}
-                        aria-label={`启用 ${latest.name} v${latest.version}`}
+                        aria-label={`${latest.disabled ? "启用" : "停用"}插件 ${latest.name}`}
                         checked={!latest.disabled}
-                        disabled={busy || locked}
+                        disabled={busy || toggling.has(latest.key)}
                         onChange={() => toggle(latest)}
                       />
                       <span aria-hidden="true" />
                     </label>
                   </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={older ? "adapter-upgrade-link" : "adapter-detail-link"}
-                      onClick={() => open(older ?? selected ?? latest, Boolean(older))}
-                    >
-                      {older ? (
-                        <>
-                          <ArrowUpCircle size={15} aria-hidden="true" /> 升级模型
-                        </>
-                      ) : (
-                        <>
-                          详情 <ChevronRight size={15} aria-hidden="true" />
-                        </>
-                      )}
-                    </button>
+                  <td onClick={(event) => event.stopPropagation()}>
+                    <div className="adapter-row-actions">
+                      <button
+                        type="button"
+                        className="adapter-upgrade-link"
+                        disabled={busy || !outdated}
+                        aria-label={`升级模型 ${latest.name}`}
+                        title={outdated ? undefined : "没有固定在旧版本上的模型"}
+                        onClick={() => open(latest, true)}
+                      >
+                        <ArrowUpCircle size={14} aria-hidden="true" />
+                        升级模型{outdated > 0 && `（${outdated}）`}
+                      </button>
+                      <Menu.Root>
+                        <Menu.Trigger
+                          className="adapter-more-trigger"
+                          aria-label={`${latest.name} 的更多操作`}
+                          title="更多操作"
+                        >
+                          <MoreHorizontal size={16} />
+                        </Menu.Trigger>
+                        <Menu.Portal>
+                          <Menu.Positioner
+                            className="adapter-more-position"
+                            align="end"
+                            sideOffset={4}
+                            collisionAvoidance={{
+                              side: "none",
+                              align: "shift",
+                              fallbackAxisSide: "none",
+                            }}
+                          >
+                            <Menu.Popup className="adapter-more-popup">
+                              <Menu.Item disabled={busy} onClick={() => remove(latest)}>
+                                <Trash2 size={16} />
+                                删除插件
+                              </Menu.Item>
+                            </Menu.Popup>
+                          </Menu.Positioner>
+                        </Menu.Portal>
+                      </Menu.Root>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {!visible.length && (
-          <div className="adapter-empty">
-            <Search size={25} aria-hidden="true" />
-            <strong>没有符合条件的插件</strong>
-            <button
-              type="button"
-              onClick={() => {
-                setQuery("");
-                setKind("");
-                setOrigin("");
-                setStatus("");
+      </div>
+      {state === "ready" && (
+        <footer className="adapter-pagination">
+          <div>
+            <CatalogSelect
+              label="每页条数"
+              value={String(pageSize)}
+              options={sizes}
+              side="top"
+              change={(next) => {
+                setPageSize(Number(next));
                 goToPage(1);
               }}
+            />
+            每页条数 <span aria-live="polite">共 {matching.length} 条</span>
+          </div>
+          <div>
+            <span>
+              第 {pageNumber} / {pageCount} 页
+            </span>
+            <button
+              type="button"
+              aria-label="第一页"
+              disabled={pageNumber === 1}
+              onClick={() => goToPage(1)}
             >
-              清除筛选
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="上一页"
+              disabled={pageNumber === 1}
+              onClick={() => goToPage(pageNumber - 1)}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {catalogPageNumbers(pageNumber, pageCount).map((number, index) =>
+              typeof number === "number" ? (
+                <button
+                  type="button"
+                  key={number}
+                  aria-label={`第 ${number} 页`}
+                  aria-current={number === pageNumber ? "page" : undefined}
+                  onClick={() => goToPage(number)}
+                >
+                  {number}
+                </button>
+              ) : (
+                <span key={`gap-${index}`}>…</span>
+              ),
+            )}
+            <button
+              type="button"
+              aria-label="下一页"
+              disabled={pageNumber === pageCount}
+              onClick={() => goToPage(pageNumber + 1)}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="最后一页"
+              disabled={pageNumber === pageCount}
+              onClick={() => goToPage(pageCount)}
+            >
+              <ChevronsRight size={16} />
             </button>
           </div>
-        )}
-      </div>
-      <footer className="adapter-pagination">
-        <span aria-live="polite">
-          {matching.length
-            ? `${offset + 1}–${offset + visible.length} 项，共 ${matching.length} 项`
-            : "共 0 项"}
-        </span>
-        <div>
-          <select
-            aria-label="每页条数"
-            value={pageSize}
-            onChange={({ target }) => {
-              setPageSize(Number(target.value));
-              goToPage(1);
-            }}
-          >
-            {[10, 20, 50].map((size) => (
-              <option key={size} value={size}>
-                {size} 项 / 页
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            aria-label="上一页"
-            disabled={pageNumber === 1}
-            onClick={() => goToPage(pageNumber - 1)}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="adapter-page-number" title={`第 ${pageNumber} 页，共 ${pageCount} 页`}>
-            {pageNumber} / {pageCount}
-          </span>
-          <button
-            type="button"
-            aria-label="下一页"
-            disabled={pageNumber === pageCount}
-            onClick={() => goToPage(pageNumber + 1)}
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </footer>
+        </footer>
+      )}
     </section>
   );
+}
+
+export function catalogPageNumbers(page: number, count: number): (number | string)[] {
+  if (count <= 5) return Array.from({ length: count }, (_, index) => index + 1);
+  if (page <= 3) return [1, 2, 3, 4, "…", count];
+  if (page >= count - 2) return [1, "…", count - 3, count - 2, count - 1, count];
+  return [1, "…", page - 1, page, page + 1, "…", count];
 }

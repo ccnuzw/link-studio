@@ -28,14 +28,5 @@
     "resources/provider-plugins/xai.js": "a5d7d1ad88fd6e49329f458331b4d61ad9870a03e5528085432114699817c9a3",
     "resources/provider-plugins/UPSTREAM-LICENSE": "8bb70702420ee56a5842b67f89aab6df1275a5fb9f68537c682c9c70f9a3d3cf"
   },
-  "localPatches": {
-    "resources/provider-plugins/doubao-video.js": {
-      "sha256": "2b962fbf3a042520a30c2725250bed621eb2727c6ec27f6e9ae8171bab82f8a4",
-      "reason": "Preserve supplier-confirmed cancellation as a distinct terminal status."
-    },
-    "resources/provider-plugins/sora.js": {
-      "sha256": "1af5278f1c3ce0b6f1b5708b4b4deac3031f51a64996f49b76622946c59cd1bb",
-      "reason": "Preserve supplier-confirmed cancellation as a distinct terminal status."
-    }
-  }
+  "localPatches": {}
 }

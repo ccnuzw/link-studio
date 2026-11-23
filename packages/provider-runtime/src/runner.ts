@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 export class ProviderError extends Error {
-  constructor(readonly code: string) {
+  constructor(
+    readonly code: string,
+    readonly issues?: { path: string; message: string }[],
+  ) {
     super(code);
     this.name = "ProviderError";
   }
@@ -55,8 +58,8 @@ export class PluginRunner {
     return (await this.run(source, hook, args, false, signal)).result;
   }
 
-  trace(source: string, hook: string, args: unknown[]) {
-    return this.run(source, hook, args, true);
+  trace(source: string, hook: string, args: unknown[], signal?: AbortSignal) {
+    return this.run(source, hook, args, true, signal);
   }
 
   private async run(
@@ -68,8 +71,10 @@ export class PluginRunner {
   ) {
     if (process.platform !== "darwin") throw new ProviderError("SANDBOX_UNAVAILABLE");
     if (Buffer.byteLength(source) > LIMITS.source) throw new ProviderError("PLUGIN_SOURCE_LIMIT");
-    if (args.length > (hook === "parseImportResponse" ? 3 : 2))
-      throw new ProviderError("PLUGIN_INPUT_LIMIT");
+    const acceptsThree =
+      hook === "parseImportResponse" ||
+      (!source && (hook === "dramaAssetOutput" || hook === "dramaAssetPrompt"));
+    if (args.length > (acceptsThree ? 3 : 2)) throw new ProviderError("PLUGIN_INPUT_LIMIT");
     for (const argument of args) encoded(argument, LIMITS.payload);
     encoded(args, 2 * LIMITS.payload);
     if (signal?.aborted) throw new ProviderError("PLUGIN_CANCELLED");

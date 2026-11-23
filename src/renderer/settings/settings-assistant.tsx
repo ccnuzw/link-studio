@@ -5,87 +5,50 @@ import type {
   SettingsInput,
   SettingsValues,
 } from "@link-studio/core";
-import { useEffect, useRef, useState } from "react";
+import { canvasAgentMediaModels } from "@link-studio/core";
+import { Minus, SquarePen } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
+  historyPageContext,
+  type SettingsPage,
+  type SettingsRefId,
+  settingsPaths,
+  settingsRefs,
+} from "../../../packages/link-studio-core/src/settings-page-context";
+import { AssistantTimeline } from "../assistant/activity-timeline";
+import { approvalTimeline } from "../assistant/approval-timeline";
+import { AssistantModelState } from "../assistant/assistant-model-state";
+import {
+  AssistantCompactionStatus,
   AssistantHeading,
   AssistantStatus,
   AssistantTranscript,
-  submitShortcut,
 } from "../assistant/assistant-panel";
+import {
+  AssistantPreferences,
+  AssistantReply,
+  useAssistantModelPreference,
+} from "../assistant/assistant-preferences";
 import { ComposerTools } from "../assistant/composer-tools";
+import { type CardJump, InfoCard } from "../assistant/info-card";
+import { RunPlanStrip } from "../assistant/run-plan-strip";
+import { RunStatusCard, showsContinue } from "../assistant/run-status-card";
+import { MissedSteer, SteerTray, useSteers } from "../assistant/steer-queue";
 import { useAssistantAction, useAssistantSession } from "../assistant/use-assistant-session";
+import { AssistantEditor, type AssistantEditorHandle } from "../workspace/assistant-editor";
+import { CanvasAssistantEmpty } from "../workspace/assistant-empty";
+import { AssistantHistory } from "../workspace/assistant-history";
+import { AssistantQuestionnaire, QuestionRecord } from "../workspace/assistant-questionnaire";
+import { RejectedChange, SettingsActionResult } from "./settings-action-result";
+import { ApprovalCard } from "./settings-change-card";
+import { isChangeReceipt, SettingsChangeResult } from "./settings-change-result";
+import { SettingsContextChips } from "./settings-context-chips";
 import { settingsError } from "./settings-page";
 
 function details(input: unknown): Record<string, unknown> {
   return input && typeof input === "object" && !Array.isArray(input)
     ? (input as Record<string, unknown>)
     : {};
-}
-
-function ApprovalCard({
-  approval,
-  decide,
-  disabled,
-}: {
-  approval: SettingsApproval;
-  decide: (selected: number[]) => Promise<void>;
-  disabled: boolean;
-}) {
-  const payload = details(approval.payload);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [busy, setBusy] = useState(false);
-  const items = Array.isArray(payload.items) ? payload.items.map(details) : [];
-  const submit = async (indices: number[]) => {
-    setBusy(true);
-    try {
-      await decide(indices);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="settings-confirm" aria-label="配置变更单">
-      <h3>配置变更单</h3>
-      {typeof payload.expectedRevision === "number" && (
-        <p className="muted">基线修订 {payload.expectedRevision}</p>
-      )}
-      {items.map((item, index) => (
-        <label className="settings-check" key={String(item.field)}>
-          <input
-            type="checkbox"
-            disabled={disabled || busy}
-            checked={selected.includes(index)}
-            onChange={({ target }) =>
-              setSelected(
-                target.checked ? [...selected, index] : selected.filter((entry) => entry !== index),
-              )
-            }
-          />{" "}
-          <span>
-            {String(item.field)}：{String(item.before ?? "空")} → {String(item.after ?? "空")}
-          </span>
-        </label>
-      ))}
-      {payload.kind === "plugin" && (
-        <details>
-          <summary>审阅草稿源码</summary>
-          <pre>{String(details(payload.plugin).source ?? "")}</pre>
-        </details>
-      )}
-      <div className="settings-actions">
-        <button
-          type="button"
-          disabled={disabled || busy || !selected.length}
-          onClick={() => void submit(selected)}
-        >
-          应用所选
-        </button>
-        <button type="button" disabled={disabled || busy} onClick={() => void submit([])}>
-          拒绝变更
-        </button>
-      </div>
-    </section>
-  );
 }
 
 function ActionCard({
@@ -161,34 +124,79 @@ function ActionCard({
   );
 }
 
-export function Activity({ event }: { event: SettingsEvent }) {
+export function Activity({
+  event,
+  resolveJump,
+  request,
+  rollback,
+  copyInFooter,
+  providers = [],
+}: {
+  event: SettingsEvent;
+  resolveJump?: CardJump;
+  request?: SettingsEvent;
+  rollback?: (order: string) => void;
+  copyInFooter?: boolean;
+  providers?: ProviderView[];
+}) {
   const data = details(event.payload);
-  if (event.type === "message.user" || event.type === "message.done")
+  if (event.type === "message.done")
     return (
-      <article
-        className={
-          event.type === "message.user" ? "assistant-message user-message" : "assistant-message"
-        }
-      >
-        <strong>{event.type === "message.user" ? "你" : "小灵"}</strong>
-        <p>{String(data.text ?? "")}</p>
+      <AssistantReply
+        copyInFooter={copyInFooter}
+        text={String(data.text ?? "")}
+        thinking={typeof data.thinking === "string" ? data.thinking : undefined}
+      />
+    );
+  if (event.type === "message.user") {
+    const snapshot = historyPageContext(data.page_context);
+    return (
+      <article className="settings-user-message user-message">
+        {snapshot && <SettingsContextChips refs={settingsRefs(snapshot)} />}
+        <div>{String(data.text ?? "")}</div>
       </article>
     );
+  }
   if (event.type === "approval.decided") {
+    if (data.kind === "ask")
+      return (
+        <QuestionRecord
+          payload={{ ...data, payload: data.payload ?? details(request?.payload).payload }}
+          providers={providers}
+        />
+      );
     const result = details(data.result);
+    if (data.kind === "admin_change" && data.status === "executed" && isChangeReceipt(result))
+      return (
+        <SettingsChangeResult receipt={result} resolveJump={resolveJump} rollback={rollback} />
+      );
+    if (data.kind === "admin_change" && data.status === "rejected") {
+      const answer = details(data.decision).answer;
+      return <RejectedChange answer={typeof answer === "string" ? answer : undefined} />;
+    }
+    if (data.kind === "admin_secret" || data.kind === "admin_test_run") {
+      const label = details(data.payload ?? details(request?.payload).payload).label;
+      return (
+        <SettingsActionResult
+          kind={data.kind}
+          status={data.status}
+          result={result}
+          label={typeof label === "string" ? label : undefined}
+          error={result.code ? settingsError(String(result.code)) : undefined}
+        />
+      );
+    }
     return (
       <p className="assistant-activity">
         {result.code
           ? settingsError(String(result.code))
-          : typeof result.applied === "number"
-            ? `已应用 ${result.applied} 项，跳过 ${result.skipped} 项`
-            : result.tested
-              ? "助手试跑成功"
-              : result.configured
-                ? "凭证已保存"
-                : data.status === "rejected"
-                  ? "已拒绝"
-                  : "决定已记录"}
+          : result.applied === true && String(data.kind).startsWith("drama_update_")
+            ? "已写入短剧"
+            : typeof result.applied === "number"
+              ? `已应用 ${result.applied} 项，跳过 ${result.skipped} 项`
+              : data.status === "rejected"
+                ? "已拒绝"
+                : "决定已记录"}
       </p>
     );
   }
@@ -220,25 +228,7 @@ export function Activity({ event }: { event: SettingsEvent }) {
         </ol>
       </section>
     );
-  if (event.type === "card.shown") {
-    const card = details(data.card);
-    return (
-      <section className="assistant-message">
-        <strong>{String(card.title ?? "设置摘要")}</strong>
-        <dl>
-          {Array.isArray(card.rows) &&
-            [
-              ...new Map(card.rows.map(details).map((row) => [JSON.stringify(row), row])).entries(),
-            ].map(([key, row]) => (
-              <div key={key}>
-                <dt>{String(row.label)}</dt>
-                <dd>{String(row.value)}</dd>
-              </div>
-            ))}
-        </dl>
-      </section>
-    );
-  }
+  if (event.type === "card.shown") return <InfoCard raw={data.card} resolveJump={resolveJump} />;
   if (event.type === "run.status") {
     const statuses: Record<string, string> = {
       failed: "运行失败。请检查模型连接，再发送一条消息。",
@@ -255,31 +245,51 @@ export function Activity({ event }: { event: SettingsEvent }) {
   return null;
 }
 
-const readSettingsSession = (sessionId: string, after: number) =>
-  window.desktop.settings.agentState({ sessionId, after });
+const readSettingsSession = (sessionId: string, after: number, before?: number) =>
+  window.desktop.settings.agentState({ sessionId, after, before });
 
 export function SettingsAssistant({
+  loadingModels,
+  route,
+  close,
+  resolveJump,
+  resource,
   providers,
+  plugins,
   context,
   refresh,
 }: {
+  loadingModels: boolean;
+  resolveJump: CardJump;
+  close: () => void;
+  route: SettingsPage;
+  resource?: { id: string; key?: string };
   providers: ProviderView[];
+  plugins: SettingsValues["list"]["plugins"];
   context?: ProviderView;
   refresh: () => Promise<unknown>;
 }) {
   const [sessions, setSessions] = useState<SettingsValues["agentList"]>([]);
+  const editor = useRef<AssistantEditorHandle>(null);
+  const [removed, setRemoved] = useState<{ route: SettingsPage; ids: Set<SettingsRefId> }>();
+  const refs = settingsRefs({
+    route: settingsPaths[route],
+    model_key: context?.modelKey ?? context?.id,
+    ...(route === "adapters" ? { plugin_key: resource?.key } : { channel_key: resource?.id }),
+  }).filter((ref) => removed?.route !== route || !removed.ids.has(ref.id));
+  const hasRef = (id: SettingsRefId) => refs.some((ref) => ref.id === id);
   const [session, setSession] = useState("");
-  const [model, setModel] = useState("");
-  const [contextId, setContextId] = useState(context?.id);
+  const [model, setModel] = useAssistantModelPreference();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const { busy, run } = useAssistantAction(setError);
-  const { events, state, readError, refreshSession } = useAssistantSession(
+  const { events, state, readError, refreshSession, history, recordFeedback } = useAssistantSession(
     session,
     readSettingsSession,
   );
   const [listState, setListState] = useState<"loading" | "ready" | "failed">("loading");
   const message = drafts[session] ?? "";
+  const steers = useSteers(events);
   const setMessage = (text: string) => setDrafts((previous) => ({ ...previous, [session]: text }));
   const loading = listState === "loading" || (!!session && !state && !readError);
   const blocked = busy || loading || !!readError || listState !== "ready";
@@ -291,17 +301,15 @@ export function SettingsAssistant({
       provider.hasSecret,
   );
   const provider = models.find(({ id }) => id === model) ?? models[0];
+  const pendingQuestion = state?.approvals.find((approval) => approval.kind === "ask");
   const canSend =
     !blocked &&
     !state?.otherActiveSession &&
     (state?.activeRun
-      ? ["running", "waiting_approval"].includes(state.activeStatus ?? "")
+      ? ["running", "waiting_approval"].includes(state.activeStatus ?? "") ||
+        (state.activeStatus === "waiting_input" && !!pendingQuestion)
       : !!provider);
   const lastRunStatus = events.findLast(({ type }) => type === "run.status");
-  const resumable =
-    !state?.activeRun &&
-    lastRunStatus &&
-    ["interrupted", "step_limit"].includes(String(details(lastRunStatus.payload).status));
 
   const decide = (input: Omit<SettingsInput<"agentDecide">, "sessionId">) =>
     run(async () => {
@@ -310,9 +318,6 @@ export function SettingsAssistant({
       if (!result.ok) setError(result.code);
     });
 
-  useEffect(() => {
-    setContextId(context?.id);
-  }, [context?.id]);
   useEffect(() => {
     if (listState !== "loading") return;
     let current = true;
@@ -366,67 +371,195 @@ export function SettingsAssistant({
     return id;
   };
 
-  const send = () => {
-    if (!canSend || !message.trim()) return;
+  const send = (explicit?: string) => {
+    const text = (explicit ?? message).trim();
+    if (!canSend || !text || (explicit !== undefined && state?.activeRun)) return;
     return run(async () => {
       const sessionId = session || (await create());
       if (!sessionId) return;
+      if (state?.activeRun && pendingQuestion) {
+        const skipped = await window.desktop.settings.agentDecide({
+          sessionId,
+          approvalId: pendingQuestion.id,
+          selected: [],
+        });
+        if (!skipped.ok) {
+          setError(skipped.code);
+          await refreshSession();
+          return;
+        }
+      }
       const result = await window.desktop.settings.agentSend({
         sessionId,
         providerId: provider?.id ?? "active-run",
-        message: message.trim(),
-        ...(contextId ? { contextId } : {}),
+        message: text,
+        ...(!state?.activeRun &&
+          refs.length > 0 && {
+            route,
+            ...(hasRef("model") && { contextId: context?.id }),
+            ...(hasRef("plugin") && { pluginHash: resource?.id }),
+            ...(hasRef("channel") && { channelId: resource?.id }),
+          }),
         ...(state?.activeRun ? { runId: state.activeRun } : {}),
       });
-      if (result.ok) setMessage("");
-      else setError(result.code);
+      if (!result.ok) setError(result.code);
+      else if (explicit === undefined) setMessage("");
       await refreshSession();
     });
   };
 
-  return (
-    <aside className="assistant-surface settings-assistant" aria-label="小灵设置助手">
-      <AssistantHeading title="设置小灵">
-        <button
-          type="button"
-          disabled={busy || listState !== "ready"}
-          onClick={() =>
-            void run(async () => {
-              await create();
-            })
+  const rollback =
+    canSend && !state?.activeRun ? (order: string) => void send(`回滚变更单 ${order}`) : undefined;
+  const stop =
+    state?.activeRun && !message.trim()
+      ? () =>
+          void run(async () => {
+            if (blocked || !state.activeRun) return;
+            const result = await window.desktop.settings.agentStop({
+              sessionId: session,
+              runId: state.activeRun,
+            });
+            await refreshSession();
+            if (!result.ok) setError(result.code);
+          })
+      : undefined;
+
+  if (loadingModels || !provider) return <AssistantModelState loading={loadingModels} settings />;
+  const approvals = approvalTimeline(events, state?.approvals ?? []);
+  const status = (
+    <AssistantStatus
+      state={state}
+      events={events}
+      showStop={!!stop && !blocked && !state?.approvals.length}
+      busy={busy}
+      stale={!!readError || listState === "failed"}
+      opening={
+        listState === "loading" || history.phase === "latest" || history.phase === "latest-error"
+      }
+    />
+  );
+  const renderPending = (approval: SettingsApproval) => (
+    <Fragment key={approval.id}>
+      {approval.kind === "ask" ? (
+        <AssistantQuestionnaire
+          quickChoices
+          payload={approval.payload}
+          busy={blocked}
+          models={canvasAgentMediaModels({ providers, plugins })}
+          onAnswer={(answers) =>
+            void decide({ approvalId: approval.id, selected: [], ...(answers && { answers }) })
           }
-        >
-          新对话
-        </button>
-      </AssistantHeading>
-      <div className="assistant-controls">
-        <label>
-          会话
-          <select
-            value={session}
-            disabled={busy || listState !== "ready"}
-            onChange={({ target }) => selectSession(target.value)}
+        />
+      ) : approval.kind === "admin_change" ? (
+        <ApprovalCard
+          key={approval.id}
+          approval={approval}
+          disabled={blocked}
+          decide={(selected, answer) =>
+            decide({ approvalId: approval.id, selected, ...(answer && { answer }) })
+          }
+        />
+      ) : (
+        <ActionCard
+          key={approval.id}
+          approval={approval}
+          disabled={blocked}
+          decide={(confirmTest) => decide({ approvalId: approval.id, selected: [], confirmTest })}
+          configure={async (secret) => {
+            let configured = false;
+            await run(async () => {
+              const result = await window.desktop.settings.agentConfigureSecret({
+                sessionId: session,
+                approvalId: approval.id,
+                secret,
+              });
+              configured = result.ok;
+              await refreshSession();
+              if (!result.ok) setError(result.code);
+            });
+            return configured;
+          }}
+        />
+      )}
+    </Fragment>
+  );
+  return (
+    <section
+      className="assistant-surface settings-assistant"
+      onKeyDown={(event) => {
+        if (
+          event.key !== "Escape" ||
+          !stop ||
+          blocked ||
+          state?.approvals.length ||
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          (event.target instanceof Element &&
+            event.target.closest("[popover],dialog,[role=dialog],[role=menu]"))
+        )
+          return;
+        event.preventDefault();
+        stop();
+      }}
+    >
+      <AssistantHeading
+        title={
+          <AssistantHistory
+            key={session}
+            current={session}
+            sessions={sessions}
+            title={title ?? sessions.find((entry) => entry.id === session)?.title ?? "新对话"}
+            locked={blocked || !!state?.activeRun}
+            select={selectSession}
+            rename={(next) =>
+              void run(async () => {
+                const result = await window.desktop.settings.agentRename({
+                  sessionId: session,
+                  title: next,
+                });
+                if (!result.ok) return setError(result.code);
+                setSessions((current) =>
+                  current.map((entry) =>
+                    entry.id === session ? { ...entry, title: result.value.title } : entry,
+                  ),
+                );
+                await refreshSession();
+              })
+            }
+            remove={(id) =>
+              void run(async () => {
+                const result = await window.desktop.settings.agentRemove({ sessionId: id });
+                if (!result.ok) return setError(result.code);
+                if (!result.value.removed) return;
+                const remaining = sessions.filter((entry) => entry.id !== id);
+                setSessions(remaining);
+                setDrafts((current) => {
+                  const next = { ...current };
+                  delete next[id];
+                  return next;
+                });
+                if (id === session) selectSession(remaining[0]?.id ?? "");
+              })
+            }
+          />
+        }
+      >
+        <div className="settings-assistant-actions">
+          <button
+            type="button"
+            disabled={blocked || !!state?.activeRun}
+            onClick={() => selectSession("")}
+            aria-label="新对话"
+            title="新对话"
           >
-            <option value="" disabled>
-              新会话
-            </option>
-            {sessions.map(({ id, title }) => (
-              <option key={id} value={id}>
-                {title}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!provider && (
-          <p className="assistant-empty">请保存文本模型和凭证，并勾选「允许小灵使用此模型」。</p>
-        )}
-      </div>
-      <AssistantStatus
-        state={state}
-        busy={busy}
-        stale={!!readError || listState === "failed"}
-        loading={loading}
-      />
+            <SquarePen size={16} />
+          </button>
+          <AssistantPreferences />
+          <button type="button" aria-label="关闭设置助手" title="收起设置助手" onClick={close}>
+            <Minus size={16} />
+          </button>
+        </div>
+      </AssistantHeading>
       {state?.otherActiveSession && (
         <button
           type="button"
@@ -436,74 +569,151 @@ export function SettingsAssistant({
           返回运行中的会话
         </button>
       )}
-      {!state?.activeRun && context?.id === contextId && context && (
-        <button
-          type="button"
-          className="context-chip"
-          disabled={busy}
-          onClick={() => setContextId(undefined)}
-          aria-label={`移除${context.label}上下文`}
-        >
-          {context.label} ×
-        </button>
-      )}
       <AssistantTranscript
+        history={history}
+        loadingSessions={listState === "loading"}
         sessionId={session}
         label="对话与活动"
         empty={
-          !events.length && !loading && !readError && provider
-            ? "问小灵如何配置模型，或请它检查当前设置。"
-            : undefined
+          !events.length && !loading && !readError && provider ? (
+            <CanvasAssistantEmpty
+              settings
+              hasModel
+              onStarter={(text) => {
+                setMessage(text);
+                editor.current?.focus();
+              }}
+            />
+          ) : undefined
         }
       >
-        {events.map((event) => (
-          <Activity event={event} key={event.seq} />
-        ))}
-        {state?.partial?.text && (
-          <article className="assistant-message" aria-live="off">
-            <strong>小灵</strong>
-            <p>{state.partial.text}</p>
-          </article>
-        )}
+        <AssistantTimeline
+          composerPlan
+          partial={state?.partial}
+          model={provider}
+          saveFeedback={async (runId, value) => {
+            const result = await window.desktop.settings.agentFeedback({
+              sessionId: session,
+              runId,
+              value,
+            });
+            if (result.ok) recordFeedback(runId, value);
+            return result.ok;
+          }}
+          events={steers.transcript}
+          render={(event, copyInFooter) => {
+            if (event.type === "run.status") {
+              const data = details(event.payload);
+              const resumable =
+                canSend &&
+                !state?.activeRun &&
+                event.seq === lastRunStatus?.seq &&
+                showsContinue(data.status);
+              return (
+                <RunStatusCard
+                  key={event.seq}
+                  data={data}
+                  resume={
+                    resumable
+                      ? () =>
+                          void run(async () => {
+                            const result = await window.desktop.settings.agentContinue({
+                              sessionId: session,
+                              runId: event.runId,
+                            });
+                            await refreshSession();
+                            if (!result.ok) setError(result.code);
+                          })
+                      : undefined
+                  }
+                />
+              );
+            }
+            if (event.type === "steer.read" || event.type === "steer.dropped") return null;
+            const dropped = steers.missed.get(event.seq);
+            if (dropped !== undefined)
+              return (
+                <div key={event.seq} className="agent-missed-turn">
+                  <MissedSteer
+                    resend={
+                      canSend && !state?.activeRun && dropped >= steers.lastUser
+                        ? () => void send(String(details(event.payload).text))
+                        : undefined
+                    }
+                  />
+                  <Activity event={event} />
+                </div>
+              );
+            const id = event.approvalId;
+            if (id && event.type === "approval.created") {
+              if (approvals.anchors.get(id) !== event.seq) return null;
+              const outcome = approvals.decisions.get(id);
+              if (outcome)
+                return (
+                  <Activity
+                    key={event.seq}
+                    event={outcome}
+                    request={event}
+                    resolveJump={resolveJump}
+                    rollback={rollback}
+                    providers={providers}
+                  />
+                );
+              const pending = approvals.active.get(id);
+              if (pending) return renderPending(pending);
+              const data = details(event.payload);
+              const kind = data.kind;
+              if (
+                approvals.closedRuns.has(event.runId) &&
+                (kind === "admin_secret" || kind === "admin_test_run")
+              ) {
+                const label = details(data.payload).label;
+                return (
+                  <SettingsActionResult
+                    key={event.seq}
+                    kind={kind}
+                    status="expired"
+                    result={{}}
+                    label={typeof label === "string" ? label : undefined}
+                  />
+                );
+              }
+              return (
+                <p key={event.seq} className="assistant-activity">
+                  {kind === "ask"
+                    ? "提问"
+                    : kind === "admin_change"
+                      ? "配置变更单"
+                      : kind === "admin_secret"
+                        ? "凭证请求"
+                        : "试跑请求"}
+                  （不可操作）
+                </p>
+              );
+            }
+            if (
+              id &&
+              event.type === "approval.decided" &&
+              (approvals.anchors.has(id) || approvals.decisions.get(id) !== event)
+            )
+              return null;
+            return (
+              <Activity
+                event={event}
+                key={event.seq}
+                resolveJump={resolveJump}
+                rollback={rollback}
+                copyInFooter={copyInFooter}
+                providers={providers}
+              />
+            );
+          }}
+        />
+        {approvals.unplaced.map(renderPending)}
+        <AssistantCompactionStatus state={state} events={events} />
+        {status}
       </AssistantTranscript>
-      {!!state?.approvals.length && (
-        <section className="assistant-approvals" aria-label="待审批操作">
-          {state.approvals.map((approval) =>
-            approval.kind === "admin_change" ? (
-              <ApprovalCard
-                key={approval.id}
-                approval={approval}
-                disabled={blocked}
-                decide={(selected) => decide({ approvalId: approval.id, selected })}
-              />
-            ) : (
-              <ActionCard
-                key={approval.id}
-                approval={approval}
-                disabled={blocked}
-                decide={(confirmTest) =>
-                  decide({ approvalId: approval.id, selected: [], confirmTest })
-                }
-                configure={async (secret) => {
-                  let configured = false;
-                  await run(async () => {
-                    const result = await window.desktop.settings.agentConfigureSecret({
-                      sessionId: session,
-                      approvalId: approval.id,
-                      secret,
-                    });
-                    configured = result.ok;
-                    await refreshSession();
-                    if (!result.ok) setError(result.code);
-                  });
-                  return configured;
-                }}
-              />
-            ),
-          )}
-        </section>
-      )}
-      {(error || readError) && (
+      {(error || (readError && history.phase !== "latest-error")) && (
         <p role="alert" className="error">
           {settingsError(error || readError || "")}
         </p>
@@ -519,7 +729,7 @@ export function SettingsAssistant({
           重试读取会话
         </button>
       )}
-      {readError && (
+      {readError && history.phase !== "latest-error" && (
         <button type="button" disabled={busy} onClick={() => void refreshSession()}>
           刷新会话状态
         </button>
@@ -531,19 +741,28 @@ export function SettingsAssistant({
           void send();
         }}
       >
-        <label>
-          消息
-          <textarea
-            value={message}
-            rows={3}
-            maxLength={24000}
-            readOnly={busy}
-            aria-describedby="settings-assistant-shortcut"
-            onKeyDown={submitShortcut}
-            onChange={({ target }) => setMessage(target.value)}
-            placeholder="例如：检查当前模型设置。密钥请填在配置页。"
-          />
-        </label>
+        <RunPlanStrip key={`plan-${session}`} events={events} activeRun={state?.activeRun} />
+        {steers.waiting.length > 0 && (
+          <SteerTray key={`steers-${session}`} waiting={steers.waiting} />
+        )}
+        <SettingsContextChips
+          refs={refs}
+          remove={(id) =>
+            setRemoved((previous) => ({
+              route,
+              ids: new Set(previous?.route === route ? previous.ids : []).add(id),
+            }))
+          }
+        />
+        <AssistantEditor
+          key={session}
+          editor={editor}
+          settings
+          message={message}
+          busy={busy}
+          running={Boolean(state?.activeRun)}
+          onText={setMessage}
+        />
         <ComposerTools
           models={models}
           modelId={provider?.id}
@@ -552,50 +771,15 @@ export function SettingsAssistant({
           locked={blocked || Boolean(state?.activeRun)}
           canSend={canSend && !!message.trim()}
           active={Boolean(state?.activeRun)}
+          stop={stop}
+          stopDisabled={blocked}
         />
         <div className="settings-actions">
-          {resumable && (
-            <button
-              type="button"
-              disabled={blocked || !!state?.otherActiveSession}
-              onClick={() =>
-                void run(async () => {
-                  const result = await window.desktop.settings.agentContinue({
-                    sessionId: session,
-                    runId: lastRunStatus.runId,
-                  });
-                  await refreshSession();
-                  if (!result.ok) setError(result.code);
-                })
-              }
-            >
-              继续运行
-            </button>
-          )}
-          {state?.activeRun && (
-            <button
-              type="button"
-              disabled={blocked}
-              onClick={() =>
-                void run(async () => {
-                  if (!state.activeRun) return;
-                  const result = await window.desktop.settings.agentStop({
-                    sessionId: session,
-                    runId: state.activeRun,
-                  });
-                  await refreshSession();
-                  if (!result.ok) setError(result.code);
-                })
-              }
-            >
-              停止
-            </button>
-          )}
-          <small className="assistant-shortcut" id="settings-assistant-shortcut">
+          <small className="sr-only" id="settings-assistant-shortcut">
             回车发送 · Shift＋回车换行
           </small>
         </div>
       </form>
-    </aside>
+    </section>
   );
 }

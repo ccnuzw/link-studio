@@ -99,7 +99,7 @@ module.exports = {
       case "expired":
         return failed(errorMessageOf(body) || "上游任务超时未完成（expired）", errorCodeOf(body) || "expired");
       case "cancelled":
-        return { status: "cancelled" };
+        return failed(errorMessageOf(body) || "上游任务已被取消", errorCodeOf(body) || "cancelled");
       case "running":
       case "processing":
         return { status: "running" };

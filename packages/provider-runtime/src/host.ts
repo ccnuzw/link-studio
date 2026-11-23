@@ -1,5 +1,12 @@
 import { request as httpRequest } from "node:http";
-import { inspectPlugin, type PluginInfo, validateContext, validateResult } from "./plugin.ts";
+import { authNameIssue, reservedHeaders } from "./auth-name.ts";
+import {
+  inspectPlugin,
+  type PluginInfo,
+  requireGenerationPlugin,
+  validateContext,
+  validateResult,
+} from "./plugin.ts";
 import { encoded, LIMITS, type PluginRunner, ProviderError, record, sourceHash } from "./runner.ts";
 
 export interface HostRequest {
@@ -24,6 +31,7 @@ export interface ReferenceMedia {
   filename: string;
   url?: string;
   urlOnly?: true;
+  filedAssetId?: string;
 }
 export interface Binding {
   source: string;
@@ -33,19 +41,10 @@ export interface Binding {
   secret?: string;
   secretKey?: string;
   media?: Record<string, ReferenceMedia>;
+  savePrepared?: (prepared: unknown) => void;
 }
 
 const methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
-const bannedHeaders = [
-  "authorization",
-  "proxy-authorization",
-  "cookie",
-  "host",
-  "content-length",
-  "transfer-encoding",
-  "connection",
-  "upgrade",
-];
 const errorClasses = ["retryable", "terminal", "moderation", "provider_balance"];
 const maxRequestBytes = 16 * 1024 * 1024;
 
@@ -172,6 +171,14 @@ function replaceReferences(
       throw new ProviderError("MEDIA_REFERENCE_INVALID");
     const media = resolveMedia(object.__fileRef, binding, context);
     if (object.as === undefined || object.as === "url") {
+      if (
+        object.filed === true &&
+        binding.builtin &&
+        media.mime.startsWith("image/") &&
+        media.filedAssetId &&
+        /^[\w.:-]{1,128}$/.test(media.filedAssetId)
+      )
+        return `asset://${media.filedAssetId}`;
       if (!media.url || !URL.canParse(media.url))
         throw new ProviderError("MEDIA_TRANSPORT_UNAVAILABLE");
       const url = new URL(media.url);
@@ -201,6 +208,7 @@ export async function buildHostRequest(
   binding: Binding,
   context: Record<string, unknown>,
 ): Promise<HostRequest> {
+  requireGenerationPlugin(plugin);
   const descriptor = record(value);
   if (!methods.includes(String(descriptor.method)))
     throw new ProviderError("PLUGIN_REQUEST_INVALID");
@@ -211,7 +219,7 @@ export async function buildHostRequest(
     !sameOrigin && vertex(binding, plugin) ? vertexTarget(url, descriptor, context) : undefined;
   if (custom && !sameOrigin && !vertexEndpoint)
     throw new ProviderError("PROVIDER_ENDPOINT_BLOCKED");
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = Object.create(null);
   for (const [name, entry] of Object.entries(
     descriptor.headers === undefined ? {} : record(descriptor.headers),
   )) {
@@ -220,7 +228,7 @@ export async function buildHostRequest(
       lower === "authorization" && custom && (sameOrigin || vertexEndpoint === "storage");
     if (
       !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) ||
-      (bannedHeaders.includes(lower) && !customAuthorization) ||
+      (reservedHeaders.has(lower) && !customAuthorization) ||
       (plugin.auth.type === "header" && name.toLowerCase() === plugin.auth.name?.toLowerCase()) ||
       typeof entry !== "string" ||
       /[^\t\x20-\x7e\x80-\xff]/.test(entry) ||
@@ -315,13 +323,7 @@ export async function buildHostRequest(
   const auth = descriptor.auth === undefined ? plugin.auth : record(descriptor.auth);
   if (!["none", "bearer", "header", "query", "custom"].includes(String(auth.type)))
     throw new ProviderError("PLUGIN_REQUEST_INVALID");
-  if (
-    (auth.type === "header" || auth.type === "query") &&
-    (typeof auth.name !== "string" ||
-      !/^[A-Za-z0-9_-]{1,64}$/.test(auth.name) ||
-      bannedHeaders.includes(auth.name.toLowerCase()))
-  )
-    throw new ProviderError("PLUGIN_REQUEST_INVALID");
+  if (authNameIssue(auth.type, auth.name)) throw new ProviderError("PLUGIN_REQUEST_INVALID");
   if (sameOrigin && !["none", "custom"].includes(String(auth.type))) {
     if (!binding.secret) throw new ProviderError("PROVIDER_SECRET_UNAVAILABLE");
     if (auth.type === "bearer") headers.authorization = `Bearer ${binding.secret}`;
@@ -344,6 +346,10 @@ export class ProviderHost {
   constructor(
     private readonly runner: PluginRunner,
     private readonly transport: Transport,
+    private readonly observeHook?: (
+      name: string,
+      args: readonly unknown[],
+    ) => (errorCode?: string, output?: unknown, logs?: string[]) => void,
   ) {}
 
   async invoke(
@@ -355,6 +361,7 @@ export class ProviderHost {
     if (binding.approvedHash !== sourceHash(binding.source))
       throw new ProviderError("PLUGIN_APPROVAL_REQUIRED");
     const plugin = await inspectPlugin(this.runner, binding.source);
+    requireGenerationPlugin(plugin);
     if (Object.hasOwn(record(value), "credentials"))
       throw new ProviderError("PLUGIN_CONTEXT_INVALID");
     const context = validateContext(value);
@@ -368,8 +375,18 @@ export class ProviderHost {
         ...(binding.secretKey && { secretKey: binding.secretKey }),
       };
     }
-    const call = (hook: string, args: unknown[]) =>
-      this.runner.call(binding.source, hook, args, signal);
+    const call = async (hook: string, args: unknown[]) => {
+      const finish = this.observeHook?.(hook, args);
+      try {
+        if (!finish) return await this.runner.call(binding.source, hook, args, signal);
+        const { result, logs } = await this.runner.trace(binding.source, hook, args, signal);
+        finish(undefined, result, logs);
+        return result;
+      } catch (error) {
+        finish?.(error instanceof ProviderError ? error.code : "PLUGIN_OUTPUT_INVALID");
+        throw error;
+      }
+    };
     const send = async (descriptor: unknown, submitting = false) => {
       const request = await buildHostRequest(descriptor, plugin, binding, context);
       if (signal?.aborted) throw new ProviderError("PLUGIN_CANCELLED");
@@ -433,6 +450,13 @@ export class ProviderHost {
       for (const request of requests) responses.push(await send(request));
       context.prepared = await call("parsePrepareResponses", [context, responses]);
       encoded(context.prepared, LIMITS.state);
+      if (phase === "submit" && context.prepared != null && binding.savePrepared) {
+        try {
+          binding.savePrepared(context.prepared);
+        } catch {
+          throw new ProviderError("PROVIDER_RETRYABLE");
+        }
+      }
     }
     const suffix = phase === "submit" ? "Submit" : phase === "query" ? "Query" : "Cancel";
     if (!plugin.hooks.includes(`build${suffix}Request`)) {
@@ -463,6 +487,7 @@ export class ProviderHost {
       parsed.state = state.ready === true ? { ready: true, url: state.url } : {};
     }
     if (parsed.state !== undefined) encoded(parsed.state, LIMITS.state);
+    requireGenerationPlugin(plugin);
     if (phase === "query") return validateResult(parsed, plugin.kind);
     if (parsed.immediate !== undefined) {
       const immediate = validateResult(parsed.immediate, plugin.kind);

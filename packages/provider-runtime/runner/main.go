@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	"link-studio/provider-runner/dramaoutput"
+	"link-studio/provider-runner/dramasource"
 )
 
 const maxJSON = 1 << 20
@@ -70,6 +72,21 @@ type response struct {
 
 func main() {
 	debug.SetMemoryLimit(64 << 20)
+	if len(os.Args) == 3 && os.Args[1] == "drama-source" {
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, (32<<20)+1))
+		if err != nil || len(data) > 32<<20 {
+			writeResponse(response{Code: "文件超过 32 MiB 或读取失败"})
+			return
+		}
+		text, err := dramasource.ParseSource(os.Args[2], data)
+		if err != nil {
+			writeResponse(response{Code: err.Error()})
+			return
+		}
+		encoded, _ := json.Marshal(text)
+		writeResponse(response{OK: true, Result: encoded})
+		return
+	}
 	var input request
 	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 2*maxJSON+maxSource+1))
 	if err != nil || len(raw) > 2*maxJSON+maxSource || json.Unmarshal(raw, &input) != nil || len(input.Source) > maxSource {
@@ -77,12 +94,116 @@ func main() {
 		return
 	}
 	var logs []string
+	if input.Source=="" && input.Hook=="methodStep" {writeResponse(methodStep(input.Args));return}
+	if input.Source == "" && (input.Hook == "dramaKindPrompt" || input.Hook == "dramaKindGuess") {
+		var text string
+		if len(input.Args) != 1 || json.Unmarshal(input.Args[0], &text) != nil {
+			writeResponse(response{Code: "AGENT_ARGUMENT_INVALID"})
+			return
+		}
+		var result any
+		if input.Hook == "dramaKindPrompt" {
+			result = dramasource.KindPrompt(text)
+		} else if kind, reason, ok := dramasource.ParseKindGuess(text); ok {
+			result = map[string]string{"kind": kind, "reason": reason}
+		}
+		encoded, _ := json.Marshal(result)
+		writeResponse(response{OK: true, Result: encoded})
+		return
+	}
+	if input.Hook == "dramaAssetPrompt" && input.Source == "" {
+		var stage string
+		var override string
+		if (len(input.Args) != 2 && len(input.Args) != 3) || json.Unmarshal(input.Args[0], &stage) != nil || (len(input.Args) == 3 && json.Unmarshal(input.Args[2], &override) != nil) {
+			writeResponse(response{Code: "AGENT_ARGUMENT_INVALID"})
+			return
+		}
+		prompt, err := dramaoutput.Prompt(stage, input.Args[1], override)
+		if err != nil {
+			writeResponse(response{Code: "AGENT_ARGUMENT_INVALID"})
+			return
+		}
+		result, _ := json.Marshal(prompt)
+		writeResponse(response{OK: true, Result: result})
+		return
+	}
+	if input.Hook == "dramaAssetOutput" && input.Source == "" {
+		writeResponse(decodeDramaAssetOutput(input.Args))
+		return
+	}
+	if input.Hook == "dramaJobQuote" && input.Source == "" {
+		writeResponse(dramaJobQuote(input.Args))
+		return
+	}
+	if input.Hook == "modelQuote" && input.Source == "" {
+		writeResponse(modelQuote(input.Args))
+		return
+	}
 	result, code := execute(input, &logs)
 	writeResponse(response{OK: code == "", Result: result, Code: code, Logs: logs})
 }
 
 func writeResponse(result response) {
 	_ = json.NewEncoder(os.Stdout).Encode(result)
+}
+
+func decodeDramaAssetOutput(args []json.RawMessage) response {
+	var step, text string
+	var scope struct {
+		Episodes   []int    `json:"episodes"`
+		Nodes      []string `json:"nodes"`
+		MaxSeconds int      `json:"max_seconds"`
+		UnitFrom   int      `json:"unit_from"`
+		UnitTo     int      `json:"unit_to"`
+	}
+	if len(args) != 3 || json.Unmarshal(args[0], &step) != nil || json.Unmarshal(args[1], &text) != nil || json.Unmarshal(args[2], &scope) != nil {
+		return response{Code: "AGENT_ARGUMENT_INVALID"}
+	}
+	value, err := dramaoutput.DecodeOutput(step, []byte(text))
+	if err != nil {
+		return response{Code: err.Error()}
+	}
+	switch output := value.(type) {
+	case dramaoutput.PlanOutput:
+		if scope.UnitFrom < 1 || scope.UnitTo < scope.UnitFrom {
+			return response{Code: "AGENT_ARGUMENT_INVALID"}
+		}
+		if err := output.ValidateCoverage(scope.UnitFrom, scope.UnitTo); err != nil {
+			return response{Code: err.Error()}
+		}
+	case dramaoutput.StoryboardOutput:
+		if err := output.ValidateMaxSeconds(scope.MaxSeconds); err != nil {
+			return response{Code: err.Error()}
+		}
+		allowed := map[string]bool{}
+		for _, node := range scope.Nodes {
+			allowed[node] = true
+		}
+		output.SanitizeReferences(allowed)
+		value = output
+	case dramaoutput.BreakdownOutput:
+		for _, asset := range output.Assets {
+			for _, episode := range asset.Episodes {
+				if !slices.Contains(scope.Episodes, episode) {
+					return response{Code: fmt.Sprintf("%s：资产集号%d不属于本次范围", dramaoutput.ErrOutputInvalid, episode)}
+				}
+			}
+		}
+	case dramaoutput.AssetPromptsOutput:
+		if len(output.Prompts) != len(scope.Nodes) {
+			return response{Code: dramaoutput.ErrOutputInvalid.Error() + "：提示词数量与新资产不一致"}
+		}
+		for _, prompt := range output.Prompts {
+			if !slices.Contains(scope.Nodes, prompt.NodeID) {
+				return response{Code: dramaoutput.ErrOutputInvalid.Error() + "：提示词包含非本次资产节点"}
+			}
+		}
+	}
+	result, err := json.Marshal(value)
+	if err != nil {
+		return response{Code: "PLUGIN_RESULT_INVALID"}
+	}
+	return response{OK: true, Result: result}
 }
 
 func execute(input request, logs *[]string) (result json.RawMessage, code string) {
@@ -203,11 +324,19 @@ func inspect(vm *goja.Runtime, exported *goja.Object) (json.RawMessage, error) {
 			warnings = append(warnings, name)
 		}
 	}
-	meta, err := encode(vm, exported.Get("meta"))
-	if err != nil || len(meta) > 64<<10 {
-		return nil, errors.New("invalid meta")
+	value := exported.Get("meta")
+	if value == nil || goja.IsUndefined(value) {
+		value = goja.Null()
 	}
-	return json.Marshal(map[string]any{"meta": meta, "hooks": hooks, "unknownHooks": warnings})
+	meta, err := encode(vm, value)
+	if err != nil {
+		return nil, err
+	}
+	const metaLimit = 64 << 10
+	if len(meta) > 2*metaLimit {
+		return json.RawMessage(`{"metaTooLarge":true}`), nil
+	}
+	return json.Marshal(map[string]any{"meta": meta, "metaTooLarge": len(meta) > metaLimit, "hooks": hooks, "unknownHooks": warnings})
 }
 
 func encode(vm *goja.Runtime, value goja.Value) (json.RawMessage, error) {

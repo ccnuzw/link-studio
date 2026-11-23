@@ -1,0 +1,726 @@
+[
+  {
+    "name": "Young - Male - Zayne 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172456-9zvzx-audio.wav"
+  },
+  {
+    "name": "Young - Male - Xavier 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-bpv4g-audio.wav"
+  },
+  {
+    "name": "Young - Male - Tim",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172527-6jxfc-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Michael 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172203-fvvh2-audio.wav"
+  },
+  {
+    "name": "Young - Male - Lucas",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172545-wbl7f-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Josh",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-sz9jp-audio.wav"
+  },
+  {
+    "name": "Young - Male - Jimmy",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-tshr8-audio.wav"
+  },
+  {
+    "name": "Young - Male - Jasper",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-m2f54-audio.wav"
+  },
+  {
+    "name": "Young - Male - Jackson",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172602-8wvvv-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Harmony",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172534-m9mzp-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Ethan 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172515-mdl95-audio.wav"
+  },
+  {
+    "name": "Young - Male - Daniel",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172542-8c75s-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Chucky 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-sgjh8-audio.wav"
+  },
+  {
+    "name": "Young - Male - Alvin",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172537-gdrwd-audio.mp3"
+  },
+  {
+    "name": "Young - Male - Alastor 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172520-ctbrn-audio.wav"
+  },
+  {
+    "name": "Young - Female - Zoe",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172429-76wmf-audio.wav"
+  },
+  {
+    "name": "Young - Female - Zendaya",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172200-wjj26-audio.wav"
+  },
+  {
+    "name": "Young - Female - Sunny",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-gdzwk-audio.wav"
+  },
+  {
+    "name": "Young - Female - Stokie",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-hmwgb-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Skye",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172544-nqqhx-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Skye",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172242-4hmhd-audio.wav"
+  },
+  {
+    "name": "Young - Female - Sharron",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172248-22kx8-audio.wav"
+  },
+  {
+    "name": "Young - Female - Rachel",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172258-t4b69-audio.wav"
+  },
+  {
+    "name": "Young - Female - Natasha",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172255-bz2t6-audio.wav"
+  },
+  {
+    "name": "Young - Female - Myra",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172305-5rqhw-audio.wav"
+  },
+  {
+    "name": "Young - Female - Mel",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172318-bwhnq-audio.wav"
+  },
+  {
+    "name": "Young - Female - Megan",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172158-qqpd5-audio.wav"
+  },
+  {
+    "name": "Young - Female - Lynn",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172319-bh7qp-audio.wav"
+  },
+  {
+    "name": "Young - Female - Kayla",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172235-22khk-audio.wav"
+  },
+  {
+    "name": "Young - Female - Joanne",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172333-6w7ss-audio.wav"
+  },
+  {
+    "name": "Young - Female - Jenny",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172343-ffqvn-audio.wav"
+  },
+  {
+    "name": "Young - Female - Jane",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-xz68g-audio.wav"
+  },
+  {
+    "name": "Young - Female - Ivy",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172316-9j8rw-audio.wav"
+  },
+  {
+    "name": "Young - Female - Holly",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-vdpbf-audio.wav"
+  },
+  {
+    "name": "Young - Female - Hayley",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-v8vlc-audio.wav"
+  },
+  {
+    "name": "Young - Female - Elaine",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-dqb5v-audio.wav"
+  },
+  {
+    "name": "Young - Female - Dacey",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172525-5dqng-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Charlotte",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172441-jmz7j-audio.wav"
+  },
+  {
+    "name": "Young - Female - Charlie 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172529-b8qxs-audio.wav"
+  },
+  {
+    "name": "Young - Female - Candy",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-jdgfs-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Candice",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172548-kkzzn-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Blair",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172259-zkkkr-audio.wav"
+  },
+  {
+    "name": "Young - Female - Amanda",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172609-tgwzq-audio.mp3"
+  },
+  {
+    "name": "Young - Female - Allison",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172446-7g6k2-audio.wav"
+  },
+  {
+    "name": "Teen - Male - Brayan",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172532-qx6f5-audio.mp3"
+  },
+  {
+    "name": "Teen - Female - Shiny",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172612-tr54s-audio.mp3"
+  },
+  {
+    "name": "Teen - Female - Cutey",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-7gjt7-audio.mp3"
+  },
+  {
+    "name": "Older - Male - Ronald",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172212-99cgg-audio.wav"
+  },
+  {
+    "name": "Older - Male - Orion",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172225-2lsb4-audio.wav"
+  },
+  {
+    "name": "Older - Male - Jones",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-r7f2m-audio.wav"
+  },
+  {
+    "name": "Older - Male - John",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-gwptf-audio.wav"
+  },
+  {
+    "name": "Older - Male - Jigsaw 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172506-pxwkc-audio.wav"
+  },
+  {
+    "name": "Older - Male - Clown Man 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-hpvqb-audio.wav"
+  },
+  {
+    "name": "Older - Male - Big Boogie 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172134-jdrd2-audio.wav"
+  },
+  {
+    "name": "Older - Male - Alfred",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-t2jdz-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Valentino",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172240-6tdfs-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Tom",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172241-wwdzv-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - The Grinch 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172159-wwtn4-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Smith",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172603-rhwbq-audio.mp3"
+  },
+  {
+    "name": "Middle-aged - Male - Simba",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172244-qrqfz-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Russell",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172250-49j9p-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Rowan",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172453-b5wpw-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Rory",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172310-h8qsz-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Noah 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172510-vtfvn-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Michael_Kevin",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172214-5jbqz-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Marcus",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172231-w6cbx-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Leo",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-hm2k5-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Knightley",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172328-jmf7s-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Kevin",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-2xxgq-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Julian",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-s5n72-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Josiah",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-l2nsd-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Joker",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-4rv84-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Jamie",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172445-gh4gt-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Harrison",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-42c8g-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Hank",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-bzf8j-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Gollum",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-drr9c-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Godfather",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-rk7g2-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Frosty Man 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172204-9vgng-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Felix",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172355-ch228-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Dylan",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-mb889-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Dryw",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172557-smcv5-audio.mp3"
+  },
+  {
+    "name": "Middle-aged - Male - David",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172413-f2pmm-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Clark",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172238-n6fz6-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Chip",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-9gqwn-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Cartoon Chef 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-zztz2-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Brad_Pitt",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172430-s4j7x-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Bob",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172412-zfsgw-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Blaze",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-jt68f-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Bill",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172431-vn7vk-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Beau",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172218-hl9kx-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Alex",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172447-rwchl-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Alberto",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172227-kcrhz-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Adrian",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172507-xqbnn-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Male - Adam",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172613-nvc8v-audio.mp3"
+  },
+  {
+    "name": "Middle-aged - Female - Scarlet",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172213-rcwx7-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Female - Sarah",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-g8qkt-audio.mp3"
+  },
+  {
+    "name": "Middle-aged - Female - Margaret",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172439-c7p5l-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Female - Hope",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172533-l8rr7-audio.mp3"
+  },
+  {
+    "name": "Middle-aged - Female - Brittney",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172426-kn86t-audio.wav"
+  },
+  {
+    "name": "Middle-aged - Female - Anna",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172605-qjqkx-audio.mp3"
+  },
+  {
+    "name": "Child - Male - Kevin McCallister 2.0",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172157-42f76-audio.wav"
+  },
+  {
+    "name": "Zayne",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-j7z55-audio.mp3"
+  },
+  {
+    "name": "Xavier",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k7px4-audio.mp3"
+  },
+  {
+    "name": "Vivi",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4hks7-audio.mp3"
+  },
+  {
+    "name": "Tina老师",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-smk6c-audio.mp3"
+  },
+  {
+    "name": "Noah",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dqph5-audio.mp3"
+  },
+  {
+    "name": "Kevin McCallister",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-kl5gf-audio.mp3"
+  },
+  {
+    "name": "Jigsaw",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qltvl-audio.mp3"
+  },
+  {
+    "name": "Clown Man",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ccgx8-audio.mp3"
+  },
+  {
+    "name": "Chucky",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-5rq88-audio.mp3"
+  },
+  {
+    "name": "Charlie",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qx2rl-audio.mp3"
+  },
+  {
+    "name": "温柔女神2",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6kzhw-audio.mp3"
+  },
+  {
+    "name": "黑猫侦探社咪仔",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-f5wvc-audio.wav"
+  },
+  {
+    "name": "鸡汤妹妹",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mcs77-audio.mp3"
+  },
+  {
+    "name": "鸡汤女",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-8t7zs-audio.wav"
+  },
+  {
+    "name": "魅力苏菲",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4vxtg-audio.mp3"
+  },
+  {
+    "name": "魅力女友",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qr992-audio.wav"
+  },
+  {
+    "name": "阳光阿辰",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-cfzpd-audio.mp3"
+  },
+  {
+    "name": "醇厚低音",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ld557-audio.mp3"
+  },
+  {
+    "name": "邻家女孩",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-c25mw-audio.mp3"
+  },
+  {
+    "name": "贴心闺蜜",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-l5jhn-audio.mp3"
+  },
+  {
+    "name": "贴心妹妹",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6z7hn-audio.mp3"
+  },
+  {
+    "name": "贴心女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ddltv-audio.mp3"
+  },
+  {
+    "name": "解说小明",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dw6jj-audio.mp3"
+  },
+  {
+    "name": "萌丫头",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mdwbp-audio.mp3"
+  },
+  {
+    "name": "纯澈女生",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-xf6fq-audio.mp3"
+  },
+  {
+    "name": "知性温婉",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-79wft-audio.mp3"
+  },
+  {
+    "name": "知性女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-8h2gv-audio.mp3"
+  },
+  {
+    "name": "知心姐姐",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-7kss5-audio.mp3"
+  },
+  {
+    "name": "甜美小源",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kvrll-audio.mp3"
+  },
+  {
+    "name": "率真小伙",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qn26k-audio.mp3"
+  },
+  {
+    "name": "猴哥",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-sq5tk-audio.mp3"
+  },
+  {
+    "name": "爽快思思",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jk6vd-audio.mp3"
+  },
+  {
+    "name": "熊二",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mrbs2-audio.mp3"
+  },
+  {
+    "name": "炀炀",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-bj5zq-audio.mp3"
+  },
+  {
+    "name": "灿灿",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qm7zm-audio.mp3"
+  },
+  {
+    "name": "温柔白月光",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mwq8b-audio.mp3"
+  },
+  {
+    "name": "温柔文雅",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-tx5bj-audio.mp3"
+  },
+  {
+    "name": "温柔小雅",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-zrb6k-audio.mp3"
+  },
+  {
+    "name": "温柔小哥",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dk6kj-audio.mp3"
+  },
+  {
+    "name": "温暖阿虎",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-w9bjq-audio.mp3"
+  },
+  {
+    "name": "温暖少年",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-x2g8f-audio.mp3"
+  },
+  {
+    "name": "清爽男大",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-zzv99-audio.mp3"
+  },
+  {
+    "name": "清澈梓梓",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dmrnn-audio.mp3"
+  },
+  {
+    "name": "清新女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-8tcfp-audio.mp3"
+  },
+  {
+    "name": "流畅女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7nvns-audio.wav"
+  },
+  {
+    "name": "活泼爽朗",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-7dgr4-audio.mp3"
+  },
+  {
+    "name": "武则天",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-rb4s7-audio.mp3"
+  },
+  {
+    "name": "樱桃丸子",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-gz5kb-audio.mp3"
+  },
+  {
+    "name": "机灵小伙",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wx5qt-audio.mp3"
+  },
+  {
+    "name": "暖阳女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-fjfcj-audio.mp3"
+  },
+  {
+    "name": "暖心体贴",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jjj56-audio.mp3"
+  },
+  {
+    "name": "文静毛毛",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-pc9ns-audio.mp3"
+  },
+  {
+    "name": "懒音绵宝",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-srtjr-audio.mp3"
+  },
+  {
+    "name": "悠悠君子",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-wbz44-audio.mp3"
+  },
+  {
+    "name": "快乐小东",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-k8s4v-audio.mp3"
+  },
+  {
+    "name": "心灵鸡汤",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dtx47-audio.mp3"
+  },
+  {
+    "name": "开朗轻快",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-t55r8-audio.mp3"
+  },
+  {
+    "name": "开朗学长",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wg7vs-audio.mp3"
+  },
+  {
+    "name": "开朗姐姐",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-hjk6p-audio.mp3"
+  },
+  {
+    "name": "广告解说",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tqq2h-audio.mp3"
+  },
+  {
+    "name": "少儿故事",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dw78f-audio.mp3"
+  },
+  {
+    "name": "小天",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-nd59k-audio.mp3"
+  },
+  {
+    "name": "小何",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-558cg-audio.mp3"
+  },
+  {
+    "name": "天才童声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6gkjj-audio.mp3"
+  },
+  {
+    "name": "大壹",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tnphs-audio.wav"
+  },
+  {
+    "name": "四郎",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-hczx4-audio.mp3"
+  },
+  {
+    "name": "咆哮小哥",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-q8n9n-audio.mp3"
+  },
+  {
+    "name": "初恋女友",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mdd62-audio.mp3"
+  },
+  {
+    "name": "冷酷哥哥",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-llks5-audio.mp3"
+  },
+  {
+    "name": "元气甜妹",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-dbmhj-audio.mp3"
+  },
+  {
+    "name": "儿童绘本",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-9lsgk-audio.mp3"
+  },
+  {
+    "name": "儒雅逸辰",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7n7cg-audio.wav"
+  },
+  {
+    "name": "儒雅男友",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-pljvq-audio.mp3"
+  },
+  {
+    "name": "儒雅公子",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k9d7r-audio.mp3"
+  },
+  {
+    "name": "倾心少女",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-459nf-audio.mp3"
+  },
+  {
+    "name": "俏皮女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-jtswz-audio.mp3"
+  },
+  {
+    "name": "佩奇猪",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7r964-audio.mp3"
+  },
+  {
+    "name": "亲切女声",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-9xwll-audio.mp3"
+  },
+  {
+    "name": "亮嗓萌仔",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6g84r-audio.mp3"
+  },
+  {
+    "name": "云舟",
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kdxqk-audio.mp3"
+  }
+]

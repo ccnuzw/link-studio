@@ -67,7 +67,7 @@ export function ChannelCards({
               }
             }}
           >
-            {channels.length > 1 && (
+            {sortable && channels.length > 1 && (
               <button
                 type="button"
                 className="channel-grip"

@@ -1,7 +1,11 @@
 type Redactor = { secrets: string[]; redact(value: string): string };
 type Delta = Record<string, unknown>;
 
-export function cleanModelStream({ secrets, redact }: Redactor, responses = false) {
+export function cleanModelStream(
+  { secrets, redact }: Redactor,
+  responses = false,
+  observe?: (data: unknown) => void,
+) {
   const pending = new Map<string, string>();
 
   function split(key: string, target: Delta, field: string) {
@@ -74,6 +78,7 @@ export function cleanModelStream({ secrets, redact }: Redactor, responses = fals
       }
     }
     const type = responses ? redact(data.type) : "";
+    observe?.(data);
     const event = /^[a-z_.]+$/.test(type) ? `event: ${type}\n` : "";
     return `${event}data: ${JSON.stringify(data, function (this: Delta, field, value) {
       if (typeof value !== "string") return value;

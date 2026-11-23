@@ -6,32 +6,131 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { HostRequest, Transport } from "../../../packages/provider-runtime/src/host.ts";
 import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
 
+type GatewaySlot = {
+  max: number;
+  rps: number;
+  active: number;
+  next: number;
+  queue: Set<() => void>;
+};
+
+export class GatewayLimits {
+  private readonly channels = new Map<string, GatewaySlot>();
+
+  async acquire(id: string, max = 0, rps = 0, signal: AbortSignal) {
+    signal.throwIfAborted();
+    if (!max && !rps) {
+      this.channels.delete(id);
+      return () => {};
+    }
+    let current = this.channels.get(id);
+    if (!current || current.max !== max || current.rps !== rps) {
+      current = { max, rps, active: 0, next: 0, queue: new Set() };
+      this.channels.set(id, current);
+    }
+    const slot = current;
+    if (max && slot.active >= max) {
+      await new Promise<void>((resolve, reject) => {
+        const grant = () => {
+          signal.removeEventListener("abort", cancel);
+          resolve();
+        };
+        const cancel = () => {
+          slot.queue.delete(grant);
+          reject(signal.reason);
+        };
+        slot.queue.add(grant);
+        signal.addEventListener("abort", cancel, { once: true });
+      });
+    } else slot.active++;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      const first = slot.queue.values().next().value;
+      if (first) {
+        slot.queue.delete(first);
+        first();
+      } else slot.active--;
+    };
+    try {
+      signal.throwIfAborted();
+      if (rps) {
+        const now = performance.now();
+        const start = Math.max(now, slot.next);
+        slot.next = start + 1000 / rps;
+        let remaining = start - now;
+        while (remaining > 0) {
+          await delay(Math.min(2147483647, Math.ceil(remaining)), undefined, { signal });
+          remaining = start - performance.now();
+        }
+      }
+      return release;
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
+}
+
 export class ChannelLimits {
-  private readonly slots = new Map<string, { active: number; next: number }>();
+  private readonly activeGenerations = new Map<string, number>();
+  private readonly requests = new Map<
+    string,
+    { active: number; max: number; rate: number; tokens: number; updated: number }
+  >();
 
   tryAcquire(id: string, max?: number) {
     if (!max) return () => {};
-    const slot = this.slots.get(id) ?? { active: 0, next: 0 };
-    if (slot.active >= max) return undefined;
-    this.slots.set(id, slot);
-    slot.active++;
+    const active = this.activeGenerations.get(id) ?? 0;
+    if (active >= max) return undefined;
+    this.activeGenerations.set(id, active + 1);
+    let released = false;
     return () => {
-      slot.active--;
+      if (released) return;
+      released = true;
+      const remaining = (this.activeGenerations.get(id) ?? 1) - 1;
+      if (remaining) this.activeGenerations.set(id, remaining);
+      else this.activeGenerations.delete(id);
     };
   }
 
-  async acquire(id: string, max?: number, rps?: number, signal?: AbortSignal) {
-    if (!max && !rps) return () => {};
-    const slot = this.slots.get(id) ?? { active: 0, next: 0 };
-    this.slots.set(id, slot);
-    const clock = () => performance.now();
-    while ((max && slot.active >= max) || slot.next > clock()) {
-      await delay(Math.max(10, Math.min(100, slot.next - clock())), undefined, { signal });
-    }
+  async acquire(id: string, max = 0, rps = 0, signal?: AbortSignal) {
     signal?.throwIfAborted();
+    if (!max && !rps) {
+      this.requests.delete(id);
+      return () => {};
+    }
+    const burst = Math.max(1, Math.ceil(rps));
+    let slot = this.requests.get(id);
+    if (!slot || slot.max !== max || slot.rate !== rps) {
+      slot = { active: 0, max, rate: rps, tokens: burst, updated: performance.now() };
+      this.requests.set(id, slot);
+    }
+    while (max && slot.active >= max) await delay(10, undefined, { signal });
     slot.active++;
-    if (rps) slot.next = clock() + 1000 / rps;
+    try {
+      while (rps) {
+        signal?.throwIfAborted();
+        const now = performance.now();
+        slot.tokens = Math.min(burst, slot.tokens + ((now - slot.updated) * rps) / 1000);
+        slot.updated = now;
+        if (slot.tokens >= 1) {
+          slot.tokens--;
+          break;
+        }
+        await delay(Math.min(2147483647, Math.ceil(((1 - slot.tokens) * 1000) / rps)), undefined, {
+          signal,
+        });
+      }
+    } catch (error) {
+      slot.active--;
+      throw error;
+    }
+    let released = false;
     return () => {
+      if (released) return;
+      released = true;
       slot.active--;
     };
   }
@@ -188,11 +287,15 @@ export function providerTransport(
     const image = input.responseType === "image_json";
     const chunks: Buffer[] = [];
     let bytes = 0;
-    const limit = (success && image ? 64 : 1) * 1024 * 1024;
+    const catalog = input.responseType === "model_catalog";
+    const limit = (success && image ? 64 : success && catalog ? 4 : 1) * 1024 * 1024;
     for await (const chunk of response) {
       const remaining = limit - bytes;
       if (chunk.length > remaining) {
-        if (success) throw new ProviderError("PROVIDER_RESPONSE_LIMIT");
+        if (success)
+          throw new ProviderError(
+            catalog ? "PROVIDER_CATALOG_TOO_LARGE" : "PROVIDER_RESPONSE_LIMIT",
+          );
         chunks.push(chunk.subarray(0, remaining));
         break;
       }
@@ -201,7 +304,7 @@ export function providerTransport(
     }
     let text = Buffer.concat(chunks).toString("utf8");
     let body: unknown = text;
-    if (input.responseType === "json" || image) {
+    if (input.responseType === "json" || image || catalog) {
       try {
         body = JSON.parse(text);
       } catch {
