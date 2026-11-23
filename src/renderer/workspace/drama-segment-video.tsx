@@ -187,7 +187,9 @@ export function DramaSegmentVideo({
     if (!result.ok) setError(result.error.message ?? "采用片段视频失败");
     await reload();
   }
-  const [width, height] = ratio.split(":").map(Number);
+  const [width = 0, height = 0, extra] = ratio.split(":").map(Number);
+  const quotient = width > 0 && height > 0 ? width / height : 0;
+  const aspect = extra === undefined && Number.isFinite(quotient) && quotient > 0 ? quotient : 9 / 16;
   return (
     <section aria-label="片段视频">
       <div className="drama-preview-switch" role="radiogroup" aria-label="预览">
@@ -228,7 +230,7 @@ export function DramaSegmentVideo({
             <TakeCarousel
               takes={takes}
               chosenTaskId={segment.chosen_task_id ?? ""}
-              aspect={(width || 9) / (height || 16)}
+              aspect={aspect}
               onChoose={(taskId) => void choose(taskId)}
             />
           )}
