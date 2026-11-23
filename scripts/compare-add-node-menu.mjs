@@ -113,7 +113,8 @@ try {
                 item.getAttribute("aria-disabled"),
               ]),
             }));
-          const result = (states[side + "-" + key] = [await snapshot()]);
+          states[side + "-" + key] = [await snapshot()];
+          const result = states[side + "-" + key];
           const rect = await menu.boundingBox();
           assert(rect);
           if (scenario === "blank")
@@ -168,7 +169,8 @@ try {
               image.equals(await page.screenshot({ clip })),
               `${side}-${key}-${stage} unstable`,
             );
-            (images[key + "-" + stage] ??= []).push(image.toString("base64"));
+            images[key + "-" + stage] ??= [];
+            images[key + "-" + stage].push(image.toString("base64"));
           }
           await capture("opened");
           for (const input of ["Home", "ArrowDown", "ArrowDown", "End", "ArrowDown"]) {

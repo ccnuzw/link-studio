@@ -3,7 +3,10 @@ import { useSyncExternalStore } from "react";
 let player: HTMLAudioElement | undefined;
 let current: { handle: string; id: string } | undefined;
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((listener) => listener());
+const notify = () =>
+  listeners.forEach((listener) => {
+    listener();
+  });
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {

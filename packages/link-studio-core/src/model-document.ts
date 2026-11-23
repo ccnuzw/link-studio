@@ -339,7 +339,8 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
     for (const kind of ["image", "video", "audio"] as const) {
       const ref = caps.refs[kind];
       if (!ref || (!ref.on && (raw.kind === "text" || raw.kind === "agent"))) continue;
-      (config.refs ??= {})[kind] = { max: ref.on ? ref.max : 0, mb: ref.max_mb || 1 };
+      config.refs ??= {};
+      config.refs[kind] = { max: ref.on ? ref.max : 0, mb: ref.max_mb || 1 };
     }
   }
   if (caps?.params || raw.pricing?.tiers?.some((tier) => Object.hasOwn(tier.when, "op")))
@@ -357,11 +358,13 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
       quantityKey = name;
     }
     const orderKey = name === "generate_audio" ? "generateAudio" : paramKey(name);
-    (config.parameterOrder ??= []).push(orderKey ?? name);
+    config.parameterOrder ??= [];
+    config.parameterOrder.push(orderKey ?? name);
     if (field.type === "number") {
       const path = `/capabilities/params/${name}`;
       if (name !== "duration" || raw.kind !== "video") {
-        (config.customParams ??= {})[name] = {
+        config.customParams ??= {};
+        config.customParams[name] = {
           type: "number",
           min: field.min,
           max: field.max,
@@ -382,7 +385,8 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
       );
       if (!values.includes(String(field.default)))
         throw new DocumentIssue(`${path}/default`, "默认时长须符合范围和步长");
-      (config.params ??= {}).duration = {
+      config.params ??= {};
+      config.params.duration = {
         values,
         default: String(field.default),
         range: {
@@ -398,7 +402,8 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
     }
     if (field.type === "boolean") {
       if (name !== "generate_audio" || raw.kind !== "video") {
-        (config.customParams ??= {})[name] = {
+        config.customParams ??= {};
+        config.customParams[name] = {
           type: "boolean",
           default: field.default,
           open: field.open,
@@ -417,7 +422,8 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
     }
     const key = paramKey(name);
     if (!key) {
-      (config.customParams ??= {})[name] = {
+      config.customParams ??= {};
+      config.customParams[name] = {
         type: "enum",
         values: field.options,
         default: field.default,
@@ -429,7 +435,8 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
       };
       continue;
     }
-    (config.params ??= {})[key] = {
+    config.params ??= {};
+    config.params[key] = {
       values: field.options.map(String),
       default: String(field.default),
       open: field.open,
@@ -509,8 +516,9 @@ export function modelCapabilities(config: ModelConfig) {
     );
   if (config.customParams)
     for (const [name, field] of Object.entries(config.customParams)) {
-      if (field.type === "enum")
-        (caps.params ??= {})[name] = {
+      if (field.type === "enum") {
+        caps.params ??= {};
+        caps.params[name] = {
           type: "enum",
           label: field.label ?? name,
           open: field.open ?? true,
@@ -520,8 +528,9 @@ export function modelCapabilities(config: ModelConfig) {
           ...(field.spec !== undefined && { spec: field.spec }),
           ...(field.fanout !== undefined && { fanout: field.fanout }),
         };
-      else if (field.type === "number")
-        (caps.params ??= {})[name] = {
+      } else if (field.type === "number") {
+        caps.params ??= {};
+        caps.params[name] = {
           type: "number",
           label: field.label ?? name,
           open: field.open ?? true,
@@ -531,24 +540,30 @@ export function modelCapabilities(config: ModelConfig) {
           default: field.default,
           ...(field.unit !== undefined && { unit: field.unit }),
         };
-      else
-        (caps.params ??= {})[name] = {
+      } else {
+        caps.params ??= {};
+        caps.params[name] = {
           type: "boolean",
           label: field.label ?? name,
           open: field.open ?? true,
           default: field.default,
           ...(field.spec !== undefined && { spec: field.spec }),
         };
+      }
     }
-  if (config.generateAudio)
-    (caps.params ??= {}).generate_audio = { type: "boolean", ...config.generateAudio };
+  if (config.generateAudio) {
+    caps.params ??= {};
+    caps.params.generate_audio = { type: "boolean", ...config.generateAudio };
+  }
   const duration = config.params?.duration;
-  if (duration?.range)
-    (caps.params ??= {}).duration = {
+  if (duration?.range) {
+    caps.params ??= {};
+    caps.params.duration = {
       type: "number",
       ...duration.range,
       default: Number(duration.default),
     };
+  }
   if (config.parameterOrder) {
     const order = config.parameterOrder.map((key) =>
       key === "generateAudio" ? "generate_audio" : (paramNames[key as ModelParameter] ?? key),

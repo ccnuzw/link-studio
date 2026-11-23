@@ -53,8 +53,13 @@ function VideoControls({ videoRef }: VideoControlsProps) {
       "loadedmetadata",
       "volumechange",
     ];
-    events.forEach((name) => video.addEventListener(name, sync));
-    return () => events.forEach((name) => video.removeEventListener(name, sync));
+    events.forEach((name) => {
+      video.addEventListener(name, sync);
+    });
+    return () =>
+      events.forEach((name) => {
+        video.removeEventListener(name, sync);
+      });
   }, [videoRef]);
 
   const togglePlay = () => {

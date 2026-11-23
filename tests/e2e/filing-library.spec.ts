@@ -508,13 +508,11 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       await expect(failed).toHaveCount(0);
       await searchbox.fill("");
       await expect(failed.getByRole("alert")).toBeVisible();
-      await picker
-        .getByLabel("选择要上传的文件")
-        .setInputFiles({
-          name: "不支持.txt",
-          mimeType: "text/plain",
-          buffer: Buffer.from("invalid"),
-        });
+      await picker.getByLabel("选择要上传的文件").setInputFiles({
+        name: "不支持.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("invalid"),
+      });
       const invalid = picker.getByRole("group", { name: "不支持.txt" });
       await invalid.getByRole("button", { name: "移除" }).click();
       await expect(invalid).toHaveCount(0);
@@ -551,15 +549,13 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
         };
       });
       const imageBytes = await readFile(file);
-      await picker
-        .getByLabel("选择要上传的文件")
-        .setInputFiles(
-          Array.from({ length: 4 }, (_, index) => ({
-            name: `跨目录_${index + 1}.png`,
-            mimeType: "image/png",
-            buffer: imageBytes,
-          })),
-        );
+      await picker.getByLabel("选择要上传的文件").setInputFiles(
+        Array.from({ length: 4 }, (_, index) => ({
+          name: `跨目录_${index + 1}.png`,
+          mimeType: "image/png",
+          buffer: imageBytes,
+        })),
+      );
       await expect(picker.getByText("等待上传", { exact: true })).toBeVisible();
       await picker
         .getByRole("navigation", { name: "当前位置" })

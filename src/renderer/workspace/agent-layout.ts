@@ -10,7 +10,9 @@ const read = () => snapshot;
 
 function publish(next: AgentLayout) {
   snapshot = next;
-  listeners.forEach((notify) => notify());
+  listeners.forEach((notify) => {
+    notify();
+  });
 }
 
 async function sync() {

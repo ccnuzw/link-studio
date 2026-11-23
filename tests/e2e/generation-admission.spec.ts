@@ -13,18 +13,16 @@ test("生成三份时满队列就地提示，释放两个名额后提示一份�
   const server = createServer((request, response) => {
     calls++;
     request.resume();
-    response
-      .setHeader("content-type", "application/json")
-      .end(
-        JSON.stringify({
-          data: [
-            {
-              b64_json:
-                "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=",
-            },
-          ],
-        }),
-      );
+    response.setHeader("content-type", "application/json").end(
+      JSON.stringify({
+        data: [
+          {
+            b64_json:
+              "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=",
+          },
+        ],
+      }),
+    );
   }).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();

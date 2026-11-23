@@ -451,14 +451,12 @@ try {
                 };
               });
             if (rail && !deletion && !rings)
-              row[side].buttons = await dialog
-                .getByRole("button")
-                .evaluateAll((items) =>
-                  items.map((item) => ({
-                    name: item.getAttribute("aria-label") ?? item.textContent,
-                    box: item.getBoundingClientRect().toJSON(),
-                  })),
-                );
+              row[side].buttons = await dialog.getByRole("button").evaluateAll((items) =>
+                items.map((item) => ({
+                  name: item.getAttribute("aria-label") ?? item.textContent,
+                  box: item.getBoundingClientRect().toJSON(),
+                })),
+              );
             if (rail && !deletion && !upstream) assert.deepEqual(row.desktop, row.reference, key);
             if (series) {
               row[side].grid = await dialog
@@ -523,16 +521,14 @@ try {
                   }),
                 );
             if (breakdown && state === "default")
-              row[side].warning = await dialog
-                .locator("b")
-                .evaluateAll((elements) =>
-                  elements.map((el) => ({
-                    text: el.parentElement.textContent,
-                    rect: el.getBoundingClientRect().toJSON(),
-                    font: getComputedStyle(el).font,
-                    parent: getComputedStyle(el.parentElement).font,
-                  })),
-                );
+              row[side].warning = await dialog.locator("b").evaluateAll((elements) =>
+                elements.map((el) => ({
+                  text: el.parentElement.textContent,
+                  rect: el.getBoundingClientRect().toJSON(),
+                  font: getComputedStyle(el).font,
+                  parent: getComputedStyle(el.parentElement).font,
+                })),
+              );
             const image = await page.screenshot({
               ...(rail &&
                 !deletion && {

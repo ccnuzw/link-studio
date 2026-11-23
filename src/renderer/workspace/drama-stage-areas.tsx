@@ -167,11 +167,21 @@ export function StageOverview({
     : 0;
   return (
     <section aria-label="总览">
-      {doc.outline_md && <button type="button" onClick={openOutline}>读完整大纲</button>}
+      {doc.outline_md && (
+        <button type="button" onClick={openOutline}>
+          读完整大纲
+        </button>
+      )}
       {resume?.next ? (
-        <button type="button" onClick={() => go(resume.next!, resume.no)}>继续制作第 {resume.no} 集</button>
+        <button type="button" onClick={() => go(resume.next!, resume.no)}>
+          继续制作第 {resume.no} 集
+        </button>
       ) : (
-        rows[0] && <button type="button" onClick={() => go("final", rows[0]!.no)}>全部完成，查看成片</button>
+        rows[0] && (
+          <button type="button" onClick={() => go("final", rows[0]!.no)}>
+            全部完成，查看成片
+          </button>
+        )
       )}
       <div className="drama-overview-details">
         <div>
@@ -194,7 +204,8 @@ export function StageOverview({
                   </th>
                   {cells.map(([label, target, enabled, text]) => (
                     <td key={label}>
-                      <button type="button"
+                      <button
+                        type="button"
                         disabled={!enabled}
                         aria-label={`第 ${no} 集 ${label}${enabled ? "" : "，需要先完成前一道工序"}`}
                         onClick={() => go(target, no)}
@@ -213,7 +224,11 @@ export function StageOverview({
                 上一页
               </button>{" "}
               {page + 1} / {pages}{" "}
-              <button type="button" disabled={page + 1 === pages} onClick={() => setIndex(page + 1)}>
+              <button
+                type="button"
+                disabled={page + 1 === pages}
+                onClick={() => setIndex(page + 1)}
+              >
                 下一页
               </button>
             </nav>

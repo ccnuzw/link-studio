@@ -403,7 +403,8 @@ export function AssetPickerDialog({
               />
             </label>
             {library ? (
-              <button type="button"
+              <button
+                type="button"
                 className="asset-pick-upload"
                 disabled={importing}
                 onClick={() => fileInput.current?.click()}
@@ -446,7 +447,12 @@ export function AssetPickerDialog({
         {source === "history" && !lockedKind && (
           <div role="group" aria-label="内容类型" className="asset-pick-kinds">
             {(Object.keys(kinds) as (keyof typeof kinds)[]).map((value) => (
-              <button type="button" key={value} aria-pressed={kind === value} onClick={() => setKind(value)}>
+              <button
+                type="button"
+                key={value}
+                aria-pressed={kind === value}
+                onClick={() => setKind(value)}
+              >
                 {kinds[value]}
               </button>
             ))}
@@ -478,16 +484,23 @@ export function AssetPickerDialog({
             task.choose && (
               <fieldset key={task.id} aria-label="处理重复素材">
                 <legend>{task.file.name} 已存在</legend>
-                <button type="button" onClick={() => task.choose?.("reuse")}>复用现有素材</button>
-                <button type="button" onClick={() => task.choose?.("independent")}>保留独立记录</button>
-                <button type="button" onClick={() => task.choose?.("cancel")}>跳过此文件</button>
+                <button type="button" onClick={() => task.choose?.("reuse")}>
+                  复用现有素材
+                </button>
+                <button type="button" onClick={() => task.choose?.("independent")}>
+                  保留独立记录
+                </button>
+                <button type="button" onClick={() => task.choose?.("cancel")}>
+                  跳过此文件
+                </button>
               </fieldset>
             ),
         )}
         {pickError && <p role="alert">{pickError}</p>}
         {library && (keyword || folderId) && (
           <nav aria-label="当前位置">
-            <button type="button"
+            <button
+              type="button"
               onClick={() => {
                 setQuery("");
                 setFolder(undefined);
@@ -645,7 +658,8 @@ export function AssetPickerDialog({
                   : "暂无相关资产"}
             </strong>
             {filtered ? (
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => {
                   setRange("0");
                   setFilter("all");
@@ -684,7 +698,8 @@ export function AssetPickerDialog({
                   exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.126 } }}
                   transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
                 >
-                  <button type="button"
+                  <button
+                    type="button"
                     aria-label={`取消选择 ${asset.displayName}`}
                     title={asset.displayName}
                     onClick={() => toggle(asset)}
@@ -713,7 +728,8 @@ export function AssetPickerDialog({
           {hint && <small>{hint}</small>}
         </p>
         <span title={!selected.length ? hint : undefined}>
-          <button type="button"
+          <button
+            type="button"
             className="asset-pick-confirm"
             disabled={resolving || importing || !selected.length || selected.length > capacity}
             onClick={async () => {

@@ -91,7 +91,8 @@ export function editNodeGeneration(
     else next.videoMode = edit.mode;
   }
   for (const [name, value] of Object.entries(edit.params ?? {})) {
-    const params = (generation.params ??= {});
+    generation.params ??= {};
+    const params = generation.params;
     const key = canvasParameterKey(name);
     if (key) {
       if (!Value.Check(GenerationParameters.properties[key], value))

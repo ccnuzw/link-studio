@@ -211,7 +211,8 @@ async function capture(page, panel, scope, side, state = "empty") {
     const key = `${scope}-${theme}${state === "empty" ? "" : `-${state}`}`;
     const file = path.join(output, `${key}-${side}.png`);
     await panel.screenshot({ path: file, animations: "disabled", scale: "css" });
-    const sample = (report.samples[key] ??= {});
+    report.samples[key] ??= {};
+    const sample = report.samples[key];
     sample[side] = await boxes(panel, {
       header: "header",
       ...(chat || working || streaming
@@ -277,7 +278,8 @@ async function checkAgentPicker(page, scope, side) {
         scale: "css",
         animations: "disabled",
       });
-      (report.samples[key] ??= {})[side] = await boxes(popup, {
+      report.samples[key] ??= {};
+      report.samples[key][side] = await boxes(popup, {
         title: "p",
         option: "[role=radio]",
         check: "[role=radio] > svg:last-child",
@@ -362,7 +364,8 @@ async function capturePicker(page, popup, side, state, selectors) {
       scale: "css",
       animations: "disabled",
     });
-    (report.samples[key] ??= {})[side] = await boxes(popup, selectors);
+    report.samples[key] ??= {};
+    report.samples[key][side] = await boxes(popup, selectors);
   }
 }
 
@@ -477,7 +480,8 @@ async function captureMarkdown(page, panel, scope, side) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[key] ??= {})[side] = await boxes(body, {
+    report.samples[key] ??= {};
+    report.samples[key][side] = await boxes(body, {
       heading: "h3",
       list: "ol",
       inline: "li code",
@@ -506,7 +510,8 @@ async function captureStopped(page, panel, scope, side) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[sample] ??= {})[side] = {
+    report.samples[sample] ??= {};
+    report.samples[sample][side] = {
       ...(await boxes(panel, {
         card: 'text="已停止" >> ../../..',
         resend: 'button:text-is("作为新消息发送")',
@@ -541,7 +546,8 @@ async function capturePlan(page, panel, scope, side) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[sample] ??= {})[side] = await boxes(strip, {
+    report.samples[sample] ??= {};
+    report.samples[sample][side] = await boxes(strip, {
       steps: "ul",
       first: "li",
       toggle: "button",
@@ -573,7 +579,8 @@ async function captureQuickQuestion(page, panel, scope, side) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[sample] ??= {})[side] = {
+    report.samples[sample] ??= {};
+    report.samples[sample][side] = {
       ...(await boxes(panel, {
         card: `[role="group"][aria-label="${askLabel}"]`,
         activity: 'button[aria-label="处理中"]',
@@ -604,7 +611,8 @@ async function captureAnswered(page, panel, scope, side) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[sample] ??= {})[side] = {
+    report.samples[sample] ??= {};
+    report.samples[sample][side] = {
       ...(await boxes(panel, { record: '[aria-label="你的回答：当前渠道"]' })),
       ...(await boxes(row, { icon: "svg", prompt: "span", answer: ":scope > :last-child" })),
     };
@@ -630,7 +638,8 @@ async function captureEndState(page, panel, scope, side, state) {
       animations: "disabled",
       scale: "css",
     });
-    (report.samples[sample] ??= {})[side] = await boxes(card, {
+    report.samples[sample] ??= {};
+    report.samples[sample][side] = await boxes(card, {
       icon: "svg",
       title: `text="${title}"`,
       hint: "p:last-child",

@@ -2124,13 +2124,11 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
           `data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
         );
     else
-      response
-        .writeHead(200, { "content-type": "application/json" })
-        .end(
-          JSON.stringify({
-            choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
-          }),
-        );
+      response.writeHead(200, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+        }),
+      );
   }).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
@@ -5874,6 +5872,7 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
       expect(requests).toHaveLength(1);
     }
     await trigger.click();
+    await expect(confirmation.getByRole("button", { name: "追加到末尾" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(board.getByRole("progressbar", { name: "拆分中" })).toBeVisible();
     const cardPreview = page.locator(".shot-card-preview").filter({ hasText: "第1次结果" });
@@ -6188,7 +6187,9 @@ test("原版分镜表导入、复制行并重新导出时保留正确的图片�
     await (await chooseFile).setFiles(
       join(process.cwd(), "tests/fixtures/upstream-storyboard.canvas.json"),
     );
-    await expect(page.locator(".react-flow__node").getByText("雨夜分镜", { exact: true })).toBeVisible();
+    await expect(
+      page.locator(".react-flow__node").getByText("雨夜分镜", { exact: true }),
+    ).toBeVisible();
     await chooseCanvasZoom(page, "适应画布");
     await page.locator(".react-flow__node").getByText("雨夜分镜", { exact: true }).click();
     await page.getByRole("button", { name: "编辑分镜" }).click();
@@ -6327,12 +6328,10 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
     await imageNode.locator("header strong").click();
     await page.keyboard.press("Backspace");
     const { imageNodeId, ...remaining } = before.shot!;
-    await expect
-      .poll(readBoard)
-      .toEqual({
-        shot: remaining,
-        edges: before.edges.filter((edge) => edge.target !== imageNodeId),
-      });
+    await expect.poll(readBoard).toEqual({
+      shot: remaining,
+      edges: before.edges.filter((edge) => edge.target !== imageNodeId),
+    });
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     await expect.poll(readBoard).toEqual(before);
   } finally {
@@ -7009,11 +7008,9 @@ for (const kind of ["图片", "视频"]) {
           const node = graph.nodes.find((node) => node.data.label === "镜头 03 视频");
           return node?.type === "creative" ? node : undefined;
         };
-        await expect
-          .poll(shotVideo)
-          .toMatchObject({
-            data: { kind: "video", text: "中景，固定。月台。挥手。对白：再见。", videoDuration: 4 },
-          });
+        await expect.poll(shotVideo).toMatchObject({
+          data: { kind: "video", text: "中景，固定。月台。挥手。对白：再见。", videoDuration: 4 },
+        });
         const videoId = (await shotVideo())?.id;
         await expect(third.getByText("实际 4s")).toBeVisible();
         await third.getByLabel("时长（秒）").fill("8");
@@ -7023,12 +7020,10 @@ for (const kind of ["图片", "视频"]) {
           .getByRole("dialog", { name: "镜头操作" })
           .getByRole("button", { name: "重新生成视频" })
           .click();
-        await expect
-          .poll(shotVideo)
-          .toMatchObject({
-            id: videoId,
-            data: { text: "中景，固定。月台。挥手。对白：明天见。", videoDuration: 8 },
-          });
+        await expect.poll(shotVideo).toMatchObject({
+          id: videoId,
+          data: { text: "中景，固定。月台。挥手。对白：明天见。", videoDuration: 8 },
+        });
         await expect(page.locator(".react-flow__edge")).toHaveCount(3);
         await third.getByRole("button", { name: "去生成" }).click();
         await expect(board).toHaveCount(0);
@@ -8524,12 +8519,10 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
         await expect(menu.getByText("引用该节点生成", { exact: true })).toBeVisible();
         await page.keyboard.press("Escape");
       }
-      await expect
-        .poll(disk)
-        .toEqual({
-          modes: modes.map((value, at) => ["模式-" + at, value]),
-          edges: expectedEdges.sort(),
-        });
+      await expect.poll(disk).toEqual({
+        modes: modes.map((value, at) => ["模式-" + at, value]),
+        edges: expectedEdges.sort(),
+      });
     }
     await application.close();
     application = await launchCanvas(root);
@@ -9913,7 +9906,9 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
     await group.locator("svg").click();
     await page.keyboard.press("ControlOrMeta+d");
     await expect(group).toHaveCount(2);
-    await expect(page.getByText("镜头一 副本", { exact: true })).toBeVisible();
+    await expect(
+      page.locator(".react-flow__node").getByText("镜头一 副本", { exact: true }),
+    ).toBeVisible();
     await expect(page.locator(".react-flow__edge")).toHaveCount(2);
     await expect.poll(async () => (await latestSnapshot(root)).canvas.nodes.length).toBe(6);
     const copied = (await latestSnapshot(root)).canvas;

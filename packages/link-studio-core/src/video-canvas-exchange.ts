@@ -95,7 +95,9 @@ export function exportVideoCanvas(
       for (const id of source.manualReferenceIds ?? []) {
         const asset = register(id);
         if (!asset) continue;
-        (refs[`${asset.mediaType}s`] ??= []).push(asset.sha256);
+        const category = `${asset.mediaType}s`;
+        refs[category] ??= [];
+        refs[category].push(asset.sha256);
         paramAssets[asset.sha256] = { fileName: asset.displayName, mediaType: asset.mediaType };
       }
       data.params = {

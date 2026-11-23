@@ -62,7 +62,13 @@ export async function submitApprovedDramaJob(
   registry: SettingsRegistry,
   runId: string,
   approvalId: string,
-  payload: { args: DramaJobRequest; estimate: number; episodeOrder?: number; clearHash?: string; batch?:boolean },
+  payload: {
+    args: DramaJobRequest;
+    estimate: number;
+    episodeOrder?: number;
+    clearHash?: string;
+    batch?: boolean;
+  },
   signal?: AbortSignal,
 ) {
   if (!approvalId || !runId || !Value.Check(DramaJobRequest, payload?.args))
@@ -85,9 +91,15 @@ export async function submitApprovedDramaJob(
     );
     if (conflict) throw new ProjectError("DRAMA_JOB_CONFLICT", "已有进行中的短剧任务");
     if (payload.batch) {
-      const episode=doc.episodes.find(item=>item.episode_no===payload.args.episodes[0]);
-      if (runId!=="workspace" || step!=="storyboard" || payload.clearHash || !episode || ["ready","generating"].includes(episode.storyboard_status??"empty"))
-        throw new ProjectError("DRAMA_STEP_NOT_READY","本集无法批量生成分镜，请重新选集");
+      const episode = doc.episodes.find((item) => item.episode_no === payload.args.episodes[0]);
+      if (
+        runId !== "workspace" ||
+        step !== "storyboard" ||
+        payload.clearHash ||
+        !episode ||
+        ["ready", "generating"].includes(episode.storyboard_status ?? "empty")
+      )
+        throw new ProjectError("DRAMA_STEP_NOT_READY", "本集无法批量生成分镜，请重新选集");
     }
     if (payload.clearHash) {
       const no = payload.args.episodes[0];

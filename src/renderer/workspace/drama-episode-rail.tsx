@@ -112,7 +112,8 @@ export function EpisodeRail({
       ["characters", "人物", "人物传记", Users],
     ] as const
   ).map(([key, label, title, Icon]) => (
-    <button type="button"
+    <button
+      type="button"
       key={key}
       title={title}
       aria-label={mobile ? label : title}
@@ -132,7 +133,8 @@ export function EpisodeRail({
           </button>
         )}
         {doc.episodes.map((item) => (
-          <button type="button"
+          <button
+            type="button"
             key={item.episode_no}
             aria-current={page === item.episode_no}
             onClick={() => pick(item.episode_no)}
@@ -147,7 +149,8 @@ export function EpisodeRail({
       <small>分集</small>
       {documents}
       <hr />
-      <button type="button"
+      <button
+        type="button"
         disabled={stage !== "assets"}
         title={stage === "assets" ? "全集" : "仅资产管理可按全集筛选"}
         aria-current={stage === "assets" && page === 0}
@@ -239,7 +242,8 @@ export function EpisodeRail({
         </button>
       )}
       {stage === "script" && !!doc.episodes.length && (
-        <button type="button"
+        <button
+          type="button"
           title={doc.planning?.phase === "running" ? "正在规划，完成或暂停后再新增" : "新增一集"}
           disabled={busy || doc.planning?.phase === "running"}
           onClick={add}

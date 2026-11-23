@@ -59,15 +59,13 @@ const filings = photos.map((photo, index) => ({
   status: statuses[index] === "pending" ? "processing" : statuses[index],
   order: index,
 }));
-const characters = photos
-  .slice(0, 2)
-  .map((photo) => ({
-    assetId: photo.id,
-    displayName: photo.file_name,
-    mediaType: "image",
-    availability: "ready",
-    metadata: { filingChannel: "test", filingImage: photo.id },
-  }));
+const characters = photos.slice(0, 2).map((photo) => ({
+  assetId: photo.id,
+  displayName: photo.file_name,
+  mediaType: "image",
+  availability: "ready",
+  metadata: { filingChannel: "test", filingImage: photo.id },
+}));
 try {
   for (const side of ["upstream", "desktop"]) {
     const upstream = side === "upstream";
@@ -248,12 +246,10 @@ try {
                             createdAt: folder.created_at,
                             itemCount: folder.item_count,
                           })),
-                          items: local
-                            .slice(0, 3)
-                            .map((asset, index) => ({
-                              asset,
-                              folderId: index < 2 ? "folder0" : null,
-                            })),
+                          items: local.slice(0, 3).map((asset, index) => ({
+                            asset,
+                            folderId: index < 2 ? "folder0" : null,
+                          })),
                         },
                       }),
                     },

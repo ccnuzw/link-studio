@@ -209,7 +209,8 @@ try {
         const key = `drama-${theme}-${state}`;
         const image = await page.screenshot({ path: path.join(output, `${name}-${key}.png`) });
         if (!(await page.screenshot()).equals(image)) throw Error(`Unstable ${key}`);
-        (captures[key] ??= []).push(image.toString("base64"));
+        captures[key] ??= [];
+        captures[key].push(image.toString("base64"));
       }
     await page.setViewportSize({ width: 400, height: 420 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
@@ -331,7 +332,8 @@ try {
           });
           if (!(await page.screenshot()).equals(image))
             throw new Error(`Unstable ${label} ${edge}`);
-          (captures[key] ??= []).push(image.toString("base64"));
+          captures[key] ??= [];
+          captures[key].push(image.toString("base64"));
         }
         await page.setViewportSize({ width: 400, height: 420 });
       }

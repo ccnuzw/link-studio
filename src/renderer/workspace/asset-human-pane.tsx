@@ -75,7 +75,11 @@ export function AssetHumanPane({
         <PickerEmptyLogo />
         <strong>{error}</strong>
         <span>
-          <button type="button" className="asset-pick-reload" onClick={() => setRetry((value) => value + 1)}>
+          <button
+            type="button"
+            className="asset-pick-reload"
+            onClick={() => setRetry((value) => value + 1)}
+          >
             重试
           </button>
         </span>

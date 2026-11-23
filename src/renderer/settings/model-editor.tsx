@@ -740,7 +740,11 @@ export function ModelEditor(props: EditorProps) {
     return (
       <ModelModal title="编辑模型" close={props.close} wide>
         <p role="status">{error || "正在读取配置正文…"}</p>
-        {error && <button type="button" onClick={() => setAttempt(attempt + 1)}>重试</button>}
+        {error && (
+          <button type="button" onClick={() => setAttempt(attempt + 1)}>
+            重试
+          </button>
+        )}
       </ModelModal>
     );
   return <ModelEditorForm {...props} stored={draft} />;

@@ -42,7 +42,8 @@ function BreakdownRow({ job, cancel }: { job: Job; cancel: (id: string) => Promi
           </div>
         )}
         <small>{queued ? "排队中" : `${progress}%`}</small>
-        <button type="button"
+        <button
+          type="button"
           disabled={busy}
           onClick={async () => {
             setBusy(true);

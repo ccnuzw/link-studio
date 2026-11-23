@@ -470,7 +470,8 @@ try {
               }
               if (!stable) throw Error(`Unstable ${name}-${key}`);
               await writeFile(path.join(output, `${name}-${key}.png`), image);
-              (captures[key] ??= []).push(image.toString("base64"));
+              captures[key] ??= [];
+              captures[key].push(image.toString("base64"));
             }
         continue;
       }
@@ -546,7 +547,8 @@ try {
             const image = await page.screenshot({ path: path.join(output, `${name}-${key}.png`) });
             if (!image.equals(await page.screenshot()))
               throw new Error(`Unstable ${name}-${state}`);
-            (captures[key] ??= []).push(image.toString("base64"));
+            captures[key] ??= [];
+            captures[key].push(image.toString("base64"));
           }
         }
     } finally {

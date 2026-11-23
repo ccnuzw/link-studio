@@ -164,7 +164,13 @@ export function DramaContinueDialog({
           {busy && <Loader2 size={16} />}开始规划
         </button>
       </footer>
-      <button type="button" className="script-close" aria-label="关闭" onClick={close} disabled={busy}>
+      <button
+        type="button"
+        className="script-close"
+        aria-label="关闭"
+        onClick={close}
+        disabled={busy}
+      >
         <X size={16} />
       </button>
     </dialog>

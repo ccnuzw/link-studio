@@ -334,7 +334,8 @@ export function DramaStoryboardGate({
               {error && <p role="alert">{error}</p>}
               <div>
                 <AlertDialog.Close disabled={busy}>取消</AlertDialog.Close>
-                <button type="button"
+                <button
+                  type="button"
                   data-destructive
                   disabled={!!blocked || busy}
                   onClick={() => void submit(false, true)}

@@ -12,21 +12,19 @@ test("上下文识别不覆盖手填值，媒体能力只在确认时应用", as
   const server = createServer((request, response) => {
     requests.push({ url: request.url, key: request.headers.authorization });
     const reply = () =>
-      response
-        .setHeader("content-type", "application/json")
-        .end(
-          JSON.stringify({
-            data: [
-              {
-                id: "gemini-2.5-pro",
-                max_input_tokens: 320000,
-                context_length: 70_000,
-                top_provider: { max_completion_tokens: 40000 },
-                max_tokens: 3000,
-              },
-            ],
-          }),
-        );
+      response.setHeader("content-type", "application/json").end(
+        JSON.stringify({
+          data: [
+            {
+              id: "gemini-2.5-pro",
+              max_input_tokens: 320000,
+              context_length: 70_000,
+              top_provider: { max_completion_tokens: 40000 },
+              max_tokens: 3000,
+            },
+          ],
+        }),
+      );
     if (requests.length === 1) finish = reply;
     else reply();
   });

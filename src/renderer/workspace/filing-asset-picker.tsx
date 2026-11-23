@@ -62,7 +62,9 @@ export function FilingAssetPicker({
         failed ? (
           <p role="alert">
             无法读取渠道的图片归属。
-            <button type="button" onClick={() => setAttempt((value) => value + 1)}>重试</button>
+            <button type="button" onClick={() => setAttempt((value) => value + 1)}>
+              重试
+            </button>
           </p>
         ) : (
           services.feedback

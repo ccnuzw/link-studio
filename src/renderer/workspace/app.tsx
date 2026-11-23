@@ -1186,9 +1186,9 @@ export function App() {
       )
     )
       return;
-    document
-      .querySelectorAll<HTMLVideoElement>(".react-flow__node video")
-      .forEach((video) => video.pause());
+    document.querySelectorAll<HTMLVideoElement>(".react-flow__node video").forEach((video) => {
+      video.pause();
+    });
     const rect = document
       .querySelector(`.react-flow__node[data-id="${CSS.escape(node.id)}"]`)
       ?.getBoundingClientRect();

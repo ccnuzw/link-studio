@@ -1077,13 +1077,11 @@ for (const [followMode, title] of [
       expect(asyncSubmits).toBe(0);
       if (followMode === "reject") {
         await canvasAssistant.getByRole("button", { name: "添加附件" }).click();
-        await canvasAssistant
-          .getByLabel("上传图片")
-          .setInputFiles({
-            name: "审批参考.png",
-            mimeType: "image/png",
-            buffer: Buffer.from(png, "base64"),
-          });
+        await canvasAssistant.getByLabel("上传图片").setInputFiles({
+          name: "审批参考.png",
+          mimeType: "image/png",
+          buffer: Buffer.from(png, "base64"),
+        });
         await canvasAssistant.getByRole("textbox", { name: "画布消息" }).click();
       }
       await page.getByRole("textbox", { name: "画布消息" }).fill("保留先前待审批的画布任务。");

@@ -1555,27 +1555,25 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     else if (segment) segmentTurn++;
     const frame = (delta: object, finish: string | null = null) =>
       `data: ${JSON.stringify({ id: "fixture", object: "chat.completion.chunk", choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
-    res
-      .writeHead(200, { "content-type": "text/event-stream" })
-      .end(
-        frame(
-          tool
-            ? {
-                role: "assistant",
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: `call_${calls}`,
-                    type: "function",
-                    function: { name, arguments: JSON.stringify(input) },
-                  },
-                ],
-              }
-            : { role: "assistant", content: "已完成" },
-        ) +
-          frame({}, tool ? "tool_calls" : "stop") +
-          "data: [DONE]\n\n",
-      );
+    res.writeHead(200, { "content-type": "text/event-stream" }).end(
+      frame(
+        tool
+          ? {
+              role: "assistant",
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `call_${calls}`,
+                  type: "function",
+                  function: { name, arguments: JSON.stringify(input) },
+                },
+              ],
+            }
+          : { role: "assistant", content: "已完成" },
+      ) +
+        frame({}, tool ? "tool_calls" : "stop") +
+        "data: [DONE]\n\n",
+    );
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -2504,7 +2502,9 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await clear.getByRole("button", { name: "清空并重新生成" }).click();
     await expect(clear).toHaveCount(0);
     await expect(videoPanel).toHaveCount(0);
-    await expect.poll(() => stages.slice(previousStages).some(step => step.startsWith("单集分镜格式化"))).toBe(true);
+    await expect
+      .poll(() => stages.slice(previousStages).some((step) => step.startsWith("单集分镜格式化")))
+      .toBe(true);
     await expect(redo).toBeVisible();
     await pickEpisode(page, 2);
     await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
@@ -2513,16 +2513,28 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       1,
     );
     await projectAction(page, "关闭项目");
-    const savedProjects=(await readdir(root)).filter(name=>name.endsWith(".linkstudio"));expect(savedProjects).toHaveLength(1);
-    const reopened=await ProjectStore.open(join(root,savedProjects[0]!));
+    const savedProjects = (await readdir(root)).filter((name) => name.endsWith(".linkstudio"));
+    expect(savedProjects).toHaveLength(1);
+    const reopened = await ProjectStore.open(join(root, savedProjects[0]!));
     try {
-      const doc=dramaDocument(reopened.snapshot)!;
+      const doc = dramaDocument(reopened.snapshot)!;
       expect(doc.episodes[0]?.storyboard_status).toBe("ready");
-      const rebuilt=doc.segments?.filter(segment=>segment.episode_no===1);expect(rebuilt).toHaveLength(1);expect(rebuilt![0]!.take_ids??[]).toEqual([]);
-      const bytes=await readFile(videoFile),hash=createHash("sha256").update(bytes).digest("hex");
-      expect(Object.values(reopened.snapshot.assets).some(asset=>asset.sha256===hash&&asset.availability==="ready")).toBe(true);
-      expect(await readFile(join(reopened.directory,"assets","sha256",hash.slice(0,2),hash))).toEqual(bytes);
-    } finally {await reopened.close();}
+      const rebuilt = doc.segments?.filter((segment) => segment.episode_no === 1);
+      expect(rebuilt).toHaveLength(1);
+      expect(rebuilt![0]!.take_ids ?? []).toEqual([]);
+      const bytes = await readFile(videoFile),
+        hash = createHash("sha256").update(bytes).digest("hex");
+      expect(
+        Object.values(reopened.snapshot.assets).some(
+          (asset) => asset.sha256 === hash && asset.availability === "ready",
+        ),
+      ).toBe(true);
+      expect(
+        await readFile(join(reopened.directory, "assets", "sha256", hash.slice(0, 2), hash)),
+      ).toEqual(bytes);
+    } finally {
+      await reopened.close();
+    }
     await page.getByRole("button", { name: "新建项目" }).click();
     await open();
     await page.getByRole("button", { name: "粘贴正文" }).click();

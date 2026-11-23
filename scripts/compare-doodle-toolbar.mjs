@@ -110,7 +110,8 @@ try {
               );
               const image = PNG.sync.write(crop);
               await writeFile(join(output, `${side}-${key}.png`), image);
-              (images[key] ??= []).push(image.toString("base64"));
+              images[key] ??= [];
+              images[key].push(image.toString("base64"));
               geometry[`${side}-${key}`] = await page
                 .locator('[role=toolbar], [role=toolbar] button,[title="粗细"],[role=dialog]')
                 .evaluateAll((elements) =>

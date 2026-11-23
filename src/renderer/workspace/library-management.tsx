@@ -160,12 +160,16 @@ export function LibraryLocationDialog({
         )}
         {failed && (
           <div className="library-location-error">
-            文件夹加载失败<button type="button" onClick={() => reload((value) => value + 1)}>重试</button>
+            文件夹加载失败
+            <button type="button" onClick={() => reload((value) => value + 1)}>
+              重试
+            </button>
           </div>
         )}
       </div>
       {draft === null ? (
-        <button type="button"
+        <button
+          type="button"
           className="library-inline-create"
           disabled={!folders || failed}
           onClick={() => {
@@ -229,7 +233,9 @@ export function LibraryLocationDialog({
                 }
               }}
             />
-            <button type="submit" disabled={creating}>{creating && <Loader2 size={16} />}创建</button>
+            <button type="submit" disabled={creating}>
+              {creating && <Loader2 size={16} />}创建
+            </button>
           </div>
           {draftError && <span role="alert">{draftError}</span>}
         </form>
@@ -239,7 +245,8 @@ export function LibraryLocationDialog({
         <button type="button" disabled={busy} onClick={close}>
           取消
         </button>
-        <button type="button"
+        <button
+          type="button"
           disabled={busy || destination === currentFolder}
           onClick={async () => {
             setBusy(true);
@@ -256,7 +263,13 @@ export function LibraryLocationDialog({
           {busy && <Loader2 size={16} />} {currentFolder === undefined ? "加入" : "移动"}
         </button>
       </footer>
-      <button type="button" aria-label="Close" className="library-name-close" disabled={busy} onClick={close}>
+      <button
+        type="button"
+        aria-label="Close"
+        className="library-name-close"
+        disabled={busy}
+        onClick={close}
+      >
         <X size={16} />
       </button>
     </Surface>
@@ -318,7 +331,8 @@ export function LibraryManagement({ handle, close }: { handle: string; close: ()
     <Surface label="个人资产库管理" wide close={close}>
       <header>
         <h2>
-          <button type="button"
+          <button
+            type="button"
             onClick={() => {
               setFolderId(null);
               setInput("");
@@ -339,12 +353,18 @@ export function LibraryManagement({ handle, close }: { handle: string; close: ()
           value={input}
           onChange={(event) => setInput(event.target.value)}
         />
-        <button type="button" onClick={() => setEdit("new")}>新建文件夹</button>
+        <button type="button" onClick={() => setEdit("new")}>
+          新建文件夹
+        </button>
       </div>
       <div className="library-cards">
         {shownFolders.map((folder) => (
           <article key={folder.id}>
-            <button type="button" onClick={() => setFolderId(folder.id)} aria-label={`打开文件夹 ${folder.name}`}>
+            <button
+              type="button"
+              onClick={() => setFolderId(folder.id)}
+              aria-label={`打开文件夹 ${folder.name}`}
+            >
               <Folder />
               <strong>{folder.name}</strong>
               <small>{folder.itemCount} 项</small>
@@ -390,7 +410,9 @@ export function LibraryManagement({ handle, close }: { handle: string; close: ()
         ))}
       </div>
       {status === "error" ? (
-        <button type="button" onClick={() => void reload()}>加载失败，重试</button>
+        <button type="button" onClick={() => void reload()}>
+          加载失败，重试
+        </button>
       ) : status === "loading" ? (
         <p>加载中…</p>
       ) : (

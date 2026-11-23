@@ -82,7 +82,8 @@ export function EpisodeDeleteDialog({
           {(error || blocked) && <p role="alert">{blocked || error}</p>}
           <div>
             <AlertDialog.Close disabled={busy}>取消</AlertDialog.Close>
-            <button type="button"
+            <button
+              type="button"
               data-destructive
               disabled={busy || !!blocked}
               onClick={async () => {

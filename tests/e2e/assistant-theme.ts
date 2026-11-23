@@ -8,11 +8,15 @@ export async function expectDraft(editor: Locator, expected: string | RegExp) {
           const copy = paragraph.cloneNode(true) as HTMLElement;
           copy
             .querySelectorAll(".ProseMirror-trailingBreak,.ProseMirror-separator")
-            .forEach((item) => item.remove());
-          copy.querySelectorAll("br").forEach((item) => item.replaceWith("\n"));
-          copy
-            .querySelectorAll(".agent-editor-chip")
-            .forEach((item) => item.replaceWith("@" + item.textContent));
+            .forEach((item) => {
+              item.remove();
+            });
+          copy.querySelectorAll("br").forEach((item) => {
+            item.replaceWith("\n");
+          });
+          copy.querySelectorAll(".agent-editor-chip").forEach((item) => {
+            item.replaceWith("@" + item.textContent);
+          });
           return copy.textContent;
         })
         .join("\n"),

@@ -1619,7 +1619,7 @@ export class ProjectIpc {
                     estimate: production.estimate,
                     ...(production.episodeOrder && { episodeOrder: production.episodeOrder }),
                     ...(storyboard?.clearHash && { clearHash: storyboard.clearHash }),
-                    ...(storyboard?.batch && {batch:true}),
+                    ...(storyboard?.batch && { batch: true }),
                   },
                 );
                 if (job.status === "queued") this.canvasAgent.startDramaAssetJob(store, job.id);

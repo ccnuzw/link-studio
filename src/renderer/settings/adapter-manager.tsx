@@ -64,7 +64,9 @@ function AdapterOverview({ plugin, builtin }: { plugin: PluginView; builtin: boo
       plugin.mode === "async" ? (
         `提交 ${plugin.poll?.firstDelay ?? 10} 秒后开始，每 ${plugin.poll?.interval ?? 5} 秒一次，最长间隔 ${plugin.poll?.maxInterval ?? 15} 秒`
       ) : (
-        <span key="poll" className="adapter-muted">无需查询</span>
+        <span key="poll" className="adapter-muted">
+          无需查询
+        </span>
       ),
     ],
   ];

@@ -360,18 +360,16 @@ try {
                 width: Math.ceil(box.width) + 32,
                 height: Math.ceil(box.height) + 32,
               };
-              row[side] = await tabs
-                .getByRole(role)
-                .evaluateAll((elements) =>
-                  elements.map((el) => ({
-                    name: el.ariaLabel ?? el.textContent,
-                    x: el.offsetLeft - elements[0].offsetLeft,
-                    y: el.offsetTop - elements[0].offsetTop,
-                    width: el.offsetWidth,
-                    height: el.offsetHeight,
-                    selected: el.ariaSelected ?? el.ariaPressed,
-                  })),
-                );
+              row[side] = await tabs.getByRole(role).evaluateAll((elements) =>
+                elements.map((el) => ({
+                  name: el.ariaLabel ?? el.textContent,
+                  x: el.offsetLeft - elements[0].offsetLeft,
+                  y: el.offsetTop - elements[0].offsetTop,
+                  width: el.offsetWidth,
+                  height: el.offsetHeight,
+                  selected: el.ariaSelected ?? el.ariaPressed,
+                })),
+              );
             }
             const png = await page.screenshot({
               clip,

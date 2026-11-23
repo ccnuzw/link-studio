@@ -77,16 +77,14 @@ test("试跑视频链接和二进制音频在结果页播放并跳转", async ()
     } else if (request.url === "/mixed") {
       imageSubmissions++;
       const inline = await readFile(join(root, "inline.png"));
-      response
-        .setHeader("content-type", "application/json")
-        .end(
-          JSON.stringify({
-            data: [
-              { url: `http://${request.headers.host}/linked.png` },
-              { b64_json: inline.toString("base64") },
-            ],
-          }),
-        );
+      response.setHeader("content-type", "application/json").end(
+        JSON.stringify({
+          data: [
+            { url: `http://${request.headers.host}/linked.png` },
+            { b64_json: inline.toString("base64") },
+          ],
+        }),
+      );
     } else if (request.url === "/linked.png") {
       imageDownloads++;
       if (!holdImage)
@@ -95,14 +93,12 @@ test("试跑视频链接和二进制音频在结果页播放并跳转", async ()
           .end(await readFile(join(root, "linked.png")));
     } else if (request.url === "/video") {
       videoSubmissions++;
-      response
-        .setHeader("content-type", "application/json")
-        .end(
-          JSON.stringify({
-            url: `http://${request.headers.host}/output?signature=fixture`,
-            ...(holdSecond && { second: `http://${request.headers.host}/second` }),
-          }),
-        );
+      response.setHeader("content-type", "application/json").end(
+        JSON.stringify({
+          url: `http://${request.headers.host}/output?signature=fixture`,
+          ...(holdSecond && { second: `http://${request.headers.host}/second` }),
+        }),
+      );
     } else if (request.url === "/second") {
       secondAttempts++;
       if (!holdSecond)

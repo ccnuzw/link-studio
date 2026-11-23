@@ -1,7 +1,7 @@
 import type { DramaDocument } from "@link-studio/core";
 import { Link2Off, Loader2, Lock, X } from "lucide-react";
-import {DramaEpisodePicker} from "./drama-episode-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DramaEpisodePicker } from "./drama-episode-picker";
 
 export function DramaScriptsDialog({
   projectHandle,
@@ -180,7 +180,13 @@ export function DramaScriptsDialog({
       }}
     >
       <h2>{title}</h2>
-      <DramaEpisodePicker choices={choices} selection={selection} setSelected={setSelected} busy={busy} mode={mode}/>
+      <DramaEpisodePicker
+        choices={choices}
+        selection={selection}
+        setSelected={setSelected}
+        busy={busy}
+        mode={mode}
+      />
       {!breakdown && !!gaps.length && (
         <div role="note">
           <Link2Off size={16} />
@@ -223,7 +229,8 @@ export function DramaScriptsDialog({
         <button type="button" disabled={busy} onClick={close}>
           取消
         </button>
-        <button type="button"
+        <button
+          type="button"
           disabled={
             busy || tooMany || !selection.length || (!breakdown && estimate?.estimate === undefined)
           }
@@ -239,7 +246,13 @@ export function DramaScriptsDialog({
               : "至少选一集"}
         </button>
       </footer>
-      <button type="button" className="script-close" aria-label="关闭" disabled={busy} onClick={close}>
+      <button
+        type="button"
+        className="script-close"
+        aria-label="关闭"
+        disabled={busy}
+        onClick={close}
+      >
         <X size={16} />
       </button>
     </dialog>

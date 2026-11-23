@@ -122,7 +122,8 @@ try {
           ),
         );
         const rect = await frame.boundingBox();
-        (report.samples[sample.name] ??= {})[side] = rect;
+        report.samples[sample.name] ??= {};
+        report.samples[sample.name][side] = rect;
         if (
           !upstream &&
           JSON.stringify(rect) !== JSON.stringify(report.samples[sample.name].reference)

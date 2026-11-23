@@ -313,7 +313,8 @@ try {
         .getPropertyValue("--canvas-bg")
         .trim(),
     }));
-    (report.palette ??= {})[name] = palette;
+    report.palette ??= {};
+    report.palette[name] = palette;
     assert.equal(palette.systemDark, theme === "dark");
     if (name === "original")
       assert.equal(palette.html.split(" ").includes("dark"), theme === "dark");
@@ -748,7 +749,8 @@ try {
       await expect(body.getByRole("link")).toHaveAttribute("href", "https://example.invalid/plan");
       const clip = await body.boundingBox();
       assert(clip);
-      (report.typography ??= {})[name] = await body.evaluate((element) =>
+      report.typography ??= {};
+      report.typography[name] = await body.evaluate((element) =>
         [...element.querySelectorAll("h3,p,ul,li,input,pre,code")].map((block) => {
           const style = getComputedStyle(block);
           return {

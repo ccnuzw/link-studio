@@ -12,7 +12,9 @@ const read = () => snapshot;
 const listeners = new Set<() => void>();
 function publish(patch: Partial<typeof snapshot>) {
   snapshot = { ...snapshot, ...patch };
-  listeners.forEach((notify) => notify());
+  listeners.forEach((notify) => {
+    notify();
+  });
 }
 async function sync(showThinking?: boolean) {
   if (snapshot.busy) return;

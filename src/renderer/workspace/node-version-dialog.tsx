@@ -274,7 +274,9 @@ export function NodeVersionDialog({
   };
   const addAll = () => (outputs.length > 8 ? setConfirm(outputs) : addVersions(outputs));
   const downloadAll = () =>
-    outputs.forEach((output, index) => download(output, `${data.label}-${index + 1}`));
+    outputs.forEach((output, index) => {
+      download(output, `${data.label}-${index + 1}`);
+    });
   const previews = ordered.flatMap((output) => {
     const asset = assets.find((item) => item.assetId === output.assetId);
     return asset && (output.kind === "image" || output.kind === "video")
@@ -348,7 +350,8 @@ export function NodeVersionDialog({
             id === selected ? (
               <span>主图</span>
             ) : (
-              <button type="button"
+              <button
+                type="button"
                 disabled={locked}
                 onClick={() => {
                   const output = outputs.find((item) => item.id === id);

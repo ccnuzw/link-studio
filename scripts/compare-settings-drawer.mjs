@@ -294,7 +294,8 @@ try {
                 .waitFor();
             await page.evaluate(() => document.fonts.ready);
             if (changes && width === 1080 && theme === "light") {
-              (report.details ??= {})[`${key}-${side}`] = await row.evaluate((element) =>
+              report.details ??= {};
+              report.details[`${key}-${side}`] = await row.evaluate((element) =>
                 [
                   element,
                   ...element.querySelectorAll(
@@ -314,7 +315,8 @@ try {
                 }),
               );
             }
-            (report.boxes[key] ??= {})[side] = await (rowMode
+            report.boxes[key] ??= {};
+            report.boxes[key][side] = await (rowMode
               ? row
               : wrapper.locator(":scope > div")
             ).boundingBox();

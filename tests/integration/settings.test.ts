@@ -1992,7 +1992,7 @@ describe("S3 设置持久化", () => {
         "base64",
       );
       const assetId = randomUUID();
-      const asset = (scene.assets[assetId] = {
+      scene.assets[assetId] = {
         assetId,
         createdAt: scene.createdAt,
         origin: "imported",
@@ -2005,7 +2005,8 @@ describe("S3 设置持久化", () => {
         storage: { kind: "blob", hash: "0".repeat(64) },
         metadata: {},
         availability: "ready",
-      });
+      };
+      const asset = scene.assets[assetId];
       scene.canvas.nodes = [
         {
           id: "actor",

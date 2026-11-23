@@ -23,7 +23,8 @@ export function TakeVideo({ asset }: { asset: NonNullable<SegmentTake["asset"]> 
   const [error, setError] = useState("");
   if (url) return <video className="nodrag" controls autoPlay src={url} />;
   return (
-    <button type="button"
+    <button
+      type="button"
       className="drama-take-play"
       aria-label="播放视频"
       onClick={async () => {

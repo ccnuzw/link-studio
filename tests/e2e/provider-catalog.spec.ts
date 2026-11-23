@@ -360,13 +360,11 @@ test("Agent 插件可登记和编辑，但不提供生成或离线执行能力",
     const upload = page.getByRole("dialog", { name: "上传插件" });
     const source =
       "module.exports={meta:{apiVersion:1,version:'1.0.0',key:'agent-fixture',name:'Agent fixture',auth:{type:'none'},endpoints:{agent:{mode:'sync'}}},buildSubmitRequest(){},parseSubmitResponse(){}}";
-    await upload
-      .getByLabel("选择插件文件")
-      .setInputFiles({
-        name: "agent.js",
-        mimeType: "text/javascript",
-        buffer: Buffer.from(source),
-      });
+    await upload.getByLabel("选择插件文件").setInputFiles({
+      name: "agent.js",
+      mimeType: "text/javascript",
+      buffer: Buffer.from(source),
+    });
     await upload.getByRole("button", { name: "上传", exact: true }).click();
     await expect(upload.getByRole("status")).toContainText("已登记 agent-fixture@1.0.0");
     await upload.getByRole("button", { name: "完成" }).click();

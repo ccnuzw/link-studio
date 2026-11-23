@@ -174,23 +174,21 @@ try {
           return `<div data-phase="${phase}"><ShotVideoCell ${props}/></div>`;
         })
         .join("");
-      const nodes = phases
-        .slice(1)
-        .map((phase) => ({
-          id: phase,
-          position: { x: 0, y: 0 },
-          data: {
-            kind: "video",
-            status: ["queued", "running", "finalizing"].includes(phase)
-              ? "running"
-              : phase === "failed"
-                ? "error"
-                : "idle",
-            src: phase === "done" ? "asset" : "",
-            error: "测试失败",
-            taskId: phase,
-          },
-        }));
+      const nodes = phases.slice(1).map((phase) => ({
+        id: phase,
+        position: { x: 0, y: 0 },
+        data: {
+          kind: "video",
+          status: ["queued", "running", "finalizing"].includes(phase)
+            ? "running"
+            : phase === "failed"
+              ? "error"
+              : "idle",
+          src: phase === "done" ? "asset" : "",
+          error: "测试失败",
+          taskId: phase,
+        },
+      }));
       const imports = upstream
         ? `import {ReactFlowProvider} from '@xyflow/react';import {useTasksStore} from '/src/store/tasks';import {ShotVideoCell} from '/src/components/storyboard/shot-video-cell';useTasksStore.setState({tasks:{queued:{status:'pending'},running:{status:'running',progress:42},finalizing:{status:'finalizing',progress:99}}});`
         : `import {ShotVideoCell} from '/src/renderer/workspace/shot-video-cell';`;
@@ -330,7 +328,8 @@ try {
           pan = page.getByRole("radio", { name: "抓手" }),
           add = page.getByRole("button", { name: "添加节点" }),
           tasks = page.getByRole("button", { name: "任务历史" });
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         const checkpoint = async (key) => {
           await page.evaluate(() => document.fonts.ready);
           await page.evaluate(() =>
@@ -397,7 +396,8 @@ try {
             }
             await checkpoint("restored");
           }
-          (measurements.overlayLayers ??= {})[name] = await page
+          measurements.overlayLayers ??= {};
+          measurements.overlayLayers[name] = await page
             .locator(upstream ? "[data-slot=sheet-overlay]" : ".canvas-task-backdrop")
             .evaluate((element) => {
               const chain = [];
@@ -429,7 +429,8 @@ try {
           dots = page.getByRole("radio", { name: "点阵背景" }),
           none = page.getByRole("radio", { name: "无背景" }),
           map = page.getByRole("button", { name: "小地图" });
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         const checkpoint = async (key) => {
           await page.evaluate(() => document.fonts.ready);
           await page.evaluate(() =>
@@ -494,7 +495,8 @@ try {
         const trigger = page.getByRole("button", { name: "快捷键" }),
           dialog = page.getByRole("dialog", { name: "快捷键" }),
           close = dialog.getByRole("button", { name: "Close" });
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         const snapshot = async (phase) => {
           await page.evaluate(() =>
             Promise.all(
@@ -553,7 +555,8 @@ try {
         });
         await trigger.press("Enter");
         await page.evaluate(() => document.fonts.ready);
-        const motion = (measurements[name] = {});
+        measurements[name] = {};
+        const motion = measurements[name];
         for (const phase of ["open", "closed"]) {
           if (phase === "closed") await page.keyboard.press("Escape");
           const popup = page.locator(`${selector}[data-${phase}]`);
@@ -593,7 +596,8 @@ try {
         const trigger = page.getByRole("button", { name: "更多", exact: true });
         const zone = page.locator(upstream ? "[data-slot=chrome-zone]" : ".canvas-view-zone");
         const tip = page.locator(upstream ? "[data-slot=tooltip-content]" : ".canvas-more-tip");
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         async function capture(phase, element, anchor = trigger) {
           await page.evaluate(() => document.fonts.ready);
           await page.evaluate(() =>
@@ -608,7 +612,8 @@ try {
           const local = await element.screenshot({
             path: join(captureDirectory, `${name}-${phase}-popup.png`),
           });
-          (measurements.menuPlacement ??= {})[`${name}-${phase}`] = {
+          measurements.menuPlacement ??= {};
+          measurements.menuPlacement[`${name}-${phase}`] = {
             trigger: await anchor.boundingBox(),
             popup: await element.boundingBox(),
           };
@@ -681,7 +686,8 @@ try {
       }
       if (auditSettings) {
         const dialog = page.getByRole("dialog");
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         if (defaultModels) {
           await dialog.getByRole("button", { name: "模型设置", exact: true }).click();
           const trigger = dialog.getByRole("button", { name: "选择视频节点的默认模型" });
@@ -807,7 +813,8 @@ try {
             async (theme) => (await import("/src/lib/theme.ts")).applyTheme(theme),
             theme,
           );
-        const checks = (measurements[name] = {});
+        measurements[name] = {};
+        const checks = measurements[name];
         for (const mode of ["dots", "lines", "cross", "none"])
           for (const zoom of [0.14, 0.2, 0.49, 0.5, 1, 1.5]) {
             await page.evaluate(
@@ -915,7 +922,8 @@ try {
         await page.mouse.move(1, 1);
         await dialog.waitFor();
         await page.evaluate(() => document.fonts.ready);
-        const motion = (measurements[name] = {});
+        measurements[name] = {};
+        const motion = measurements[name];
         for (const [phase, duration] of [
           ["open", 200],
           ["closed", 150],
@@ -1139,7 +1147,8 @@ try {
           if (!scroller) throw new Error("未找到分镜横向滚动容器");
           scroller.scrollLeft = scroller.scrollWidth;
         });
-        const trace = (measurements[name] = {});
+        measurements[name] = {};
+        const trace = measurements[name];
         const saveFrame = async (key) => {
           const png = await stableFrame(page, `${name}-${key}`);
           if (!menuFrames.has(key)) menuFrames.set(key, []);
@@ -1484,7 +1493,8 @@ try {
           const paused = await page.addStyleTag({
             content: "[role=alertdialog]{animation-play-state:paused!important}",
           });
-          const motion = (measurements[name].motion = {});
+          measurements[name].motion = {};
+          const motion = measurements[name].motion;
           await batch.press("Enter");
           for (const [phase, duration] of [
             ["open", 200],

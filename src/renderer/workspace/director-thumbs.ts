@@ -24,7 +24,10 @@ export function createThumbCache(render: (key: string) => Promise<string | null>
   const listeners = new Set<() => void>();
   let queue: Promise<unknown> = Promise.resolve();
 
-  const notify = () => listeners.forEach((listener) => listener());
+  const notify = () =>
+    listeners.forEach((listener) => {
+      listener();
+    });
   const set = (key: string, state: ThumbState) => {
     states.set(key, state);
     notify();

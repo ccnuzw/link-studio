@@ -124,7 +124,11 @@ export function EpisodePaper({
               conflict: "保存冲突",
             }[status]
           }
-          {status === "error" && <button type="button" onClick={() => void saver.flush()}>重试保存</button>}
+          {status === "error" && (
+            <button type="button" onClick={() => void saver.flush()}>
+              重试保存
+            </button>
+          )}
         </small>
       )}
     </div>

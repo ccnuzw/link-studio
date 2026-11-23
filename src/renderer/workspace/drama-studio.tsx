@@ -92,7 +92,10 @@ export function DramaStudio({
     stage === "studio" &&
     activeEpisode &&
     (activeEpisode.storyboard_status === "generating" ||
-      (activeEpisode.locked && activeEpisode.storyboard_status !== "ready"));
+      (activeEpisode.locked &&
+        activeEpisode.storyboard_status !== "ready" &&
+        (activeEpisode.storyboard_status === "failed" ||
+          !doc?.segments?.some((segment) => segment.episode_no === activeEpisode.episode_no))));
   const [videoSegment, setVideoSegment] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scriptSelection, setScriptSelection] = useState<number[]>();
@@ -1166,7 +1169,9 @@ export function DramaStudio({
                       {stage === "final" && !ep.final_asset_id && (
                         <>
                           <h3>第 {ep.episode_no} 集还没有成片</h3>
-                          <button type="button" onClick={() => go("studio", ep.episode_no)}>去片场</button>
+                          <button type="button" onClick={() => go("studio", ep.episode_no)}>
+                            去片场
+                          </button>
                         </>
                       )}
                       {stage === "final" && ep.final_asset_id && (

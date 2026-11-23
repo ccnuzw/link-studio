@@ -654,7 +654,8 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
       continue;
     const value =
       field.open === false ? field.default : (input.customParams?.[key] ?? field.default);
-    (next.customParams ??= {})[key] = value;
+    next.customParams ??= {};
+    next.customParams[key] = value;
   }
   if (!params) return next;
   if (params.size?.open === false) {

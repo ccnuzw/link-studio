@@ -106,7 +106,8 @@ try {
           await page.waitForTimeout(200);
         }
         const actual = await panel.innerText();
-        (states[phase] ??= []).push(actual);
+        states[phase] ??= [];
+        states[phase].push(actual);
         await writeFile(
           join(output, `${side}-${phase}-layout.json`),
           JSON.stringify(
@@ -135,7 +136,8 @@ try {
           : { x: 148, y: 100, width: 360, height: 148 };
         const image = await page.screenshot({ clip, path: join(output, `${side}-${phase}.png`) });
         assert(image.equals(await page.screenshot({ clip })), `${side}-${phase} unstable`);
-        (images[phase] ??= []).push(image.toString("base64"));
+        images[phase] ??= [];
+        images[phase].push(image.toString("base64"));
         if (generation) {
           if (["failed", "queued", "running"].includes(phase)) {
             await panel.getByRole("button", { name: phase === "failed" ? "重试" : "取消" }).click();

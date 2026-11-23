@@ -192,7 +192,9 @@ export function DirectorExportDialog({
                 </span>
               </label>
               {errors[camera.id] && !running && (
-                <button type="button" onClick={() => void run([camera.id])}>重试该机位</button>
+                <button type="button" onClick={() => void run([camera.id])}>
+                  重试该机位
+                </button>
               )}
             </div>
           );
@@ -229,18 +231,29 @@ export function DirectorExportDialog({
         {message && <p role="status">{message}</p>}
         <div className="director-export-actions">
           {running ? (
-            <button type="button" disabled={phase === "publishing"} onClick={() => job.current?.abort()}>
+            <button
+              type="button"
+              disabled={phase === "publishing"}
+              onClick={() => job.current?.abort()}
+            >
               取消导出
             </button>
           ) : phase === "done" ? (
             <>
-              <button type="button" onClick={back}>回到画布查看</button>
-              <button type="button" onClick={close}>继续编辑</button>
+              <button type="button" onClick={back}>
+                回到画布查看
+              </button>
+              <button type="button" onClick={close}>
+                继续编辑
+              </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={close}>{published.current.size ? "完成" : "取消"}</button>
-              <button type="button"
+              <button type="button" onClick={close}>
+                {published.current.size ? "完成" : "取消"}
+              </button>
+              <button
+                type="button"
                 disabled={!chosen.some((camera) => !published.current.has(camera.id))}
                 title={!chosen.length ? "至少选一台机位" : undefined}
                 onClick={() => void run(ids)}

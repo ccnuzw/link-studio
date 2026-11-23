@@ -19,7 +19,9 @@ const DEG = Math.PI / 180;
 type Vector = [number, number, number];
 const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const expectVec = (actual: number[], expected: number[], digits = 9) => {
-  expected.forEach((value, index) => expect(actual[index]).toBeCloseTo(value, digits));
+  expected.forEach((value, index) => {
+    expect(actual[index]).toBeCloseTo(value, digits);
+  });
 };
 
 describe("屏幕像素对应的视线方向", () => {

@@ -136,8 +136,9 @@ try {
                     .toBe(theme === "dark" ? "oklch(0.708 0 0)" : "oklch(0.556 0 0)");
                 }
                 await page.screenshot({ path: join(output, name), clip });
-                const key = `${label}-${step}`,
-                  record = (records[key] ??= {});
+                const key = `${label}-${step}`;
+                records[key] ??= {};
+                const record = records[key];
                 record[side] = {
                   name,
                   layout: await row.evaluate((el) => ({
@@ -153,14 +154,12 @@ try {
                   })),
                 };
                 if (step.endsWith("menu"))
-                  record[side].layout.menu = await page
-                    .getByRole("menu")
-                    .evaluate((el) =>
-                      [el, ...el.querySelectorAll('[role="menuitem"]')].map((item) => ({
-                        label: item === el ? "" : item.textContent,
-                        box: item.getBoundingClientRect().toJSON(),
-                      })),
-                    );
+                  record[side].layout.menu = await page.getByRole("menu").evaluate((el) =>
+                    [el, ...el.querySelectorAll('[role="menuitem"]')].map((item) => ({
+                      label: item === el ? "" : item.textContent,
+                      box: item.getBoundingClientRect().toJSON(),
+                    })),
+                  );
                 if (!upstream) {
                   const [original, desktop] = await Promise.all(
                     [record.upstream.name, name].map(async (file) =>

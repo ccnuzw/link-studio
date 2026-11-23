@@ -161,7 +161,8 @@ try {
         rectangles[name] = await replayVideo(page, origin, clip, async (key) => {
           const frame = await stableFrame(page, `${name}-${key}`);
           await writeFile(join(output, `${name}-${key}.png`), frame);
-          (states[key] ??= []).push(PNG.sync.read(frame));
+          states[key] ??= [];
+          states[key].push(PNG.sync.read(frame));
         });
         continue;
       }
@@ -212,7 +213,8 @@ try {
       const capture = async (key) => {
         const frame = await stableFrame(page, `${name}-${key}`);
         await writeFile(join(output, `${name}${key === "initial" ? "" : "-" + key}.png`), frame);
-        (states[key] ??= []).push(PNG.sync.read(frame));
+        states[key] ??= [];
+        states[key].push(PNG.sync.read(frame));
         return frame;
       };
       await capture("initial");
@@ -246,7 +248,8 @@ try {
         const crop = new PNG({ width: clip.width, height: clip.height });
         PNG.bitblt(full, crop, clip.x, clip.y, clip.width, clip.height, 0, 0);
         await writeFile(join(output, `${name}-tooltip-${label}.png`), PNG.sync.write(crop));
-        (tipFrames[label] ??= []).push(crop);
+        tipFrames[label] ??= [];
+        tipFrames[label].push(crop);
         await page.mouse.move(500, 320);
         await expect(tip).toBeHidden();
       }

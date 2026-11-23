@@ -101,7 +101,13 @@ export function LibraryFolderForm({
           </button>
         </footer>
       </form>
-      <button type="button" className="library-name-close" aria-label="Close" disabled={busy} onClick={close}>
+      <button
+        type="button"
+        className="library-name-close"
+        aria-label="Close"
+        disabled={busy}
+        onClick={close}
+      >
         <X size={16} />
       </button>
     </dialog>

@@ -311,11 +311,7 @@ export function DirectorTimeline({
           )}
         </div>
       </div>
-      {notice && (
-        <output className="dt-notice">
-          {notice.text}
-        </output>
-      )}
+      {notice && <output className="dt-notice">{notice.text}</output>}
     </section>
   );
 }

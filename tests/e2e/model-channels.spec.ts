@@ -120,14 +120,12 @@ test("协议鉴权变化：升级失败后手动取消或授权，试跑只使�
         bearer: request.headers.authorization === "Bearer fixture-upgrade-key",
         header: request.headers["x-version-key"] === "fixture-upgrade-key",
       });
-      response
-        .setHeader("content-type", "application/json")
-        .end(
-          JSON.stringify({
-            status: "completed",
-            output: [{ type: "message", content: [{ type: "output_text", text: "OK" }] }],
-          }),
-        );
+      response.setHeader("content-type", "application/json").end(
+        JSON.stringify({
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: "OK" }] }],
+        }),
+      );
     } else response.writeHead(404).end();
   });
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
@@ -404,15 +402,13 @@ test("渠道模型首次加载、失败重试及无 Key 空状态", async () => 
       .getByRole("button", { disabled: true });
     await expect(kinds).toHaveCount(5);
     await editor.getByRole("button", { name: "配置 JSON" }).click();
-    await editor
-      .getByRole("textbox", { name: "配置 JSON" })
-      .fill(
-        JSON.stringify({
-          config: { kind: "image", name: "测试模型", sort: 100, description: "" },
-          settings: {},
-          pluginHash: "",
-        }),
-      );
+    await editor.getByRole("textbox", { name: "配置 JSON" }).fill(
+      JSON.stringify({
+        config: { kind: "image", name: "测试模型", sort: 100, description: "" },
+        settings: {},
+        pluginHash: "",
+      }),
+    );
     await editor.getByRole("button", { name: "回到表单" }).click();
     await expect(editor.getByRole("status", { name: "协议列表加载中" })).toBeVisible();
     await app.evaluate(({ ipcMain }) => ipcMain.emit("finish-model-list-load"));
@@ -888,18 +884,16 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
         releaseFailure = resolve;
         response.on("close", resolve);
       });
-      response
-        .writeHead(503)
-        .end(
-          JSON.stringify({
-            error: {
-              code: "upstream_busy",
-              message: "Fixture unavailable",
-              api_key: "channel-fixture-key",
-            },
-            details: Array.from({ length: 20 }, () => ({ type: "retry" })),
-          }),
-        );
+      response.writeHead(503).end(
+        JSON.stringify({
+          error: {
+            code: "upstream_busy",
+            message: "Fixture unavailable",
+            api_key: "channel-fixture-key",
+          },
+          details: Array.from({ length: 20 }, () => ({ type: "retry" })),
+        }),
+      );
     } else if (request.url === "/v1/responses")
       response.end(
         JSON.stringify({

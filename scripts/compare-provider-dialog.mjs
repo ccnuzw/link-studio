@@ -2250,13 +2250,11 @@ comparison: try {
       }),
     );
     for (const page of [studio, upstream]) {
-      await page
-        .getByLabel("选择插件文件")
-        .setInputFiles({
-          name: "fixture.js",
-          mimeType: "text/javascript",
-          buffer: Buffer.from(contents),
-        });
+      await page.getByLabel("选择插件文件").setInputFiles({
+        name: "fixture.js",
+        mimeType: "text/javascript",
+        buffer: Buffer.from(contents),
+      });
       await page.getByRole("button", { name: "上传", exact: true }).click();
       await page.getByText(`预检通过，已登记 ${key}@${version}`, { exact: true }).waitFor();
       await page.getByText(`${sha256.slice(0, 8)}…`, { exact: true }).waitFor();
@@ -2273,13 +2271,11 @@ comparison: try {
       );
     for (const page of [studio, upstream]) {
       const dialog = page.getByRole("dialog");
-      await dialog
-        .getByLabel("选择插件文件")
-        .setInputFiles({
-          name: "fixture.js",
-          mimeType: "text/javascript",
-          buffer: uploadLimit ? Buffer.alloc(524289, 32) : Buffer.from(source),
-        });
+      await dialog.getByLabel("选择插件文件").setInputFiles({
+        name: "fixture.js",
+        mimeType: "text/javascript",
+        buffer: uploadLimit ? Buffer.alloc(524289, 32) : Buffer.from(source),
+      });
       const submit = dialog.getByRole("button", { name: "上传", exact: true });
       if (uploadDown) await submit.click();
       await dialog
@@ -2339,13 +2335,11 @@ comparison: try {
     );
     for (const page of [studio, upstream]) {
       const form = page.getByRole("dialog");
-      await form
-        .getByLabel("选择插件文件")
-        .setInputFiles({
-          name: "duplicate.js",
-          mimeType: "text/javascript",
-          buffer: Buffer.from(contents),
-        });
+      await form.getByLabel("选择插件文件").setInputFiles({
+        name: "duplicate.js",
+        mimeType: "text/javascript",
+        buffer: Buffer.from(contents),
+      });
       await form.getByRole("button", { name: "上传", exact: true }).click();
       await form
         .getByText(message, { exact: true })
@@ -2578,14 +2572,14 @@ comparison: try {
         });
         assert.equal(controls.length, 6, "search, radio, version and three protocol settings");
         if (protocolControlBounds)
-          controls.forEach((bounds, index) =>
+          controls.forEach((bounds, index) => {
             bounds.forEach((value, axis) => {
               assert.ok(
                 Math.abs(value - protocolControlBounds[index][axis]) <= 1 / 64,
                 `protocol control ${index}, axis ${axis}`,
               );
-            }),
-          );
+            });
+          });
         protocolControlBounds = controls;
         await page.mouse.move(0, 0);
       }
@@ -2816,14 +2810,14 @@ comparison: try {
       });
       if (pullGeometry) {
         assert.equal(geometry.length, pullGeometry.length);
-        geometry.forEach((rect, index) =>
-          rect.forEach((value, axis) =>
+        geometry.forEach((rect, index) => {
+          rect.forEach((value, axis) => {
             assert.ok(
               Math.abs(value - pullGeometry[index][axis]) < 0.1,
               `${label} ${rect} vs ${pullGeometry[index]}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       }
       pullGeometry = geometry;
       await page.mouse.move(0, 0);
@@ -2927,15 +2921,13 @@ comparison: try {
         await modal.getByText("还没有资产", { exact: true }).waitFor();
         const count = filingPicker === "queue" ? 4 : 1,
           buffer = await readFile(join(root, "resources/icons/icon-32.png"));
-        await modal
-          .locator('input[type="file"]')
-          .setInputFiles(
-            Array.from({ length: count }, (_, index) => ({
-              name: `角色图${index + 1}.png`,
-              mimeType: "image/png",
-              buffer,
-            })),
-          );
+        await modal.locator('input[type="file"]').setInputFiles(
+          Array.from({ length: count }, (_, index) => ({
+            name: `角色图${index + 1}.png`,
+            mimeType: "image/png",
+            buffer,
+          })),
+        );
         await modal
           .getByText(filingPicker === "queue" ? "处理中…" : "无法登记此图片", { exact: true })
           .nth(filingPicker === "queue" ? 2 : 0)
@@ -3261,16 +3253,16 @@ comparison: try {
         ),
       );
       if (selectGeometry)
-        cells.forEach((row, index) =>
-          row.forEach((rect, column) =>
+        cells.forEach((row, index) => {
+          row.forEach((rect, column) => {
             assert.ok(
               rect.every(
                 (value, coord) => Math.abs(value - selectGeometry[index][column][coord]) <= 1,
               ),
               "规格报价行高及列宽偏差不可超过 1 CSS px",
-            ),
-          ),
-        );
+            );
+          });
+        });
       selectGeometry = cells;
       const controls = [
         dialog.getByRole("switch", { name: "第 1 条规格价格可供用户使用" }),
@@ -3966,12 +3958,12 @@ comparison: try {
       await dialog
         .locator('.delete-check-skeleton,[data-slot="skeleton"],.settings-spin,.animate-spin')
         .evaluateAll((nodes) =>
-          nodes.forEach((node) =>
+          nodes.forEach((node) => {
             node.getAnimations().forEach((animation) => {
               animation.pause();
               animation.currentTime = 0;
-            }),
-          ),
+            });
+          }),
         );
       const geometry = await dialog.evaluate((el) => {
         const box = el.getBoundingClientRect();
@@ -4070,14 +4062,14 @@ comparison: try {
         console.log("channel filing controls", label, JSON.stringify(controls));
       }
       if (detailGeometry)
-        controls.forEach((bounds, index) =>
-          bounds.forEach((value, axis) =>
+        controls.forEach((bounds, index) => {
+          bounds.forEach((value, axis) => {
             assert.ok(
               Math.abs(value - detailGeometry[index][axis]) <= 0.1,
               `channel field ${index}:${axis}: ${value} vs ${detailGeometry[index][axis]}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       detailGeometry = controls;
     }
     if (keys) {
@@ -4153,11 +4145,9 @@ comparison: try {
       console.log("filing-picker", label, JSON.stringify(geometry));
       if (pickerMixed)
         for (const el of [
-          dialog
-            .locator("[data-disabled]")
-            .filter({
-              has: dialog.page().getByRole("button", { name: "已备案.png", exact: true }),
-            }),
+          dialog.locator("[data-disabled]").filter({
+            has: dialog.page().getByRole("button", { name: "已备案.png", exact: true }),
+          }),
           dialog.getByText("已在真人库", { exact: true }),
         ]) {
           const box = await el.boundingBox(),
@@ -4195,12 +4185,12 @@ comparison: try {
         );
       }
       if (detailGeometry)
-        geometry.forEach((value, index) =>
+        geometry.forEach((value, index) => {
           assert.ok(
             Math.abs(value - detailGeometry[index]) <= 0.1,
             `filing picker geometry ${index}: ${value} vs ${detailGeometry[index]}`,
-          ),
-        );
+          );
+        });
       detailGeometry = geometry;
     } else if (humanDetail) {
       const controls = await dialog.evaluate((el) => {
@@ -4241,14 +4231,14 @@ comparison: try {
         ],
       );
       if (detailGeometry)
-        controls.forEach(([key, ...bounds], index) =>
-          bounds.forEach((value, axis) =>
+        controls.forEach(([key, ...bounds], index) => {
+          bounds.forEach((value, axis) => {
             assert.ok(
               Math.abs(value - detailGeometry[index][axis + 1]) <= 0.1,
               `human detail ${key} ${index}:${axis}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       detailGeometry = controls;
       console.log("human-detail", label, JSON.stringify(controls));
     }
@@ -4271,14 +4261,14 @@ comparison: try {
       const controls = metric.uploadResultControls;
       assert.equal(controls.length, uploadAdjusted ? 12 : 9);
       if (detailGeometry)
-        controls.forEach((bounds, index) =>
-          bounds.forEach((value, axis) =>
+        controls.forEach((bounds, index) => {
+          bounds.forEach((value, axis) => {
             assert.ok(
               Math.abs(value - detailGeometry[index][axis]) <= 0.1,
               `upload result control ${index}:${axis}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       detailGeometry = controls;
     }
     if (modelTab && label === "studio") panelBox = { width: metric.width, height: metric.height };
@@ -4304,15 +4294,15 @@ comparison: try {
           catalogGeometry.sections,
           "model list toolbar, scroll body and pager",
         );
-        metric.tableRows.forEach((row, index) =>
+        metric.tableRows.forEach((row, index) => {
           row.forEach(([width, height], column) => {
             const [expectedWidth, expectedHeight] = catalogGeometry.cells[index][column];
             assert.ok(
               Math.abs(width - expectedWidth) <= 1 && height === expectedHeight,
               `model list cell ${index}:${column} dimensions`,
             );
-          }),
-        );
+          });
+        });
       }
       catalogGeometry = { sections, cells: metric.tableRows };
     }
@@ -4350,12 +4340,12 @@ comparison: try {
     if (smallConfirm) {
       if (deleteVersionState === "pending")
         await dialog.locator("button svg").evaluateAll((nodes) =>
-          nodes.forEach((node) =>
+          nodes.forEach((node) => {
             node.getAnimations().forEach((animation) => {
               animation.pause();
               animation.currentTime = 0;
-            }),
-          ),
+            });
+          }),
         );
       if (channelDiscard)
         assert.deepEqual(await dialog.getByRole("button").allTextContents(), ["取消", "放弃修改"]);
@@ -4488,14 +4478,14 @@ comparison: try {
       );
       console.log(label, "editor-chrome", JSON.stringify(geometry));
       if (modelChrome)
-        geometry.forEach((rect, index) =>
-          rect.forEach((value, coordinate) =>
+        geometry.forEach((rect, index) => {
+          rect.forEach((value, coordinate) => {
             assert.ok(
               Math.abs(value - modelChrome[index][coordinate]) < 0.1,
               `${selectors[index]}: ${rect} vs ${modelChrome[index]}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       modelChrome = geometry;
     }
     if (modelTab === "price" && !priceState) {
@@ -4513,16 +4503,14 @@ comparison: try {
       const controls = names.map((name) => metric.priceFields.find(([label]) => label === name));
       assert.ok(controls.every(Boolean));
       if (basicControls)
-        controls.forEach((row, index) =>
-          row
-            .slice(1)
-            .forEach((value, coordinate) =>
-              assert.ok(
-                Math.abs(value - basicControls[index][coordinate + 1]) < 0.1,
-                `price ${row[0]} coordinate ${coordinate}`,
-              ),
-            ),
-        );
+        controls.forEach((row, index) => {
+          row.slice(1).forEach((value, coordinate) => {
+            assert.ok(
+              Math.abs(value - basicControls[index][coordinate + 1]) < 0.1,
+              `price ${row[0]} coordinate ${coordinate}`,
+            );
+          });
+        });
       basicControls = controls;
       for (const name of ["按秒", "Token", "按规格定价"])
         assert.ok(await dialog.getByRole("button", { name, exact: true }).isDisabled());
@@ -4563,15 +4551,15 @@ comparison: try {
           catalogGeometry.sections,
           "toolbar, body and pagination bounds must match",
         );
-        metric.tableRows.forEach((row, index) =>
+        metric.tableRows.forEach((row, index) => {
           row.forEach(([width, height], column) => {
             const expected = catalogGeometry.cells[index][column];
             assert.ok(
               Math.abs(width - expected[0]) <= 1 && height === expected[1],
               "catalog cells must match within 1 CSS pixel",
             );
-          }),
-        );
+          });
+        });
       }
       catalogGeometry = { sections: geometry, cells: metric.tableRows };
     }
@@ -4813,14 +4801,14 @@ comparison: try {
       );
       console.log(label, "context-controls", JSON.stringify(metrics), bounds.height);
       if (contextGeometry)
-        metrics.forEach((rect, index) =>
-          rect.forEach((value, axis) =>
+        metrics.forEach((rect, index) => {
+          rect.forEach((value, axis) => {
             assert.ok(
               Math.abs(value - contextGeometry[index][axis]) < 0.1,
               `${label} ${index}: ${rect} vs ${contextGeometry[index]}`,
-            ),
-          ),
-        );
+            );
+          });
+        });
       contextGeometry = metrics;
       panelBox = { width: 550, height: Math.ceil(bounds.height) };
       await page.screenshot({
@@ -4907,13 +4895,11 @@ comparison: try {
       }
     }
     if (uploadDuplicate) {
-      await dialog
-        .getByLabel("选择插件文件")
-        .setInputFiles({
-          name: "duplicate.js",
-          mimeType: "text/javascript",
-          buffer: Buffer.from(source),
-        });
+      await dialog.getByLabel("选择插件文件").setInputFiles({
+        name: "duplicate.js",
+        mimeType: "text/javascript",
+        buffer: Buffer.from(source),
+      });
       assert.equal(await dialog.getByText("预检未通过：1 个问题").count(), 0);
       assert.ok(await dialog.getByRole("button", { name: "上传", exact: true }).isEnabled());
     }
