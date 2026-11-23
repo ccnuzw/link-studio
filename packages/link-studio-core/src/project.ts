@@ -18,7 +18,7 @@ const Json = Type.Recursive((Self) =>
   ]),
 );
 export type JsonValue = Static<typeof Json>;
-const Asset = Type.Object(
+export const Asset = Type.Object(
   {
     assetId: Type.String({ pattern: "^[0-9a-f-]{36}$" }),
     createdAt: Type.String(),

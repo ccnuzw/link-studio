@@ -1,5 +1,6 @@
 import type { GenerationInput } from "./generation.ts";
 import type { ModelConfig } from "./model-config.ts";
+import { validCustomName, validCustomValue } from "./model-config.ts";
 
 export function providerInput(
   kind: string,
@@ -11,7 +12,14 @@ export function providerInput(
   return {
     prompt: input.prompt,
     ...(kind === "text" && { system: config?.systemPrompt, max_tokens: config?.maxOutputTokens }),
-    op: input.op ?? (kind === "image" ? (references?.images.length ? "i2i" : "t2i") : undefined),
+    op:
+      input.op ??
+      (kind === "image"
+        ? references?.images.length ||
+          (config?.modes?.includes("i2i") && !config.modes.includes("t2i"))
+          ? "i2i"
+          : "t2i"
+        : undefined),
     size: input.size ?? (adapter === "agnes-image" ? input.resolution : undefined),
     duration: input.duration,
     count: input.count,
@@ -30,6 +38,12 @@ export function providerInput(
     loudness_rate: input.loudnessRate,
     pitch_rate: input.pitchRate,
     video_action: input.videoAction,
+    ...Object.fromEntries(
+      Object.entries(input.customParams ?? {}).filter(([name, value]) => {
+        const field = config?.customParams?.[name];
+        return validCustomName(name) && field && validCustomValue(field, value);
+      }),
+    ),
     ...references,
   };
 }

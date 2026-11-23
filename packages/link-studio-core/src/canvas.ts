@@ -1,13 +1,15 @@
 import { type Static, Type } from "@sinclair/typebox";
 import { DirectorScene } from "./director.ts";
+import { GenerationParameters } from "./generation-parameters.ts";
 
 const strict = { additionalProperties: false };
 export const CanvasId = Type.String({ pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$" });
+export const CanvasModelKey = Type.String({ pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$" });
 const EdgeId = Type.String({ pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,249}$" });
 const coordinate = Type.Number({ minimum: -1e7, maximum: 1e7 });
 export const CanvasPosition = Type.Object({ x: coordinate, y: coordinate }, strict);
 export const CanvasViewport = Type.Object(
-  { ...CanvasPosition.properties, zoom: Type.Number({ minimum: 0.2, maximum: 2 }) },
+  { ...CanvasPosition.properties, zoom: Type.Number({ minimum: 0.14, maximum: 2 }) },
   strict,
 );
 const label = Type.String({ maxLength: 255 });
@@ -17,10 +19,26 @@ const assetIdentifier = Type.String({
 const Character = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 64 }),
-    look: Type.String({ minLength: 1, maxLength: 64 }),
+    look: Type.String({ maxLength: 64 }),
     description: Type.String({ maxLength: 500 }),
+    voicePrompt: Type.Optional(Type.String({ maxLength: 500 })),
+    voiceModel: Type.Optional(CanvasModelKey),
     extraAssetIds: Type.Array(assetIdentifier, { maxItems: 4, uniqueItems: true }),
-    voice: Type.Optional(Type.Object({ assetId: assetIdentifier }, strict)),
+    voice: Type.Optional(
+      Type.Object(
+        {
+          assetId: assetIdentifier,
+          origin: Type.Optional(
+            Type.Union([
+              Type.Literal("upload"),
+              Type.Literal("generated"),
+              Type.Literal("library"),
+            ]),
+          ),
+        },
+        strict,
+      ),
+    ),
   },
   strict,
 );
@@ -59,10 +77,20 @@ export const CanvasShot = Type.Object(
     action: Type.String({ maxLength: 1000 }),
     dialogue: Type.String({ maxLength: 1000 }),
     duration: Type.Number({ minimum: 1, maximum: 60 }),
+    imageNodeId: Type.Optional(CanvasId),
+    videoNodeId: Type.Optional(CanvasId),
+    imageAssetId: Type.Optional(assetIdentifier),
   },
   strict,
 );
 export type CanvasShot = Static<typeof CanvasShot>;
+export function remapShotLinks(shot: CanvasShot, ids: ReadonlyMap<string, string>): CanvasShot {
+  const { imageNodeId, videoNodeId, ...fields } = shot;
+  const image = imageNodeId && ids.get(imageNodeId);
+  const video = videoNodeId && ids.get(videoNodeId);
+  return { ...fields, ...(image && { imageNodeId: image }), ...(video && { videoNodeId: video }) };
+}
+export const maxStoryboardShots = 200;
 export function validStoryboard(shots: CanvasShot[]) {
   return (
     new Set(shots.map(({ id }) => id)).size === shots.length &&
@@ -99,18 +127,114 @@ export const CreativeData = Type.Object(
   {
     kind: kinds,
     label,
-    text: Type.String({ maxLength: 32768 }),
+    text: Type.String({ maxLength: 40000 }),
+    textStatus: Type.Optional(
+      Type.Union([Type.Literal("idle"), Type.Literal("done"), Type.Literal("error")]),
+    ),
+    textError: Type.Optional(Type.String({ maxLength: 32768 })),
+    uploaded: Type.Optional(Type.Literal(true)),
+    uploadFailed: Type.Optional(Type.Literal(true)),
+    mediaAspect: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
     assetId: Type.Optional(
       Type.String({
         pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
       }),
     ),
     outputs: Type.Optional(Type.Array(CreativeOutput, { maxItems: 50 })),
+    manualReferenceIds: Type.Optional(Type.Array(assetIdentifier, { uniqueItems: true })),
+    generation: Type.Optional(
+      Type.Object(
+        {
+          providerId: Type.Optional(assetIdentifier),
+          modelKey: Type.Optional(CanvasModelKey),
+          params: Type.Optional(
+            Type.Object(
+              {
+                ...GenerationParameters.properties,
+                seed: Type.Optional(Type.Number()),
+                sampleRate: Type.Optional(Type.Number()),
+                speechRate: Type.Optional(Type.Number()),
+                loudnessRate: Type.Optional(Type.Number()),
+                pitchRate: Type.Optional(Type.Number()),
+              },
+              strict,
+            ),
+          ),
+          sizeInput: Type.Optional(Type.String({ maxLength: 64 })),
+          durationInput: Type.Optional(Type.String({ maxLength: 64 })),
+        },
+        strict,
+      ),
+    ),
+    videoDuration: Type.Optional(Type.Integer({ minimum: 1, maximum: 60 })),
+    videoMode: Type.Optional(
+      Type.Union([Type.Literal("i2v"), Type.Literal("omni"), Type.Literal("t2v")]),
+    ),
+    imageMode: Type.Optional(Type.Union([Type.Literal("i2i"), Type.Literal("t2i")])),
     activeOutputId: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+    pendingMediaVersion: Type.Optional(
+      Type.Object(
+        { batchId: assetIdentifier, outputId: Type.String({ minLength: 1, maxLength: 255 }) },
+        strict,
+      ),
+    ),
     character: Type.Optional(Character),
-    storyboard: Type.Optional(Type.Array(CanvasShot, { maxItems: 100 })),
+    drama: Type.Optional(
+      Type.Union([
+        Type.Object(
+          {
+            type: Type.Union([
+              Type.Literal("character"),
+              Type.Literal("scene"),
+              Type.Literal("prop"),
+            ]),
+            name: Type.String({ minLength: 1, maxLength: 64 }),
+            look: Type.String({ maxLength: 64 }),
+            description: Type.String(),
+            aliases: Type.Array(Type.String({ maxLength: 64 })),
+            episodes: Type.Union([
+              Type.Null(),
+              Type.Array(Type.Integer({ minimum: 1, maximum: 100000 })),
+            ]),
+          },
+          strict,
+        ),
+        Type.Object(
+          {
+            episodes: Type.Union([
+              Type.Null(),
+              Type.Array(Type.Integer({ minimum: 1, maximum: 100000 }), {
+                minItems: 1,
+                maxItems: 1,
+              }),
+            ]),
+            board: Type.Object(
+              {
+                segmentId: CanvasId,
+                sourceHash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+                layout: Type.Union([Type.Literal("2x2"), Type.Literal("3x2"), Type.Literal("3x3")]),
+                shotCount: Type.Integer({ minimum: 0 }),
+              },
+              strict,
+            ),
+          },
+          strict,
+        ),
+        Type.Object(
+          {
+            episodes: Type.Union([
+              Type.Null(),
+              Type.Array(Type.Integer({ minimum: 1, maximum: 100000 })),
+            ]),
+          },
+          strict,
+        ),
+      ]),
+    ),
+    storyboard: Type.Optional(Type.Array(CanvasShot, { maxItems: maxStoryboardShots })),
     shotId: Type.Optional(CanvasId),
     director: Type.Optional(DirectorScene),
+    directorThumbnailId: Type.Optional(assetIdentifier),
   },
   strict,
 );
@@ -124,11 +248,26 @@ export const CreativeCanvasNode = Type.Object(
   },
   strict,
 );
+export const groupHues = [
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+  "pink",
+] as const;
+export type GroupHue = (typeof groupHues)[number];
+export const groupHue = Type.Union(groupHues.map((hue) => Type.Literal(hue)));
 export const CanvasGroup = Type.Object(
   {
     ...node,
     type: Type.Literal("group"),
-    data: Type.Object({ label }, strict),
+    data: Type.Object(
+      { label, color: Type.Optional(groupHue), labelColor: Type.Optional(groupHue) },
+      strict,
+    ),
     width: Type.Number({ minimum: 100, maximum: 1e6 }),
     height: Type.Number({ minimum: 60, maximum: 1e6 }),
   },
@@ -138,6 +277,32 @@ export const CanvasEdge = Type.Object({ id: EdgeId, source: CanvasId, target: Ca
 
 export type EditableCanvasNode = Static<typeof CreativeCanvasNode | typeof CanvasGroup>;
 export type CreativeData = Static<typeof CreativeData>;
+export function restoreMediaVersion(data: CreativeData): CreativeData {
+  if (!data.pendingMediaVersion) return data;
+  const { pendingMediaVersion, ...rest } = data;
+  const previous = data.outputs?.find((output) => output.id === pendingMediaVersion.outputId);
+  return !data.assetId && previous?.assetId
+    ? { ...rest, assetId: previous.assetId, activeOutputId: previous.id }
+    : rest;
+}
+export function isPlainGeneratedMedia(data: CreativeData) {
+  return (
+    (data.kind === "image" || data.kind === "video" || data.kind === "audio") &&
+    !data.uploaded &&
+    !data.uploadFailed &&
+    !data.character &&
+    !data.drama &&
+    !data.shotId &&
+    !data.storyboard &&
+    !data.director
+  );
+}
+export function dramaAssetMeta(data: Pick<CreativeData, "drama">) {
+  return data.drama && "type" in data.drama ? data.drama : undefined;
+}
+export function dramaBoardMeta(data: Pick<CreativeData, "drama">) {
+  return data.drama && "board" in data.drama ? data.drama.board : undefined;
+}
 export type CreativeOutput = Static<typeof CreativeOutput>;
 export type CanvasEdge = Static<typeof CanvasEdge>;
 export type CanvasViewport = Static<typeof CanvasViewport>;
@@ -159,11 +324,18 @@ export function outputKindForNode(kind: CreativeData["kind"]): CreativeOutput["k
 }
 export const CanvasOperation = Type.Union([
   Type.Object(
-    { type: Type.Literal("putNode"), node: Type.Union([CreativeCanvasNode, CanvasGroup]) },
+    {
+      type: Type.Literal("putNode"),
+      node: Type.Union([CreativeCanvasNode, CanvasGroup]),
+      beforeId: Type.Optional(CanvasId),
+    },
     strict,
   ),
   Type.Object({ type: Type.Literal("removeNode"), id: CanvasId }, strict),
-  Type.Object({ type: Type.Literal("putEdge"), edge: CanvasEdge }, strict),
+  Type.Object(
+    { type: Type.Literal("putEdge"), edge: CanvasEdge, beforeId: Type.Optional(EdgeId) },
+    strict,
+  ),
   Type.Object({ type: Type.Literal("removeEdge"), id: EdgeId }, strict),
   Type.Object({ type: Type.Literal("setViewport"), viewport: CanvasViewport }, strict),
 ]);

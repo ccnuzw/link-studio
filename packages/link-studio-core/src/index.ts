@@ -10,19 +10,46 @@ export {
   canvasAgentMediaModels,
   isCanvasAgentAnswerValue,
   isCanvasAgentQuestionnaire,
+  maxAgentDocumentBytes,
+  maxAgentDocuments,
+  maxAgentImages,
+  readWorkspaceQuestions,
 } from "./canvas-agent.ts";
 export * from "./canvas-exchange.ts";
+export * from "./canvas-layout.ts";
+export * from "./channel-validation.ts";
 export * from "./director.ts";
+export * from "./drama-board.ts";
+export * from "./drama-image-params.ts";
+export * from "./drama-prompts.ts";
 export * from "./generation.ts";
 export * from "./grid-split.ts";
 export * from "./media-generation.ts";
 export * from "./model-config.ts";
+export * from "./model-price.ts";
 export * from "./projects-api.ts";
 export type * from "./settings-api.ts";
-export { providerPluginSourceLimit } from "./settings-api.ts";
+export {
+  defaultAgentLayout,
+  defaultCanvasView,
+  EditableModelDocument,
+  providerPluginSourceLimit,
+} from "./settings-api.ts";
 export * from "./skills-api.ts";
+export * from "./video-canvas-exchange.ts";
+export { canvasVideoDuration } from "./video-canvas-parameters.ts";
 
 export const APP_INFO_CHANNEL = "link-studio:app:get-info";
+export const OPEN_SOURCE_CHANNEL = "link-studio:app:open-source";
+
+export function sourceWebUrl(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.length > 8192) return;
+  try {
+    const url = new URL(raw);
+    if (["http:", "https:"].includes(url.protocol) && !url.username && !url.password)
+      return url.href;
+  } catch {}
+}
 
 export const AppInfoRequestSchema = Type.Object(
   { requestId: Type.String({ pattern: "^[a-f0-9-]{36}$" }) },
@@ -54,13 +81,16 @@ export type DesktopResult<Data> =
 export interface DesktopAPI {
   settings: SettingsAPI;
   skills: SkillsAPI;
-  app: { getInfo(): Promise<DesktopResult<AppInfo>> };
+  app: { getInfo(): Promise<DesktopResult<AppInfo>>; openSource(url: string): Promise<boolean> };
   dialogs: ProjectDialogsAPI;
   projects: ProjectsAPI;
   projectEvents: {
+    onAgentChanged(listener: (sessionId: string) => void): () => void;
     onExportProgress(listener: (event: ProjectExportProgress) => void): () => void;
+    onLibraryChanged(listener: () => void): () => void;
   };
   canvasWindow: {
+    setNoticeCanvas(handle: string | null, hidden: boolean): void;
     setPending(pending: boolean): void;
     onSaveBeforeClose(save: () => Promise<boolean>): () => void;
   };
@@ -79,3 +109,6 @@ export function isAppInfoRequest(value: unknown): value is AppInfoRequest {
 export function isAppInfo(value: unknown): value is AppInfo {
   return Value.Check(AppInfoSchema, value);
 }
+export * from "./agent-context-usage.ts";
+export * from "./drama.ts";
+export * from "./image-display-size.ts";

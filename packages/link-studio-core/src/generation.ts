@@ -1,5 +1,7 @@
 import { type Static, Type } from "@sinclair/typebox";
 import { CanvasId } from "./canvas.ts";
+import { GenerationParameters } from "./generation-parameters.ts";
+import { maximumModelPromptLength } from "./model-config.ts";
 
 const strict = { additionalProperties: false };
 const uuid = Type.String({
@@ -15,7 +17,23 @@ export const GenerationInput = Type.Object(
   {
     nodeId: CanvasId,
     purpose: Type.Optional(
-      Type.Union([Type.Literal("character-voice"), Type.Literal("storyboard-split")]),
+      Type.Union([
+        Type.Literal("character-voice"),
+        Type.Literal("storyboard-split"),
+        Type.Literal("drama-segment"),
+        Type.Literal("drama-board"),
+      ]),
+    ),
+    board: Type.Optional(
+      Type.Object(
+        {
+          segmentId: CanvasId,
+          sourceHash: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+          settingsRevision: Type.Optional(Type.Integer({ minimum: 1 })),
+          refs: Type.Array(CanvasId, { uniqueItems: true, maxItems: 12 }),
+        },
+        strict,
+      ),
     ),
     storyboardSplitMode: Type.Optional(
       Type.Union([Type.Literal("replace"), Type.Literal("append")]),
@@ -24,43 +42,13 @@ export const GenerationInput = Type.Object(
     providerId: uuid,
     expectedProviderRevision: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
     expectedCanvasRevision: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
-    prompt: Type.String({ minLength: 1, maxLength: 16000 }),
+    prompt: Type.String({ minLength: 1, maxLength: maximumModelPromptLength }),
     referenceAssetIds: Type.Array(uuid, { maxItems: 12, uniqueItems: true }),
     referenceURLs: Type.Optional(
       Type.Record(uuid, Type.String({ maxLength: 4096 }), { maxProperties: 12 }),
     ),
     op: Type.Optional(Type.Union([Type.Literal("t2v"), Type.Literal("i2v"), Type.Literal("omni")])),
-    size: Type.Optional(Type.String({ pattern: "^[1-9][0-9]{1,3}x[1-9][0-9]{1,3}$" })),
-    duration: Type.Optional(
-      Type.Union([Type.Literal(-1), Type.Integer({ minimum: 1, maximum: 30 })]),
-    ),
-    count: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
-    quality: Type.Optional(
-      Type.Union([
-        Type.Literal("low"),
-        Type.Literal("medium"),
-        Type.Literal("high"),
-        Type.Literal("standard"),
-        Type.Literal("hd"),
-      ]),
-    ),
-    aspectRatio: Type.Optional(Type.String({ pattern: "^(?:[1-9][0-9]?:[1-9][0-9]?|adaptive)$" })),
-    resolution: Type.Optional(
-      Type.String({ pattern: "^(?:360p|480p|512p|540p|720p|768p|1080p|1K|1\\.5K|2K|3K|4K|4k)$" }),
-    ),
-    generateAudio: Type.Optional(Type.Boolean()),
-    seed: Type.Optional(Type.Integer({ minimum: -1, maximum: 4294967295 })),
-    negativePrompt: Type.Optional(Type.String({ maxLength: 2000 })),
-    makeInstrumental: Type.Optional(Type.Boolean()),
-    audioFormat: Type.Optional(
-      Type.Union([Type.Literal("mp3"), Type.Literal("wav"), Type.Literal("ogg_opus")]),
-    ),
-    speaker: Type.Optional(Type.String({ maxLength: 200 })),
-    sampleRate: Type.Optional(Type.Integer({ minimum: 8000, maximum: 48000 })),
-    speechRate: Type.Optional(Type.Integer({ minimum: -50, maximum: 100 })),
-    loudnessRate: Type.Optional(Type.Integer({ minimum: -50, maximum: 100 })),
-    pitchRate: Type.Optional(Type.Integer({ minimum: -12, maximum: 12 })),
-    videoAction: Type.Optional(Type.Union([Type.Literal("edit"), Type.Literal("extend")])),
+    ...GenerationParameters.properties,
   },
   strict,
 );
@@ -79,11 +67,18 @@ export type JobOutput =
   | { assetId: string; kind: Exclude<GenerationKind, "text"> }
   | { text: string; kind: "text" };
 export type GenerationJob = {
+  quotedCredits?: number;
+  settledCredits?: number;
+  batchId?: string;
+  outputPrompt?: string;
+  unsubmittedCount?: number;
   id: string;
   nodeId: string;
   providerId: string;
   providerRevision: number;
   purpose?: GenerationInput["purpose"];
+  storyboardSplitMode?: GenerationInput["storyboardSplitMode"];
+  storyboardShotIds?: string[];
   afterImageJobId?: string;
   voicePrompt?: string;
   kind: GenerationKind;
@@ -93,13 +88,25 @@ export type GenerationJob = {
   progress: number;
   outputs: JobOutput[];
   createdAt: string;
+  submittedAt?: string;
   updatedAt: string;
   error?: string;
+  errorMessage?: string;
   bound?: boolean;
   cancelRequested?: boolean;
   canCancelRemote: boolean;
   canRecheck: boolean;
 };
+
+export const queueFullMessage = "排队任务已达上限，请等前面的任务完成后再试";
+export const defaultGenerationConcurrency = 4;
+export const defaultGenerationQueueMultiplier = 5;
+export const missingJobBindingMessage =
+  "本机找不到这次提交使用的模型或渠道配置，无法查询原任务。请到原供应商核对结果，避免重复生成。";
+
+export function jobFailureReason(job?: GenerationJob) {
+  return job?.errorMessage || job?.error;
+}
 
 export function jobIsTerminal(status: JobStatus) {
   return (

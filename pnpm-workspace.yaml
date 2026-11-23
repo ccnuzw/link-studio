@@ -1,5 +1,7 @@
 packages:
   - packages/*
+overrides:
+  "@tiptap/pm@3.31.4>prosemirror-history": 1.5.1
 onlyBuiltDependencies:
   - electron
   - esbuild

@@ -7,6 +7,8 @@ import {
   CreativeCanvasNode,
   type EditableCanvasNode,
   type ProjectCanvasView,
+  remapShotLinks,
+  restoreMediaVersion,
 } from "./canvas.ts";
 
 const strict = { additionalProperties: false };
@@ -39,7 +41,9 @@ export function serializeCanvasExchange(canvas: ProjectCanvasView, title: string
       version: 1,
       title: title.trim().slice(0, 200) || "未命名画布",
       exportedAt: new Date().toISOString(),
-      nodes,
+      nodes: nodes.map((node) =>
+        node.type === "creative" ? { ...node, data: restoreMediaVersion(node.data) } : node,
+      ),
       edges,
       viewport: canvas.viewport,
     } satisfies CanvasExchangeDocument,
@@ -87,8 +91,9 @@ export function prepareCanvasExchange(
   availableAssetIds: ReadonlySet<string>,
 ): { document: CanvasExchangeDocument; report: CanvasExchangeReport } {
   const missing = new Set<string>();
-  const nodes = document.nodes.map((node) => {
-    if (node.type !== "creative") return node;
+  const nodes = document.nodes.map((entry) => {
+    if (entry.type !== "creative") return entry;
+    const node = { ...entry, data: restoreMediaVersion(entry.data) };
     const assetId = node.data.assetId;
     const validAssetId = assetId && availableAssetIds.has(assetId) ? assetId : undefined;
     if (assetId && !validAssetId) missing.add(assetId);
@@ -109,6 +114,16 @@ export function prepareCanvasExchange(
       ...node,
       data: {
         ...node.data,
+        ...(node.data.directorThumbnailId &&
+          !present(node.data.directorThumbnailId) && { directorThumbnailId: undefined }),
+        ...(node.data.manualReferenceIds && {
+          manualReferenceIds: node.data.manualReferenceIds.filter(present),
+        }),
+        ...(node.data.storyboard && {
+          storyboard: node.data.storyboard.map(({ imageAssetId, ...shot }) =>
+            imageAssetId && present(imageAssetId) ? { ...shot, imageAssetId } : shot,
+          ),
+        }),
         ...(validAssetId ? { assetId: validAssetId } : { assetId: undefined }),
         ...(outputs.length ? { outputs } : { outputs: undefined, activeOutputId: undefined }),
         ...(active ? { activeOutputId: active.id } : { activeOutputId: undefined }),
@@ -140,8 +155,27 @@ export function mergeCanvasExchange(
   const nodes = imported.nodes.map((node) => {
     const id = ids.get(node.id) as string;
     const parentId = node.type === "creative" && node.parentId ? ids.get(node.parentId) : undefined;
+    const text =
+      node.type === "creative" && node.data.kind !== "script"
+        ? node.data.text.replace(
+            /(@\[[^\]\n]*\]\()([^)\s]+)(\))/g,
+            (token, prefix: string, source: string) =>
+              ids.has(source) ? `${prefix}${ids.get(source)})` : token,
+          )
+        : undefined;
     return node.type === "creative"
-      ? { ...node, id, ...(parentId ? { parentId } : {}) }
+      ? {
+          ...node,
+          id,
+          data: {
+            ...node.data,
+            text: text ?? node.data.text,
+            ...(node.data.storyboard && {
+              storyboard: node.data.storyboard.map((shot) => remapShotLinks(shot, ids)),
+            }),
+          },
+          ...(parentId ? { parentId } : {}),
+        }
       : { ...node, id };
   });
   const edges = imported.edges.map((edge) => ({

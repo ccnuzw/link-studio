@@ -1,5 +1,15 @@
 import type { GenerationInput } from "./generation.ts";
-import { generationModes, type ModelConfig, type ModelParameter } from "./model-config.ts";
+import {
+  fanoutFields,
+  generationModes,
+  includesModelParameter,
+  type ModelConfig,
+  type ModelParameter,
+  maximumModelPromptLength,
+  maxModelReferenceMB,
+  validCustomName,
+  validCustomValue,
+} from "./model-config.ts";
 
 type ReferenceKind = "image" | "video" | "audio";
 type ReferenceCounts = Partial<Record<ReferenceKind, number>>;
@@ -251,7 +261,7 @@ export function mediaGenerationOptions(
   );
 
   return {
-    promptLimit: adapter === "incho" ? 1000 : 16000,
+    promptLimit: adapter === "incho" ? 1000 : maximumModelPromptLength,
     countUnit: kind === "audio" ? "首" : "张",
     sizes: dalle2
       ? ["256x256", "512x512", "1024x1024"]
@@ -346,7 +356,17 @@ export function mediaGenerationOptions(
 
 type MediaOptions = ReturnType<typeof mediaGenerationOptions>;
 
-export function modelParameterChoices(options: MediaOptions) {
+export function modelParameterChoices(
+  options: Pick<MediaOptions, "durationRange" | "maxCount" | "autoDuration"> & {
+    durations: readonly number[];
+    sizes: readonly string[];
+    largeSizes: readonly string[];
+    ratios: readonly string[];
+    resolutions: readonly string[];
+    qualities: readonly string[];
+    audioFormats: readonly string[];
+  },
+) {
   const range = options.durationRange;
   const durations = options.durations.length
     ? options.durations
@@ -401,6 +421,55 @@ export function validModelCapabilities(
   channel?: Record<string, unknown>,
 ) {
   const base = mediaGenerationOptions(config.kind, adapter, model, channel);
+  const defined = new Set(
+    config.parameterOrder ?? [
+      ...Object.keys(config.params ?? {}),
+      ...Object.keys(config.customParams ?? {}),
+      ...(config.generateAudio ? ["generateAudio"] : []),
+    ],
+  );
+  if (defined.size > 20) return false;
+  const quantities = fanoutFields(config);
+  if (
+    quantities.length > 1 ||
+    quantities.some(
+      ([, field]) =>
+        !("values" in field) || field.values.some((value) => !/^[1-8]$/.test(String(value))),
+    )
+  )
+    return false;
+  for (const [key, field] of Object.entries(config.customParams ?? {})) {
+    if (
+      config.kind === "agent" ||
+      !validCustomName(key) ||
+      !field.label?.trim() ||
+      !validCustomValue(field, field.default)
+    )
+      return false;
+    if (field.type === "number" && (field.min < 1 || field.max > 3600 || (field.step ?? 1) < 1))
+      return false;
+    if (
+      field.type === "enum" &&
+      (field.values.length > 20 ||
+        field.values.some((value) => !String(value).trim()) ||
+        new Set(field.values.map(String)).size !== field.values.length)
+    )
+      return false;
+  }
+  if (config.generateAudio && !base.audio) return false;
+  const duration = config.params?.duration;
+  const range = duration?.range;
+  if (range && duration) {
+    const expected = Array.from(
+      { length: Math.floor((range.max - range.min) / range.step) + 1 },
+      (_, index) => String(range.min + index * range.step),
+    );
+    if (
+      expected.length !== duration.values.length ||
+      !expected.every((value, index) => value === duration.values[index])
+    )
+      return false;
+  }
   if (config.promptLimit !== undefined && config.promptLimit > base.promptLimit) return false;
   const options = modelGenerationOptions(config.kind, adapter, model, channel, config);
   const modes = modelGenerationModes(config.kind, options);
@@ -413,7 +482,7 @@ export function validModelCapabilities(
       ([kind, ref]) =>
         !base.references[kind as ReferenceKind] ||
         ref.max > (base.references[kind as ReferenceKind] ?? 0) ||
-        ref.mb * 1024 * 1024 > mediaReferenceBytes,
+        ref.mb > maxModelReferenceMB,
     )
   )
     return false;
@@ -429,14 +498,20 @@ export function validModelCapabilities(
   )
     return false;
   if (config.kind !== "agent" && config.vision !== undefined) return false;
+  if (config.video && (config.kind !== "agent" || channel?.api !== "gemini")) return false;
   if (config.params?.size && (config.params.aspectRatio || config.params.resolution)) return false;
   return Object.entries(config.params ?? {}).every(
     ([key, parameter]) =>
       !language &&
       parameter.values.includes(parameter.default) &&
-      parameter.values.every((value) =>
-        choices[key as ModelParameter].some((choice) => String(choice) === value),
-      ),
+      ((key === "count" && parameter.fanout) ||
+        parameter.values.every((value) =>
+          choices[key as ModelParameter].some((choice) =>
+            key === "resolution"
+              ? String(choice).toLowerCase() === value.toLowerCase()
+              : String(choice) === value,
+          ),
+        )),
   );
 }
 
@@ -456,7 +531,7 @@ export function modelGenerationOptions(
     const ref = config?.refs?.[kind];
     if (!ref) continue;
     references[kind] = Math.min(ref.max, base.references[kind] ?? 0);
-    referenceBytes[kind] = Math.min(mediaReferenceBytes, ref.mb * 1024 * 1024);
+    referenceBytes[kind] = ref.mb * 1024 * 1024;
   }
   const modes = config?.modes;
   if (kind === "image" && modes && !modes.includes("i2i")) references.image = 0;
@@ -469,23 +544,51 @@ export function modelGenerationOptions(
     ? modelParameterChoices(base).duration
     : base.durations;
   const counts = filter(
-    Array.from({ length: base.maxCount }, (_, index) => index + 1),
+    Array.from(
+      { length: config?.params?.count?.fanout ? 8 : base.maxCount },
+      (_, index) => index + 1,
+    ),
     "count",
   );
   const defaultParameters: Partial<Record<ModelParameter, string | number>> = {};
   for (const [name, param] of Object.entries(config?.params ?? {})) {
     const key = name as ModelParameter;
+    if (!includesModelParameter(config, key)) continue;
     defaultParameters[key] =
       key === "duration" || key === "count" ? Number(param.default) : param.default;
   }
   return {
     ...base,
     modes,
-    defaultParameters,
+    defaultParameters: {
+      ...defaultParameters,
+      ...(config?.generateAudio && { generateAudio: config.generateAudio.default }),
+    },
+    audioControl:
+      includesModelParameter(config, "generateAudio") && (config?.generateAudio?.open ?? true),
+    parameterOrder: config?.parameterOrder,
+    hiddenParameters: (Object.keys(modelParameterChoices(base)) as ModelParameter[]).filter(
+      (key) => !includesModelParameter(config, key) || config?.params?.[key]?.open === false,
+    ),
+    audioLabel: config?.generateAudio?.label,
+    parameterLabels: Object.fromEntries(
+      Object.entries(config?.params ?? {}).map(([key, field]) => [
+        key,
+        (key === "duration" ? config?.params?.duration?.range?.label : undefined) ?? field.label,
+      ]),
+    ),
+    customParameters: Object.fromEntries(
+      Object.entries(config?.customParams ?? {})
+        .filter(([key]) => !config?.parameterOrder || config.parameterOrder.includes(key))
+        .map(([key, field]) => [
+          key,
+          { ...field, open: field.open ?? true, label: field.label ?? key },
+        ]),
+    ),
     referenceBytes,
     references,
     counts,
-    promptLimit: Math.min(config?.promptLimit ?? base.promptLimit, base.promptLimit),
+    promptLimit: Math.min(config?.promptLimit ?? 20000, base.promptLimit),
     referenceLimit: Math.min(
       base.referenceLimit,
       Object.values(references).reduce((sum, count) => sum + count, 0),
@@ -496,14 +599,23 @@ export function modelGenerationOptions(
     sizes: filter(base.sizes, "size"),
     largeSizes: filter(base.largeSizes, "size"),
     ratios: filter(base.ratios, "aspectRatio"),
-    resolutions: filter(base.resolutions, "resolution"),
+    resolutions:
+      config?.params?.resolution?.values.filter((value) =>
+        base.resolutions.some((supported) => supported.toLowerCase() === value.toLowerCase()),
+      ) ?? base.resolutions,
     qualities: filter(base.qualities, "quality"),
     audioFormats: filter(base.audioFormats, "audioFormat"),
     durations: filter(durations, "duration").filter((duration) => duration !== -1),
-    durationRange: config?.params?.duration ? undefined : base.durationRange,
+    durationRange: config?.params?.duration ? config.params.duration.range : base.durationRange,
+    durationControl:
+      includesModelParameter(config, "duration") && (config?.params?.duration?.range?.open ?? true),
+    durationStep: config?.params?.duration?.range?.step ?? 1,
     autoDuration: base.autoDuration && (config?.params?.duration?.values.includes("-1") ?? true),
-    manualDuration: base.manualDuration && !config?.params?.duration,
-    manualSize: base.manualSize && !config?.params?.size,
+    manualDuration:
+      base.manualDuration &&
+      includesModelParameter(config, "duration") &&
+      !config?.params?.duration,
+    manualSize: base.manualSize && includesModelParameter(config, "size") && !config?.params?.size,
   };
 }
 
@@ -511,16 +623,68 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
   config: ModelConfig | undefined,
   input: Input,
 ): Input & Partial<GenerationInput> {
-  const params = config?.params;
-  if (!params) return input;
+  const params: ModelConfig["params"] =
+    config?.parameterOrder && config.params
+      ? Object.fromEntries(
+          Object.entries(config.params).filter(([key]) => config.parameterOrder!.includes(key)),
+        )
+      : config?.params;
   const next = { ...input };
+  if (config?.generateAudio && !input.videoAction) {
+    next.generateAudio =
+      (config.generateAudio.open ? input.generateAudio : undefined) ?? config.generateAudio.default;
+  }
+  if (config?.parameterOrder) {
+    for (const key of [
+      "size",
+      "aspectRatio",
+      "resolution",
+      "quality",
+      "duration",
+      "count",
+      "audioFormat",
+      "generateAudio",
+    ] as const) {
+      if (!includesModelParameter(config, key)) delete next[key];
+    }
+  }
+  delete next.customParams;
+  for (const [key, field] of Object.entries(config?.customParams ?? {})) {
+    if (!validCustomName(key) || (config?.parameterOrder && !config.parameterOrder.includes(key)))
+      continue;
+    const value =
+      field.open === false ? field.default : (input.customParams?.[key] ?? field.default);
+    (next.customParams ??= {})[key] = value;
+  }
+  if (!params) return next;
+  if (params.size?.open === false) {
+    next.size = params.size.default;
+    delete next.aspectRatio;
+    delete next.resolution;
+  }
+  if (params.aspectRatio?.open === false || params.resolution?.open === false) delete next.size;
+  for (const key of [
+    "aspectRatio",
+    "resolution",
+    "duration",
+    "count",
+    "quality",
+    "audioFormat",
+  ] as const) {
+    if (params[key]?.open === false) delete next[key];
+  }
   if (!next.size && !next.aspectRatio && !next.resolution && params.size)
     next.size = params.size.default;
   if (!next.size && !next.videoAction) {
     if (params.aspectRatio) next.aspectRatio ??= params.aspectRatio.default;
     if (params.resolution) next.resolution ??= params.resolution.default;
   }
-  if (!next.videoAction && params.duration) next.duration ??= Number(params.duration.default);
+  if (
+    !next.videoAction &&
+    params.duration &&
+    (next.duration === undefined || params.duration.range?.open === false)
+  )
+    next.duration = Number(params.duration.default);
   if (params.count) next.count ??= Number(params.count.default);
   if (params.quality)
     next.quality ??= params.quality.default as NonNullable<GenerationInput["quality"]>;
