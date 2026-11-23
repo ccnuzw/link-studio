@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { AssetService } from "../../src/main/project/assets";
+import { attachDirectorTake } from "../../src/main/project/director-take";
 import { containsAssetReference, ProjectStore } from "../../src/main/project/store";
 
 let parent: string;
@@ -35,6 +36,46 @@ afterEach(async () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("S1-02 项目资产导入", () => {
+  it("预演同机位成对提交：首帧损坏全部回滚，成功操作重放不重复入库", async () => {
+    const path = join(parent, "take.mp4");
+    await runMediaProcess(join(binaries, "ffmpeg"), [
+      "-v",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=s=64x48:r=24",
+      "-frames:v",
+      "1",
+      "-c:v",
+      "h264_videotoolbox",
+      "-allow_sw",
+      "1",
+      path,
+    ]);
+    const service = new AssetService(join(binaries, "ffprobe"));
+    const input = {
+      operationId: randomUUID(),
+      name: "导演台_机位1",
+      frameName: "导演台_首帧_机位1",
+      mp4: new Uint8Array(await readFile(path)),
+      png,
+    };
+    await expect(
+      attachDirectorTake(store, service, { ...input, png: Buffer.alloc(100) }),
+    ).rejects.toMatchObject({ code: "ASSET_READ_FAILED" });
+    expect(store.snapshot.assets).toEqual({});
+    expect(store.snapshot.operationReceipts[input.operationId]).toBeUndefined();
+    expect(await readdir(join(store.directory, "tmp"))).toEqual([]);
+    const saved = await attachDirectorTake(store, service, input);
+    expect(saved.assets.map((asset) => asset?.mediaType)).toEqual(["video", "image"]);
+    expect(await attachDirectorTake(store, service, input)).toEqual(saved);
+    await expect(
+      attachDirectorTake(store, service, { ...input, name: "另一个机位" }),
+    ).rejects.toMatchObject({ code: "OPERATION_ID_REUSED" });
+    expect(Object.keys(store.snapshot.assets)).toHaveLength(2);
+    expect(await readdir(join(store.directory, "tmp"))).toEqual([]);
+  });
   it("快照暂存后取消，保留已发布 Blob 但不登记资产，后续仍可提交", async () => {
     await store.close();
     const controller = new AbortController();

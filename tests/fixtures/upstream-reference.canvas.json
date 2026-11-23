@@ -1,0 +1,68 @@
+{
+  "format": "video-canvas/canvas",
+  "version": 1,
+  "exportedAt": "2027-01-15T08:00:00Z",
+  "appVersion": "ccffac4e",
+  "canvas": {
+    "title": "雨夜镜头",
+    "nodes": [
+      {
+        "data": {
+          "assetHash": "adf1614259c193a4828e77700e42341d9da1e76c4fdd25121cec8c8a0ed813f6",
+          "kind": "image",
+          "label": "上游主图",
+          "uploaded": true
+        },
+        "id": "im",
+        "position": {
+          "x": 40,
+          "y": 40
+        },
+        "type": "canvas"
+      },
+      {
+        "data": {
+          "kind": "video",
+          "label": "上游视频",
+          "params": {
+            "images": ["2e7c8d78b6b142ef30e7ace0b76fa3360a0c84a6666c2edb0cdcde2f6ec447ac"],
+            "prompt": "沿着 @[主图](im) 推进 #[固定镜头](motion/static_shot)"
+          }
+        },
+        "id": "vid",
+        "position": {
+          "x": 520,
+          "y": 40
+        },
+        "type": "canvas"
+      }
+    ],
+    "edges": [
+      {
+        "id": "im-vid",
+        "source": "im",
+        "target": "vid"
+      }
+    ]
+  },
+  "assets": {
+    "2e7c8d78b6b142ef30e7ace0b76fa3360a0c84a6666c2edb0cdcde2f6ec447ac": {
+      "kind": "image",
+      "mimeType": "image/png",
+      "byteSize": 4809,
+      "width": 64,
+      "height": 64,
+      "durationMs": 0,
+      "fileName": "icon-64.png"
+    },
+    "adf1614259c193a4828e77700e42341d9da1e76c4fdd25121cec8c8a0ed813f6": {
+      "kind": "image",
+      "mimeType": "image/png",
+      "byteSize": 2024,
+      "width": 32,
+      "height": 32,
+      "durationMs": 0,
+      "fileName": "icon-32.png"
+    }
+  }
+}

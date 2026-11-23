@@ -250,12 +250,15 @@ describe("S2 项目画布", () => {
         },
       });
       const write = request(1, { type: "putNode", node: script });
+      const indexedRevisions: number[] = [];
+      await store.observeGenerationHistory((state) => indexedRevisions.push(state.revision));
       stage = fault;
       await expect(store.applyCanvasOperations(write)).rejects.toMatchObject({
         code: "PROJECT_SAVE_FAILED",
       });
       expect(store.getCanvas().canvasRevision).toBe(1);
       expect((await store.readCanvas()).canvasRevision).toBe(fault === "temporary-synced" ? 1 : 2);
+      expect(indexedRevisions).toEqual([1, fault === "temporary-synced" ? 1 : 2]);
       expect(await store.applyCanvasOperations(write)).toEqual({ revision: 2, canvasRevision: 2 });
       expect(await readdir(join(store.directory, "state"))).toHaveLength(2);
     },
@@ -274,6 +277,38 @@ describe("S2 项目画布", () => {
     const reopened = await reopen(store.directory);
     expect(reopened.getCanvas().canvas.nodes).toEqual([]);
     expect(reopened.snapshot.jobs).toEqual(jobs);
+  });
+
+  it("迁移角色形象名保留空白，只有属性缺失才使用基础形象", async () => {
+    const looks = [undefined, "", "   ", "  夜班  "];
+    const mapped = mapVideoCanvas(
+      {
+        nodes: looks.map((look, index) => ({
+          id: `actor-${index}`,
+          type: "canvas",
+          position: { x: 0, y: 0 },
+          data: {
+            kind: "character",
+            character: { name: "林舟", look, voicePrompt: look, voiceModel: "audio-seed-1" },
+          },
+        })),
+      },
+      () => undefined,
+    );
+    const restored = await fixture(await create(), mapped);
+    expect(
+      restored
+        .getCanvas()
+        .canvas.nodes.map((node) => node.type === "creative" && node.data.character?.look),
+    ).toEqual(["基础形象", "", "   ", "  夜班  "]);
+    expect(
+      restored
+        .getCanvas()
+        .canvas.nodes.map((node) => node.type === "creative" && node.data.character?.voicePrompt),
+    ).toEqual(looks);
+    expect(restored.getCanvas().canvas.nodes[0]).toMatchObject({
+      data: { character: { voiceModel: "audio-seed-1" } },
+    });
   });
 
   it("将 video-canvas 的四类节点、分组和连线映射到本地字段", async () => {
@@ -326,8 +361,10 @@ describe("S2 项目画布", () => {
     expect(mapped.nodes[2]).toMatchObject({ data: { assetId: localAssetId, text: "提示词" } });
     expect(mapped.nodes[3]).toMatchObject({ data: { kind: "video", text: "提示词" } });
     expect(mapped.nodes[4]).toMatchObject({ data: { kind: "audio", text: "提示词" } });
+    for (const node of mapped.nodes.slice(2, 5))
+      expect(node).toMatchObject({ data: { generation: { modelKey: "web-model" } } });
     expect(JSON.stringify(mapped)).not.toMatch(
-      /secret|upstream-asset|uploadProgress|web-model|web-task|selected|dragging/,
+      /secret|upstream-asset|uploadProgress|"model":|web-task|selected|dragging/,
     );
     const restored = await fixture(store, mapped);
     expect(restored.getCanvas().canvas).toMatchObject({

@@ -87,6 +87,31 @@ afterEach(async () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("M0-03 本机 APFS 项目存储", () => {
+  it("只读补登记跳过错误身份、过期清单、损坏快照和改指向的路径", async () => {
+    const store = await create();
+    const { directory, projectId } = store;
+    const manifestPath = join(directory, "manifest.json");
+    const previous = await readFile(manifestPath);
+    await store.rename({ operationId: randomUUID(), expectedRevision: 1, name: "已修改" });
+    const latest = await readFile(manifestPath);
+    const inspect = () => ProjectStore.inspectRecentJobs(directory, projectId);
+    expect(await inspect()).toEqual({});
+    expect(await ProjectStore.inspectRecentJobs(directory, randomUUID())).toBeUndefined();
+    await symlink(directory, join(parent, "redirect"));
+    expect(
+      await ProjectStore.inspectRecentJobs(join(parent, "redirect"), projectId),
+    ).toBeUndefined();
+    await writeFile(manifestPath, previous);
+    expect(await inspect()).toBeUndefined();
+    expect(await readFile(manifestPath)).toEqual(previous);
+    await writeFile(manifestPath, latest);
+    const path = join(directory, "state", (await readdir(join(directory, "state"))).sort().at(-1)!);
+    const corrupt = { ...store.snapshot, name: "哈希未更新" };
+    await writeFile(path, JSON.stringify(corrupt));
+    expect(await inspect()).toBeUndefined();
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual(corrupt);
+  });
+
   it("识别 APFS 目录并拒绝 devfs", async () => {
     const directory = join(parent, "本机 项目");
     await mkdir(directory);

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
-import { addCanvasNode, projectAction } from "./workspace-actions";
+import { addCanvasNode, chooseCanvasZoom, editTextNode, projectAction } from "./workspace-actions";
 
 test("桌面启动、画布交互与受限 IPC", async () => {
   const userData = await mkdtemp(join(tmpdir(), "link-studio-e2e-"));
@@ -76,14 +76,18 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       .toBe(1024);
     await expect(page.getByRole("heading", { name: "本地项目" })).toBeVisible();
     await page.getByRole("button", { name: "新建项目" }).click();
-    await expect(page.getByRole("heading", { name: "从一个想法开始" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await page.getByRole("button", { name: "打开小灵" }).click();
-    await expect(page.getByRole("heading", { name: "画布小灵" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "历史会话，当前：新对话" })).toBeVisible();
     await page.screenshot({ path: "test-results/canvas-assistant.png" });
     await page.getByRole("button", { name: "关闭小灵" }).click();
-    await expect(page.getByRole("heading", { name: "画布小灵" })).toBeHidden();
-    await page.getByRole("button", { name: /^文本 记录灵感/ }).click();
-    await page.getByRole("button", { name: "素材库", exact: true }).click();
+    await expect(page.getByRole("button", { name: "历史会话，当前：新对话" })).toBeHidden();
+    await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
+    await editTextNode(
+      page.getByRole("region", { name: "文本内容", exact: true }),
+      "一段等待被拍成电影的故事",
+    );
+    await projectAction(page, "素材库");
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByText("e2e.png", { exact: true })).toBeVisible();
     await expect(page.getByText("image · 3×2")).toBeVisible();
@@ -101,15 +105,30 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await expect(page.locator(".asset-item")).toHaveCount(4);
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
     await page.getByRole("button", { name: "关闭素材库" }).click();
-    await addCanvasNode(page, "图片");
+    await addCanvasNode(page, "图片生成");
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
-    await addCanvasNode(page, "视频");
+    await addCanvasNode(page, "视频生成");
     await expect(page.locator(".react-flow__node")).toHaveCount(3);
-    const videoNode = page.locator(".react-flow__node").filter({ hasText: "新的视频节点" });
+    const videoNode = page
+      .locator(".react-flow__node")
+      .filter({ has: page.locator("header strong").filter({ hasText: /^视频$/ }) });
     await videoNode.locator("header strong").click();
     const composer = page.getByRole("region", { name: "生成确认" });
-    await expect(composer.getByRole("button", { name: "配置视频模型" })).toBeVisible();
-    await expect(composer.getByRole("button", { name: "确认生成" })).toBeDisabled();
+    const activePrompt = composer.getByRole("textbox", { name: "生成提示词" });
+    await activePrompt.fill("镜头");
+    await videoNode.locator("header strong").click();
+    await page.keyboard.press("Enter");
+    await expect(activePrompt).toBeFocused();
+    await page.keyboard.insertText("推进");
+    await expect(activePrompt).toHaveText("镜头推进");
+    await activePrompt.press("Escape");
+    await expect(videoNode).toHaveClass(/selected/);
+    await videoNode.locator("header strong").click();
+    await page.keyboard.press("Escape");
+    await expect(videoNode).not.toHaveClass(/selected/);
+    await videoNode.locator("header strong").click();
+    await expect(composer.getByRole("button", { name: "选择模型" })).toHaveText("暂无可用模型");
+    await expect(composer.getByRole("button", { name: "开始生成" })).toBeDisabled();
     await composer.getByRole("button", { name: "生成参数" }).click();
     await composer.getByLabel("时长（秒）").fill("5");
     await composer.getByRole("button", { name: "生成参数" }).click();
@@ -121,31 +140,97 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       .poll(() => fixed.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth))
       .toBeGreaterThan(0);
     await fixed.click();
-    await motion.getByRole("button", { name: "镜头上摇", exact: true }).click();
-    await page.keyboard.press("Escape");
     await expect(motion).toBeHidden();
-    await expect(
-      composer.getByRole("region", { name: "已选预设" }).getByRole("button"),
-    ).toHaveCount(2);
+    await composer.getByRole("button", { name: "运镜", exact: true }).click();
+    await motion.getByRole("button", { name: "镜头上摇", exact: true }).click();
+    await expect(motion).toBeHidden();
+    const chips = composer.locator('[data-preset^="motion/"]');
+    await expect(chips).toHaveCount(2);
+    await chips.filter({ hasText: "固定镜头" }).click();
+    await motion.getByRole("button", { name: "镜头上摇", exact: true }).click();
+    await expect(motion).toBeVisible();
+    await expect(chips).toHaveCount(2);
+    await fixed.click();
+    await expect(chips).toHaveCount(1);
     await composer.getByRole("textbox", { name: "生成提示词" }).fill("镜头缓慢推进");
+    await expect(activePrompt).toHaveText("镜头缓慢推进");
     await videoNode.getByRole("button", { name: "从素材库选择素材" }).click();
-    const library = page.getByRole("region", { name: "项目素材" });
-    await expect(library.getByTitle("e2e.png", { exact: true })).toHaveCount(0);
-    await library.getByRole("button", { name: "将e2e.mp4用于节点" }).first().click();
-    await expect(videoNode.locator("video")).toHaveAttribute("src", /^link-media:/);
+    const library = page.getByRole("dialog", { name: "资产库" });
+    await expect(library.getByRole("button", { name: "e2e.png", exact: true })).toHaveCount(0);
+    const videos = library.getByRole("button", { name: "e2e.mp4", exact: true });
+    await videos.first().click();
+    await videos.last().click();
+    await expect(videos.first()).toHaveAttribute("aria-pressed", "false");
+    await expect(videos.last()).toHaveAttribute("aria-pressed", "true");
+    await library.getByRole("tab", { name: "生成历史" }).click();
+    await expect(library.getByRole("group", { name: "内容类型" })).toHaveCount(0);
+    await library.getByRole("button", { name: "放进节点" }).click();
+    await expect(videoNode.locator(".local-video-poster")).toHaveJSProperty("naturalWidth", 64);
+    await expect(videoNode.locator(".creative-card")).toHaveCSS("width", "432px");
+    await expect(videoNode.locator(".creative-card")).toHaveCSS("height", "324px");
+    await expect(videoNode.locator("video")).toHaveCount(0);
     await expect(page.locator(".react-flow__node")).toHaveCount(3);
-    await expect(composer.getByRole("textbox", { name: "生成提示词" })).toHaveValue("镜头缓慢推进");
-    await videoNode.getByRole("button", { name: "播放e2e.mp4" }).click();
-    await expect(page.getByRole("dialog").locator("video")).toBeVisible();
-    await page.getByRole("button", { name: "关闭预览" }).click();
+    await expect(composer).toBeHidden();
+    await expect(videoNode.locator(".react-flow__handle.target")).toBeHidden();
+    await videoNode.getByRole("button", { name: "播放视频" }).click();
+    const inline = videoNode.locator("video");
+    await expect(inline).toHaveAttribute("src", /^link-media:/);
+    await videoNode.getByRole("button", { name: "暂停", exact: true }).click();
+    await expect(inline).toHaveJSProperty("paused", true);
+    await videoNode.getByRole("button", { name: "静音", exact: true }).click();
+    await expect(inline).toHaveJSProperty("muted", true);
+    await videoNode.getByRole("slider", { name: "播放进度" }).fill("0.25");
+    await expect(inline).toHaveJSProperty("currentTime", 0.25);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await addCanvasNode(page, "音频");
+    await expect(inline).toHaveCount(0);
+    await expect(videoNode.getByRole("button", { name: "播放视频" })).toBeEnabled();
     await expect(page.locator(".react-flow__node")).toHaveCount(4);
-    await page.getByRole("textbox", { name: "新的文本节点内容" }).fill("一段等待被拍成电影的故事");
-    await page.getByRole("button", { name: "素材库", exact: true }).click();
+    await projectAction(page, "素材库");
     await page.getByRole("button", { name: "将e2e.png加入画布" }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(5);
     await page.getByRole("button", { name: "移除e2e.png" }).click();
     await expect(page.getByRole("alert")).toContainText("请先解除引用");
+    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await chooseCanvasZoom(page, "适应画布");
+    await page
+      .locator('.node-media[data-kind="image"]')
+      .filter({ has: page.locator("img") })
+      .dblclick();
+    const gallery = page.getByRole("dialog", { name: "媒体预览" });
+    await expect(gallery.getByText(`3×2 · ${png.length} B`)).toBeVisible();
+    const tabs = gallery.getByRole("navigation", { name: "节点缩略图" });
+    await expect(tabs.getByRole("button")).toHaveCount(2);
+    await expect(tabs.locator(".local-video-poster")).toHaveJSProperty("naturalWidth", 64);
+    await expect(gallery.locator("video")).toHaveCount(0);
+    await tabs.getByRole("button", { name: "视频", exact: true }).click();
+    await expect(gallery.getByText(/^64×48 · /)).toBeVisible();
+    await expect(gallery.locator("video")).toHaveCount(1);
+    const player = gallery.locator(".lightbox-frame video");
+    await page.keyboard.press("m");
+    await expect(player).toHaveJSProperty("muted", true);
+    await gallery.getByRole("button", { name: "倍速" }).click();
+    await gallery.getByRole("menuitemradio", { name: "1.5x" }).click();
+    await expect(player).toHaveJSProperty("playbackRate", 1.5);
+    await page.keyboard.press("Escape");
+    await expect(gallery.getByRole("menu")).toHaveCount(0);
+    await gallery.getByRole("button", { name: "循环播放" }).click();
+    await expect(player).toHaveJSProperty("loop", true);
+    const atStart = await gallery.getByRole("button", { name: "上一个" }).isDisabled();
+    await gallery.getByRole("slider").focus();
+    await page.keyboard.press(atStart ? "ArrowLeft" : "ArrowRight");
+    await expect(player).toBeVisible();
+    await page.keyboard.press(atStart ? "ArrowRight" : "ArrowLeft");
+    await expect(gallery.getByText(`3×2 · ${png.length} B`)).toBeVisible();
+    await gallery.getByRole("button", { name: "定位到节点" }).click();
+    await expect(page.locator(".react-flow__node.selected header strong")).toHaveText("e2e");
+    await page
+      .getByRole("toolbar", { name: /的功能区$/ })
+      .getByRole("button", { name: "放大预览" })
+      .click();
+    await expect(gallery).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(gallery).toHaveCount(0);
     await projectAction(page, "运行环境");
     await expect(page.getByText("桌面连接正常")).toBeVisible();
     const boundary = await page.evaluate(() => ({
@@ -164,9 +249,12 @@ test("桌面启动、画布交互与受限 IPC", async () => {
         "settings",
         "skills",
       ],
-      methods: ["getInfo"],
+      methods: ["openSource", "getInfo"],
     });
     await page.evaluate(() => window.open("https://example.com"));
+    expect(await page.evaluate(() => window.desktop.app.openSource("file:///tmp/private"))).toBe(
+      false,
+    );
     const windowCount = await application.evaluate(({ BrowserWindow }) => {
       return BrowserWindow.getAllWindows().length;
     });
@@ -186,14 +274,19 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     try {
       const reopenedPage = await reopenedApplication.firstWindow();
       await reopenedPage.getByRole("button", { name: "e2e", exact: false }).click();
-      await expect(reopenedPage.locator(".node-media img")).toHaveAttribute("src", /^link-media:/);
-      await reopenedPage.getByRole("button", { name: "素材库", exact: true }).click();
+      await expect(reopenedPage.locator('.node-media[data-kind="image"] img')).toHaveAttribute(
+        "src",
+        /^link-media:/,
+      );
+      await projectAction(reopenedPage, "素材库");
       await expect(reopenedPage.getByTitle("e2e.png", { exact: true })).toBeVisible();
       await expect(reopenedPage.getByText("e2e.wav", { exact: true })).toBeVisible();
-      await expect(reopenedPage.getByRole("textbox", { name: "新的文本节点内容" })).toHaveValue(
+      await expect(reopenedPage.getByRole("region", { name: "文本内容", exact: true })).toHaveText(
         "一段等待被拍成电影的故事",
       );
-      const imageNode = reopenedPage.locator(".react-flow__node").filter({ hasText: "e2e.png" });
+      const imageNode = reopenedPage
+        .locator(".react-flow__node")
+        .filter({ has: reopenedPage.locator("header strong").filter({ hasText: /^e2e$/ }) });
       await expect(imageNode.getByRole("button", { name: "解除素材引用" })).toBeVisible();
       await reopenedPage.getByRole("button", { name: "预览e2e.png" }).click();
       await expect
@@ -215,9 +308,9 @@ test("桌面启动、画布交互与受限 IPC", async () => {
         )
         .toBe(1);
       await reopenedPage.getByRole("button", { name: "关闭预览" }).click();
-      await expect(reopenedPage.locator(".node-video-frame")).toHaveAttribute(
-        "src",
-        /^link-media:/,
+      await expect(reopenedPage.locator(".local-video-poster")).toHaveJSProperty(
+        "naturalWidth",
+        64,
       );
       await reopenedPage.getByRole("button", { name: "预览e2e.mp4", exact: true }).first().click();
       const video = reopenedPage.getByRole("dialog").locator("video");
@@ -232,7 +325,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       await reopenedPage.getByRole("button", { name: "关闭预览" }).click();
       await reopenedPage.getByRole("button", { name: "关闭素材库" }).click();
       await imageNode.getByRole("button", { name: "解除素材引用" }).click();
-      await reopenedPage.getByRole("button", { name: "素材库", exact: true }).click();
+      await projectAction(reopenedPage, "素材库");
       await reopenedPage.getByRole("button", { name: "移除e2e.png" }).click();
       await expect(reopenedPage.getByRole("button", { name: "预览e2e.png" })).toHaveCount(0);
     } finally {
@@ -241,6 +334,52 @@ test("桌面启动、画布交互与受限 IPC", async () => {
   } finally {
     await application.close();
     await rm(userData, { recursive: true, force: true });
+  }
+});
+
+test("视频运镜标签跨重启保留并可原位替换", async () => {
+  const root = await mkdtemp(join(tmpdir(), "link-studio-preset-reopen-"));
+  const env = {
+    ...process.env,
+    LINK_STUDIO_TEST_USER_DATA: root,
+    LINK_STUDIO_TEST_PROJECT_PARENT: root,
+  };
+  delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
+  const executablePath = process.env.LINK_STUDIO_E2E_EXECUTABLE;
+  const launch = () =>
+    electron.launch({ ...(executablePath ? { executablePath, args: [] } : { args: ["."] }), env });
+  let app: Awaited<ReturnType<typeof launch>> | undefined;
+  try {
+    app = await launch();
+    const page = await app.firstWindow();
+    await page.getByRole("textbox", { name: "新项目名称" }).fill("运镜恢复");
+    await page.getByRole("button", { name: "新建项目" }).click();
+    await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
+    await page.locator(".react-flow__node header strong").click();
+    const editor = page.getByRole("textbox", { name: "生成提示词" });
+    await editor.fill("傍晚的码头");
+    await editor.press("End");
+    await page.getByRole("button", { name: "运镜", exact: true }).click();
+    await page.getByRole("button", { name: "镜头上摇", exact: true }).click();
+    await expect(editor.locator('[data-preset="motion/tilt_up"]')).toHaveText("镜头上摇");
+    await projectAction(page, "保存项目");
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
+    await app.close();
+    app = await launch();
+    const reopened = await app.firstWindow();
+    await reopened.getByRole("button", { name: /^运镜恢复/ }).click();
+    await reopened.locator(".react-flow__node header strong").click();
+    const recovered = reopened.getByRole("textbox", { name: "生成提示词" });
+    const chip = recovered.locator('[data-preset="motion/tilt_up"]');
+    await expect(chip).toHaveText("镜头上摇");
+    await chip.click();
+    await reopened.getByRole("button", { name: "固定镜头", exact: true }).click();
+    await expect(recovered.locator('[data-preset="motion/static_shot"]')).toHaveText("固定镜头");
+    await expect(recovered).toHaveText("傍晚的码头固定镜头");
+    await expect(chip).toHaveCount(0);
+  } finally {
+    await app?.close();
+    await rm(root, { recursive: true, force: true });
   }
 });
 
@@ -276,7 +415,7 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
       const page = await application.firstWindow();
       await page.getByRole("textbox", { name: "新项目名称" }).fill("外部引用验收");
       await page.getByRole("button", { name: "新建项目" }).click();
-      await page.getByRole("button", { name: "素材库", exact: true }).click();
+      await projectAction(page, "素材库");
       await page.getByRole("combobox", { name: "导入方式" }).selectOption("reference");
       await page.getByRole("button", { name: "导入素材" }).click();
       await expect(page.getByText("外部引用 · 0.0 MB")).toBeVisible();
@@ -308,7 +447,7 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
     try {
       const page = await reopened.firstWindow();
       await page.getByRole("button", { name: /^外部引用验收/ }).click();
-      await page.getByRole("button", { name: "素材库", exact: true }).click();
+      await projectAction(page, "素材库");
       await expect(page.getByText(/文件不可用/)).toBeVisible();
       await page.getByRole("button", { name: "重新定位external.png" }).click();
       await expect(page.getByRole("alert")).toContainText("文件内容与原素材不一致");

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { crc32 } from "node:zlib";
 import { skillsRequests } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { readSkillPackage } from "../../src/main/skills/intake";
 import { SkillLibrary } from "../../src/main/skills/library";
 
@@ -76,7 +76,7 @@ it("拒绝路径越界、符号链接、错误的 YAML、多个入口和过大�
   const archive = join(directory, "invalid.zip");
   const file = join(directory, "SKILL.md");
   await writeFile(archive, zipEntry("../SKILL.md", skill("unsafe")));
-  await expect(readSkillPackage(archive)).rejects.toThrow("无法读取 ZIP");
+  await expect(readSkillPackage(archive)).rejects.toThrow("不安全的文件路径");
   await rm(archive);
   await writeFile(file, "---\nname: Bad_Name\ndescription: 示例\n---\n");
   await expect(readSkillPackage(file)).rejects.toThrow("name 必须");
@@ -140,9 +140,102 @@ it("预检暂存绑定窗口，同名新增版本并保留生效版本和配置"
   expect(library.preview(1, { name: created.name, version: 2, path: "SKILL.md" }).text).toContain(
     "版本 2",
   );
+  expect(() => library?.remove({ name: created.name })).toThrow("关闭所有使用场景");
+  library.update({ name: created.name, title: "拍摄清单", enabled: false, scopes: ["video"] });
+  expect(library.catalog("video")).toHaveLength(1);
+  expect(() => library?.remove({ name: created.name })).toThrow("关闭所有使用场景");
+  library.update({ name: created.name, title: "拍摄清单", enabled: false, scopes: [] });
   library.remove({ name: created.name });
   expect(library.list()).toEqual([]);
   expect(() => library?.preview(1, { name: created.name, version: 2, path: "SKILL.md" })).toThrow(
     "找不到此文件",
   );
+});
+
+it("导出指定历史版本可原样回导，预检提示随版本保留", async () => {
+  const folder = join(directory, "source");
+  await mkdir(folder);
+  const path = join(folder, "SKILL.md");
+  await writeFile(
+    path,
+    skill("参考 references/missing.md").replace("name:", "allowed-tools: [read]\nname:"),
+  );
+  await writeFile(join(folder, "helper.py"), "print(1)");
+  const pkg = await readSkillPackage(folder);
+  library = new SkillLibrary(join(directory, "db"));
+  const imported = library.confirm(1, {
+    id: library.stage(1, pkg).id!,
+    enabled: false,
+    scopes: [],
+  });
+  const warnings = imported.versions[0]!.warnings?.join("\n");
+  for (const text of ["allowed-tools", "references/missing.md", "脚本"])
+    expect(warnings).toContain(text);
+  await writeFile(path, skill("下一版"));
+  const next = library.stage(1, await readSkillPackage(folder));
+  library.confirm(1, { id: next.id!, enabled: false, scopes: [] });
+  const zip = join(directory, "export.zip");
+  await writeFile(zip, library.exportZip({ name: pkg.name, version: 1 }));
+  expect((await readSkillPackage(zip)).hash).toBe(pkg.hash);
+});
+
+it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回退", async () => {
+  const db = join(directory, "db"),
+    file = join(directory, "SKILL.md");
+  library = new SkillLibrary(db);
+  await writeFile(file, skill("第一版方法"));
+  const pkg = await readSkillPackage(file);
+  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  const candidate = { source: "skill" as const, name: pkg.name, version: 1 },
+    step = "marketing.create" as const;
+  const details = {
+    candidate,
+    step,
+    model: "test",
+    sample: "perfume",
+    passed: true,
+    preview: "样例",
+    issues: [],
+  };
+  const { identity } = library.method(candidate);
+  const good = library.recordTrial(details, identity),
+    bad = library.recordTrial({ ...details, passed: false }, identity);
+  const bind = { step, candidate, trial: good.id };
+  for (const invalid of [
+    { ...bind, trial: bad.id },
+    { ...bind, candidate: { source: "builtin" as const } },
+    { ...bind, step: "marketing.follow" as const },
+  ])
+    expect(() => library!.bind(invalid)).toThrow("试跑");
+  try {
+    vi.useFakeTimers();
+    vi.setSystemTime(good.finished + 86400001);
+    expect(() => library!.bind(bind)).toThrow("24 小时");
+  } finally {
+    vi.useRealTimers();
+  }
+  library.bind(bind);
+  await writeFile(file, skill("第二版方法"));
+  const next = library.stage(1, await readSkillPackage(file));
+  library.confirm(1, { id: next.id!, enabled: false, scopes: [] });
+  library.activate({ name: pkg.name, version: 2 });
+  library.close();
+  library = new SkillLibrary(db);
+  expect(library.resolveMethod(step)).toMatchObject({
+    candidate,
+    fallback: false,
+    method: { Version: 1, Body: "第一版方法" },
+  });
+  library.removeVersion({ name: pkg.name, version: 1 });
+  expect(library.resolveMethod(step)).toMatchObject({
+    candidate,
+    fallback: true,
+    method: { Source: "builtin" },
+  });
+  expect(() => library!.bind(bind)).toThrow("试跑");
+  library.update({ name: pkg.name, title: pkg.title, enabled: false, scopes: [] });
+  library.remove({ name: pkg.name });
+  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  expect(library.resolveMethod(step).fallback).toBe(true);
+  expect(() => library!.bind(bind)).toThrow("试跑");
 });

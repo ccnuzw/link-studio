@@ -42,7 +42,7 @@ test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/I
   try {
     const page = await application.firstWindow();
     await page.getByRole("button", { name: "新建项目" }).click();
-    await expect(page.getByRole("heading", { name: "从一个想法开始" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await application.evaluate(
       async ({ app }, input) => {
         const root = app.isPackaged ? `${process.resourcesPath}/agent-runtime` : input.runtime;
@@ -72,7 +72,7 @@ test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/I
         ),
       )
       .toBe(true);
-    await page.getByRole("button", { name: /^图片生成 从描述/ }).click();
+    await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
     await projectAction(page, "运行环境");
     await expect(page.getByText("桌面连接正常")).toBeVisible();

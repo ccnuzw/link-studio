@@ -26,6 +26,22 @@ const draft = {
 };
 
 describe("画布冲突恢复", () => {
+  it("恢复连续删除的节点时保留相对次序，并检测定位节点的并发删除", () => {
+    const second = { ...script, id: "second" };
+    const removed = { ...base, nodes: [image] };
+    const restored = { ...base, nodes: [script, second, image] };
+    const moved = { ...image, position: { x: 42, y: 20 } };
+    expect(canvasDiff(removed, restored)).toEqual([
+      { type: "putNode", node: script, beforeId: image.id },
+      { type: "putNode", node: second, beforeId: image.id },
+    ]);
+    expect(rebaseCanvas(removed, restored, { ...base, nodes: [moved] })?.nodes).toEqual([
+      script,
+      second,
+      moved,
+    ]);
+    expect(rebaseCanvas(removed, restored, { ...base, nodes: [] })).toBeNull();
+  });
   it("同时保留非重叠的本地和磁盘变更", () => {
     const moved = { ...image, position: { x: 100, y: 50 } };
     const saved = { ...base, nodes: [script, moved] };

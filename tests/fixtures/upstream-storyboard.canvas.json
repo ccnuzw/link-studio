@@ -1,0 +1,101 @@
+{
+  "format": "video-canvas/canvas",
+  "version": 1,
+  "exportedAt": "2027-01-15T08:00:00Z",
+  "appVersion": "ccffac4e",
+  "canvas": {
+    "title": "分镜往返",
+    "nodes": [
+      {
+        "data": {
+          "kind": "storyboard",
+          "label": "雨夜分镜",
+          "storyboard": {
+            "shots": [
+              {
+                "action": "",
+                "camera": "固定",
+                "dialogue": "",
+                "duration": 3.5,
+                "id": "platform",
+                "imageNodeId": "image",
+                "scene": "月台远景",
+                "shot": "远景",
+                "videoNodeId": "video"
+              },
+              {
+                "action": "",
+                "camera": "推",
+                "dialogue": "",
+                "duration": 2,
+                "id": "rail",
+                "image": {
+                  "assetHash": "adf1614259c193a4828e77700e42341d9da1e76c4fdd25121cec8c8a0ed813f6"
+                },
+                "scene": "铁轨特写",
+                "shot": "特写"
+              }
+            ]
+          }
+        },
+        "id": "board",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "type": "canvas"
+      },
+      {
+        "data": {
+          "assetHash": "adf1614259c193a4828e77700e42341d9da1e76c4fdd25121cec8c8a0ed813f6",
+          "kind": "image",
+          "label": "月台分镜图"
+        },
+        "id": "image",
+        "position": {
+          "x": 460,
+          "y": 0
+        },
+        "type": "canvas"
+      },
+      {
+        "data": {
+          "kind": "video",
+          "label": "月台视频",
+          "params": {
+            "prompt": "列车进站"
+          }
+        },
+        "id": "video",
+        "position": {
+          "x": 900,
+          "y": 0
+        },
+        "type": "canvas"
+      }
+    ],
+    "edges": [
+      {
+        "id": "source-image",
+        "source": "board",
+        "target": "image"
+      },
+      {
+        "id": "source-video",
+        "source": "board",
+        "target": "video"
+      }
+    ]
+  },
+  "assets": {
+    "adf1614259c193a4828e77700e42341d9da1e76c4fdd25121cec8c8a0ed813f6": {
+      "kind": "image",
+      "mimeType": "image/png",
+      "byteSize": 2024,
+      "width": 32,
+      "height": 32,
+      "durationMs": 0,
+      "fileName": "icon-32.png"
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { readdir, readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { checkDraft } from "../../packages/provider-runtime/src/draft";
 import {
   type Binding,
@@ -127,15 +127,224 @@ afterAll(async () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
+  it("Agent 元数据仍校验提交与异步查询，但不进入离线或线上执行", async () => {
+    const source = fixture("throw Error('不应执行')", "", "agent");
+    const plugin = await inspectPlugin(runner, source);
+    expect(plugin.kind).toBe("agent");
+    const invalid = `${fixture("", "", "agent", "async")}\ndelete module.exports.buildSubmitRequest`;
+    await expect(inspectPlugin(runner, invalid)).rejects.toMatchObject({
+      issues: [
+        {
+          path: "meta.endpoints.agent.mode",
+          message: expect.stringContaining("buildQueryRequest"),
+        },
+        {
+          path: "meta.endpoints.agent.mode",
+          message: expect.stringContaining("parseQueryResponse"),
+        },
+        { path: "exports.buildSubmitRequest" },
+      ],
+    });
+    const call = vi.spyOn(runner, "call");
+    const trace = vi.spyOn(runner, "trace");
+    const transport = vi.fn(mockLoopbackTransport([baseUrl]));
+    try {
+      await expect(checkDraft(runner, source)).resolves.toMatchObject({
+        ok: false,
+        checkedHooks: [],
+        issues: ["Agent 走原生网关，不执行插件钩子"],
+      });
+      await expect(
+        new ProviderHost(runner, transport).invoke(binding(source), "submit", context()),
+      ).rejects.toMatchObject({ code: "AGENT_MODEL_INCOMPATIBLE" });
+      await expect(
+        buildHostRequest({ method: "GET", path: "/" }, plugin, binding(source), context()),
+      ).rejects.toMatchObject({ code: "AGENT_MODEL_INCOMPATIBLE" });
+      expect(call.mock.calls.map(([, hook]) => hook)).toEqual(["inspect", "inspect"]);
+      expect(trace).not.toHaveBeenCalled();
+      expect(transport).not.toHaveBeenCalled();
+    } finally {
+      call.mockRestore();
+      trace.mockRestore();
+    }
+  });
+  it("预检汇总独立字段和缺失钩子，错误对象不会打断其他路径检查", async () => {
+    const source = `${fixture("")}\nmodule.exports.meta.auth = null;
+      module.exports.meta.channelSettings = { region: false, size: { type: 'enum', label: '', options: {} } };
+      module.exports.meta.poll = {jitter: 2}; delete module.exports.parseSubmitResponse;`;
+    await expect(inspectPlugin(runner, source)).rejects.toMatchObject({
+      code: "PLUGIN_MANIFEST_INVALID",
+      issues: [
+        "meta.auth",
+        "exports.parseSubmitResponse",
+        "meta.channelSettings.region",
+        "meta.channelSettings.size.options",
+        "meta.channelSettings.size.label",
+        "meta.channelSettings.size.options",
+        "meta.poll.jitter",
+      ].map((path) => ({ path })),
+    });
+  });
+  it("缺少 meta 及不同鉴权声明按原字段顺序定位，保留请求头独立提示", async () => {
+    const inspect = (edit: string) => inspectPlugin(runner, `${fixture("")}\n${edit}`);
+    await expect(inspect("delete module.exports.meta")).rejects.toMatchObject({
+      issues: [{ path: "meta", message: "插件必须导出 meta 对象" }],
+    });
+    await expect(
+      inspect(
+        "module.exports.meta.auth={type:'header',name:123};delete module.exports.buildSubmitRequest",
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        { path: "meta.auth.name", message: "类型不对，应为字符串" },
+        {
+          path: "meta.auth.name",
+          message: "auth.type 为 header 时必须填写合法的请求头名（最长 64 个字符）",
+        },
+        { path: "exports.buildSubmitRequest" },
+      ],
+    });
+    await expect(
+      inspect("module.exports.meta.auth={type:'query',name:'汉'.repeat(22)}"),
+    ).rejects.toMatchObject({
+      issues: [
+        {
+          path: "meta.auth.name",
+          message: "auth.type 为 query 时必须填写查询参数名（最长 64 个字符）",
+        },
+      ],
+    });
+    await expect(
+      inspect("module.exports.meta.auth={type:'header',name:'hOsT'}"),
+    ).rejects.toMatchObject({
+      issues: [{ path: "meta.auth.name", message: "桌面宿主不允许用保留请求头作为鉴权字段" }],
+    });
+  });
+  it("预检与请求构造都接受带点的头名和编码后的查询名，不放开保留请求头", async () => {
+    for (const [type, name] of [
+      ["header", "X.Api+Key"],
+      ["query", "访问 & key"],
+      ["query", "cookie"],
+    ] as const) {
+      const auth = { type, name };
+      const source = `${fixture("")}\nmodule.exports.meta.auth=${JSON.stringify(auth)}`;
+      const plugin = await inspectPlugin(runner, source),
+        selected = binding(source);
+      const descriptor = { method: "GET", path: "/models" };
+      const request = await buildHostRequest(descriptor, plugin, selected, context());
+      if (type === "query")
+        expect([...new URL(request.url).searchParams]).toEqual([[name, selected.secret]]);
+      else expect(request.headers[name.toLowerCase()]).toEqual(selected.secret);
+      await expect(
+        buildHostRequest(
+          { ...descriptor, auth: { type: "header", name: "Connection" } },
+          plugin,
+          selected,
+          context(),
+        ),
+      ).rejects.toMatchObject({ code: "PLUGIN_REQUEST_INVALID" });
+    }
+  });
+  it("按声明顺序报告重复枚举和无效默认值，允许空可选设置和单独的准备解析钩子", async () => {
+    const valid = `${fixture("")}\nmodule.exports.meta.channelSettings={z:{label:'可空',type:'string',default:null,required:null}};
+      module.exports.meta.import={args:null}; module.exports.meta.poll={future:'extension',firstDelay:null}; module.exports.parsePrepareResponses=function(){};`;
+    await expect(inspectPlugin(runner, valid)).resolves.toMatchObject({ key: "fixture" });
+    const invalid = `${valid}\nmodule.exports.meta.channelSettings={z:{type:'enum',label:'重复',options:['one','one'],default:'two'},a:{type:'enum',label:'空',options:[' ']}};`;
+    await expect(inspectPlugin(runner, invalid)).rejects.toMatchObject({
+      issues: [
+        { path: "meta.channelSettings.z.options", message: '可选值 "one" 重复' },
+        { path: "meta.channelSettings.z.default", message: "默认值与类型 enum 不匹配" },
+        { path: "meta.channelSettings.a.options", message: "可选值不能为空字符串" },
+      ],
+    });
+  });
+  it("按 Go 字符串切片的部分解码结果报告 options 错误，不误报合法默认值", async () => {
+    const inspect = (settings: object) =>
+      inspectPlugin(
+        runner,
+        `${fixture("")}\nmodule.exports.meta.import={args:${JSON.stringify(settings)}};`,
+      );
+    const path = "meta.import.args.size.options";
+    for (const [options, messages] of [
+      [
+        ["one", 2, "two"],
+        ["类型不对，应为字符串数组", "可选值不能为空字符串"],
+      ],
+      [["one", null, "two"], ["可选值不能为空字符串"]],
+      [
+        ["one", "one", {}, "two"],
+        ["类型不对，应为字符串数组", '可选值 "one" 重复'],
+      ],
+    ] as const)
+      await expect(
+        inspect({ size: { type: "enum", label: "尺寸", options, default: "two" } }),
+      ).rejects.toMatchObject({ issues: messages.map((message) => ({ path, message })) });
+    await expect(inspect({ size: { type: ["enum"], label: "尺寸" } })).rejects.toMatchObject({
+      issues: [
+        { path: "meta.import.args.size.type", message: "类型不对，应为字符串" },
+        {
+          path: "meta.import.args.size.type",
+          message: "必须是 string / number / boolean / enum 之一",
+        },
+      ],
+    });
+    await expect(
+      inspect({ size: { type: "string", label: "尺寸", options: ["one", null] } }),
+    ).resolves.toMatchObject({ meta: { import: { args: { size: { options: ["one", ""] } } } } });
+  });
+  it("多 endpoint 同时报告每个错误；异步缺钩子定位到对应 mode，展示路径按 UTF-8 字节限长", async () => {
+    const source = `${fixture("")}\nmodule.exports.meta.endpoints = {video:{mode:'async'},text:{mode:'invalid',method:'TRACE',path:'/'+'汉'.repeat(67)}};`;
+    await expect(inspectPlugin(runner, source)).rejects.toMatchObject({
+      issues: [
+        {
+          path: "meta.endpoints",
+          message: "一个插件只能支持一种类型（现在声明了 text / video），请按类型拆成多个插件",
+        },
+        { path: "meta.endpoints.text.method" },
+        { path: "meta.endpoints.text.path" },
+        { path: "meta.endpoints.text.mode" },
+        {
+          path: "meta.endpoints.video.mode",
+          message: "video 声明为 async，必须导出 buildQueryRequest",
+        },
+        {
+          path: "meta.endpoints.video.mode",
+          message: "video 声明为 async，必须导出 parseQueryResponse",
+        },
+      ],
+    });
+    const oversized = `${fixture("")}\nmodule.exports.meta.description='a'.repeat(65536); delete module.exports.meta.apiVersion;`;
+    await expect(inspectPlugin(runner, oversized)).rejects.toMatchObject({
+      issues: [
+        { path: "meta", message: "meta 编码后超过 64KB" },
+        { path: "meta.apiVersion", message: "缺少 apiVersion，当前只支持 1" },
+      ],
+    });
+    const huge = `${fixture("")}\nmodule.exports.meta.description='a'.repeat(1048576);`;
+    expect(await runner.call(huge, "inspect")).toEqual({ metaTooLarge: true });
+    await expect(inspectPlugin(runner, huge)).rejects.toMatchObject({
+      code: "PLUGIN_MANIFEST_INVALID",
+      issues: [{ path: "meta", message: "meta 编码后超过 64KB" }],
+    });
+  });
   it("固定提交的插件来源/hash 可复核，text/image/async video 清单通过", async () => {
     const provenance = JSON.parse(
       await readFile("resources/provider-plugins/provenance.json", "utf8"),
+    );
+    expect(
+      Object.keys(provenance.sha256)
+        .filter((path) => path.endsWith(".js"))
+        .sort(),
+    ).toEqual(
+      Object.keys(plugins)
+        .map((name) => `resources/provider-plugins/${name}.js`)
+        .sort(),
     );
     for (const [name, source] of Object.entries(plugins)) {
       const path = `resources/provider-plugins/${name}.js`;
       const original = provenance.sha256[path];
       expect(original).toMatch(/^[a-f0-9]{64}$/);
-      expect(sourceHash(source)).toBe(provenance.localPatches?.[path]?.sha256 ?? original);
+      expect(sourceHash(source)).toBe(original);
       const plugin = await inspectPlugin(runner, source);
       expect(plugin.key).toBe(name);
       expect(plugin.hooks).toContain("buildSubmitRequest");
@@ -358,6 +567,15 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     ).toEqual({ cancellation: "local_only" });
   });
 
+  it.each(["sora", "doubao-video"])("%s 遵循原版将远端取消解析为失败", async (key) => {
+    expect(
+      await runner.call(plugins[key] ?? "", "parseQueryResponse", [
+        context(),
+        { body: { status: "cancelled" } },
+      ]),
+    ).toMatchObject({ status: "failed" });
+  });
+
   it("异步视频插件 submit/query 闭环；媒体 URL 缺失时明确拒绝", async () => {
     const selected = binding(plugins.sora ?? "");
     const submitted = await host.invoke(selected, "submit", context());
@@ -411,6 +629,41 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
         context({ images: ["input:images.0"] }),
       ),
     ).toMatchObject({ method: "POST" });
+  });
+
+  it("备案仅替换内置视频协议标注的图片 URL，同图内联传输仍提供原始内容", async () => {
+    const selected = { ...binding(plugins["doubao-video"] ?? ""), builtin: true };
+    const url = "https://cdn.example.com/a.png";
+    selected.media = {
+      "input:images.0": {
+        bytes: Buffer.from("fixture"),
+        mime: "image/png",
+        filename: "ref.png",
+        url,
+        filedAssetId: "asset-123",
+      },
+    };
+    const plugin = await inspectPlugin(runner, selected.source);
+    const reference = { __fileRef: "input:images.0" };
+    const request = await buildHostRequest(
+      {
+        method: "POST",
+        path: "/submit",
+        json: {
+          filed: { ...reference, as: "url", filed: true },
+          plain: reference,
+          inline: { ...reference, as: "base64", filed: true },
+        },
+      },
+      plugin,
+      selected,
+      context({ images: ["input:images.0"] }),
+    );
+    expect(JSON.parse(Buffer.from(request.body ?? []).toString())).toEqual({
+      filed: "asset://asset-123",
+      plain: url,
+      inline: Buffer.from("fixture").toString("base64"),
+    });
   });
 
   it("prepare、audio、query 和 cancel 用同一 Host，state 通过 JSON 重建", async () => {

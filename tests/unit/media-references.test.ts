@@ -1,6 +1,10 @@
 import type { ProjectAsset, ProjectCanvasView } from "@link-studio/core";
 import { describe, expect, it } from "vitest";
-import { linkedMediaSources, mediaReferences } from "../../src/renderer/workspace/media-references";
+import {
+  hasPendingReference,
+  linkedMediaSources,
+  mediaReferences,
+} from "../../src/renderer/workspace/media-references";
 
 const asset = (assetId: string, overrides: Partial<ProjectAsset> = {}): ProjectAsset => ({
   assetId,
@@ -19,6 +23,39 @@ const asset = (assetId: string, overrides: Partial<ProjectAsset> = {}): ProjectA
 });
 
 describe("画布生成参考素材", () => {
+  it("视频保留所有角色主图；手动图占用补充图名额但不能挤掉主图", () => {
+    const selection = {
+      assets: ["main", "extra", "manual", "second"].map((id) => asset(id)),
+      manual: ["manual"],
+      linked: [
+        { label: "主角", assetId: "main", part: "avatar" },
+        { label: "侧面", assetId: "extra", part: "extra" },
+        { label: "配角", assetId: "second", part: "avatar" },
+      ],
+      video: true,
+      imageOnly: true,
+      limit: 2,
+      counts: { image: 2 },
+    };
+    const result = mediaReferences(selection);
+    expect(result.chosen.map((item) => item.assetId)).toEqual(["manual", "main", "second"]);
+    expect(result.error).toBe("参考图片最多 2 个，请移除多余的");
+    expect(result.notices).toEqual(["参考图最多 2 张，多余补充图未带入"]);
+    expect(mediaReferences({ ...selection, manual: [] }).error).toBeUndefined();
+  });
+
+  it("只有当前方式接受的空媒体端口代替必填检查，不把空引用当素材发送", () => {
+    const linked = [{ label: "空视频", pendingKind: "video" as const }];
+    expect(hasPendingReference(linked, "omni", { video: 1 })).toBe(true);
+    expect(hasPendingReference(linked, "omni", { image: 1 })).toBe(false);
+    expect(hasPendingReference(linked, "i2v", { video: 1 })).toBe(false);
+    expect(hasPendingReference([], "omni", { video: 1 })).toBe(false);
+    expect(
+      mediaReferences({ assets: [], linked, manual: [], imageOnly: false, video: true, limit: 1 })
+        .chosen,
+    ).toEqual([]);
+  });
+
   it("将角色主图、补充图和音色展开为下游参考", () => {
     const linked = linkedMediaSources(
       {
@@ -54,6 +91,7 @@ describe("画布生成参考素材", () => {
         linked,
         manual: [],
         imageOnly: false,
+        video: true,
         limit: 3,
         counts: { image: 2, audio: 1 },
       }).chosen.map(({ assetId }) => assetId),
@@ -106,7 +144,7 @@ describe("画布生成参考素材", () => {
     expect(linkedMediaSources(canvas, "target")).toEqual([]);
   });
 
-  it("过滤不合格素材，保序去重并在超额时保留手动素材", () => {
+  it("过滤不合格素材，保序去重，普通与手动图超额时报错而非静默截断", () => {
     const selection = {
       assets: [
         asset("linked"),
@@ -128,8 +166,8 @@ describe("画布生成参考素材", () => {
       limit: 1,
     };
     const result = mediaReferences(selection);
-    expect(result.chosen.map(({ assetId }) => assetId)).toEqual(["manual"]);
-    expect(result.overflow).toBe(1);
+    expect(result.chosen.map(({ assetId }) => assetId)).toEqual(["linked", "manual"]);
+    expect(result.error).toBe("参考图片最多 1 个，请移除多余的");
     expect(result.unavailable).toEqual(["离线", "超限", "不匹配", "空节点"]);
     expect(
       mediaReferences({ ...selection, manual: ["linked", "manual"], limit: 4 }).chosen.map(

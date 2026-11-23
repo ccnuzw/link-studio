@@ -53,6 +53,183 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
+it("画布 Worker 超出预算时保留审批，追加预算和部分批准仅生效一次", async () => {
+  const server = await fakeGo({
+    turns: [
+      {
+        tools: [
+          {
+            id: "quote",
+            name: "generate_media",
+            args: { items: [{ nodeId: "shot-a" }, { nodeId: "shot-b" }], wait: false },
+          },
+        ],
+      },
+      { text: "只生成了已批准的镜头。" },
+    ],
+  });
+  servers.push(server);
+  const directory = await mkdtemp(join(tmpdir(), "link-agent-budget-"));
+  directories.push(directory);
+  const selected: number[][] = [];
+  const client = await AgentWorkerClient.open({
+    workerPath,
+    directory,
+    modelBridgeUrl: server.url,
+    settings: async (command, args) => {
+      if (command === "model") return { name: "fixture", context_window: 32768, max_tokens: 1024 };
+      if (command === "canvas:prepare") return {};
+      if (command === "canvas:generate-preview")
+        return {
+          items: [
+            { node_id: "shot-a", price: 12 },
+            { node_id: "shot-b", price: 30 },
+          ],
+          wait: false,
+        };
+      if (command === "canvas:generate-apply") {
+        selected.push((args as { selected: number[] }).selected);
+        return { tasks: [{ node_id: "shot-b", task_id: "test-task" }] };
+      }
+      throw Error(`意外的桥接调用：${command}`);
+    },
+  });
+  clients.push(client);
+  const { sessionId } = await session(client);
+  const scope = canvas;
+  await client.request("recoverCanvas", { scope });
+  const start = { scope, sessionId, message: "申请两个镜头" };
+  for (const budgetCredits of [-1, 100001, 1.5, "29", NaN])
+    await expect(client.request("start", { ...start, budgetCredits })).rejects.toMatchObject({
+      code: "AGENT_ARGUMENT_INVALID",
+    });
+  const run = await client.request<Run>("start", { ...start, budgetCredits: 29 });
+  await client.request("idle");
+  const query = { scope, sessionId, runId: run.id };
+  const [approval] = await client.request<Approval[]>("approvals", query);
+  expect(approval).toMatchObject({ status: "pending", quoteCredits: 42 });
+  const decide = (fields: object) =>
+    client.request("decide", {
+      scope,
+      sessionId,
+      approvalId: approval!.id,
+      decision: { decision: "approve", ...fields },
+    });
+  await expect(decide({})).rejects.toMatchObject({ code: "AGENT_OVER_BUDGET" });
+  const items = [{ index: 1, approve: true }];
+  for (const add_budget of [-1, Infinity, 100001, "1"])
+    await expect(decide({ items, add_budget })).rejects.toMatchObject({
+      code: "AGENT_ARGUMENT_INVALID",
+    });
+  await expect(decide({ items })).rejects.toMatchObject({ code: "AGENT_OVER_BUDGET" });
+  expect(await client.request<Approval[]>("approvals", query)).toMatchObject([
+    { status: "pending" },
+  ]);
+  expect(selected).toEqual([]);
+  await decide({ items, add_budget: 1 });
+  await client.request("idle");
+  expect((await client.request<State>("state", query)).runs).toMatchObject([
+    { status: "succeeded", budgetCredits: 30, spentCredits: 30 },
+  ]);
+  await expect(decide({ items, add_budget: 1 })).rejects.toMatchObject({
+    code: "AGENT_APPROVAL_STALE",
+  });
+  expect(selected).toEqual([[1]]);
+});
+
+it("等待审批的图片插话跨重启交给模型，按本轮模型和项目读取素材", async () => {
+  const server = await fakeGo({
+    turns: [
+      {
+        tools: [{ id: "proposal", name: "generate_media", args: { items: [{ nodeId: "shot" }] } }],
+      },
+      { text: "已核对" },
+    ],
+  });
+  servers.push(server);
+  const directory = await mkdtemp(join(tmpdir(), "link-steer-image-"));
+  directories.push(directory);
+  const bytes =
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=";
+  let vision = false;
+  let reads = 0;
+  const open = async () => {
+    const client = await AgentWorkerClient.open({
+      workerPath,
+      directory,
+      modelBridgeUrl: server.url,
+      settings: async (command, args) => {
+        if (command === "model") {
+          expect(args).toMatchObject({ key: "original-model" });
+          return { name: "fixture", vision, context_window: 32768, max_tokens: 1024 };
+        }
+        if (command === "canvas:prepare") return {};
+        if (command === "canvas:generate-preview")
+          return { items: [{ node_id: "shot", price: 0 }], wait: false };
+        if (command === "canvas:attachments") {
+          expect(args).toEqual({ project: "project-a", assetIds: ["image-a"] });
+          reads++;
+          return [
+            {
+              asset_id: "image-a",
+              name: "参考图",
+              url: "asset:image-a",
+              mime_type: "image/png",
+              image: { mime_type: "image/png", data: bytes },
+            },
+          ];
+        }
+        throw Error(command);
+      },
+    });
+    clients.push(client);
+    await client.request("recoverCanvas", { scope: canvas });
+    return client;
+  };
+  let client = await open();
+  const { sessionId } = await session(client);
+  const run = await client.request<Run>("start", {
+    scope: canvas,
+    sessionId,
+    message: "生成镜头",
+    modelKey: "original-model",
+  });
+  await client.request("idle");
+  const query = { scope: canvas, sessionId, runId: run.id };
+  const steer = {
+    ...query,
+    providerId: "unrelated-vision-model",
+    message: "参考这张图",
+    attachmentAssetIds: ["image-a"],
+  };
+  await expect(client.request("interject", steer)).rejects.toMatchObject({
+    code: "AGENT_MEDIA_UNAVAILABLE",
+  });
+  vision = true;
+  await expect(
+    client.request("interject", { ...steer, scope: { kind: "canvas", projectId: "project-b" } }),
+  ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
+  expect(reads).toBe(0);
+  await client.request("interject", steer);
+  const history = await client.request<State>("state", query);
+  expect(JSON.stringify(history.events)).not.toContain(bytes);
+  await client.close();
+  client = await open();
+  const [approval] = await client.request<Approval[]>("approvals", query);
+  await client.request("decide", {
+    ...query,
+    approvalId: approval!.id,
+    decision: { decision: "reject" },
+  });
+  await client.request("idle");
+  expect(reads).toBe(2);
+  expect(JSON.stringify(server.modelRequests.at(-1)?.body.messages)).toContain(
+    `data:image/png;base64,${bytes}`,
+  );
+  const resumed = await client.request<State>("state", query);
+  expect(resumed.events.filter((event) => event.type === "steer.read")).toHaveLength(1);
+});
+
 it("主动联网默认关闭，授权归属本轮且搜索和读取共享限额", async () => {
   const targets = new SpikeTargets(":memory:");
   try {
@@ -66,12 +243,14 @@ it("主动联网默认关闭，授权归属本轮且搜索和读取共享限额"
       run_id: "run",
     };
     let requests = 0;
+    let vision = false;
+    let video = false;
     const gateway = addCanvasGateway(createLocalGateway({ targets }), targets, async (command) => {
       if (command === "canvas:web") {
         requests++;
         return { text: "public research text" };
       }
-      return { vision: false };
+      return { vision, video };
     });
     const options = { toolCallId: "test" };
     expect(
@@ -82,13 +261,25 @@ it("主动联网默认关闭，授权归属本轮且搜索和读取共享限额"
     );
     expect(requests).toBe(0);
     const setup = await gateway.prepare(context, { message: "分镜", allow_web_research: true });
+    expect(setup.tools.filter(({ name }) => name.startsWith("canvas_inspect_"))).toEqual([]);
+    video = true;
+    expect(
+      (await gateway.prepare(context, {})).tools
+        .filter(({ name }) => name.startsWith("canvas_inspect_"))
+        .map(({ name }) => name),
+    ).toEqual(["canvas_inspect_video"]);
+    vision = true;
+    const visual = await gateway.prepare(context, {});
+    expect(
+      visual.tools.filter(({ name }) => name.startsWith("canvas_inspect_")).map(({ name }) => name),
+    ).toEqual(["canvas_inspect_image", "canvas_inspect_video"]);
     expect(
       setup.tools
         .filter(({ name }) => name.startsWith("web_"))
         .map(({ name, scriptable }) => [name, scriptable]),
     ).toEqual([
-      ["web_search", false],
-      ["web_fetch", false],
+      ["web_search", true],
+      ["web_fetch", true],
     ]);
     const next = { ...context, run_id: "another-run" };
     expect(
@@ -110,7 +301,16 @@ it("主动联网默认关闭，授权归属本轮且搜索和读取共享限额"
 it("Worker 将获准的公开检索结果交给模型，诊断仅保留调用元数据", async () => {
   const server = await fakeGo({
     turns: [
-      { tools: [{ id: "research", name: "web_search", args: { query: "分镜构图" } }] },
+      {
+        tools: [
+          { id: "research", name: "web_search", args: { query: "分镜构图" } },
+          {
+            id: "script",
+            name: "codemode",
+            args: { code: 'return await tools.web_fetch({url:"https://example.com/page"});' },
+          },
+        ],
+      },
       { text: "查到一条公开的分镜资料。" },
       { text: "继续创作。" },
     ],
@@ -148,6 +348,7 @@ it("Worker 将获准的公开检索结果交给模型，诊断仅保留调用元
   expect(run?.status).toBe("succeeded");
   expect(requests).toEqual([
     expect.objectContaining({ name: "web_search", input: { query: "分镜构图" } }),
+    expect.objectContaining({ name: "web_fetch", input: { url: "https://example.com/page" } }),
   ]);
   expect(JSON.stringify(server.modelRequests[1]?.body)).toContain("检索正文标记");
   const diagnostics = await client.request("diagnostics", {
@@ -164,7 +365,171 @@ it("Worker 将获准的公开检索结果交给模型，诊断仅保留调用元
   await client.request("start", { scope: canvas, sessionId, message: "继续创作" });
   await client.request("idle");
   expect(JSON.stringify(server.modelRequests[2]?.body.tools)).not.toContain("web_search");
-  expect(requests).toHaveLength(1);
+  expect(requests).toHaveLength(2);
+});
+
+it.each([false, true])("视频查看按能力返回整段分析或有序帧，视频能力 %s", async (video) => {
+  const server = await fakeGo({
+    turns: [
+      {
+        tools: [
+          { id: "inspect-video", name: "canvas_inspect_video", args: { nodeId: "clip", count: 2 } },
+        ],
+      },
+      { text: "画面已经查看。" },
+    ],
+  });
+  servers.push(server);
+  const directory = await mkdtemp(join(tmpdir(), "link-agent-video-inspect-"));
+  directories.push(directory);
+  const client = await AgentWorkerClient.open({
+    directory,
+    workerPath,
+    modelBridgeUrl: server.url,
+    settings: async (command, args) => {
+      if (command === "model")
+        return { name: "fixture", vision: !video, video, context_window: 32768, max_tokens: 1024 };
+      if (command === "canvas:inspect") {
+        expect(args).toMatchObject({ media: "video", input: { nodeId: "clip", count: 2 } });
+        if (video) return { analysis: "镜头转向窗外，可以听到雨声。" };
+        return {
+          duration: 1,
+          frames: [
+            { at: 0, mime_type: "image/png", data: "AAEC" },
+            { at: 0.9, mime_type: "image/png", data: "AwQF" },
+          ],
+        };
+      }
+      return {};
+    },
+  });
+  clients.push(client);
+  await client.request("recoverCanvas", { scope: canvas });
+  const { sessionId } = await session(client);
+  await client.request("start", { scope: canvas, sessionId, message: "查看视频的画面" });
+  await client.request("idle");
+  const input = server.modelRequests[1]?.body.messages as { role: string; content: unknown }[];
+  expect(input.find(({ role }) => role === "system")?.content).toEqual(
+    expect.stringContaining("plan_update"),
+  );
+  expect(JSON.stringify(input.find(({ role }) => role === "user")?.content)).toContain(
+    "<画布目录>",
+  );
+  const messages = JSON.stringify(input.filter(({ role }) => role !== "system"));
+  if (video) {
+    expect(messages).toContain("可以听到雨声");
+    expect(messages).not.toMatch(/data:(video|image)|音频未分析/);
+    return;
+  }
+  expect(messages).toContain("音频未分析");
+  expect(messages).toMatch(/第 1 帧：0\.0 秒.*第 2 帧：0\.9 秒/);
+  expect(messages).toMatch(/data:image\/png;base64,AAEC.*data:image\/png;base64,AwQF/);
+});
+
+it("桌面命名请求返回时保留用户刚修改的会话标题", async () => {
+  let titleStarted: () => void = () => {};
+  const titleRequest = new Promise<void>((resolve) => {
+    titleStarted = resolve;
+  });
+  let releaseTitle: (value: string) => void = () => {};
+  const titleReply = new Promise<string>((resolve) => {
+    releaseTitle = resolve;
+  });
+  const server = await fakeGo({
+    turns: [{ text: "已梳理镜头。" }],
+    title: () => {
+      titleStarted();
+      return titleReply;
+    },
+  });
+  servers.push(server);
+  const directory = await mkdtemp(join(tmpdir(), "link-agent-title-"));
+  directories.push(directory);
+  const client = await AgentWorkerClient.open({
+    directory,
+    workerPath,
+    modelBridgeUrl: server.url,
+    settings: async (command) =>
+      command === "model" ? { name: "fixture", context_window: 32768, max_tokens: 1024 } : {},
+  });
+  clients.push(client);
+  await client.request("recoverCanvas", { scope: canvas });
+  const { sessionId } = await session(client);
+  try {
+    await client.request("start", { sessionId, scope: canvas, message: "帮我梳理开场镜头" });
+    await titleRequest;
+    await client.request("renameSession", { sessionId, scope: canvas, title: "人工确认的片名" });
+  } finally {
+    releaseTitle("模型命名");
+  }
+  await client.request("idle");
+  expect(await client.request("sessions", { scope: canvas })).toContainEqual({
+    id: sessionId,
+    title: "人工确认的片名",
+  });
+  expect(server.titleRequests).toHaveLength(1);
+});
+
+it("画布脚本组合读取画布与技能，审批工具只能由模型直接调用", async () => {
+  const code = `const state = await tools.canvas_get_state({});
+const skill = await tools.skill_read({id: "storyboard@1"});
+return {state, skill};`;
+  const server = await fakeGo({
+    turns: [
+      {
+        tools: [
+          { id: "script", name: "codemode", args: { code } },
+          {
+            id: "blocked",
+            name: "codemode",
+            args: { code: "return await tools.canvas_delete({});" },
+          },
+        ],
+      },
+      { text: "已读取分镜资料" },
+    ],
+  });
+  servers.push(server);
+  const directory = await mkdtemp(join(tmpdir(), "link-agent-script-"));
+  directories.push(directory);
+  const reads: string[] = [];
+  const client = await AgentWorkerClient.open({
+    directory,
+    workerPath,
+    modelBridgeUrl: server.url,
+    settings: async (command) => {
+      if (command === "model") return { name: "fixture", context_window: 32768, max_tokens: 1024 };
+      if (command === "canvas:prepare") return {};
+      if (command === "canvas:skills") return [];
+      reads.push(command);
+      if (command === "canvas:read") return { title: "画布读取标记", nodes: [] };
+      if (command === "canvas:skill") return { id: "storyboard@1", text: "技能读取标记" };
+      throw new Error(`Unexpected command: ${command}`);
+    },
+  });
+  clients.push(client);
+  await client.request("recoverCanvas", { scope: canvas });
+  const { sessionId } = await session(client);
+  await client.request("start", { scope: canvas, sessionId, message: "查看画布与创作技能" });
+  await client.request("idle");
+  const state = await client.request<State>("state", { scope: canvas, sessionId });
+  expect(state.runs[0]?.status).toBe("succeeded");
+  expect(reads).toEqual(["canvas:read", "canvas:skill"]);
+  const messages = JSON.stringify(server.modelRequests[1]?.body.messages);
+  expect(messages).toContain("画布读取标记");
+  expect(messages).toContain("技能读取标记");
+  expect(
+    state.events.filter(({ type }) => type === "tool.end").map(({ payload }) => payload),
+  ).toEqual([
+    expect.objectContaining({ name: "canvas_get_state", parent_id: "script", is_error: false }),
+    expect.objectContaining({ name: "skill_read", parent_id: "script", is_error: false }),
+    expect.objectContaining({ name: "codemode", is_error: false }),
+    expect.objectContaining({
+      name: "codemode",
+      is_error: true,
+      summary: expect.stringContaining("canvas_delete"),
+    }),
+  ]);
 });
 
 describe("M0-05 local Agent Worker", () => {
@@ -261,9 +626,27 @@ describe("M0-05 local Agent Worker", () => {
   it("settings/canvas 和不同项目隔离，错误 scope 不能读取或启动", async () => {
     const e = await environment({ turns: [{ text: "只读当前范围" }] });
     const { sessionId } = await session(e.client, settings);
+    const projectSession = await session(e.client, canvas);
+    for (const command of ["renameSession", "removeSession", "page", "cancelWatches"]) {
+      await expect(
+        e.client.request(command, {
+          scope: { kind: "canvas", projectId: "project-b" },
+          sessionId: projectSession.sessionId,
+          title: "越界",
+        }),
+      ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
+    }
     await expect(
       e.client.request("start", { scope: canvas, sessionId, message: "越界" }),
     ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
+    await expect(
+      e.client.request("cancelWatches", { scope: settings, sessionId }),
+    ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        e.client.request("cancelWatches", { scope: canvas, sessionId: projectSession.sessionId }),
+      ).resolves.toEqual({ canceled: 0 });
+    }
     await expect(
       e.client.request("state", { scope: { kind: "canvas", projectId: "project-b" }, sessionId }),
     ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
@@ -298,6 +681,9 @@ describe("M0-05 local Agent Worker", () => {
       runId: run.id,
     });
     expect(approvals[0]?.status).toBe("pending");
+    await expect(
+      e.client.request("removeSession", { scope: settings, sessionId }),
+    ).rejects.toMatchObject({ code: "AGENT_RUN_BUSY" });
     expect(
       (await e.client.request<State>("state", { scope: settings, sessionId })).target.revision,
     ).toBe(1);
