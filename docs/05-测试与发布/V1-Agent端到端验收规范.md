@@ -1,5 +1,7 @@
 # V1 Agent 端到端验收规范
 
+更新的基线、三入口同状态截图、桌宠及短剧审批回放见[小灵与小镜同状态验收](小灵与小镜同状态验收.md)。
+
 ## V1-E2E-02 设置/画布双入口 Agent 辅助与恢复
 
 覆盖 V1-FR-003～005、V1-FR-007～009，发布门禁 V1-RG-004。桌面用例 `tests/e2e/generation.spec.ts` 与 `tests/e2e/settings.spec.ts`，执行命令 `env -u ELECTRON_RUN_AS_NODE pnpm check:package`。证据状态：已创建。
