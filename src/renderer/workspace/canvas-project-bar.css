@@ -20,9 +20,6 @@
 .canvas-brand-trigger svg:last-child {
   opacity: 0.6;
 }
-.canvas-brand-logo {
-  --picker-beam: oklch(0.62 0.16 55);
-}
 .canvas-inline-title {
   position: relative;
   display: grid;
@@ -99,9 +96,4 @@
 .canvas-frame-menu.canvas-brand-extras {
   max-height: var(--available-height);
   overflow: auto;
-}
-@media (prefers-color-scheme: dark) {
-  .canvas-brand-logo {
-    --picker-beam: oklch(0.78 0.15 70);
-  }
 }
