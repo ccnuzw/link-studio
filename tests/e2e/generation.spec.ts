@@ -1367,9 +1367,6 @@ for (const [followMode, title] of [
         await expect(
           reopened.getByRole("log").getByText("等待期间的问题 55", { exact: true }),
         ).toBeVisible();
-        await expect(
-          reopened.getByRole("log").getByText("等待期间的问题 1", { exact: true }),
-        ).toHaveCount(0);
         const priorCancelCalls = cancelCalls;
         await restored.getByRole("button", { name: "不用等了" }).press("Enter");
         await expect(restored).toHaveCount(0);

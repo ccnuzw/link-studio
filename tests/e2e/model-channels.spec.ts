@@ -81,7 +81,9 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
     await expect(flag).toBeChecked();
     await expect(editor.getByText("新版本不再声明协议设置项：extra，已丢弃")).toBeVisible();
     await version.press("Enter");
+    await expect(page.getByRole("option", { name: "v1.0.0", exact: true })).toBeFocused();
     await page.keyboard.press("Home");
+    await expect(page.getByRole("option", { name: "v2.0.0（最新）", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(extra).toHaveValue("7");
     await expect(prefix).toHaveValue("/custom");
