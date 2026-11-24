@@ -57,7 +57,7 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
       if (!saved.ok) throw Error(saved.code);
       return channels[1]!.id;
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: /^JSON 迁移/ }).click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
     await editor.getByRole("button", { name: "配置 JSON" }).click();
@@ -73,6 +73,7 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
       channelId: target,
       config: { name: "JSON 迁移" },
     });
+    await page.locator(".channel-more summary").click();
     await page
       .getByRole("region", { name: "渠道详情" })
       .getByRole("button", { name: "删除", exact: true })

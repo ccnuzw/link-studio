@@ -13,7 +13,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
-import { addCanvasNode, chooseCanvasZoom, editTextNode, projectAction } from "./workspace-actions";
+import {
+  addCanvasNode,
+  chooseCanvasZoom,
+  createCanvasProject,
+  editTextNode,
+  projectAction,
+} from "./workspace-actions";
 
 test("桌面启动、画布交互与受限 IPC", async () => {
   const userData = await mkdtemp(join(tmpdir(), "link-studio-e2e-"));
@@ -68,14 +74,14 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     page.on("pageerror", (error) => errors.push(error.message));
     const packaged = await application.evaluate(({ app }) => app.isPackaged);
     expect(packaged).toBe(Boolean(executablePath));
-    await expect(page.locator("img.brand-mark")).toBeVisible();
+    await expect(page.locator(".home-brand img")).toBeVisible();
     await expect
       .poll(() =>
-        page.locator("img.brand-mark").evaluate((image: HTMLImageElement) => image.naturalWidth),
+        page.locator(".home-brand img").evaluate((image: HTMLImageElement) => image.naturalWidth),
       )
       .toBe(1024);
-    await expect(page.getByRole("heading", { name: "本地项目" })).toBeVisible();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await expect(page.getByRole("heading", { name: "创作工作台" })).toBeVisible();
+    await createCanvasProject(page);
     await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await page.getByRole("button", { name: "打开小灵" }).click();
     await expect(page.getByRole("button", { name: "历史会话，当前：新对话" })).toBeVisible();
@@ -87,7 +93,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       page.getByRole("region", { name: "文本内容", exact: true }),
       "一段等待被拍成电影的故事",
     );
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByText("e2e.png", { exact: true })).toBeVisible();
     await expect(page.getByText("image · 3×2")).toBeVisible();
@@ -104,7 +110,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await expect(page.getByRole("button", { name: "导入素材" })).toBeEnabled();
     await expect(page.locator(".asset-item")).toHaveCount(4);
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await addCanvasNode(page, "图片生成");
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
     await addCanvasNode(page, "视频生成");
@@ -154,7 +160,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await expect(chips).toHaveCount(1);
     await composer.getByRole("textbox", { name: "生成提示词" }).fill("镜头缓慢推进");
     await expect(activePrompt).toHaveText("镜头缓慢推进");
-    await videoNode.getByRole("button", { name: "从素材库选择素材" }).click();
+    await videoNode.getByRole("button", { name: "从资产库选取素材" }).click();
     const library = page.getByRole("dialog", { name: "资产库" });
     await expect(library.getByRole("button", { name: "e2e.png", exact: true })).toHaveCount(0);
     const videos = library.getByRole("button", { name: "e2e.mp4", exact: true });
@@ -186,12 +192,12 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await expect(inline).toHaveCount(0);
     await expect(videoNode.getByRole("button", { name: "播放视频" })).toBeEnabled();
     await expect(page.locator(".react-flow__node")).toHaveCount(4);
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "将e2e.png加入画布" }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(5);
     await page.getByRole("button", { name: "移除e2e.png" }).click();
     await expect(page.getByRole("alert")).toContainText("请先解除引用");
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await chooseCanvasZoom(page, "适应画布");
     await page
       .locator('.node-media[data-kind="image"]')
@@ -278,7 +284,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
         "src",
         /^link-media:/,
       );
-      await projectAction(reopenedPage, "素材库");
+      await projectAction(reopenedPage, "项目文件");
       await expect(reopenedPage.getByTitle("e2e.png", { exact: true })).toBeVisible();
       await expect(reopenedPage.getByText("e2e.wav", { exact: true })).toBeVisible();
       await expect(reopenedPage.getByRole("region", { name: "文本内容", exact: true })).toHaveText(
@@ -323,9 +329,9 @@ test("桌面启动、画布交互与受限 IPC", async () => {
         .poll(() => video.evaluate((item: HTMLVideoElement) => item.currentTime))
         .toBeGreaterThan(0);
       await reopenedPage.getByRole("button", { name: "关闭预览" }).click();
-      await reopenedPage.getByRole("button", { name: "关闭素材库" }).click();
+      await reopenedPage.getByRole("button", { name: "关闭项目文件" }).click();
       await imageNode.getByRole("button", { name: "解除素材引用" }).click();
-      await projectAction(reopenedPage, "素材库");
+      await projectAction(reopenedPage, "项目文件");
       await reopenedPage.getByRole("button", { name: "移除e2e.png" }).click();
       await expect(reopenedPage.getByRole("button", { name: "预览e2e.png" })).toHaveCount(0);
     } finally {
@@ -352,8 +358,7 @@ test("视频运镜标签跨重启保留并可原位替换", async () => {
   try {
     app = await launch();
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("运镜恢复");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "运镜恢复");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     await page.locator(".react-flow__node header strong").click();
     const editor = page.getByRole("textbox", { name: "生成提示词" });
@@ -413,9 +418,8 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
     const application = await electron.launch({ ...args, env });
     try {
       const page = await application.firstWindow();
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("外部引用验收");
-      await page.getByRole("button", { name: "新建项目" }).click();
-      await projectAction(page, "素材库");
+      await createCanvasProject(page, "外部引用验收");
+      await projectAction(page, "项目文件");
       await page.getByRole("combobox", { name: "导入方式" }).selectOption("reference");
       await page.getByRole("button", { name: "导入素材" }).click();
       await expect(page.getByText("外部引用 · 0.0 MB")).toBeVisible();
@@ -447,7 +451,7 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
     try {
       const page = await reopened.firstWindow();
       await page.getByRole("button", { name: /^外部引用验收/ }).click();
-      await projectAction(page, "素材库");
+      await projectAction(page, "项目文件");
       await expect(page.getByText(/文件不可用/)).toBeVisible();
       await page.getByRole("button", { name: "重新定位external.png" }).click();
       await expect(page.getByRole("alert")).toContainText("文件内容与原素材不一致");

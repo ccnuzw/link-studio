@@ -39,6 +39,16 @@ async function open(windowId = 1, path = projectDirectory) {
 }
 
 describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", () => {
+  it("短剧尚未导入原文时，从目录重开仍进入短剧工作室", async () => {
+    const token = await coordinator.grantProjectDirectory(1, directory, "create");
+    const created = await coordinator.create(1, token, randomUUID(), "空短剧", "drama");
+    const path = coordinator.getStore(1, created.projectHandle).directory;
+    await coordinator.close(1, created.projectHandle);
+    expect(await open(2, path)).toMatchObject({
+      projectId: created.projectId,
+      projectKind: "drama",
+    });
+  });
   it("创建项目并按 operationId 重试只产生一个项目会话", async () => {
     const parent = join(directory, "new-projects");
     await mkdir(parent);
@@ -61,6 +71,25 @@ describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", ()
       code: "PROJECT_NOT_OPEN",
     });
     expect(await readdir(parent)).toHaveLength(1);
+  });
+
+  it("重试创建已挂起的短剧会恢复原会话，且不会被空闲回收", async () => {
+    const operationId = randomUUID();
+    const createDrama = async () =>
+      coordinator.create(
+        1,
+        await coordinator.grantProjectDirectory(1, directory, "create"),
+        operationId,
+        "后台短剧",
+        "drama",
+      );
+    const created = await createDrama();
+    await coordinator.park(1, created.projectHandle);
+    expect(await createDrama()).toEqual(created);
+    const stop = vi.fn(async () => {});
+    await coordinator.releaseIdle(() => false, stop);
+    expect(stop).not.toHaveBeenCalled();
+    expect(coordinator.getSession(1, created.projectHandle)).toEqual(created);
   });
 
   it("创建授权不能用于打开，且不同用途的 token 不能互换", async () => {
@@ -112,6 +141,19 @@ describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", ()
     });
   });
 
+  it.each(["canvas", "drama"] as const)("同窗恢复 %s 项目的原会话，同窗无需激活", async (kind) => {
+    const parent = await coordinator.grantProjectDirectory(1, directory, "create");
+    const session = await coordinator.create(1, parent, randomUUID(), kind, kind);
+    const path = coordinator.getStore(1, session.projectHandle).directory;
+    for (const park of [false, true]) {
+      if (park) await coordinator.park(1, session.projectHandle);
+      const token = await coordinator.authorizeRecent(1, path);
+      expect(await coordinator.open(1, token)).toEqual({ disposition: "opened", session });
+      expect(coordinator.isParked(session.projectHandle)).toBe(false);
+    }
+    expect(focus).not.toHaveBeenCalled();
+  });
+
   it("同实例别名/并发打开激活已有窗口，不创建第二个可写会话", async () => {
     const alias = join(directory, "alias");
     await symlink(projectDirectory, alias);
@@ -120,6 +162,29 @@ describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", ()
     const results = await Promise.all([coordinator.open(1, first), coordinator.open(2, second)]);
     expect(results.map((result) => result.disposition)).toEqual(["opened", "focusedExisting"]);
     expect(focus).toHaveBeenCalledOnce();
+    const [{ projectHandle, directoryToken }] = focus.mock.calls[0]!;
+    if (results[0]?.disposition !== "opened") throw Error("首窗口未打开项目");
+    expect(projectHandle).toBe(results[0].session.projectHandle);
+    await expect(coordinator.open(2, directoryToken)).rejects.toMatchObject({
+      code: "TOKEN_INVALID_OR_EXPIRED",
+    });
+    expect(await coordinator.open(1, directoryToken)).toEqual(results[0]);
+  });
+
+  it("跨窗定位后台项目期间即使空闲会话释放，原窗口仍能打开目标目录", async () => {
+    const session = await open();
+    await coordinator.park(1, session.projectHandle);
+    const token = await coordinator.authorizeRecent(2, projectDirectory);
+    expect(await coordinator.open(2, token)).toEqual({ disposition: "focusedExisting" });
+    const [{ directoryToken }] = focus.mock.calls[0]!;
+    await coordinator.releaseIdle(
+      () => false,
+      async () => {},
+    );
+    const result = await coordinator.open(1, directoryToken);
+    if (result.disposition !== "opened") throw Error("原窗口未恢复目标项目");
+    expect(result.session.projectId).toBe(session.projectId);
+    expect(result.session.projectHandle).not.toBe(session.projectHandle);
   });
 
   it("projectId 相同的目录副本可独立打开", async () => {

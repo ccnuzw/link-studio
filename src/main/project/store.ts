@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { link, mkdir, open, readdir, realpath, rename, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readdir, realpath, rename, rm, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { Value } from "@sinclair/typebox/value";
 import {
@@ -43,6 +43,11 @@ export function containsAssetReference(value: unknown, assetId: string): boolean
 }
 export type CommitStage = "temporary-synced" | "snapshot-published" | "directory-synced";
 export interface StoreOptions {
+  seed?: {
+    operations: CanvasOperation[];
+    loadAssets?: (directory: string) => Promise<ProjectState["assets"]>;
+  };
+  projectKind?: "canvas" | "drama";
   onStage?: (stage: CommitStage) => Promise<void>;
 }
 
@@ -104,6 +109,16 @@ export class ProjectStore {
   ) {}
 
   static async inspectRecentJobs(directory: string, projectId: string) {
+    return (await ProjectStore.inspectPublished(directory, projectId))?.jobs;
+  }
+
+  static async inspectCanvas(directory: string) {
+    const state = await ProjectStore.inspectPublished(directory);
+    if (!state) throw new ProjectError("PROJECT_IN_USE", "已占用的项目没有可验证的已提交快照");
+    return { name: state.name, revision: state.revision, canvas: projectCanvas(state.canvas) };
+  }
+
+  private static async inspectPublished(directory: string, projectId?: string) {
     const stateDirectory = join(directory, "state");
     if (
       (await realpath(stateDirectory)) !== stateDirectory ||
@@ -118,7 +133,8 @@ export class ProjectStore {
       !("schemaVersion" in manifest) ||
       manifest.schemaVersion !== 1 ||
       !("projectId" in manifest) ||
-      manifest.projectId !== projectId ||
+      typeof manifest.projectId !== "string" ||
+      (projectId !== undefined && manifest.projectId !== projectId) ||
       !("revision" in manifest) ||
       !Number.isSafeInteger(manifest.revision) ||
       !("commitHash" in manifest) ||
@@ -133,7 +149,7 @@ export class ProjectStore {
     if (revisions.size !== names.length || names.some((_, index) => !revisions.has(index + 1)))
       return;
     const state = await readSnapshot(join(stateDirectory, filename));
-    if (verifySnapshot(state, filename) && state.projectId === projectId) return state.jobs;
+    if (verifySnapshot(state, filename) && state.projectId === manifest.projectId) return state;
   }
 
   static async create(parent: string, inputName: string, options: StoreOptions = {}) {
@@ -143,7 +159,8 @@ export class ProjectStore {
     const directory = join(parent, `${randomUUID()}.linkstudio`);
     await mkdir(directory, { mode: 0o700 });
     const owner = await ProjectOwnership.acquire(directory);
-    const store = new ProjectStore(owner, options);
+    const { seed, ...storeOptions } = options;
+    const store = new ProjectStore(owner, storeOptions);
     try {
       await store.prepare();
       const timestamp = new Date().toISOString();
@@ -166,13 +183,36 @@ export class ProjectStore {
         compositions: {},
         jobs: {},
         operationReceipts: {},
-        extensions: {},
+        extensions: { "link-studio:workspace": options.projectKind ?? "canvas" },
       };
+      if (seed) {
+        if (!Value.Check(CanvasOperations, seed.operations))
+          throw new ProjectError("PROJECT_SCHEMA_INVALID", "新画布内容无效");
+        body.assets = (await seed.loadAssets?.(directory)) ?? {};
+        body.canvas = {
+          ...applyCanvas({ ...body, commitHash: "" }, seed.operations),
+          revision: 1,
+        };
+      }
       await store.publish({ ...body, commitHash: contentHash(body) });
       await syncDirectory(parent);
       return store;
     } catch (error) {
-      await owner.release();
+      try {
+        if (seed) {
+          await owner.assertCurrent();
+          const snapshots = await readdir(join(directory, "state")).catch(
+            (cause: NodeJS.ErrnoException) => {
+              if (cause.code === "ENOENT") return [];
+              throw cause;
+            },
+          );
+          if (!snapshots.some((file) => SNAPSHOT_FILE.test(file)))
+            await rm(directory, { recursive: true });
+        }
+      } finally {
+        await owner.release();
+      }
       throw error;
     }
   }
@@ -205,6 +245,10 @@ export class ProjectStore {
 
   get snapshot(): ProjectState {
     return structuredClone(this.state);
+  }
+
+  get revision() {
+    return this.state.revision;
   }
 
   private filingObserver?: (state: ProjectState) => void;

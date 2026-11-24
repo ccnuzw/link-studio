@@ -41,6 +41,7 @@ import type {
   ProjectMethod,
   ProjectRequest,
   ProjectValues,
+  RecentProject,
 } from "../../../packages/link-studio-core/src/projects-api.ts";
 import {
   ProjectChannels,
@@ -50,11 +51,19 @@ import {
 import { MediaComposer } from "../../../packages/media-runtime/src/composition.ts";
 import { MediaError } from "../../../packages/media-runtime/src/process.ts";
 import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
+import officialVoices from "../../renderer/settings/official-voices.json" with { type: "json" };
 import { isTrustedDocument } from "../security.ts";
 import type { SettingsIpc } from "../settings/ipc.ts";
 import { imagePreviewBlob } from "../settings/trial-media.ts";
 import { SkillLibrary } from "../skills/library.ts";
-import { AssetFiles, servePreview } from "./asset-files.ts";
+import {
+  AssetFiles,
+  type AssetRecord,
+  type MediaLocation,
+  readOnly,
+  servePreview,
+  verifyContent,
+} from "./asset-files.ts";
 import { AssetService, copyCandidates, type StagedAsset } from "./assets.ts";
 import { CanvasAgentService } from "./canvas-agent.ts";
 import { CanvasClipboardMedia } from "./canvas-clipboard.ts";
@@ -67,10 +76,16 @@ import {
   chooseDramaTake,
   createDrama,
   deleteDramaEpisode,
+  deleteDramaSegment,
   dramaDocument,
+  editDramaField,
+  reorderDramaSegments,
   saveDramaScript,
+  setDramaSegmentPrompt,
+  setDramaSegmentSeconds,
   updateDramaBoardSettings,
 } from "./drama.ts";
+import { adaptDramaSegment } from "./drama-adaptation.ts";
 import { DramaDrafts, expiredDramaSource } from "./drama-drafts.ts";
 import {
   estimateDramaJob,
@@ -86,11 +101,12 @@ import { contentHash } from "./encoding.ts";
 import { CanvasGenerationFeedback, ProjectError } from "./errors.ts";
 import { type ExportTargetTransaction, installExportTarget } from "./export-target.ts";
 import { FilingHistory, type HistoryCursor } from "./filing-history.ts";
-import { GenerationService } from "./generation.ts";
+import { activeMediaJobCount, GenerationService } from "./generation.ts";
 import { PersonalLibrary } from "./personal-library.ts";
 import type { ProjectStore } from "./store.ts";
 
 interface RecentEntry {
+  projectKind?: "canvas" | "drama";
   recentEntryId: string;
   projectId: string;
   displayName: string;
@@ -197,7 +213,16 @@ export class ProjectIpc {
   private readonly assetFiles: AssetFiles;
   private readonly clipboardMedia: CanvasClipboardMedia;
   private readonly library: PersonalLibrary;
+  private readonly globalImports = new Map<number, Map<string, AbortController>>();
   private readonly filingHistory: FilingHistory;
+  private async globalMedia(library: "history" | "personal", assetId: string) {
+    if (library === "personal") {
+      const asset = await this.library.filingSelection(assetId);
+      return asset && { asset, location: this.library };
+    }
+    const history = await this.filingHistory.lookup(`history:${assetId}`);
+    return history && { asset: history.asset, location: history.canvas };
+  }
   private readonly dramaDrafts: DramaDrafts;
   private readonly composer: MediaComposer;
   private readonly canvasMedia: CanvasMedia;
@@ -228,7 +253,7 @@ export class ProjectIpc {
       !grant ||
       grant.page !== page ||
       grant.expires <= Date.now() ||
-      [...this.projectOwners.values()].some((entry) => entry.owner === owner)
+      this.hasForegroundProject(owner)
     )
       throw new ProjectError("ASSET_NOT_FOUND", "图片选择已失效，请重新选择");
     return grant;
@@ -245,6 +270,74 @@ export class ProjectIpc {
   private quitting = false;
   private confirmingQuit = false;
   private resumeAfterQuit = false;
+  private readonly activityCache = new WeakMap<
+    ProjectStore,
+    { revision: number; activity?: RecentProject["activity"] }
+  >();
+  private reapTimer?: NodeJS.Timeout;
+  private readonly windowReleases = new Set<Promise<void>>();
+
+  private activity(store: ProjectStore) {
+    const cached = this.activityCache.get(store);
+    if (cached?.revision === store.revision) return cached.activity;
+    const state = store.snapshot;
+    const doc = dramaDocument(state);
+    const jobs =
+      doc?.jobs?.filter((job) => job.status === "running" || job.status === "queued") ?? [];
+    const plan = doc?.planning;
+    const planning = plan?.phase === "running" || !!plan?.pending;
+    const media = activeMediaJobCount(state);
+    const count = jobs.length + Number(planning) + media;
+    const first = jobs.find((job) => job.status === "running") ?? jobs[0];
+    const names = {
+      scripts: "分集剧本",
+      breakdown: "资产拆解",
+      asset_prompts: "资产补词",
+      storyboard: "分镜脚本",
+      compose: "成片合成",
+    };
+    const activity = count
+      ? {
+          count,
+          label: first
+            ? `${names[first.step]}${first.status === "queued" ? "排队中" : "中"}`
+            : planning
+              ? "小说规划中"
+              : "素材生成中",
+          progress: first
+            ? first.progress
+            : planning && plan
+              ? Math.floor((100 * plan.cursor) / plan.end)
+              : undefined,
+        }
+      : undefined;
+    this.activityCache.set(store, { revision: state.revision, activity });
+    return activity;
+  }
+
+  private scheduleRelease() {
+    if (this.reapTimer) return;
+    this.reapTimer = setTimeout(async () => {
+      try {
+        await this.coordinator.releaseIdle(
+          (store) => !!this.activity(store),
+          (handle) => this.stopProjectWork(handle),
+        );
+      } catch {
+        console.warn("后台项目暂未释放");
+      }
+      this.reapTimer = undefined;
+      if ([...this.projectOwners.keys()].some((handle) => this.coordinator.isParked(handle)))
+        this.scheduleRelease();
+    }, 2500);
+    this.reapTimer.unref();
+  }
+
+  private hasForegroundProject(owner: number) {
+    return [...this.projectOwners].some(
+      ([handle, entry]) => entry.owner === owner && !this.coordinator.isParked(handle),
+    );
+  }
 
   constructor(
     userData: string,
@@ -294,7 +387,12 @@ export class ProjectIpc {
       },
     );
     this.register();
-    app.once("will-quit", () => {
+    app.on("will-quit", (event) => {
+      if (this.windowReleases.size) {
+        event.preventDefault();
+        void Promise.all([...this.windowReleases]).then(() => app.quit());
+        return;
+      }
       this.library.close();
       this.filingHistory.close();
       this.dramaDrafts.close();
@@ -305,10 +403,16 @@ export class ProjectIpc {
         return;
       }
       const active = this.resumeAfterQuit ? [] : this.activeGeneration();
-      if (active.length) {
+      const count = this.resumeAfterQuit
+        ? 0
+        : [...this.projectOwners.values()].reduce(
+            (total, { store }) => total + (this.activity(store)?.count ?? 0),
+            0,
+          );
+      if (count) {
         event.preventDefault();
         this.confirmingQuit = true;
-        void this.confirmQuit(active)
+        void this.confirmQuit(active, count)
           .finally(() => {
             this.confirmingQuit = false;
             if (this.resumeAfterQuit) app.quit();
@@ -355,7 +459,23 @@ export class ProjectIpc {
     );
   }
 
-  private async confirmQuit(active: ReturnType<ProjectIpc["activeGeneration"]>) {
+  private async confirmQuit(active: ReturnType<ProjectIpc["activeGeneration"]>, count: number) {
+    if (
+      count > active.length ||
+      active.some(({ store }) => store.snapshot.extensions["link-studio:workspace"] === "drama")
+    ) {
+      const { response } = await dialog.showMessageBox({
+        type: "question",
+        message: `还有 ${count} 项任务未完成`,
+        detail: "退出后本地任务会暂停。下次打开对应项目时，灵可会尝试从已保存的进度恢复。",
+        buttons: ["继续后台运行", "保存进度并退出", "暂不退出"],
+        defaultId: 0,
+        cancelId: 2,
+      });
+      if (response === 1) this.resumeAfterQuit = true;
+      if (response === 0) for (const window of this.windows.values()) window.minimize();
+      return;
+    }
     const cancellable = active.filter(
       ({ job }) =>
         !job.cancelRequested &&
@@ -397,6 +517,24 @@ export class ProjectIpc {
     session.protocol.handle("link-media", async (request) => {
       try {
         const url = new URL(request.url);
+        if (url.hostname === "global-assets") {
+          const path = /^\/(personal|history)\/([0-9a-f-]{36})$/.exec(url.pathname);
+          const active = () =>
+            this.windows.get(id) === window &&
+            !window.isDestroyed() &&
+            isTrustedDocument(window.webContents.getURL(), rendererUrl);
+          if (!path || url.search || url.hash || !active())
+            return new Response(null, { status: 404 });
+          const media = await this.globalMedia(
+            path[1] === "history" ? "history" : "personal",
+            path[2]!,
+          );
+          if (!media) return new Response(null, { status: 404 });
+          const { location, asset } = media;
+          const { handle, stamp } = await this.assetFiles.inspect(location, asset, true);
+          await handle.close();
+          return await servePreview(request, this.assetFiles, location, asset, stamp, active);
+        }
         if (url.hostname === "filing-library") {
           const parts = url.pathname.split("/");
           if (
@@ -498,15 +636,37 @@ export class ProjectIpc {
         this.clipboardMedia.forget(id);
       }
     });
-    const lease = this.coordinator.registerWindow(id, () => {
+    const lease = this.coordinator.registerWindow(id, (activation) => {
       if (!window.isDestroyed()) {
         if (window.isMinimized()) window.restore();
+        window.show();
         window.focus();
+        if (isTrustedDocument(window.webContents.getURL(), rendererUrl)) {
+          const directory = this.projectOwners.get(activation.projectHandle)?.store.directory;
+          const recentEntryId = this.recents.find(
+            (entry) => entry.directory === directory,
+          )?.recentEntryId;
+          window.webContents.send("link-studio:projects:activate", {
+            ...activation,
+            recentEntryId,
+          });
+        }
       }
     });
     this.leases.set(id, lease);
     void this.loadRecents();
     window.on("close", (event) => {
+      if (
+        !this.quitting &&
+        !window.webContents.isCrashed() &&
+        [...this.projectOwners.values()].some(
+          (entry) => entry.owner === id && this.activity(entry.store),
+        )
+      ) {
+        event.preventDefault();
+        queueMicrotask(() => app.quit());
+        return;
+      }
       if (!this.pendingCanvas.has(id) && !this.closingWindows.has(id)) return;
       if (window.webContents.isCrashed()) return;
       event.preventDefault();
@@ -515,6 +675,8 @@ export class ProjectIpc {
       window.webContents.send("link-studio:canvas:saveBeforeClose");
     });
     window.once("closed", () => {
+      for (const task of this.globalImports.get(id)?.values() ?? []) task.abort();
+      this.globalImports.delete(id);
       this.clipboardMedia.forget(id);
       this.noticeScopes.delete(id);
       this.clearNotice(id);
@@ -531,14 +693,17 @@ export class ProjectIpc {
       }
       for (const [token, grant] of this.previews)
         if (grant.owner === id) this.previews.delete(token);
-      void Promise.all([
+      const release = Promise.all([
         this.stopImports(id),
         ...[...this.projectOwners]
           .filter(([, entry]) => entry.owner === id)
           .map(([handle]) => this.stopProjectWork(handle)),
       ])
         .finally(() => this.coordinator.releaseWindow(id, lease))
+        .then(() => undefined)
         .catch(() => undefined);
+      this.windowReleases.add(release);
+      void release.finally(() => this.windowReleases.delete(release));
     });
   }
 
@@ -550,6 +715,7 @@ export class ProjectIpc {
 
   private startProjectWork(owner: number, handle: string) {
     this.closeFilingPage(owner);
+    if (this.projectOwners.has(handle)) return;
     const store = this.coordinator.getStore(owner, handle);
     this.projectOwners.set(handle, { owner, store });
     this.canvasAgent.attach(store);
@@ -729,6 +895,7 @@ export class ProjectIpc {
       method !== "inspectAsset" &&
       method !== "attachImage" &&
       method !== "attachDirectorTake" &&
+      method !== "attachOfficialVoice" &&
       method !== "attachFiledImage" &&
       method !== "attachLibrary" &&
       method !== "pasteCanvasClipboard" &&
@@ -790,7 +957,7 @@ export class ProjectIpc {
       case "filingLibraryPage": {
         const input = request as ProjectRequest<"filingLibraryPage" | "filingLibraryMore">;
         const { channelId, channelRevision, before } = input;
-        if ([...this.projectOwners.values()].some((entry) => entry.owner === id))
+        if (this.hasForegroundProject(id))
           throw new ProjectError("PROJECT_CONFLICT", "请使用当前项目的素材选择器");
         const continuation = "page" in input ? this.filingPageGrant(id, input.page) : undefined;
         if (
@@ -807,7 +974,7 @@ export class ProjectIpc {
         const history = "page" in input ? continuation?.history : input.history;
         if (history && folder)
           throw new ProjectError("VALIDATION_FAILED", "生成历史不属于个人库文件夹");
-        let carriedId: string | undefined;
+        let carriedId = "initialItem" in input ? input.initialItem : undefined;
         if (carry) {
           const previous = this.filingPageGrant(id, carry.page);
           carriedId = previous.choices.get(carry.choice);
@@ -1092,12 +1259,35 @@ export class ProjectIpc {
           await handle.close();
         }
       }
+      case "attachOfficialVoice":
       case "attachFiledImage":
       case "attachImage": {
         const { projectHandle, operationId } = request as ProjectRequest<"attachImage">;
         const store = this.coordinator.getStore(id, projectHandle);
         let { name, bytes } = request as ProjectRequest<"attachImage">;
         let filing: { scope: string; image: string; name: string } | undefined;
+        let officialUrl: string | undefined;
+        if (method === "attachOfficialVoice") {
+          const { file } = request as ProjectRequest<"attachOfficialVoice">;
+          const voice = officialVoices.find(
+            (item) => item.url === `https://img.vbing.site/official-voices/${file}`,
+          );
+          if (!voice) throw new ProjectError("ASSET_NOT_FOUND", "音色未收录");
+          const state = store.snapshot;
+          const existing = Object.values(state.assets).find(
+            (asset) => asset.availability === "ready" && asset.metadata.officialVoice === voice.url,
+          );
+          if (existing && (await this.assetFiles.available(store, existing)))
+            return { asset: existing, revision: state.revision } as ProjectValues[Method];
+          officialUrl = voice.url;
+          const directory = app.isPackaged
+            ? "out/renderer/official-voices"
+            : "src/renderer/public/official-voices";
+          bytes = new Uint8Array(
+            await readFile(join(app.getAppPath(), directory, file), { signal: mediaSignal }),
+          );
+          name = `${voice.name.replace(/[^\p{L}\p{N} ._-]/gu, "_").slice(0, 170)}${extname(file)}`;
+        }
         if (method === "attachFiledImage") {
           const { channelId, channelRevision, imageId } =
             request as ProjectRequest<"attachFiledImage">;
@@ -1127,7 +1317,7 @@ export class ProjectIpc {
           bytes = new Uint8Array(await blob.arrayBuffer());
         }
         if (
-          !/\.(png|jpe?g|webp)$/i.test(name) ||
+          (!officialUrl && !/\.(png|jpe?g|webp)$/i.test(name)) ||
           /[/\\]/u.test(name) ||
           Array.from(name).some((char) => char.charCodeAt(0) < 32)
         )
@@ -1140,6 +1330,7 @@ export class ProjectIpc {
           staged = await this.assetService.stage(store, handle, name, operationId, {
             signal: mediaSignal,
           });
+          if (officialUrl) staged.asset.metadata.officialVoice = officialUrl;
           if (filing && method === "attachFiledImage")
             Object.assign(staged.asset.metadata, {
               filingScope: filing.scope,
@@ -1147,7 +1338,8 @@ export class ProjectIpc {
               filingChannel: (request as ProjectRequest<"attachFiledImage">).channelId,
             });
           const requestHash = contentHash({
-            kind: "agent-image",
+            kind: officialUrl ? "official-voice" : "agent-image",
+            ...(officialUrl && { officialUrl }),
             ...(filing && { filing }),
             name,
             sha256: staged.asset.sha256,
@@ -1426,7 +1618,7 @@ export class ProjectIpc {
               ).estimate as ProjectValues[Method];
             }
             case "estimateDramaStoryboard": {
-              const { episodeNo, maxSeconds, previewClear } =
+              const { episodeNo, maxSeconds, videoModel, previewClear } =
                 request as ProjectRequest<"estimateDramaStoryboard">;
               const state = store.snapshot,
                 doc = dramaDocument(state);
@@ -1440,7 +1632,12 @@ export class ProjectIpc {
                 : doc;
               const { estimate } = await estimateDramaJob(
                 preview,
-                { step: "storyboard", episodes: [episodeNo], max_seconds: maxSeconds },
+                {
+                  step: "storyboard",
+                  episodes: [episodeNo],
+                  max_seconds: maxSeconds,
+                  ...(videoModel && { video_model: videoModel }),
+                },
                 (await this.settings()).registry,
                 state,
               );
@@ -1459,7 +1656,15 @@ export class ProjectIpc {
               return (
                 await estimateDramaJob(
                   doc,
-                  { step: method === "estimateDramaScripts" ? "scripts" : "breakdown", episodes },
+                  {
+                    step:
+                      method === "estimateDramaScripts"
+                        ? "scripts"
+                        : (request as ProjectRequest<"estimateDramaBreakdown">).promptsOnly
+                          ? "asset_prompts"
+                          : "breakdown",
+                    episodes,
+                  },
                   (
                     await this.settings()
                   ).registry,
@@ -1509,7 +1714,21 @@ export class ProjectIpc {
                 const estimated = await estimateDramaSource(
                   { ...input, script, sourceKind },
                   registry,
-                );
+                ).catch((error: unknown) => {
+                  if (!(error instanceof ProjectError || error instanceof ProviderError))
+                    throw error;
+                  return {
+                    credits: 0,
+                    priceUnavailable: true,
+                    estimateProblem: error.message,
+                    kindSignals: parsed.kindSignals,
+                    kindGuess: parsed.kindGuess,
+                    issues: parsed.issues,
+                    chars: parsed.source.chars,
+                    kind: parsed.source.kind,
+                    units: parsed.units.length,
+                  };
+                });
                 const sourceToken = this.dramaDrafts.save(
                   store.projectId,
                   input.filename ?? "source.txt",
@@ -1550,15 +1769,24 @@ export class ProjectIpc {
                 addSegment,
                 addEpisode,
                 saveScript,
+                editField,
+                compose,
                 deleteEpisode,
                 chooseTake,
+                setSegmentSeconds,
+                setSegmentPrompt,
+                reorderSegments,
+                deleteSegment,
+                adaptSegment,
                 boardSettings,
                 planningAction,
                 writeScripts,
+                repairPrompts,
                 breakdown,
                 cancelBreakdown,
                 storyboard,
                 cancelStoryboard,
+                cancelJob,
                 extendPlanning,
               } = request as ProjectRequest<"drama">;
               if (
@@ -1567,24 +1795,50 @@ export class ProjectIpc {
                   addSegment,
                   addEpisode,
                   saveScript,
+                  editField,
+                  compose,
                   deleteEpisode,
                   chooseTake,
+                  setSegmentSeconds,
+                  setSegmentPrompt,
+                  reorderSegments,
+                  deleteSegment,
+                  adaptSegment,
                   boardSettings,
                   planningAction,
                   writeScripts,
+                  repairPrompts,
                   breakdown,
                   cancelBreakdown,
                   storyboard,
                   cancelStoryboard,
+                  cancelJob,
                   extendPlanning,
                 ].filter(Boolean).length > 1
               )
                 throw new ProjectError("VALIDATION_FAILED", "一次只能执行一个短剧操作");
-              if (cancelBreakdown || cancelStoryboard) {
+              if (editField)
+                return (await editDramaField(store, editField)) as ProjectValues[Method];
+              if (compose) {
+                const job = await submitApprovedDramaJob(
+                  store,
+                  (await this.settings()).registry,
+                  "workspace",
+                  `workspace:${compose.operationId}`,
+                  {
+                    args: { step: "compose", episodes: [compose.episodeNo] },
+                    estimate: 0,
+                    episodeOrder: compose.episodeOrder,
+                  },
+                );
+                if (job.status === "queued") this.canvasAgent.startDramaAssetJob(store, job.id);
+                return dramaDocument(store.snapshot) as ProjectValues[Method];
+              }
+              if (cancelJob || cancelBreakdown || cancelStoryboard) {
                 await this.canvasAgent.cancelStudioJob(
                   store,
-                  cancelBreakdown ?? cancelStoryboard!,
-                  cancelBreakdown ? "breakdown" : "storyboard",
+                  cancelJob ?? cancelBreakdown ?? cancelStoryboard!,
+                  cancelJob ? undefined : cancelBreakdown ? "breakdown" : "storyboard",
                 );
                 return dramaDocument(store.snapshot) as ProjectValues[Method];
               }
@@ -1600,7 +1854,7 @@ export class ProjectIpc {
                 this.canvasAgent.startPlanning(store);
                 return doc as ProjectValues[Method];
               }
-              const production = storyboard ?? breakdown ?? writeScripts;
+              const production = storyboard ?? repairPrompts ?? breakdown ?? writeScripts;
               if (production) {
                 const args =
                   "episodeNo" in production
@@ -1608,9 +1862,14 @@ export class ProjectIpc {
                         step: "storyboard" as const,
                         episodes: [production.episodeNo],
                         max_seconds: production.maxSeconds,
+                        ...(production.videoModel && { video_model: production.videoModel }),
                       }
                     : {
-                        step: breakdown ? ("breakdown" as const) : ("scripts" as const),
+                        step: repairPrompts
+                          ? ("asset_prompts" as const)
+                          : breakdown
+                            ? ("breakdown" as const)
+                            : ("scripts" as const),
                         episodes: production.episodes,
                       };
                 const job = await submitApprovedDramaJob(
@@ -1648,6 +1907,32 @@ export class ProjectIpc {
               }
               if (chooseTake)
                 return (await chooseDramaTake(store, chooseTake)) as ProjectValues[Method];
+              if (setSegmentSeconds)
+                return (await setDramaSegmentSeconds(
+                  store,
+                  setSegmentSeconds,
+                )) as ProjectValues[Method];
+              if (setSegmentPrompt)
+                return (await setDramaSegmentPrompt(
+                  store,
+                  setSegmentPrompt,
+                )) as ProjectValues[Method];
+              if (reorderSegments)
+                return (await reorderDramaSegments(
+                  store,
+                  reorderSegments,
+                )) as ProjectValues[Method];
+              if (deleteSegment)
+                return (await deleteDramaSegment(store, deleteSegment)) as ProjectValues[Method];
+              if (adaptSegment)
+                return (await adaptDramaSegment(
+                  store,
+                  (
+                    await this.settings()
+                  ).registry,
+                  adaptSegment,
+                  mediaSignal ?? new AbortController().signal,
+                )) as ProjectValues[Method];
               if (create) {
                 if (dramaDocument(store.snapshot)?.source?.draftToken === create.sourceToken)
                   return expiredDramaSource();
@@ -1784,11 +2069,57 @@ export class ProjectIpc {
         ) as ProjectValues[Method];
       }
       case "create": {
+        const { canvasSeed } = request as ProjectRequest<"create">;
+        const media = canvasSeed?.media;
+        const source = media?.projectHandle
+          ? this.coordinator.getStore(id, media.projectHandle)
+          : undefined;
         const session = await this.coordinator.create(
           id,
           input.directoryToken as string,
           input.operationId as string,
           input.name as string,
+          input.projectKind as "canvas" | "drama" | undefined,
+          canvasSeed && {
+            identity: contentHash(canvasSeed),
+            data: {
+              operations: canvasSeed.operations,
+              loadAssets: async (directory) => {
+                if (!media) return {};
+                const originals = source?.snapshot.assets;
+                const copies: Record<string, AssetRecord> = {};
+                for (const assetId of media.assetIds) {
+                  const original = originals
+                    ? originals[assetId]
+                    : await this.library.filingSelection(assetId);
+                  if (original?.availability !== "ready")
+                    throw new ProjectError("ASSET_NOT_FOUND", "副本引用的素材不可用");
+                  const asset = {
+                    ...original,
+                    availability: "ready" as const,
+                    importMode: "copy" as const,
+                    storage: { kind: "blob" as const, hash: original.sha256 },
+                  };
+                  const temporary = join(directory, "tmp", `${randomUUID()}.asset`);
+                  await this.assetFiles.materialize(source ?? this.library, original, temporary);
+                  try {
+                    const file = await open(temporary, readOnly);
+                    try {
+                      await verifyContent(file, asset);
+                      await file.sync();
+                    } finally {
+                      await file.close();
+                    }
+                    await this.assetService.publishBlob({ directory }, { asset, temporary });
+                  } finally {
+                    await rm(temporary, { force: true });
+                  }
+                  copies[assetId] = asset;
+                }
+                return copies;
+              },
+            },
+          },
         );
         const project = this.coordinator.getSession(id, session.projectHandle);
         this.startProjectWork(id, session.projectHandle);
@@ -1797,7 +2128,12 @@ export class ProjectIpc {
         return session as ProjectValues[Method];
       }
       case "open": {
-        const result = await this.coordinator.open(id, input.directoryToken as string);
+        const result = await this.coordinator.open(
+          id,
+          input.directoryToken as string,
+          "open",
+          input.allowReadOnly === true,
+        );
         if (result.disposition === "opened") {
           this.startProjectWork(id, result.session.projectHandle);
           const directory = await this.directoryForHandle(id, result.session.projectHandle);
@@ -1808,14 +2144,24 @@ export class ProjectIpc {
       case "listRecent":
         await this.loadRecents();
         return {
-          projects: this.recents.map(({ directory: _directory, ...entry }) => entry),
+          projects: this.recents.map(({ directory, ...entry }) => {
+            const live = [...this.projectOwners.values()].find(
+              (item) => item.owner === id && item.store.directory === directory,
+            );
+            return { ...entry, activity: live && this.activity(live.store) };
+          }),
         } as ProjectValues[Method];
       case "openRecent": {
         await this.loadRecents();
         const recent = this.recents.find((entry) => entry.recentEntryId === input.recentEntryId);
         if (!recent) throw new ProjectError("PROJECT_PATH_DENIED", "最近项目入口已失效");
         const directoryToken = await this.coordinator.authorizeRecent(id, recent.directory);
-        const result = await this.coordinator.open(id, directoryToken);
+        const result = await this.coordinator.open(
+          id,
+          directoryToken,
+          "open",
+          input.allowReadOnly === true,
+        );
         if (result.disposition === "opened") {
           this.startProjectWork(id, result.session.projectHandle);
           await this.recordRecent({ ...result.session, directory: recent.directory });
@@ -1824,6 +2170,15 @@ export class ProjectIpc {
       }
       case "removeRecent":
         await this.loadRecents();
+        if (
+          [...this.projectOwners.values()].some(
+            ({ store }) =>
+              store.directory ===
+                this.recents.find((entry) => entry.recentEntryId === input.recentEntryId)
+                  ?.directory && this.activity(store),
+          )
+        )
+          throw new ProjectError("PROJECT_CONFLICT", "请等待项目任务结束后再移除记录");
         this.recents = this.recents.filter((entry) => entry.recentEntryId !== input.recentEntryId);
         await this.persistRecents();
         await this.forgetRecentHistory(input.recentEntryId as string);
@@ -1870,12 +2225,17 @@ export class ProjectIpc {
         )) as ProjectValues[Method];
       case "close": {
         const projectHandle = input.projectHandle as string;
-        this.coordinator.getSession(id, projectHandle);
+        const session = this.coordinator.getSession(id, projectHandle);
         this.closing.add(projectHandle);
         try {
           await this.stopImports(id, projectHandle);
-          await this.stopProjectWork(projectHandle);
-          await this.coordinator.close(id, projectHandle);
+          if (input.keepWorking && session.projectKind === "drama") {
+            await this.coordinator.park(id, projectHandle);
+            this.scheduleRelease();
+          } else {
+            await this.stopProjectWork(projectHandle);
+            await this.coordinator.close(id, projectHandle);
+          }
         } finally {
           this.closing.delete(projectHandle);
           for (const [token, grant] of this.fileGrants) {
@@ -2171,9 +2531,8 @@ export class ProjectIpc {
         } as ProjectValues[Method];
       }
       case "saveAssetCopy": {
-        const { projectHandle, assetId } = request as ProjectRequest<"saveAssetCopy">;
-        return this.coordinator.withStore(id, projectHandle, async (store) => {
-          const asset = store.snapshot.assets[assetId];
+        const input = request as ProjectRequest<"saveAssetCopy">;
+        const saveCopy = async (store: MediaLocation, asset?: AssetRecord) => {
           if (!asset || asset.availability !== "ready")
             throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
           const save = await dialog.showSaveDialog(window, {
@@ -2209,7 +2568,15 @@ export class ProjectIpc {
           } finally {
             await rm(temporary, { force: true });
           }
-        });
+        };
+        if ("library" in input) {
+          const media = await this.globalMedia(input.library, input.assetId);
+          if (!media) throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
+          return saveCopy(media.location, media.asset);
+        }
+        return this.coordinator.withStore(id, input.projectHandle, (store) =>
+          saveCopy(store, store.snapshot.assets[input.assetId]),
+        );
       }
       case "copyAssetImage": {
         const { projectHandle, assetId } = request as ProjectRequest<"copyAssetImage">;
@@ -2229,7 +2596,16 @@ export class ProjectIpc {
         return { copied: true } as ProjectValues[Method];
       }
       case "readAudioForWaveform": {
-        const { projectHandle, assetId } = request as ProjectRequest<"readAudioForWaveform">;
+        const input = request as ProjectRequest<"readAudioForWaveform">;
+        if ("library" in input) {
+          const media = await this.globalMedia(input.library, input.assetId);
+          if (!media) throw new ProjectError("ASSET_NOT_FOUND", "音频素材不可用");
+          const value: ProjectValues["readAudioForWaveform"] = {
+            bytes: await this.canvasMedia.readAudioForWaveform(media.location, media.asset),
+          };
+          return value as ProjectValues[Method];
+        }
+        const { projectHandle, assetId } = input;
         const store = this.coordinator.getStore(id, projectHandle);
         const asset = store.snapshot.assets[assetId];
         if (!asset) throw new ProjectError("ASSET_NOT_FOUND", "音频素材不可用");
@@ -2237,6 +2613,141 @@ export class ProjectIpc {
         this.coordinator.getSession(id, projectHandle);
         const value: ProjectValues["readAudioForWaveform"] = { bytes };
         return value as ProjectValues[Method];
+      }
+      case "cancelGlobalImport": {
+        const { operationId } = request as ProjectRequest<"cancelGlobalImport">;
+        const control = this.globalImports.get(id)?.get(operationId);
+        control?.abort();
+        return { cancelled: !!control } as ProjectValues[Method];
+      }
+      case "dropGlobalAsset": {
+        const { path, operationId, folder } = request as ProjectRequest<"dropGlobalAsset">;
+        const tasks = this.globalImports.get(id) ?? new Map<string, AbortController>();
+        if (tasks.has(operationId) || tasks.size >= 4)
+          throw new ProjectError("PROJECT_IN_USE", "导入队列已满");
+        const control = new AbortController();
+        this.globalImports.set(id, tasks);
+        tasks.set(operationId, control);
+        try {
+          const handle = await open(path, readOnly);
+          try {
+            let previous = -1;
+            await this.library.importFile(
+              handle,
+              sanitizeFileName(basename(path)),
+              folder,
+              control.signal,
+              (copied, total) => {
+                const percent = Math.floor((copied * 100) / total);
+                if (percent !== previous && !window.isDestroyed())
+                  window.webContents.send(
+                    "link-studio:library:importProgress",
+                    operationId,
+                    percent,
+                  );
+                previous = percent;
+              },
+            );
+            this.libraryChanged();
+          } finally {
+            await handle.close();
+          }
+        } finally {
+          tasks.delete(operationId);
+        }
+        return { imported: true } as ProjectValues[Method];
+      }
+      case "importGlobalAsset": {
+        const input = request as ProjectRequest<"importGlobalAsset">;
+        const paths = (
+          await dialog.showOpenDialog(window, {
+            properties: ["openFile", "multiSelections"],
+            filters: Object.values(mediaFilters),
+          })
+        ).filePaths;
+        for (const path of paths) {
+          const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+          try {
+            await this.library.importFile(handle, sanitizeFileName(basename(path)), input.folder);
+            this.libraryChanged();
+          } finally {
+            await handle.close();
+          }
+        }
+        return { imported: paths.length > 0 } as ProjectValues[Method];
+      }
+      case "globalLibrary": {
+        const page = await this.library.list(
+          "",
+          (request as ProjectRequest<"globalLibrary">).before,
+        );
+        const images = page.items
+          .map(({ asset }) => asset)
+          .filter((asset) => asset.mediaType === "image");
+        if (images.length) {
+          const { registry } = await this.settings();
+          const origins = await this.library.filingOrigins(images);
+          for (const asset of images) delete asset.metadata.filingHumanName;
+          for (const channel of registry
+            .channelList()
+            .filter((ch) => ch.filing?.enabled && ch.hasFilingKeys)) {
+            const owners = registry.projectFilings(
+              this.library.projectId,
+              images,
+              channel.id,
+              origins,
+            );
+            for (const asset of images) {
+              const name = owners.get(asset.assetId)?.filingHumanName;
+              if (name) asset.metadata.filingHumanName = name;
+            }
+          }
+        }
+        return page as ProjectValues[Method];
+      }
+      case "globalHistory": {
+        const { filter, search, before, media, oldest } =
+          request as ProjectRequest<"globalHistory">;
+        await this.loadRecents();
+        const { canvases, items, next } = await this.filingHistory.page(
+          filter,
+          search,
+          before,
+          media,
+          oldest,
+        );
+        const members = await this.library.filingMembership(items);
+        return {
+          canvases,
+          next,
+          items: items.map(({ asset, prompt, model, canvasId }) => ({
+            model,
+            canvasId,
+            createdAt: asset.createdAt,
+            bytes: asset.sizeBytes,
+            aspect: Number(asset.metadata.width) / Number(asset.metadata.height) || 0,
+            durationMs: Number(asset.metadata.durationMs) || 0,
+            id: asset.assetId.slice(8),
+            name: asset.displayName,
+            prompt,
+            saved: members.has(asset.assetId),
+          })),
+        } as ProjectValues[Method];
+      }
+      case "collectHistory": {
+        const { id: entryId, folderId } = request as ProjectRequest<"collectHistory">;
+        const item = await this.filingHistory.lookup(`history:${entryId}`);
+        if (!item) throw new ProjectError("ASSET_NOT_FOUND", "生成记录已失效");
+        await this.library.registerSource(
+          item.canvas,
+          {
+            ...item.asset,
+            assetId: item.origin.asset,
+          },
+          folderId,
+        );
+        this.libraryChanged();
+        return { saved: true } as ProjectValues[Method];
       }
       case "listLibrary": {
         const { projectHandle, before, filingChannelId } = request as ProjectRequest<"listLibrary">;
@@ -2261,7 +2772,7 @@ export class ProjectIpc {
       }
       case "listLibraryFolders": {
         const { projectHandle } = request as ProjectRequest<"listLibraryFolders">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         return (await this.library.listFolders()) as ProjectValues[Method];
       }
       case "registerLibrary": {
@@ -2274,35 +2785,35 @@ export class ProjectIpc {
       }
       case "createLibraryFolder": {
         const { projectHandle, name } = request as ProjectRequest<"createLibraryFolder">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         const value = await this.library.createFolder(name);
         this.libraryChanged();
         return value as ProjectValues[Method];
       }
       case "renameLibraryFolder": {
         const { projectHandle, folderId, name } = request as ProjectRequest<"renameLibraryFolder">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         await this.library.renameFolder(folderId, name);
         this.libraryChanged();
         return { updated: true } as ProjectValues[Method];
       }
       case "deleteLibraryFolder": {
         const { projectHandle, folderId } = request as ProjectRequest<"deleteLibraryFolder">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         const removed = await this.library.deleteFolder(folderId);
         this.libraryChanged();
         return { removed } as ProjectValues[Method];
       }
       case "moveLibraryItem": {
         const { projectHandle, itemId, folderId } = request as ProjectRequest<"moveLibraryItem">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         await this.library.moveItem(itemId, folderId);
         this.libraryChanged();
         return { updated: true } as ProjectValues[Method];
       }
       case "removeLibraryItem": {
         const { projectHandle, itemId } = request as ProjectRequest<"removeLibraryItem">;
-        this.coordinator.getSession(id, projectHandle);
+        if (projectHandle) this.coordinator.getSession(id, projectHandle);
         await this.library.removeItem(itemId);
         this.libraryChanged();
         return { updated: true } as ProjectValues[Method];
@@ -2338,8 +2849,8 @@ export class ProjectIpc {
         const { handle, stamp } = await this.assetFiles.inspect(location, asset, true);
         await handle.close();
         this.coordinator.getSession(id, projectHandle);
-        if (variant === "poster") {
-          const url = await this.canvasMedia.poster(location, asset);
+        if (variant === "poster" || variant === "thumb") {
+          const url = await this.canvasMedia.poster(location, asset, variant);
           this.coordinator.getSession(id, projectHandle);
           return { url, mimeType: "image/png" } as ProjectValues[Method];
         }
@@ -2867,7 +3378,12 @@ export class ProjectIpc {
     return this.coordinator.getDirectory(windowId, handle);
   }
 
-  private async recordRecent(session: { projectId: string; name: string; directory: string }) {
+  private async recordRecent(session: {
+    projectId: string;
+    name: string;
+    directory: string;
+    projectKind?: "canvas" | "drama";
+  }) {
     await this.loadRecents();
     const canonical = await import("node:fs/promises").then(({ realpath }) =>
       realpath(session.directory),
@@ -2877,14 +3393,19 @@ export class ProjectIpc {
       recentEntryId: existing?.recentEntryId ?? randomUUID(),
       projectId: session.projectId,
       displayName: session.name,
+      projectKind: session.projectKind ?? existing?.projectKind,
       displayPath: canonical,
       directory: canonical,
       lastOpenedAt: new Date().toISOString(),
     };
     const previous = this.recents;
-    this.recents = [entry, ...this.recents.filter((item) => item.directory !== canonical)].slice(
-      0,
-      30,
+    const busyDirectories = new Set(
+      [...this.projectOwners.values()]
+        .filter(({ store }) => this.activity(store))
+        .map(({ store }) => store.directory),
+    );
+    this.recents = [entry, ...this.recents.filter((item) => item.directory !== canonical)].filter(
+      (item, index) => index < 30 || busyDirectories.has(item.directory),
     );
     await this.persistRecents();
     for (const prior of previous)

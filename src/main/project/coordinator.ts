@@ -4,12 +4,15 @@ import {
   isOperationId,
   normalizeProjectName,
 } from "../../../packages/link-studio-core/src/project.ts";
-import type { ProjectSession } from "../../../packages/link-studio-core/src/projects-api.ts";
+import type {
+  ProjectActivation,
+  ProjectSession,
+} from "../../../packages/link-studio-core/src/projects-api.ts";
 import { ProjectError } from "./errors.ts";
-import { ProjectStore } from "./store.ts";
+import { ProjectStore, type StoreOptions } from "./store.ts";
 
 export interface WindowLease {
-  focus: () => void;
+  focus: (activation: ProjectActivation) => void;
 }
 
 interface DirectoryGrant {
@@ -21,6 +24,7 @@ interface DirectoryGrant {
 }
 
 interface ProjectEntry {
+  parked?: boolean;
   owner: WindowLease;
   handle: string;
   store: ProjectStore;
@@ -46,7 +50,7 @@ export class ProjectCoordinator {
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  registerWindow(windowId: number, focus: () => void) {
+  registerWindow(windowId: number, focus: WindowLease["focus"]) {
     if (!Number.isSafeInteger(windowId) || this.windows.has(windowId))
       throw new ProjectError("PROJECT_PATH_DENIED", "窗口未注册或重复注册");
     const owner = { focus };
@@ -75,11 +79,16 @@ export class ProjectCoordinator {
     return token;
   }
 
-  open(windowId: number, directoryToken: string, purpose: "create" | "open" = "open") {
+  open(
+    windowId: number,
+    directoryToken: string,
+    purpose: "create" | "open" = "open",
+    allowReadOnly = false,
+  ) {
     const owner = this.owner(windowId);
     return this.enqueue(
       async (): Promise<
-        { disposition: "opened"; session: ProjectSession } | { disposition: "focusedExisting" }
+        import("../../../packages/link-studio-core/src/projects-api.ts").ProjectValues["open"]
       > => {
         this.assertOwner(windowId, owner);
         const grant = this.grants.get(directoryToken);
@@ -98,10 +107,29 @@ export class ProjectCoordinator {
         const existing = this.projects.get(grant.identity);
         if (existing) {
           await existing.store.flush();
-          existing.owner.focus();
+          if (existing.owner === owner) {
+            existing.parked = false;
+            return { disposition: "opened", session: this.session(existing) };
+          }
+          const directoryToken = randomUUID();
+          this.grants.set(directoryToken, { ...grant, owner: existing.owner });
+          existing.owner.focus({ projectHandle: existing.handle, directoryToken });
           return { disposition: "focusedExisting" };
         }
-        const store = await ProjectStore.open(current.canonical);
+        let store: ProjectStore;
+        try {
+          store = await ProjectStore.open(current.canonical);
+        } catch (error) {
+          if (!allowReadOnly || !(error instanceof ProjectError) || error.code !== "PROJECT_IN_USE")
+            throw error;
+          const snapshot = await ProjectStore.inspectCanvas(current.canonical);
+          this.assertOwner(windowId, owner);
+          if ((await directoryIdentity(current.canonical)).identity !== grant.identity)
+            throw new ProjectError("PROJECT_PATH_DENIED", "项目目录已被替换");
+          const retry = randomUUID();
+          this.grants.set(retry, { ...grant, expiresAt: this.now() + 600000 });
+          return { disposition: "readOnly", ...snapshot, directoryToken: retry };
+        }
         try {
           this.assertOwner(windowId, owner);
           const verified = await directoryIdentity(current.canonical);
@@ -118,7 +146,14 @@ export class ProjectCoordinator {
     );
   }
 
-  create(windowId: number, directoryToken: string, operationId: string, name: string) {
+  create(
+    windowId: number,
+    directoryToken: string,
+    operationId: string,
+    name: string,
+    projectKind: "canvas" | "drama" = "canvas",
+    seed?: { identity: string; data: NonNullable<StoreOptions["seed"]> },
+  ) {
     const owner = this.owner(windowId);
     return this.enqueue(async () => {
       this.assertOwner(windowId, owner);
@@ -137,16 +172,21 @@ export class ProjectCoordinator {
       this.grants.delete(directoryToken);
       if (parent.identity !== grant.identity)
         throw new ProjectError("PROJECT_PATH_DENIED", "授权位置已被外部替换");
-      const requestHash = `${grant.identity}:${normalizeProjectName(name)}`;
+      const requestHash = `${grant.identity}:${projectKind}:${normalizeProjectName(name)}:${seed?.identity ?? ""}`;
       const prior = this.creates.get(operationId);
       if (prior) {
         if (prior.owner !== owner)
           throw new ProjectError("PROJECT_PATH_DENIED", "创建操作属于其他窗口");
         if (prior.requestHash !== requestHash)
           throw new ProjectError("OPERATION_ID_REUSED", "同一操作标识不能用于不同请求");
-        return this.session(this.project(owner, prior.session.projectHandle));
+        const existing = this.project(owner, prior.session.projectHandle);
+        existing.parked = false;
+        return this.session(existing);
       }
-      const store = await ProjectStore.create(parent.canonical, name);
+      const store = await ProjectStore.create(parent.canonical, name, {
+        projectKind,
+        seed: seed?.data,
+      });
       try {
         const verified = await directoryIdentity(store.directory);
         this.assertOwner(windowId, owner);
@@ -162,19 +202,8 @@ export class ProjectCoordinator {
     });
   }
 
-  async authorizeRecent(windowId: number, directory: string) {
-    const owner = this.owner(windowId);
-    const { canonical, identity } = await directoryIdentity(directory);
-    this.assertOwner(windowId, owner);
-    const token = randomUUID();
-    this.grants.set(token, {
-      owner,
-      directory: canonical,
-      identity,
-      expiresAt: this.now() + 600_000,
-      purpose: "open",
-    });
-    return token;
+  authorizeRecent(windowId: number, directory: string) {
+    return this.grantProjectDirectory(windowId, directory);
   }
 
   async validateSelectedDirectory(directory: string) {
@@ -283,6 +312,32 @@ export class ProjectCoordinator {
     });
   }
 
+  park(windowId: number, handle: string) {
+    const owner = this.owner(windowId);
+    return this.enqueue(async () => {
+      const project = this.project(owner, handle);
+      await project.store.flush();
+      project.parked = true;
+    });
+  }
+
+  isParked(handle: string) {
+    return [...this.projects.values()].some(
+      (project) => project.handle === handle && project.parked,
+    );
+  }
+
+  releaseIdle(working: (store: ProjectStore) => boolean, stop: (handle: string) => Promise<void>) {
+    return this.enqueue(async () => {
+      for (const project of this.projects.values()) {
+        if (!project.parked || working(project.store)) continue;
+        await stop(project.handle);
+        await project.store.close();
+        this.remove(project);
+      }
+    });
+  }
+
   releaseWindow(windowId: number, lease?: WindowLease): Promise<void> {
     const owner = this.windows.get(windowId);
     if (!owner || (lease && owner !== lease)) {
@@ -326,6 +381,13 @@ export class ProjectCoordinator {
   private session(project: ProjectEntry): ProjectSession {
     const state = project.store.snapshot;
     return {
+      projectKind:
+        state.extensions["link-studio:workspace"] === "drama" ||
+        (!state.extensions["link-studio:workspace"] && state.extensions["link-studio:drama"])
+          ? "drama"
+          : state.extensions["link-studio:workspace"] === "canvas"
+            ? "canvas"
+            : undefined,
       projectHandle: project.handle,
       projectId: state.projectId,
       name: state.name,

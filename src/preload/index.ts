@@ -79,7 +79,14 @@ const projectChannels: Record<ProjectMethod, string> = {
   discardMedia: "link-studio:assets:discardMedia",
   listAssets: "link-studio:assets:list",
   listLibrary: "link-studio:library:list",
+  globalHistory: "link-studio:library:globalHistory",
+  collectHistory: "link-studio:library:collectHistory",
+  globalLibrary: "link-studio:library:globalList",
+  importGlobalAsset: "link-studio:library:importGlobalAsset",
+  dropGlobalAsset: "link-studio:library:dropGlobalAsset",
+  cancelGlobalImport: "link-studio:library:cancelGlobalImport",
   registerLibrary: "link-studio:library:register",
+  attachOfficialVoice: "link-studio:assets:attachOfficialVoice",
   attachLibrary: "link-studio:library:attach",
   createLibraryFolder: "link-studio:library:createFolder",
   listLibraryFolders: "link-studio:library:listFolders",
@@ -209,6 +216,18 @@ const desktop: DesktopAPI = {
     },
   },
   dialogs: {
+    dropGlobalAsset: (file, operationId, folder) =>
+      invokeProject("dropGlobalAsset", {
+        path: webUtils.getPathForFile(file),
+        operationId,
+        ...(folder && { folder }),
+      }),
+    uploadTrialReference: (file, maximum) =>
+      ipcRenderer.invoke("link-studio:trial:upload-reference", {
+        path: webUtils.getPathForFile(file),
+        mime: file.type,
+        maximum,
+      }),
     selectProject: () => invokeProject("selectProject", {}),
     selectProjectParent: () => invokeProject("selectProjectParent", {}),
     selectMedia: (input) => invokeProject("selectMedia", input),
@@ -277,7 +296,13 @@ const desktop: DesktopAPI = {
     discardMedia: (input) => invokeProject("discardMedia", input),
     listAssets: (input) => invokeProject("listAssets", input),
     listLibrary: (input) => invokeProject("listLibrary", input),
+    globalLibrary: (input) => invokeProject("globalLibrary", input),
+    importGlobalAsset: (input) => invokeProject("importGlobalAsset", input),
+    cancelGlobalImport: (input) => invokeProject("cancelGlobalImport", input),
+    globalHistory: (input) => invokeProject("globalHistory", input),
+    collectHistory: (input) => invokeProject("collectHistory", input),
     registerLibrary: (input) => invokeProject("registerLibrary", input),
+    attachOfficialVoice: (input) => invokeProject("attachOfficialVoice", input),
     attachLibrary: (input) => invokeProject("attachLibrary", input),
     createLibraryFolder: (input) => invokeProject("createLibraryFolder", input),
     listLibraryFolders: (input) => invokeProject("listLibraryFolders", input),
@@ -295,6 +320,12 @@ const desktop: DesktopAPI = {
       ipcRenderer.on("link-studio:agent:changed", handler);
       return () => ipcRenderer.removeListener("link-studio:agent:changed", handler);
     },
+    onGlobalImportProgress: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, operationId: string, percent: number) =>
+        listener(operationId, percent);
+      ipcRenderer.on("link-studio:library:importProgress", handler);
+      return () => ipcRenderer.removeListener("link-studio:library:importProgress", handler);
+    },
     onLibraryChanged: (listener) => {
       const handler = () => listener();
       ipcRenderer.on("link-studio:library:changed", handler);
@@ -308,6 +339,14 @@ const desktop: DesktopAPI = {
     },
   },
   canvasWindow: {
+    onActivateProject: (listener) => {
+      const receive = (
+        _event: Electron.IpcRendererEvent,
+        activation: Parameters<typeof listener>[0],
+      ) => listener(activation);
+      ipcRenderer.on("link-studio:projects:activate", receive);
+      return () => ipcRenderer.removeListener("link-studio:projects:activate", receive);
+    },
     setNoticeCanvas: (handle, hidden) =>
       ipcRenderer.send("link-studio:canvas:noticeScope", handle, hidden),
     setPending: (pending) => ipcRenderer.send("link-studio:canvas:pending", pending),
