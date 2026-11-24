@@ -88,32 +88,49 @@
   content: "✓";
   float: right;
 }
-.pet-request {
+.pet-request-anchor {
   position: absolute;
   z-index: 16;
+  translate: 0 -50%;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pet-request {
+    animation: pet-request-enter 150ms ease;
+  }
+  @keyframes pet-request-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0, 0) scale3d(0.95, 0.95, 0.95) rotate(0deg);
+      filter: blur(0);
+    }
+  }
+}
+.pet-request {
   display: flex;
   align-items: center;
   gap: 6px;
-  transform: translateY(-50%);
-  width: max-content;
-  max-width: 264px;
   border-radius: 18px;
-  background: rgb(255 255 255 / 82%);
+  background: var(--pet-chrome, oklch(1 0 0 / 0.82));
   backdrop-filter: blur(24px) saturate(150%);
   padding: 6px 6px 6px 14px;
-  color: oklch(0.145 0 0);
+  color: var(--pet-ink, oklch(0.145 0 0));
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  text-rendering: auto;
+  font-synthesis: initial;
+  -webkit-font-smoothing: antialiased;
   font-size: 13px;
   box-shadow:
-    0 0 0 1px var(--pet-ring, #00000014),
+    0 0 0 1px var(--pet-ring, oklch(0 0 0 / 0.08)),
     0 10px 15px -3px #0000001a,
     0 4px 6px -4px #0000001a;
   pointer-events: auto;
 }
 .pet-request[data-priority="approval"] {
-  --pet-ring: oklch(0.7 0.16 70 / 55%);
+  --pet-ring: var(--pet-warning, oklch(0.7 0.16 70 / 55%));
 }
 .pet-request[data-priority="error"] {
-  --pet-ring: oklch(0.577 0.245 27.325 / 40%);
+  --pet-ring: var(--pet-danger, oklch(0.577 0.245 27.325 / 40%));
 }
 .pet-request button {
   padding: 0;
@@ -122,7 +139,7 @@
   color: inherit;
   font: inherit;
 }
-.pet-request-text {
+.pet-request .pet-request-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -138,10 +155,22 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  color: oklch(0.556 0 0);
+  color: var(--pet-muted, oklch(0.556 0 0));
 }
 .pet-request button:last-child:hover {
-  background: #0000000d;
+  background: var(--pet-hover, oklch(0 0 0 / 0.05));
+  color: var(--pet-ink, oklch(0.145 0 0));
+}
+@media (prefers-color-scheme: dark) {
+  .pet-request {
+    --pet-chrome: oklch(0.2 0 0 / 0.78);
+    --pet-ink: oklch(0.985 0 0);
+    --pet-muted: oklch(0.708 0 0);
+    --pet-ring: oklch(1 0 0 / 0.08);
+    --pet-hover: oklch(1 0 0 / 0.07);
+    --pet-danger: oklch(0.704 0.191 22.216 / 40%);
+    --pet-warning: oklch(0.8 0.15 75 / 55%);
+  }
 }
 .pet-stage {
   position: absolute;
