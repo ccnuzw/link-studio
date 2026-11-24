@@ -8270,17 +8270,16 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
     const choose = async (model: string) => {
       await page.getByRole("button", { name: "更多", exact: true }).click();
       await page.getByRole("menuitem", { name: "画布设置" }).click();
-      await page
-        .getByRole("dialog")
-        .getByRole("button", { name: "新节点默认模型", exact: true })
-        .click();
-      await page.getByRole("button", { name: "选择视频节点的默认模型" }).click();
+      const settings = page.getByRole("dialog");
+      await settings.getByRole("button", { name: "新节点默认模型", exact: true }).click();
+      await settings.getByRole("button", { name: "选择视频节点的默认模型" }).click();
       await page
         .getByRole("menuitemradio")
         .filter({ has: page.getByText(model, { exact: true }) })
         .click();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await settings.getByRole("button", { name: "关闭", exact: true }).click();
+      await expect(settings).toBeHidden();
     };
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ }),
       video = menu.getByRole("menuitem", { name: "视频生成", exact: true });
@@ -8300,17 +8299,48 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
         ["来源-image", "视频"],
       ],
     };
+    const pane = page.locator(".react-flow__pane:visible");
+    const viewport = page.locator(".react-flow__viewport:visible");
+    const audioOutput = audio.locator(".react-flow__handle-right.connectable");
     for (const reference of [false, true]) {
       await choose(reference ? "doubao-seedance-2-0" : "sora-2");
       await chooseCanvasZoom(page, "适应画布");
-      const pane = page.locator(".react-flow__pane:visible");
-      await audio
-        .locator(".react-flow__handle-right")
-        .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 75, y: 125 }) });
-      await expect(menu).toBeVisible({ timeout: 15_000 });
-      if (reference) await expect(video).toBeEnabled({ timeout: 15_000 });
-      else await expect(video).toBeDisabled({ timeout: 15_000 });
+      await expect
+        .poll(() =>
+          viewport.evaluate(async (element) => {
+            const transform = getComputedStyle(element).transform;
+            for (let frame = 0; frame < 3; frame += 1) {
+              await new Promise(requestAnimationFrame);
+              if (getComputedStyle(element).transform !== transform) return false;
+            }
+            return true;
+          }),
+        )
+        .toBe(true);
+      const blank = await blankCanvasPosition(pane, { x: 125, y: 125 });
+      const bounds = await pane.boundingBox();
+      if (!bounds) throw new Error("画布不可见");
+      const drop = { x: bounds.x + blank.x, y: bounds.y + blank.y };
+      await audioOutput.hover();
+      await page.mouse.down();
+      try {
+        await page.mouse.move(drop.x, drop.y, { steps: 12 });
+        await expect(page.locator(".react-flow__connection-path")).toBeVisible();
+        expect(
+          await pane.evaluate(
+            (element, point) => document.elementFromPoint(point.x, point.y) === element,
+            drop,
+          ),
+          "音频连线的落点必须仍是画布空白",
+        ).toBe(true);
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(menu.getByText("引用该节点生成", { exact: true })).toBeVisible();
+      if (reference) await expect(video).toBeEnabled();
+      else await expect(video).toBeDisabled();
       await page.keyboard.press("Escape");
+      await expect(menu).toBeHidden();
       await clickBlankCanvas(page);
       await audio.locator("header strong").click({ modifiers: ["ControlOrMeta"] });
       await page.getByText("来源-image", { exact: true }).click({ modifiers: ["ControlOrMeta"] });
