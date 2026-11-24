@@ -1,6 +1,6 @@
 import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import type { ProjectDialogsAPI, ProjectsAPI } from "./projects-api.ts";
+import type { ProjectActivation, ProjectDialogsAPI, ProjectsAPI } from "./projects-api.ts";
 import type { SettingsAPI } from "./settings-api.ts";
 
 export { sanitizeFileName } from "./file-name.ts";
@@ -91,8 +91,10 @@ export interface DesktopAPI {
     onAgentChanged(listener: (sessionId: string) => void): () => void;
     onExportProgress(listener: (event: ProjectExportProgress) => void): () => void;
     onLibraryChanged(listener: () => void): () => void;
+    onGlobalImportProgress(listener: (operationId: string, percent: number) => void): () => void;
   };
   canvasWindow: {
+    onActivateProject(listener: (activation: ProjectActivation) => void): () => void;
     setNoticeCanvas(handle: string | null, hidden: boolean): void;
     setPending(pending: boolean): void;
     onSaveBeforeClose(save: () => Promise<boolean>): () => void;
