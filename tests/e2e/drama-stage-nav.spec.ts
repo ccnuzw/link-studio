@@ -113,7 +113,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
       "true",
     );
     await expect(canvasArea.locator(".react-flow__node.selected")).toContainText("收信人");
-    const picker = canvasArea.getByRole("button", { name: "出现集数" });
+    const picker = assetList.getByRole("button", { name: "出现集数" });
     await picker.click();
     const popup = page.getByRole("dialog", { name: "编辑出现集数" });
     await expect(popup.getByRole("button", { name: "2", exact: true })).toHaveAttribute(

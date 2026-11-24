@@ -291,13 +291,9 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     expect(newPrice).toBeGreaterThan(firstPrice);
     await dialog.press("Escape");
     await breakdown.click();
-    await dialog.getByText("估算中…").evaluate((el) => {
-      const start = el
-        .closest("dialog")!
-        .querySelector<HTMLButtonElement>("footer button:last-child")!;
-      if (start.disabled) throw Error("等待报价时按钮不可用");
-      start.click();
-    });
+    await expect(quoted).toBeVisible();
+    expect(stages).toHaveLength(5);
+    await submit.click();
     await expect(tab).toHaveAttribute("aria-selected", "true");
     await expect(list.getByRole("heading", { name: "资产管理 · 全集" })).toBeAttached();
     await expect(progress).toContainText("拆解第 1 集");
@@ -337,10 +333,12 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
       { id: pricingDraft.id, revision: raised },
     );
     await breakdown.click();
-    await expect(dialog.locator(".script-estimate [data-error]")).toBeVisible();
-    await expect(submit).toBeEnabled();
+    const quoteError = dialog.locator(".script-estimate [data-error]");
+    await expect(quoteError).toBeVisible();
+    const retryQuote = dialog.getByRole("button", { name: "重新估价" });
+    await expect(retryQuote).toBeEnabled();
     const requests = stages.length;
-    await submit.click();
+    await retryQuote.click();
     await expect(dialog.getByRole("alert")).toBeVisible();
     expect(stages).toHaveLength(requests);
     await dialog.press("Escape");
@@ -381,7 +379,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     const credits = Number(await generate.locator("b").innerText());
     await generate.dblclick();
     await expect.poll(() => storyRuns).toBe(1);
-    await expect(story.getByRole("status")).toContainText("0%");
+    await expect(story.getByRole("status")).toContainText("正在生成分镜初稿");
     await rail.getByRole("button", { name: /^第 1 集 ·/ }).click();
     await expect(generate).toBeEnabled();
     await rail.getByRole("button", { name: /^第 2 集 ·/ }).click();
@@ -392,12 +390,15 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     const retry = story.getByRole("button", { name: /重新生成脚本/ });
     await expect(retry).toBeEnabled();
     await retry.click();
-    await expect(page.getByRole("button", { name: /镜头停在最后一封信上/ })).toBeVisible();
+    const clip = page
+      .getByRole("group", { name: "分镜时间线" })
+      .getByRole("button", { name: "片段 1，5 秒", exact: true });
+    await expect(clip).toHaveAttribute("title", "镜头停在最后一封信上。");
     await page.getByRole("button", { name: "重新生成分镜脚本", exact: true }).click();
     await expect.poll(() => storyRuns).toBe(4);
     await story.getByRole("button", { name: "取消" }).click();
     await expect.poll(() => storyAborted).toBe(2);
-    await expect(page.getByRole("button", { name: /镜头停在最后一封信上/ })).toBeVisible();
+    await expect(clip).toHaveAttribute("title", "镜头停在最后一封信上。");
     expect(limits).toEqual([15, 15, 15, 15]);
     const batchOpen = page.getByRole("button", { name: "批量生成脚本", exact: true }),
       batch = page.getByRole("dialog", { name: "批量生成分镜脚本" });
@@ -490,9 +491,16 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     }
   } finally {
     continueOverview();
-    server.closeAllConnections();
-    server.close();
-    if (app) await app.close();
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      server.closeAllConnections();
+    });
+    if (app) {
+      await app.evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false });
+      });
+      await app.close();
+    }
     await rm(root, { recursive: true, force: true });
   }
 });

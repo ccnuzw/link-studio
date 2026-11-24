@@ -198,7 +198,9 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
         (node) => node === document.querySelector('[aria-label="片场画布"] .react-flow'),
       ),
     ).toBe(true);
-    await selectedBoard.getByText("故事板 · 第 1 集 · 01", { exact: true }).dblclick();
+    await selectedBoard
+      .getByRole("button", { name: "重命名节点：故事板 · 第 1 集 · 01", exact: true })
+      .press("Enter");
     const title = selectedBoard.getByRole("textbox", { name: "节点名称" });
     await title.fill("片场灯光草图");
     await title.press("Enter");
