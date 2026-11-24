@@ -1,4 +1,4 @@
-import type { DirectorScene } from "@link-studio/core";
+import { type DirectorScene, sameDirectorKeyTime } from "@link-studio/core";
 import { Diamond, Pause, Play, SkipBack, Trash2, UserRound, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { applyPreset, CAMERA_PRESETS, type CameraPresetId } from "./director-presets";
@@ -275,12 +275,15 @@ export function DirectorTimeline({
               className={cn("dt-row", selectedId === item.id && "dt-active")}
               style={{ height: ROW }}
             >
-              {item.keys.map((key) => {
+              {item.keys.map((key, index) => {
                 const chosen =
                   selectedKey?.id === item.id && Math.abs(selectedKey.time - key.t) < 0.005;
+                const occurrence = item.keys
+                  .slice(0, index)
+                  .filter((frame) => frame.t === key.t).length;
                 return (
                   <button
-                    key={key.t}
+                    key={`${key.t}:${occurrence}`}
                     type="button"
                     onClick={(event) => {
                       if (event.detail === 0) {
@@ -293,7 +296,8 @@ export function DirectorTimeline({
                     onPointerDown={(event) => grabKey(event, item.id, key.t)}
                     onContextMenu={(event) => {
                       event.preventDefault();
-                      change(item.id, key.t, key.t, key.ease === "linear" ? "smooth" : "linear");
+                      const first = item.keys.find((frame) => sameDirectorKeyTime(frame.t, key.t));
+                      change(item.id, key.t, key.t, first?.ease === "linear" ? "smooth" : "linear");
                     }}
                     className={cn(
                       "dt-key",

@@ -9,6 +9,7 @@ import {
   type LucideIcon,
   Maximize2,
   PenLine,
+  Replace,
   Scissors,
   Sparkle,
 } from "lucide-react";
@@ -22,10 +23,12 @@ export type StripKind = "script" | "storyboard" | "image" | "video" | "audio";
 export function NodeActionAnchor({
   id,
   moving,
+  offsetExtra = 0,
   children,
 }: {
   id: string;
   moving: boolean;
+  offsetExtra?: number;
   children: ReactNode;
 }) {
   const zoom = useStore((state) => state.transform[2]);
@@ -35,7 +38,7 @@ export function NodeActionAnchor({
       nodeId={id}
       position={Position.Top}
       align="center"
-      offset={28 * zoom + 16}
+      offset={28 * zoom + 16 + offsetExtra}
     >
       <motion.div
         initial={{ opacity: 0, y: 6 }}
@@ -53,6 +56,7 @@ export type StripAction =
   | "zoom"
   | "download"
   | "library"
+  | "replace"
   | "edit"
   | "outpaint"
   | "trim"
@@ -158,6 +162,7 @@ export function NodeActionStrip({
         {kind !== "script" && kind !== "storyboard" && (
           <>
             {tail("download", "下载", Download)}
+            {kind === "image" && ready && !running && tail("replace", "从资产库替换", Replace)}
             {ready && !running && tail("library", "加入资产库", FolderPlus)}
           </>
         )}

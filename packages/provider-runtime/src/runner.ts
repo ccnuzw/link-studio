@@ -13,6 +13,13 @@ export class ProviderError extends Error {
   }
 }
 
+export class DramaOutputTruncatedError extends ProviderError {
+  constructor() {
+    super("DRAMA_OUTPUT_TRUNCATED");
+    this.message = "短剧模型输出达到长度上限，请提高模型的最大输出或缩小任务范围";
+  }
+}
+
 export const LIMITS = {
   source: 512 * 1024,
   payload: 1024 * 1024,

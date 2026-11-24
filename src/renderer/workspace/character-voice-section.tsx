@@ -200,9 +200,10 @@ export function CharacterVoiceSection({
                   ))}
                 </span>
                 <span className="voice-origin">
-                  {voice.origin
-                    ? { upload: "上传", generated: "AI 生成", library: "素材库" }[voice.origin]
-                    : "音频"}
+                  {voice.name?.trim() ||
+                    (voice.origin
+                      ? { upload: "上传", generated: "AI 生成", library: "资产库" }[voice.origin]
+                      : "音频")}
                 </span>
               </>
             ) : (

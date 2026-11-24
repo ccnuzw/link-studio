@@ -689,7 +689,12 @@ try {
         measurements[name] = {};
         const checks = measurements[name];
         if (defaultModels) {
-          await dialog.getByRole("button", { name: "模型设置", exact: true }).click();
+          await dialog
+            .getByRole("button", {
+              name: name === "desktop" ? "新节点默认模型" : "模型设置",
+              exact: true,
+            })
+            .click();
           const trigger = dialog.getByRole("button", { name: "选择视频节点的默认模型" });
           for (const phase of ["default", "open", "picked", "closed", "reset"]) {
             if (phase === "open") await trigger.press("Enter");

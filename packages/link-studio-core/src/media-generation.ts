@@ -7,6 +7,7 @@ import {
   type ModelParameter,
   maximumModelPromptLength,
   maxModelReferenceMB,
+  modelParameterOrder,
   validCustomName,
   validCustomValue,
 } from "./model-config.ts";
@@ -17,6 +18,11 @@ type ReferenceCounts = Partial<Record<ReferenceKind, number>>;
 const widescreen = ["16:9", "9:16"];
 const commonRatios = [...widescreen, "1:1", "4:3", "3:4", "21:9"];
 const photoRatios = [...commonRatios, "2:3", "3:2"];
+export const imageParameterPresets: Partial<Record<ModelParameter, string[]>> = {
+  aspectRatio: ["Auto", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+  resolution: ["480P", "720P", "1080P", "2K", "4K", "1K"],
+  count: ["1", "2", "4"],
+};
 const hd = ["480p", "720p", "1080p"];
 const wanLegacy: Record<string, { resolutions: string[]; durations: number[] }> = {
   "wan2.6-t2v-us": { resolutions: hd.slice(1), durations: [5, 10, 15] },
@@ -83,6 +89,14 @@ export function providerVendorLabel(vendor?: string) {
 
 function videoProfile(adapter: string | undefined, name: string) {
   switch (adapter) {
+    case "sora":
+      return /^sora-2(?:-|$)/.test(name)
+        ? {
+            refs: { image: 1 },
+            ratios: widescreen,
+            resolutions: /^sora-2-pro(?:-|$)/.test(name) ? ["720p", "1080p"] : ["720p"],
+          }
+        : undefined;
     case "agnes-video":
       return {
         refs: name.endsWith("-flash") ? { image: 5, audio: 3 } : { image: 8, video: 2, audio: 3 },
@@ -252,40 +266,44 @@ export function mediaGenerationOptions(
             (sora
               ? { image: 1 }
               : seedance
-                ? { image: 8, ...(name.startsWith("doubao-seedance-2-") && { video: 3, audio: 3 }) }
+                ? name.startsWith("doubao-seedance-2-")
+                  ? { image: 9, video: 3, audio: 4 }
+                  : { image: 8 }
                 : { image: 4 }))
           : {};
-  const referenceLimit = Math.min(
-    12,
-    Object.values(references).reduce((sum, count) => sum + count, 0),
-  );
+  const referenceLimit = Object.values(references).reduce((sum, count) => sum + count, 0);
 
   return {
     promptLimit: adapter === "incho" ? 1000 : maximumModelPromptLength,
+    nativeImageSize: openai,
     countUnit: kind === "audio" ? "首" : "张",
     sizes: dalle2
       ? ["256x256", "512x512", "1024x1024"]
       : dalle3
         ? ["1024x1024", "1792x1024", "1024x1792"]
         : gpt
-          ? ["1024x1024", "1536x1024", "1024x1536"]
+          ? ["1024x1024", "1536x1024", "1024x1536", "auto"]
           : sora
             ? ["1280x720", "720x1280"]
             : [],
     largeSizes: soraPro ? ["1792x1024", "1024x1792"] : [],
     ratios: seedance
-      ? [...commonRatios, "adaptive"]
+      ? [...commonRatios, "adaptive", "Auto"]
       : (video?.ratios ??
         (kind === "image" &&
-        ["agnes-image", "alibaba-image", "doubao-image", "openai-chat-image"].includes(
-          adapter ?? "",
-        )
-          ? photoRatios
+        ((openai && !dalle2) ||
+          ["agnes-image", "alibaba-image", "doubao-image", "openai-chat-image"].includes(
+            adapter ?? "",
+          ))
+          ? [...photoRatios, "Auto"]
           : [])),
     resolutions: seedanceKnown
       ? [
           ...(seedanceShort ? hd.slice(0, 2) : hd),
-          ...(name.startsWith("doubao-seedance-2-0") && !seedanceShort ? ["4k"] : []),
+          ...((name.startsWith("doubao-seedance-2-0") && !seedanceShort) ||
+          name.startsWith("doubao-seedance-2-5")
+            ? ["4k"]
+            : []),
         ]
       : (video?.resolutions ??
         (adapter === "agnes-image"
@@ -300,7 +318,7 @@ export function mediaGenerationOptions(
               ? ["1K", "2K", "4K"]
               : [])),
     qualities: gpt
-      ? (["low", "medium", "high"] as const)
+      ? (["auto", "low", "medium", "high"] as const)
       : dalle3
         ? (["standard", "hd"] as const)
         : [],
@@ -473,15 +491,26 @@ export function validModelCapabilities(
   if (config.promptLimit !== undefined && config.promptLimit > base.promptLimit) return false;
   const options = modelGenerationOptions(config.kind, adapter, model, channel, config);
   const modes = modelGenerationModes(config.kind, options);
-  if (config.modes?.some((mode) => !modes.includes(mode))) return false;
+  if (
+    config.modes?.some(
+      (mode) =>
+        !modes.includes(mode) && !(config.kind === "image" && ["t2i", "i2i"].includes(mode)),
+    )
+  )
+    return false;
   if (options.requiresImage && !options.references.image) return false;
   if (options.requiresAudio && !options.references.audio) return false;
   if (options.requiresReference && !options.referenceLimit) return false;
   if (
     Object.entries(config.refs ?? {}).some(
       ([kind, ref]) =>
-        !base.references[kind as ReferenceKind] ||
-        ref.max > (base.references[kind as ReferenceKind] ?? 0) ||
+        (!base.references[kind as ReferenceKind] &&
+          !(config.kind === "image" && kind === "image" && ref.max <= 4)) ||
+        (ref.on === true && ref.max < 1) ||
+        ref.max >
+          (config.kind === "image" && kind === "image"
+            ? 4
+            : (base.references[kind as ReferenceKind] ?? 0)) ||
         ref.mb > maxModelReferenceMB,
     )
   )
@@ -499,18 +528,27 @@ export function validModelCapabilities(
     return false;
   if (config.kind !== "agent" && config.vision !== undefined) return false;
   if (config.video && (config.kind !== "agent" || channel?.api !== "gemini")) return false;
-  if (config.params?.size && (config.params.aspectRatio || config.params.resolution)) return false;
+  if (
+    config.params?.size &&
+    ((!base.nativeImageSize && config.params.aspectRatio) || config.params.resolution)
+  )
+    return false;
   return Object.entries(config.params ?? {}).every(
     ([key, parameter]) =>
       !language &&
       parameter.values.includes(parameter.default) &&
       ((key === "count" && parameter.fanout) ||
-        parameter.values.every((value) =>
-          choices[key as ModelParameter].some((choice) =>
-            key === "resolution"
-              ? String(choice).toLowerCase() === value.toLowerCase()
-              : String(choice) === value,
-          ),
+        parameter.values.every(
+          (value) =>
+            choices[key as ModelParameter].some((choice) =>
+              key === "resolution"
+                ? String(choice).toLowerCase() === value.toLowerCase()
+                : String(choice) === value,
+            ) ||
+            (config.kind === "image" &&
+              ((key === "resolution" &&
+                imageParameterPresets.resolution?.includes(value.toUpperCase())) ||
+                (key === "aspectRatio" && imageParameterPresets.aspectRatio?.includes(value)))),
         )),
   );
 }
@@ -525,12 +563,20 @@ export function modelGenerationOptions(
   const base = mediaGenerationOptions(kind, adapter, model, channel);
   const filter = <Choice extends string | number>(values: readonly Choice[], key: ModelParameter) =>
     values.filter((value) => config?.params?.[key]?.values.includes(String(value)) ?? true);
+  const legacySoraSizes =
+    adapter === "sora" && !config?.params?.aspectRatio && !config?.params?.resolution;
   const references = { ...base.references };
   const referenceBytes: Partial<Record<ReferenceKind, number>> = {};
   for (const kind of ["image", "video", "audio"] as const) {
     const ref = config?.refs?.[kind];
     if (!ref) continue;
-    references[kind] = Math.min(ref.max, base.references[kind] ?? 0);
+    references[kind] =
+      ref.on === false
+        ? 0
+        : Math.min(
+            ref.max,
+            kind === "image" && config?.kind === "image" ? 4 : (base.references[kind] ?? 0),
+          );
     referenceBytes[kind] = ref.mb * 1024 * 1024;
   }
   const modes = config?.modes;
@@ -543,13 +589,13 @@ export function modelGenerationOptions(
   const durations = config?.params?.duration
     ? modelParameterChoices(base).duration
     : base.durations;
-  const counts = filter(
-    Array.from(
-      { length: config?.params?.count?.fanout ? 8 : base.maxCount },
-      (_, index) => index + 1,
-    ),
-    "count",
+  const supportedCounts = Array.from(
+    { length: config?.params?.count?.fanout ? 8 : base.maxCount },
+    (_, index) => index + 1,
   );
+  const counts =
+    config?.params?.count?.values.map(Number).filter((value) => supportedCounts.includes(value)) ??
+    supportedCounts;
   const defaultParameters: Partial<Record<ModelParameter, string | number>> = {};
   for (const [name, param] of Object.entries(config?.params ?? {})) {
     const key = name as ModelParameter;
@@ -566,9 +612,13 @@ export function modelGenerationOptions(
     },
     audioControl:
       includesModelParameter(config, "generateAudio") && (config?.generateAudio?.open ?? true),
-    parameterOrder: config?.parameterOrder,
+    parameterOrder: modelParameterOrder(config),
+    hasParameterDefinitions: !!(config?.parameterOrder || config?.params || config?.customParams),
     hiddenParameters: (Object.keys(modelParameterChoices(base)) as ModelParameter[]).filter(
-      (key) => !includesModelParameter(config, key) || config?.params?.[key]?.open === false,
+      (key) =>
+        !includesModelParameter(config, key) ||
+        config?.params?.[key]?.open === false ||
+        (key === "duration" && config?.params?.duration?.range?.open === false),
     ),
     audioLabel: config?.generateAudio?.label,
     parameterLabels: Object.fromEntries(
@@ -588,28 +638,42 @@ export function modelGenerationOptions(
     referenceBytes,
     references,
     counts,
+    countUnit: config?.params?.count?.unit ?? (kind === "video" ? "个" : base.countUnit),
+    hasConfiguredCount: !!config?.params?.count,
     promptLimit: Math.min(config?.promptLimit ?? 20000, base.promptLimit),
-    referenceLimit: Math.min(
-      base.referenceLimit,
-      Object.values(references).reduce((sum, count) => sum + count, 0),
-    ),
+    referenceLimit:
+      kind === "image" && config?.kind === "image"
+        ? (references.image ?? 0)
+        : Math.min(
+            base.referenceLimit,
+            Object.values(references).reduce((sum, count) => sum + count, 0),
+          ),
     frameLimit: Math.min(base.frameLimit, references.image ?? 0),
     omni: base.omni && (modes?.includes("omni") ?? true),
     requiresImage: base.requiresImage || (kind === "image" && modes?.includes("t2i") === false),
     sizes: filter(base.sizes, "size"),
     largeSizes: filter(base.largeSizes, "size"),
-    ratios: filter(base.ratios, "aspectRatio"),
+    ratios:
+      (kind === "image"
+        ? config?.params?.aspectRatio?.values
+        : config?.params?.aspectRatio?.values.filter((value) => base.ratios.includes(value))) ??
+      (legacySoraSizes ? [] : base.ratios),
     resolutions:
-      config?.params?.resolution?.values.filter((value) =>
-        base.resolutions.some((supported) => supported.toLowerCase() === value.toLowerCase()),
-      ) ?? base.resolutions,
+      config?.params?.resolution?.values.filter(
+        (value) =>
+          (kind === "image" && imageParameterPresets.resolution?.includes(value.toUpperCase())) ||
+          base.resolutions.some((supported) => supported.toLowerCase() === value.toLowerCase()),
+      ) ?? (legacySoraSizes ? [] : base.resolutions),
     qualities: filter(base.qualities, "quality"),
     audioFormats: filter(base.audioFormats, "audioFormat"),
     durations: filter(durations, "duration").filter((duration) => duration !== -1),
     durationRange: config?.params?.duration ? config.params.duration.range : base.durationRange,
     durationControl:
-      includesModelParameter(config, "duration") && (config?.params?.duration?.range?.open ?? true),
+      includesModelParameter(config, "duration") &&
+      config?.params?.duration?.open !== false &&
+      config?.params?.duration?.range?.open !== false,
     durationStep: config?.params?.duration?.range?.step ?? 1,
+    durationUnit: config?.params?.duration?.range?.unit ?? config?.params?.duration?.unit ?? "秒",
     autoDuration: base.autoDuration && (config?.params?.duration?.values.includes("-1") ?? true),
     manualDuration:
       base.manualDuration &&
@@ -634,7 +698,8 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
     next.generateAudio =
       (config.generateAudio.open ? input.generateAudio : undefined) ?? config.generateAudio.default;
   }
-  if (config?.parameterOrder) {
+  const order = modelParameterOrder(config);
+  if (order) {
     for (const key of [
       "size",
       "aspectRatio",
@@ -645,7 +710,7 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
       "audioFormat",
       "generateAudio",
     ] as const) {
-      if (!includesModelParameter(config, key)) delete next[key];
+      if (!order.includes(key)) delete next[key];
     }
   }
   delete next.customParams;
@@ -663,7 +728,8 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
     delete next.aspectRatio;
     delete next.resolution;
   }
-  if (params.aspectRatio?.open === false || params.resolution?.open === false) delete next.size;
+  if ((!params.size && params.aspectRatio?.open === false) || params.resolution?.open === false)
+    delete next.size;
   for (const key of [
     "aspectRatio",
     "resolution",
@@ -674,7 +740,13 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
   ] as const) {
     if (params[key]?.open === false) delete next[key];
   }
-  if (!next.size && !next.aspectRatio && !next.resolution && params.size)
+  if (
+    !next.size &&
+    !next.aspectRatio &&
+    !next.resolution &&
+    params.size &&
+    !(params.size.default === "auto" && params.aspectRatio)
+  )
     next.size = params.size.default;
   if (!next.size && !next.videoAction) {
     if (params.aspectRatio) next.aspectRatio ??= params.aspectRatio.default;

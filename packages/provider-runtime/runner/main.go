@@ -94,7 +94,10 @@ func main() {
 		return
 	}
 	var logs []string
-	if input.Source=="" && input.Hook=="methodStep" {writeResponse(methodStep(input.Args));return}
+	if input.Source == "" && input.Hook == "methodStep" {
+		writeResponse(methodStep(input.Args))
+		return
+	}
 	if input.Source == "" && (input.Hook == "dramaKindPrompt" || input.Hook == "dramaKindGuess") {
 		var text string
 		if len(input.Args) != 1 || json.Unmarshal(input.Args[0], &text) != nil {
@@ -153,6 +156,9 @@ func decodeDramaAssetOutput(args []json.RawMessage) response {
 		Episodes   []int    `json:"episodes"`
 		Nodes      []string `json:"nodes"`
 		MaxSeconds int      `json:"max_seconds"`
+		MaxAudios  int      `json:"max_audios"`
+		Voiced     []string `json:"voiced"`
+		Source     string   `json:"source_prompt"`
 		UnitFrom   int      `json:"unit_from"`
 		UnitTo     int      `json:"unit_to"`
 	}
@@ -164,6 +170,13 @@ func decodeDramaAssetOutput(args []json.RawMessage) response {
 		return response{Code: err.Error()}
 	}
 	switch output := value.(type) {
+	case dramaoutput.AdaptOutput:
+		if scope.MaxSeconds < 1 || scope.Source == "" {
+			return response{Code: "AGENT_ARGUMENT_INVALID"}
+		}
+		if err := dramaoutput.ValidateAdapt(step[len("adapt_"):], scope.Source, output.Prompt, scope.MaxSeconds); err != nil {
+			return response{Code: err.Error()}
+		}
 	case dramaoutput.PlanOutput:
 		if scope.UnitFrom < 1 || scope.UnitTo < scope.UnitFrom {
 			return response{Code: "AGENT_ARGUMENT_INVALID"}
@@ -180,6 +193,13 @@ func decodeDramaAssetOutput(args []json.RawMessage) response {
 			allowed[node] = true
 		}
 		output.SanitizeReferences(allowed)
+		voiced := map[string]bool{}
+		for _, node := range scope.Voiced {
+			voiced[node] = true
+		}
+		if err := output.ValidateVoices(scope.MaxAudios, voiced); err != nil {
+			return response{Code: err.Error()}
+		}
 		value = output
 	case dramaoutput.BreakdownOutput:
 		for _, asset := range output.Assets {

@@ -17,9 +17,12 @@ import {
 } from "@link-studio/core";
 import {
   ArrowUp,
+  Box,
+  Camera,
   ChevronDown,
   Loader2,
   Maximize2,
+  Shapes,
   SlidersHorizontal,
   Sparkle,
   X,
@@ -95,6 +98,7 @@ export function GenerationForm({
   onLocateReference,
   onManualReferencesChange,
   onUploadReference,
+  onVoicePicker,
   voiceSubmission,
   editCharacter,
   close,
@@ -120,6 +124,10 @@ export function GenerationForm({
   onUnlinkReference?: (nodeId: string) => void;
   onLocateReference?: (nodeId: string) => void;
   onManualReferencesChange?: (ids: string[]) => void;
+  onVoicePicker?: (
+    validate: (asset: ProjectAsset) => string | undefined,
+    apply: (asset: ProjectAsset) => void,
+  ) => void;
   onUploadReference?: (file: File) => Promise<void>;
   voiceSubmission?: {
     reason?: string;
@@ -206,7 +214,18 @@ export function GenerationForm({
   const references = (onManualReferencesChange ? node.data : stored).manualReferenceIds ?? [];
   const setReferences =
     onManualReferencesChange ?? ((ids: string[]) => settingsChanged({ manualReferenceIds: ids }));
-  const [referenceURLs, setReferenceURLs] = useState<Record<string, string>>({});
+  const [editedURLs, setReferenceURLs] = useState<Record<string, string>>({});
+  const referenceURLs: Record<string, string> = {
+    ...Object.fromEntries(
+      assets.flatMap((asset) =>
+        typeof asset.metadata.officialVoice === "string" &&
+        /^https:\/\/img\.vbing\.site\/official-voices\/[\w.-]+$/.test(asset.metadata.officialVoice)
+          ? [[asset.assetId, asset.metadata.officialVoice]]
+          : [],
+      ),
+    ),
+    ...editedURLs,
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [referenceError, setReferenceError] = useState("");
@@ -363,7 +382,6 @@ export function GenerationForm({
       : options.durationRange,
     autoDuration: options.autoDuration && !videoInput,
   };
-  const defaultParameters = pickerOptions.defaultParameters;
   const price = target?.config?.pricing;
   const quoteParams = configuredGenerationInput(videoInput ? undefined : target?.config, {
     ...params,
@@ -371,6 +389,58 @@ export function GenerationForm({
     ...(duration && { duration: Number(duration) }),
   });
   const shownDuration = quoteParams.duration;
+  const modelConfig = target?.config;
+  const summaryFields = new Map<string, string>();
+  for (const key of [
+    "aspectRatio",
+    "size",
+    "resolution",
+    "quality",
+    "duration",
+    "generateAudio",
+    "count",
+    "audioFormat",
+  ] as const) {
+    if (
+      key === "generateAudio"
+        ? !pickerOptions.audio || !pickerOptions.audioControl
+        : pickerOptions.hiddenParameters.includes(key)
+    )
+      continue;
+    const value =
+      quoteParams[key] ??
+      (key === "count" &&
+      node.data.kind !== "audio" &&
+      pickerOptions.counts.some((count) => count > 1)
+        ? 1
+        : undefined);
+    if (value === undefined) continue;
+    if (key === "generateAudio")
+      summaryFields.set(key, `${options.audioLabel ?? "声音"}${value ? "开" : "关"}`);
+    else {
+      const unit =
+        key === "count"
+          ? options.countUnit
+          : key === "duration"
+            ? options.durationUnit
+            : (modelConfig?.params?.[key]?.unit ?? "");
+      summaryFields.set(key, key === "duration" && value === -1 ? "智能时长" : `${value}${unit}`);
+    }
+  }
+  for (const [key, field] of Object.entries(options.customParameters)) {
+    if (!field.open) continue;
+    const value = quoteParams.customParams?.[key] ?? field.default;
+    summaryFields.set(
+      key,
+      field.type === "boolean"
+        ? `${field.label}${value ? "开" : "关"}`
+        : `${value}${field.unit ?? ""}`,
+    );
+  }
+  const parameterSummary = (options.parameterOrder ?? [...summaryFields.keys()])
+    .map((key) => summaryFields.get(key))
+    .filter(Boolean)
+    .join(" · ");
   const quote =
     price && (price.unit !== "second" || Number(shownDuration) > 0)
       ? quoteModel(
@@ -475,7 +545,7 @@ export function GenerationForm({
           ? [...current.motion, id]
           : [id],
     }));
-    if (kind !== "motion") closePicker(true);
+    closePicker(true);
   };
   const audio = node.data.kind === "audio";
   const promptLength = promptTextLength(draft);
@@ -629,7 +699,10 @@ export function GenerationForm({
           ...(duration ? { duration: Number(duration) } : {}),
           ...(plugin?.key === "vidu" &&
             target.model === "vidu2.0" &&
-            params.duration === 8 && { resolution: "720p" }),
+            params.duration === 8 && {
+              resolution:
+                pickerOptions.resolutions.find((value) => value.toLowerCase() === "720p") ?? "720p",
+            }),
         };
         const voice = withVoice ? voiceSubmission?.input : undefined;
         const key = JSON.stringify([input, voice]);
@@ -696,6 +769,57 @@ export function GenerationForm({
                     disabled={locked}
                     link={(id) => onMentionLink(id)}
                     kinds={uploadKinds}
+                    voices={
+                      video &&
+                      target &&
+                      options.references.audio &&
+                      modes.includes("omni") &&
+                      onVoicePicker
+                        ? () =>
+                            onVoicePicker(
+                              (asset) => {
+                                const projected = mediaGenerationDraft({
+                                  id: node.id,
+                                  data: {
+                                    ...node.data,
+                                    generation: config,
+                                    videoMode: "omni",
+                                    manualReferenceIds: [
+                                      ...new Set([...references, asset.assetId]),
+                                    ],
+                                  },
+                                  settings,
+                                  assets: [
+                                    ...assets.filter((item) => item.assetId !== asset.assetId),
+                                    asset,
+                                  ],
+                                  graph,
+                                  linked: linkedSources,
+                                  draft,
+                                  template: !!presets.tpl.length,
+                                  urls: referenceURLs,
+                                });
+                                if (projected.media.error) return projected.media.error;
+                                return projected.chosenReferences.some(
+                                  (item) => item.assetId === asset.assetId,
+                                )
+                                  ? undefined
+                                  : "音频参考超出模型数量或大小限制";
+                              },
+                              (asset) => {
+                                settingsChanged({
+                                  videoMode: "omni",
+                                  manualReferenceIds: [...new Set([...references, asset.assetId])],
+                                });
+                                if (typeof asset.metadata.officialVoice === "string")
+                                  setReferenceURLs((current) => ({
+                                    ...current,
+                                    [asset.assetId]: String(asset.metadata.officialVoice),
+                                  }));
+                              },
+                            )
+                        : undefined
+                    }
                     upload={onUploadReference}
                   />
                 )
@@ -776,7 +900,7 @@ export function GenerationForm({
           {voiceNeedsSound && <p role="alert">使用角色音色时请开启声音生成</p>}
           {promptTooLong && <p role="alert">提示词和预设合计最多 {options.promptLimit} 字符。</p>}
           {picker === "parameters" && (
-            <MediaPopover anchor={anchor} label="生成参数" close={closePicker}>
+            <MediaPopover mediaPanel={!audio} anchor={anchor} label="生成参数" close={closePicker}>
               <fieldset className="media-parameter-fields" disabled={locked}>
                 <MediaParameterPicker
                   options={pickerOptions}
@@ -799,13 +923,13 @@ export function GenerationForm({
                   label={presetLabels[kind]}
                   wide={kind !== "tpl"}
                   presetPanel
+                  mediaPanel
                   close={closePicker}
                 >
                   <MediaPresetPicker
                     kind={kind}
                     selected={presets[kind]}
                     onPick={(id) => choosePreset(kind, id)}
-                    hasReference={hasImage}
                     maxLength={target ? options.promptLimit : undefined}
                   />
                 </MediaPopover>
@@ -825,8 +949,18 @@ export function GenerationForm({
               disabled={busy}
               container={menuContainer}
             />
-            {(!audio ||
-              (target &&
+            {((!audio &&
+              target &&
+              (!pickerOptions.parameterOrder ||
+                pickerOptions.parameterOrder.some((key) =>
+                  key === "generateAudio"
+                    ? pickerOptions.audio && pickerOptions.audioControl
+                    : pickerOptions.customParameters[key]
+                      ? pickerOptions.customParameters[key].open
+                      : !pickerOptions.hiddenParameters.some((hidden) => hidden === key),
+                ))) ||
+              (audio &&
+                target &&
                 (pickerOptions.speaker ||
                   pickerOptions.instrumental ||
                   pickerOptions.audioFormats.length > 0 ||
@@ -837,25 +971,13 @@ export function GenerationForm({
               <button
                 type="button"
                 ref={parametersButton}
+                className={audio ? undefined : "canvas-param-trigger"}
                 aria-label="生成参数"
                 aria-expanded={picker === "parameters"}
                 onClick={(event) => togglePicker("parameters", event.currentTarget)}
               >
-                <SlidersHorizontal size={14} />
-                {[
-                  params.aspectRatio ??
-                    params.size ??
-                    (size || defaultParameters.size || defaultParameters.aspectRatio),
-                  params.resolution ??
-                    (params.size || size ? undefined : defaultParameters.resolution),
-                  shownDuration === -1 ? "智能时长" : shownDuration ? `${shownDuration} 秒` : "",
-                  (params.count ?? defaultParameters.count)
-                    ? `${params.count ?? defaultParameters.count} ${options.countUnit}`
-                    : "",
-                  audio ? (params.audioFormat ?? defaultParameters.audioFormat) : "",
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "默认参数"}
+                {audio && <SlidersHorizontal size={14} />}
+                <span>{parameterSummary || (audio ? "默认参数" : "参数")}</span>
                 <ChevronDown size={13} />
               </button>
             )}
@@ -863,16 +985,35 @@ export function GenerationForm({
               <button
                 type="button"
                 key={kind}
+                className="canvas-preset-trigger"
+                data-selected={presets[kind].length > 0 || undefined}
+                title={
+                  locked
+                    ? "生成中，暂时不能改预设"
+                    : [
+                        presetLabels[kind],
+                        selectedPresetText(presets)
+                          .filter((item) => presets[kind].includes(item.id))
+                          .map((item) => item.name)
+                          .join("、"),
+                      ]
+                        .filter(Boolean)
+                        .join("：")
+                }
                 aria-label={presetLabels[kind]}
                 disabled={locked}
                 aria-expanded={picker === kind}
                 onClick={(event) => togglePicker(kind, event.currentTarget)}
               >
-                {presetLabels[kind]}
+                {kind === "style" ? <Box /> : kind === "tpl" ? <Shapes /> : <Camera />}
                 {presets[kind].length > 0 && (
-                  <span className="media-preset-count">{presets[kind].length}</span>
+                  <span
+                    className="canvas-preset-mark"
+                    data-multiple={presets[kind].length > 1 || undefined}
+                  >
+                    {presets[kind].length > 1 ? presets[kind].length : null}
+                  </span>
                 )}
-                <ChevronDown size={13} />
               </button>
             ))}
             <span
@@ -1202,7 +1343,7 @@ export function JobCenter({
             <small>试听后，可在角色卡中采用此音色。</small>
           )}
           {job.status === "succeeded" && !job.bound && !job.purpose && (
-            <small>来源节点已修改或移除，结果保留在任务与素材库。</small>
+            <small>来源节点已修改或移除，仍可在生成任务和项目文件中查看结果。</small>
           )}
           {job.error && (
             <small>
@@ -1386,7 +1527,7 @@ export function NodeGenerationHistory({
   );
 }
 
-export function useGenerationProviders(open: boolean) {
+export function useGenerationProviders(open: boolean, revision = 0) {
   const [settings, setSettings] = useState<ProviderSettings>({
     providers: [],
     plugins: [],
@@ -1412,6 +1553,6 @@ export function useGenerationProviders(open: boolean) {
     return () => {
       current = false;
     };
-  }, [open]);
+  }, [open, revision]);
   return settings;
 }

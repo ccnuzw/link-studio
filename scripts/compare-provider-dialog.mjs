@@ -1191,7 +1191,7 @@ comparison: try {
       { names: historyNames, hash: fixture.versions[0].sha256 },
     );
   }
-  if (!enroll && !humanDetail) await studio.getByRole("button", { name: "模型设置" }).click();
+  if (!enroll && !humanDetail) await studio.getByRole("button", { name: "应用设置" }).click();
   if (
     !kindConfirm &&
     !channelOverview &&
@@ -1364,12 +1364,15 @@ comparison: try {
           db.close();
         }
       }
-      await studio.getByRole("button", { name: "模型设置" }).click();
+      await studio.getByRole("button", { name: "应用设置" }).click();
       await studio.getByRole("button", { name: "虚拟人像库" }).click();
       await studio.getByRole("button", { name: "查看详情" }).click();
     } else {
-      await studio.getByRole("button", { name: "新建项目" }).click();
-      await studio.getByRole("button", { name: "素材库", exact: true }).click();
+      await studio.getByRole("button", { name: /^新建画布项目/ }).click();
+      await studio.getByRole("button", { name: "选择保存位置…" }).click();
+      await studio.getByRole("button", { name: "画布菜单", exact: true }).click();
+      await studio.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
+      await studio.getByRole("menuitem", { name: "项目文件", exact: true }).click();
       await studio.getByRole("button", { name: "导入素材", exact: true }).click();
       await studio.getByRole("button", { name: "加入真人库", exact: true }).click();
     }
@@ -1435,6 +1438,7 @@ comparison: try {
       .click();
     await studio.getByRole("menuitem", { name: "删除插件", exact: true }).click();
   } else if (deleteChannel) {
+    await studio.locator(".channel-more summary").click();
     await studio
       .getByRole("region", { name: "渠道详情" })
       .getByRole("button", { name: "删除", exact: true })

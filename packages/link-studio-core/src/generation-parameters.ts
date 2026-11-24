@@ -9,13 +9,14 @@ export const GenerationParameters = Type.Object(
         { maxProperties: 20, additionalProperties: false },
       ),
     ),
-    size: Type.Optional(Type.String({ pattern: "^[1-9][0-9]{1,3}x[1-9][0-9]{1,3}$" })),
+    size: Type.Optional(Type.String({ pattern: "^(?:auto|[1-9][0-9]{1,3}x[1-9][0-9]{1,3})$" })),
     duration: Type.Optional(
       Type.Union([Type.Literal(-1), Type.Integer({ minimum: 1, maximum: 30 })]),
     ),
     count: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
     quality: Type.Optional(
       Type.Union([
+        Type.Literal("auto"),
         Type.Literal("low"),
         Type.Literal("medium"),
         Type.Literal("high"),
@@ -23,7 +24,9 @@ export const GenerationParameters = Type.Object(
         Type.Literal("hd"),
       ]),
     ),
-    aspectRatio: Type.Optional(Type.String({ pattern: "^(?:[1-9][0-9]?:[1-9][0-9]?|adaptive)$" })),
+    aspectRatio: Type.Optional(
+      Type.String({ pattern: "^(?:[1-9][0-9]?:[1-9][0-9]?|adaptive|Auto)$" }),
+    ),
     resolution: Type.Optional(
       Type.String({ pattern: "^(?:(?:360|480|512|540|720|768|1080)[pP]|(?:1|1\\.5|2|3|4)[kK])$" }),
     ),

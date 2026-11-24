@@ -1,7 +1,7 @@
 import { type Static, Type } from "@sinclair/typebox";
 import { CanvasId } from "./canvas.ts";
 import { GenerationParameters } from "./generation-parameters.ts";
-import { maximumModelPromptLength } from "./model-config.ts";
+import { maximumModelPromptLength, maxMixedReferences } from "./model-config.ts";
 
 const strict = { additionalProperties: false };
 const uuid = Type.String({
@@ -43,9 +43,9 @@ export const GenerationInput = Type.Object(
     expectedProviderRevision: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
     expectedCanvasRevision: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
     prompt: Type.String({ minLength: 1, maxLength: maximumModelPromptLength }),
-    referenceAssetIds: Type.Array(uuid, { maxItems: 12, uniqueItems: true }),
+    referenceAssetIds: Type.Array(uuid, { maxItems: maxMixedReferences, uniqueItems: true }),
     referenceURLs: Type.Optional(
-      Type.Record(uuid, Type.String({ maxLength: 4096 }), { maxProperties: 12 }),
+      Type.Record(uuid, Type.String({ maxLength: 4096 }), { maxProperties: maxMixedReferences }),
     ),
     op: Type.Optional(Type.Union([Type.Literal("t2v"), Type.Literal("i2v"), Type.Literal("omni")])),
     ...GenerationParameters.properties,
@@ -67,6 +67,7 @@ export type JobOutput =
   | { assetId: string; kind: Exclude<GenerationKind, "text"> }
   | { text: string; kind: "text" };
 export type GenerationJob = {
+  modelKey?: string;
   quotedCredits?: number;
   settledCredits?: number;
   batchId?: string;

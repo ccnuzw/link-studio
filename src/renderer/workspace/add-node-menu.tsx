@@ -28,6 +28,7 @@ export function AddNodeMenu({
   point,
   trigger,
   wrapTrigger,
+  triggerSide = "right",
   open,
   label,
   onOpenChange,
@@ -39,6 +40,7 @@ export function AddNodeMenu({
 }: {
   point?: { x: number; y: number };
   trigger?: ReactElement<{ disabled?: boolean }>;
+  triggerSide?: "right" | "top";
   wrapTrigger?: (trigger: ReactElement) => ReactNode;
   open: boolean;
   label: string;
@@ -70,7 +72,7 @@ export function AddNodeMenu({
         <Menu.Positioner
           className="canvas-menu-positioner"
           align="start"
-          side={trigger ? "right" : "bottom"}
+          side={trigger ? triggerSide : "bottom"}
           sideOffset={trigger ? 14 : 2}
           collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
         >

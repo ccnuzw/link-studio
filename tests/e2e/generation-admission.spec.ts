@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { projectAction } from "./workspace-actions";
+import { createCanvasProject, projectAction } from "./workspace-actions";
 
 test("生成三份时满队列就地提示，释放两个名额后提示一份未提交", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-admission-"));
@@ -85,8 +85,7 @@ test("生成三份时满队列就地提示，释放两个名额后提示一份�
         database
           .prepare("INSERT INTO plugin_job_pins VALUES (?,?,?)")
           .run("fixture-project", String(index), hash);
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("排队验收");
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, "排队验收");
       await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
       await page.mouse.click(420, 210);
       await page.locator(".react-flow__node .node-media").click({ position: { x: 30, y: 30 } });

@@ -182,6 +182,8 @@
 }
 .canvas-text-preview.canvas-text-error {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
   align-items: center;
   justify-content: center;
   padding: 0 12px;
@@ -198,6 +200,29 @@
 }
 .canvas-text-error-message svg {
   flex: none;
+}
+.canvas-text-error .canvas-text-task-id {
+  display: grid;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in oklab, var(--node-muted) 80%, transparent);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.25;
+  word-break: break-all;
+  cursor: pointer;
+  outline: none;
+}
+.canvas-text-task-id span {
+  grid-area: 1 / 1;
+}
+.canvas-text-error .canvas-text-task-id:hover {
+  color: var(--node-ink);
+}
+.canvas-text-error .canvas-text-task-id:focus-visible {
+  text-decoration: underline;
 }
 .canvas-text-preview.canvas-text-running {
   display: flex;
@@ -265,8 +290,8 @@
   width: min(896px, calc(100% - 32px));
   padding: 16px;
   border-radius: 14px;
-  background: white;
-  color: oklch(0.145 0 0);
+  background: var(--desk-card);
+  color: var(--desk-text);
   outline: none;
   box-shadow: 0 0 0 1px oklch(0.145 0 0 / 0.1);
   font:
@@ -286,7 +311,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  border-bottom: 1px solid oklch(0 0 0 / 0.08);
+  border-bottom: 1px solid var(--desk-border);
   padding: 0 0 8px;
 }
 .text-format-bar > div {
@@ -298,7 +323,7 @@
   content: "";
   height: 16px;
   width: 1px;
-  background: oklch(0 0 0 / 0.08);
+  background: var(--desk-border);
   margin: 0 6px 0 2px;
 }
 .text-editor-dialog button {
@@ -314,14 +339,14 @@
   padding: 0;
 }
 .text-editor-dialog button:hover {
-  background: oklch(0.97 0 0);
+  background: var(--desk-hover);
 }
 .text-editor-dialog button:disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 .text-editor-dialog button[aria-pressed="true"] {
-  background: oklch(0.145 0 0 / 0.1);
+  background: var(--desk-inset);
 }
 .text-draft strong {
   font-weight: 600;
@@ -377,13 +402,13 @@
 }
 .text-draft blockquote {
   margin: 8px 0;
-  border-left: 2px solid #0002;
+  border-left: 2px solid var(--desk-border);
   padding-left: 12px;
-  color: #777;
+  color: var(--desk-muted);
 }
 .text-draft hr {
   border: 0;
-  border-top: 1px solid #0002;
+  border-top: 1px solid var(--desk-border);
   margin: 16px 0;
 }
 .text-draft s {
@@ -391,7 +416,7 @@
 }
 .text-draft code,
 .text-draft pre {
-  background: #0001;
+  background: var(--desk-inset);
   border-radius: 4px;
   padding: 2px 4px;
   font-size: 12.5px;

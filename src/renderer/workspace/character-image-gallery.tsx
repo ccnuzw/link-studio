@@ -127,9 +127,9 @@ export function CharacterImageGallery({
                   上传
                 </button>
                 <span aria-hidden="true" />
-                <button type="button" onClick={() => library("main")}>
+                <button type="button" aria-label="从资产库选主图" onClick={() => library("main")}>
                   <FolderOpen />
-                  素材库
+                  资产库
                 </button>
                 <span aria-hidden="true" />
                 <button type="button" onClick={human}>
@@ -156,8 +156,8 @@ export function CharacterImageGallery({
         <motion.button
           type="button"
           whileTap={!primary || extras.length >= 4 ? undefined : { scale: 0.96 }}
-          aria-label="从素材库选补充图"
-          title={!primary ? "先放一张主图" : extras.length >= 4 ? "补充图最多 4 张" : "从素材库选"}
+          aria-label="从资产库选补充图"
+          title={!primary ? "先放一张主图" : extras.length >= 4 ? "补充图最多 4 张" : "从资产库选"}
           disabled={!primary || extras.length >= 4}
           onClick={() => library("extra")}
         >

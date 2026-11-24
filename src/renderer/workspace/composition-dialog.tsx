@@ -111,7 +111,7 @@ export function CompositionDialog({
         </button>
       </header>
       <p className="composition-hint">
-        选择视频镜头并调整顺序。导出会保留源素材不变，并把结果写回项目素材库。
+        选择视频镜头并调整顺序。导出会保留源素材不变，并把结果写回当前项目的文件列表。
       </p>
       <section className="composition-preview" aria-label="成片预览">
         {selected.length ? (
@@ -151,7 +151,7 @@ export function CompositionDialog({
             </article>
           ))
         ) : (
-          <p>暂无视频镜头，请先在画布或素材库中准备视频。</p>
+          <p>暂无视频镜头，请先在画布或项目文件中准备视频。</p>
         )}
       </section>
       <label className="composition-add">
@@ -243,7 +243,7 @@ export function CompositionDialog({
                 : progress.stage === "validating"
                   ? "校验输出…"
                   : progress.stage === "importing"
-                    ? "写入素材库…"
+                    ? "写入项目文件…"
                     : "已完成"}{" "}
             {progress.progress}%
           </span>

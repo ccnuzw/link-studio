@@ -1,4 +1,4 @@
-import type { CanvasCharacter, CreativeData } from "@link-studio/core";
+import { type CanvasCharacter, type CreativeData, characterVoice } from "@link-studio/core";
 
 export type CharacterPurpose = "main" | "extra" | "voice";
 export type CharacterPick = { purpose: CharacterPurpose; primary?: string; extras: string[] };
@@ -28,6 +28,7 @@ export function bindCharacterPick(
   primary: string | undefined,
   purpose: CharacterPurpose | "human",
   ids: string[],
+  voiceName?: string,
 ) {
   const first = ids[0];
   if (!first) return { character, primary };
@@ -53,7 +54,7 @@ export function bindCharacterPick(
   if (purpose === "voice")
     return {
       primary,
-      character: { ...character, voice: { assetId: first, origin: "library" as const } },
+      character: { ...character, voice: characterVoice(first, "library", voiceName) },
     };
   const extraAssetIds = [
     ...new Set([...character.extraAssetIds, ...ids.filter((id) => id !== primary)]),
@@ -66,9 +67,16 @@ export function bindCharacterMedia(
   purpose: CharacterPurpose | "human",
   ids: string[],
   createdAt: string,
+  voiceName?: string,
 ): CreativeData {
   if (!data.character || !ids.length) return data;
-  const { primary, character } = bindCharacterPick(data.character, data.assetId, purpose, ids);
+  const { primary, character } = bindCharacterPick(
+    data.character,
+    data.assetId,
+    purpose,
+    ids,
+    voiceName,
+  );
   if ((purpose !== "main" && purpose !== "human") || !primary) return { ...data, character };
   const outputs = data.outputs?.length
     ? data.outputs

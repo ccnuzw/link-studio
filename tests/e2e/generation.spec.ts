@@ -19,7 +19,12 @@ import {
   expectDraft,
   expectReadableModelHover,
 } from "./assistant-theme";
-import { chooseCanvasZoom, editTextNode, projectAction } from "./workspace-actions";
+import {
+  chooseCanvasZoom,
+  createCanvasProject,
+  editTextNode,
+  projectAction,
+} from "./workspace-actions";
 
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=";
@@ -204,7 +209,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
       dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false });
     });
     const page = await application.firstWindow();
-    await page.evaluate(async (endpoint) => {
+    const historyModelKey = await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
       if (!list.ok) throw new Error(list.code);
@@ -225,17 +230,17 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
         },
       });
       if (!saved.ok) throw new Error(saved.code);
+      return saved.value.modelKey ?? saved.value.id;
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("连线参考验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "连线参考验收");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     const video = page
       .locator(".react-flow__node")
       .filter({ has: page.locator("header strong").filter({ hasText: /^视频$/ }) });
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await page.getByRole("button", { name: `将${filename}加入画布` }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const image = page.locator(".react-flow__node").filter({ hasText: nodeLabel });
     const heading = video.locator("header strong");
     const bounds = await image.locator(".node-media").boundingBox();
@@ -479,7 +484,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     const history = page.getByRole("dialog", { name: "任务历史" }),
       rows = history.getByRole("listitem");
     await expect(rows).toHaveCount(2);
-    await expect(rows.first()).toContainText("sora-2");
+    await expect(rows.first()).toContainText(historyModelKey);
     await expect(rows.first()).toContainText("失败");
     await rows.first().getByRole("button").click();
     await expect(history).toHaveCount(0);
@@ -791,8 +796,7 @@ for (const [followMode, title] of [
         if (!saved.ok) throw new Error(saved.code);
         return saved.value;
       }, endpoint);
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("生成闭环验收");
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, "生成闭环验收");
       await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
       const imageNode = page
         .locator(".react-flow__node")
@@ -851,7 +855,7 @@ for (const [followMode, title] of [
       );
       await parameters.getByRole("button", { name: "3:2", exact: true }).click();
       await parameters.getByRole("button", { name: "高", exact: true }).click();
-      await parameters.getByRole("button", { name: "2 张", exact: true }).click();
+      await parameters.getByRole("combobox", { name: "生成数量" }).selectOption("2");
       await page.keyboard.press("Escape");
       await expect(parameters).toBeHidden();
       await expect(parametersTrigger).toBeFocused();
@@ -1077,11 +1081,14 @@ for (const [followMode, title] of [
       expect(asyncSubmits).toBe(0);
       if (followMode === "reject") {
         await canvasAssistant.getByRole("button", { name: "添加附件" }).click();
-        await canvasAssistant.getByLabel("上传图片").setInputFiles({
-          name: "审批参考.png",
-          mimeType: "image/png",
-          buffer: Buffer.from(png, "base64"),
-        });
+        await page
+          .getByRole("dialog", { name: "添加附件" })
+          .getByLabel("上传图片")
+          .setInputFiles({
+            name: "审批参考.png",
+            mimeType: "image/png",
+            buffer: Buffer.from(png, "base64"),
+          });
         await canvasAssistant.getByRole("textbox", { name: "画布消息" }).click();
       }
       await page.getByRole("textbox", { name: "画布消息" }).fill("保留先前待审批的画布任务。");
@@ -1479,7 +1486,7 @@ for (const [followMode, title] of [
         if (!saved.ok) throw Error(saved.code);
         return { channelId: saved.value.id, channelRevision: saved.value.revision };
       });
-      await reopened.getByRole("button", { name: "模型设置" }).click();
+      await reopened.getByRole("button", { name: "应用设置" }).click();
       await reopened.getByRole("button", { name: "虚拟人像库" }).click();
       const people = reopened.getByRole("dialog", { name: "虚拟人像库" });
       await people.getByLabel("真人名称").fill("历史角色");
@@ -1507,7 +1514,10 @@ for (const [followMode, title] of [
       await expect(registered.getByRole("button")).toHaveAttribute("aria-pressed", "true");
       await historical.getByRole("button", { name: "关闭", exact: true }).click();
       await people.getByRole("button", { name: "关闭弹窗" }).click();
-      await reopened.getByRole("button", { name: "返回工作区" }).click();
+      await reopened
+        .getByRole("navigation", { name: "设置分类" })
+        .getByRole("button", { name: /^返回/ })
+        .click();
       await reopened.getByRole("button", { name: /^生成闭环验收/ }).click();
       await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
       const assistant = reopened.getByRole("region", { name: "画布小灵" });
@@ -1618,9 +1628,23 @@ for (const [followMode, title] of [
       const referenceSummary = assistant.getByRole("button", { name: "添加附件" });
       await expectAssistantContrast(referenceSummary);
       await referenceSummary.click();
-      const webGrant = assistant.getByRole("checkbox", { name: "允许本轮联网检索" });
+      const attachments = page.getByRole("dialog", { name: "添加附件" });
+      await expect
+        .poll(async () => {
+          const trigger = await referenceSummary.boundingBox();
+          const popup = await attachments.boundingBox();
+          return (
+            !!trigger &&
+            !!popup &&
+            Math.abs(popup.x - trigger.x) < 1 &&
+            Math.abs(trigger.y - popup.y - popup.height - 8) < 1
+          );
+        })
+        .toBe(true);
+      await attachments.getByText("更多资料", { exact: true }).click();
+      const webGrant = attachments.getByRole("checkbox", { name: "允许本轮联网检索" });
       await expect(webGrant).not.toBeChecked();
-      const reference = assistant.getByLabel("公开文本链接");
+      const reference = attachments.getByLabel("公开文本链接");
       await expectAssistantContrast(reference, "::placeholder");
       await reference.fill(`${endpoint}/reference.txt`);
       const privatePrompt = "请检查这个画布节点，诊断不应包含这句话。";
@@ -2019,10 +2043,10 @@ for (const [followMode, title] of [
       await boardChanges.getByRole("button", { name: "撤销本轮" }).click();
       await expect(board).toHaveCount(0);
       afterRead = undefined;
-      await projectAction(reopened, "素材库");
+      await projectAction(reopened, "项目文件");
       await reopened.getByRole("button", { name: "导入素材", exact: true }).click();
       await reopened.getByRole("button", { name: "将测试镜头.mp4加入画布" }).click();
-      await reopened.getByRole("button", { name: "关闭素材库" }).click();
+      await reopened.getByRole("button", { name: "关闭项目文件" }).click();
       const clip = reopened
         .locator(".react-flow__node")
         .filter({ has: reopened.getByText("测试镜头", { exact: true }) });
@@ -2151,7 +2175,10 @@ for (const [followMode, title] of [
           }, current.id),
         )
         .toBe("人工保留的配置");
-      await reopened.getByRole("button", { name: "返回工作区" }).click();
+      await reopened
+        .getByRole("navigation", { name: "设置分类" })
+        .getByRole("button", { name: /^返回/ })
+        .click();
       await expect(
         assistant.getByRole("separator", { name: "生成全部结束 · Agent 自动继续" }),
       ).toHaveCount(1);

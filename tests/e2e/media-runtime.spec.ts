@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
-import { projectAction } from "./workspace-actions";
+import { createCanvasProject, projectAction } from "./workspace-actions";
 
 test("M0 媒体 spike：Main 中转码期间界面和受限 IPC 可响应取消", async () => {
   test.skip(process.platform !== "darwin" || process.arch !== "arm64");
@@ -47,7 +47,7 @@ test("M0 媒体 spike：Main 中转码期间界面和受限 IPC 可响应取消"
   });
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await application.evaluate(
       async ({ app }, input) => {

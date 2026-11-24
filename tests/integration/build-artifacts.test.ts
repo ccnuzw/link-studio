@@ -13,7 +13,7 @@ describe("Electron 构建边界", () => {
     expect(preload).toContain("exposeInMainWorld");
     expect(preload).not.toMatch(/require\(["']@link-studio/);
     expect(html).toContain("connect-src 'none'");
-    expect(html).toContain("media-src link-media: blob:;");
+    expect(html).toContain("media-src 'self' link-media: blob:;");
     expect(html).not.toContain("__CONNECT_SRC__");
   });
 });

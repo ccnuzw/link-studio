@@ -53,6 +53,17 @@ test("十五秒机位和人物可在每个百分之一秒记帧并通过场景�
   expect(validDirectorScene(scene)).toBe(true);
 });
 
+test("重合帧可突破每轨 1501 帧，保存容量按整个场景计算", () => {
+  const scene = base();
+  const actor = scene.characters[0]!;
+  const key = { t: 0, x: 1, z: 0, yaw: 0, ease: "smooth" as const };
+  actor.keys = Array.from({ length: 1502 }, () => ({ ...key }));
+  expect(Value.Check(SceneSchema, scene)).toBe(true);
+  expect(validDirectorScene(scene)).toBe(true);
+  actor.keys = Array.from({ length: 6000 }, () => ({ ...key }));
+  expect(validDirectorScene(scene)).toBe(false);
+});
+
 test("边界上套用预设仍能落盘，不截断越过 ±360° 或 ±1000 米的运镜关键帧", () => {
   const scene = base(),
     camera = scene.cameras[0]!;

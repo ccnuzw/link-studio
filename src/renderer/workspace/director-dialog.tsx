@@ -1,4 +1,9 @@
-import { type DirectorScene, retimeDirectorScene } from "@link-studio/core";
+import {
+  type DirectorScene,
+  MAX_DIRECTOR_SCENE_BYTES,
+  retimeDirectorScene,
+  sameDirectorKeyTime,
+} from "@link-studio/core";
 import { Move, PanelLeftClose, PanelLeftOpen, RotateCw, Scan, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import { DirectorHeader, DirectorTool } from "./director-chrome";
@@ -62,7 +67,7 @@ export function DirectorDialog({
   function flush() {
     if (saved.current === latest.current) return true;
     const bytes = new TextEncoder().encode(JSON.stringify(latest.current)).length;
-    if (bytes > 256 * 1024) {
+    if (bytes > MAX_DIRECTOR_SCENE_BYTES) {
       setSaveStatus(`场景数据过大（${Math.ceil(bytes / 1024)}KB，上限 256KB），请删减关键帧或对象`);
       return false;
     }
@@ -86,7 +91,7 @@ export function DirectorDialog({
     () => () => {
       if (
         latest.current !== saved.current &&
-        new TextEncoder().encode(JSON.stringify(latest.current)).length <= 256 * 1024
+        new TextEncoder().encode(JSON.stringify(latest.current)).length <= MAX_DIRECTOR_SCENE_BYTES
       )
         writer.current(latest.current);
     },
@@ -227,7 +232,7 @@ export function DirectorDialog({
       pose: Pose,
     ) {
       return [
-        ...keys.filter((key) => Math.round(key.t * 100) / 100 !== editTime),
+        ...keys.filter((key) => !sameDirectorKeyTime(key.t, editTime)),
         { ...pose, t: editTime, ease: "smooth" as const },
       ].sort((left, right) => left.t - right.t);
     }
@@ -307,12 +312,12 @@ export function DirectorDialog({
         ...scene,
         characters: scene.characters.map((item) =>
           item.id === picked.id
-            ? { ...item, keys: item.keys.filter((key) => key.t !== picked.time) }
+            ? { ...item, keys: item.keys.filter((key) => !sameDirectorKeyTime(key.t, picked.time)) }
             : item,
         ),
         cameras: scene.cameras.map((item) =>
           item.id === picked.id
-            ? { ...item, keys: item.keys.filter((key) => key.t !== picked.time) }
+            ? { ...item, keys: item.keys.filter((key) => !sameDirectorKeyTime(key.t, picked.time)) }
             : item,
         ),
       });
@@ -701,12 +706,21 @@ export function DirectorDialog({
             Track extends DirectorScene["characters"][number] | DirectorScene["cameras"][number],
           >(track: Track): Track {
             if (track.id !== id) return track;
+            if (ease)
+              return {
+                ...track,
+                keys: track.keys.map((key) =>
+                  sameDirectorKeyTime(key.t, from) ? { ...key, ease } : key,
+                ),
+              };
+            const moving = track.keys.find((key) => sameDirectorKeyTime(key.t, from));
+            if (!moving) return track;
+            const rest = track.keys.filter(
+              (key) => !sameDirectorKeyTime(key.t, from) && !sameDirectorKeyTime(key.t, to),
+            );
             return {
               ...track,
-              keys: track.keys
-                .filter((key) => key.t === from || key.t !== to)
-                .map((key) => (key.t === from ? { ...key, t: to, ease: ease ?? key.ease } : key))
-                .sort((left, right) => left.t - right.t),
+              keys: [...rest, { ...moving, t: to }].sort((left, right) => left.t - right.t),
             };
           }
           setScene((current) => ({
