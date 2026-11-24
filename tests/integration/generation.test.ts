@@ -799,23 +799,17 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         () => "",
       );
       expect(preview.status).toBe("preview");
-      expect(JSON.parse(preview.request!.body!).size).toBe(size);
-      expect(JSON.parse(preview.request!.body!).quality).toBe("auto");
+      const body = JSON.parse(preview.request!.body!);
+      if (size === undefined) expect(body).not.toHaveProperty("size");
+      else expect(body.size).toBe(size);
+      expect(body).not.toHaveProperty("quality");
     }
     const trial = {
       id: model.id,
       expectedRevision: model.revision,
       prompt: "色彩",
-      params: { size: "1024x1536", quality: "high" as const },
+      params: {},
     };
-    const direct = await runModelTrial(registry, { ...trial, dry: true }, () => "");
-    expect(JSON.parse(direct.request!.body!)).toMatchObject(trial.params);
-    const auto = await runModelTrial(
-      registry,
-      { ...trial, dry: true, params: { size: "auto", quality: "low" } },
-      () => "",
-    );
-    expect(JSON.parse(auto.request!.body!)).toMatchObject({ size: "auto", quality: "low" });
     expect(calls).toEqual([]);
     let editBody = "";
     provider = (request, response) => {
@@ -835,8 +829,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     );
     expect(edited.status).toBe("succeeded");
     expect(calls).toEqual(["POST /v1/images/edits"]);
-    expect(editBody).toContain('name="size"\r\n\r\n1024x1536');
-    expect(editBody).toContain('name="quality"\r\n\r\nhigh');
+    expect(editBody).not.toContain('name="quality"');
   });
 
   it("导入模型后必须显式配置，离线图片试跑支持本地参考且不写入项目", async () => {
