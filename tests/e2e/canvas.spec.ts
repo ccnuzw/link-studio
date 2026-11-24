@@ -3154,7 +3154,13 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
       )
       .toBeGreaterThan(heading.x + 15);
     await projectAction(page, "所选节点属性");
-    await page.getByRole("button", { name: "生成内容", exact: true }).click();
+    const properties = page.getByRole("region", { name: "节点属性" });
+    const generate = properties.getByRole("button", { name: "生成内容", exact: true });
+    await expect(generate).toBeEnabled();
+    await generate.focus();
+    await expect(generate).toBeFocused();
+    await generate.press("Enter");
+    await expect(properties).toBeHidden();
     await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
     await application.close();
     application = await launchCanvas(root);
@@ -8656,14 +8662,19 @@ test("从文本端口拉到空白处可取消或创建已连线的下游节点",
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ });
     const drag = () => handle.dragTo(pane, { targetPosition: { x: 250, y: 190 } });
     const start = await handle.boundingBox();
-    const surface = await pane.boundingBox();
-    if (!start || !surface) throw new Error("缺少起始端口或画布");
-    await page.mouse.move(start.x + start.width + 8, start.y + 35);
+    if (!start) throw new Error("缺少起始端口");
+    await handle.hover({ position: { x: start.width * 2, y: start.height * 5 } });
     await expect(handle.locator(".canvas-port-icon")).toHaveCSS("opacity", "1");
-    expect(await handle.evaluate((port) => port.matches(":hover"))).toBe(true);
+    await expect.poll(() => handle.evaluate((port) => port.matches(":hover"))).toBe(true);
+    const surface = await pane.boundingBox();
+    if (!surface) throw new Error("缺少画布");
     await page.mouse.down();
-    await page.mouse.move(surface.x + 250, surface.y + 190, { steps: 12 });
-    await page.mouse.up();
+    try {
+      await page.mouse.move(surface.x + 250, surface.y + 190, { steps: 12 });
+      await expect(page.locator(".react-flow__connection-path")).toBeVisible();
+    } finally {
+      await page.mouse.up();
+    }
     await expect(menu.getByRole("menuitem", { name: "文本", exact: true })).toBeDisabled();
     const preview = page.locator(".canvas-fan-lines path");
     const endpoints = await preview.evaluate((element) => {
