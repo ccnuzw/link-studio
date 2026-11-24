@@ -11,7 +11,12 @@ import type {
   CanvasAgentOps,
 } from "../../../packages/link-studio-core/src/canvas-agent.ts";
 import type { ProjectState } from "../../../packages/link-studio-core/src/project.ts";
-import { canvasBounds, groupFrame } from "./canvas-agent-layout.ts";
+import {
+  canvasBounds,
+  freeCanvasPosition,
+  groupFrame,
+  refitAndPushGroups,
+} from "./canvas-agent-layout.ts";
 import { editNodeGeneration } from "./canvas-agent-model";
 import { editStoryboard } from "./canvas-agent-storyboard.ts";
 import { ProjectError } from "./errors.ts";
@@ -50,6 +55,9 @@ export function compileAgentOps(
   const nodes = new Map<string, EditableCanvasNode>();
   const edges: CanvasOperation[] = [];
   const touched = new Set<string>();
+  const refitGroups = new Set<string>();
+  const explicitPositions = new Set<string>();
+  const pending = new Set<string>();
   const warnings: string[] = [];
   let nextShot = -1;
   const shotsFor = (index: number, shots: CanvasShot[], patch: AgentStoryboardPatch) => {
@@ -81,6 +89,25 @@ export function compileAgentOps(
     if (op.op === "create_node") {
       const id = makeId(index);
       register(id, op.tempId);
+      if (op.position) explicitPositions.add(id);
+      const parent = op.parentGroup ? resolve(op.parentGroup) : undefined;
+      if (parent && parent.type !== "group")
+        throw new ProjectError("CANVAS_OPERATION_INVALID", "parentGroup 需要指向组框");
+      let position = op.position;
+      if (parent) {
+        refitGroups.add(parent.id);
+        if (!position) {
+          const members = all().filter(
+            (node) => node.type === "creative" && node.parentId === parent.id,
+          );
+          const right = members.reduce((edge, member) => {
+            const width = bounds(current(member.id)).width;
+            return Math.max(edge, member.position.x + width);
+          }, -Infinity);
+          const last = members.at(-1);
+          position = last ? { x: right + 120, y: last.position.y } : { x: 48, y: 72 };
+        }
+      }
       const board = op.kind === "storyboard";
       if (op.kind !== "character" && op.character)
         throw new ProjectError("CANVAS_OPERATION_INVALID", "请选择角色卡");
@@ -94,10 +121,12 @@ export function compileAgentOps(
           : op.storyboard !== undefined
       )
         throw new ProjectError("CANVAS_OPERATION_INVALID", "请检查分镜表字段");
+      if (!parent && !position) pending.add(id);
       nodes.set(id, {
         id,
         type: "creative",
-        position: op.position ?? { x: (original.size + index) * 40, y: 80 },
+        position: position ?? { x: 0, y: 0 },
+        ...(parent && { parentId: parent.id }),
         data: editNodeGeneration(
           {
             kind: op.kind === "storyboard" ? "script" : op.kind === "character" ? "image" : op.kind,
@@ -116,13 +145,17 @@ export function compileAgentOps(
                 character: `${character?.name} · ${character?.look}`,
               }[op.kind],
             text: op.prompt ?? "",
+            ...(op.kind === "script" &&
+              op.prompt !== undefined && {
+                textStatus: op.prompt.trim() ? "done" : "idle",
+              }),
           },
           op,
           settings,
         ),
       });
     } else if (op.op === "create_group" || op.op === "set_group") {
-      const previous = op.op === "set_group" ? resolve(op.id) : undefined;
+      let previous = op.op === "set_group" ? resolve(op.id) : undefined;
       if (previous && previous.type !== "group")
         throw new ProjectError("CANVAS_OPERATION_INVALID", "目标不是组框");
       const id = previous?.id ?? makeId(index);
@@ -133,11 +166,45 @@ export function compileAgentOps(
           throw new ProjectError("CANVAS_OPERATION_INVALID", "组框不能嵌套");
         return node;
       };
+      if (
+        previous &&
+        pending.has(id) &&
+        op.op === "set_group" &&
+        (op.addMembers?.length || op.removeMembers?.length)
+      ) {
+        const editable = all().filter((node) => node.type !== "unknown");
+        const children = editable.filter(
+          (node) => node.type === "creative" && node.parentId === id,
+        );
+        if (children.length) {
+          const frame = groupFrame(children.map(bounds));
+          const position = freeCanvasPosition(editable, pending, bounds);
+          for (const child of children) {
+            const absolute = bounds(child);
+            nodes.set(child.id, {
+              ...child,
+              position: { x: absolute.x - frame.x, y: absolute.y - frame.y },
+            });
+          }
+          previous = { ...previous, position, width: frame.width, height: frame.height };
+          nodes.set(id, previous);
+        }
+        pending.delete(id);
+      }
       const add = (op.op === "create_group" ? op.memberIds : op.addMembers)?.map(member) ?? [];
       const remove = op.op === "set_group" ? (op.removeMembers?.map(member) ?? []) : [];
+      if (previous && (add.length || remove.length)) refitGroups.add(id);
+      if (op.op === "create_group" && op.position && !add.length) explicitPositions.add(id);
       if (remove.some((node) => node.parentId !== id))
         throw new ProjectError("CANVAS_OPERATION_INVALID", "成员不在该组内");
-      if (op.op === "set_group" && !add.length && !remove.length && op.label === undefined)
+      if (
+        op.op === "set_group" &&
+        !add.length &&
+        !remove.length &&
+        op.label === undefined &&
+        op.color === undefined &&
+        op.labelColor === undefined
+      )
         throw new ProjectError("CANVAS_OPERATION_INVALID", "没有要修改的内容");
       for (const node of remove) {
         const { parentId, ...rest } = node;
@@ -157,32 +224,27 @@ export function compileAgentOps(
       const refit = entries.length && (add.length || remove.length);
       if (refit && all().some((node) => node.type === "unknown" && node.parentId === id))
         throw new ProjectError("CANVAS_OPERATION_INVALID", "组含有不可编辑成员");
-      const frame = refit ? groupFrame(entries) : undefined;
+      const frame = refit && !previous ? groupFrame(entries) : undefined;
       const position = frame
         ? { x: frame.x, y: frame.y }
         : (previous?.position ??
-          (op.op === "create_group" ? op.position : undefined) ?? {
-            x:
-              Math.max(
-                -120,
-                ...all()
-                  .filter((node) => node.type !== "unknown")
-                  .map((node) => {
-                    const rect = bounds(node);
-                    return rect.x + rect.width;
-                  }),
-              ) + 120,
-            y: 0,
-          });
+          (op.op === "create_group" ? op.position : undefined) ?? { x: 0, y: 0 });
+      if (op.op === "create_group" && !op.position && !frame) pending.add(id);
+      const data = { ...previous?.data, label: op.label ?? previous?.data.label ?? "组" };
+      for (const field of ["color", "labelColor"] as const) {
+        const hue = op[field];
+        if (hue === "") delete data[field];
+        else if (hue !== undefined) data[field] = hue;
+      }
       nodes.set(id, {
         id,
         type: "group",
         position,
         width: frame?.width ?? previous?.width ?? 200,
         height: frame?.height ?? previous?.height ?? 140,
-        data: { label: op.label ?? previous?.data.label ?? "组" },
+        data,
       });
-      if (frame)
+      if (refit)
         for (const { node, x, y } of entries)
           nodes.set(node.id, {
             ...node,
@@ -196,8 +258,12 @@ export function compileAgentOps(
       });
     } else {
       const node = resolve(op.id);
-      if (op.op === "move") nodes.set(node.id, { ...node, position: op.position });
-      else if (node.type === "creative") {
+      if (op.op === "move") {
+        pending.delete(node.id);
+        explicitPositions.add(node.id);
+        if (node.type === "creative" && node.parentId) refitGroups.add(node.parentId);
+        nodes.set(node.id, { ...node, position: op.position });
+      } else if (node.type === "creative") {
         if (
           node.data.director ||
           (op.character && !node.data.character) ||
@@ -209,13 +275,21 @@ export function compileAgentOps(
             : op.storyboard !== undefined)
         )
           throw new ProjectError("CANVAS_OPERATION_INVALID", "此节点不支持指定编辑");
+        const updated = {
+          ...node.data,
+          label: op.label ?? node.data.label,
+          text: op.prompt ?? node.data.text,
+        };
+        if (node.data.kind === "script" && op.prompt !== undefined) {
+          updated.textStatus = op.prompt.trim() ? "done" : "idle";
+          delete updated.textError;
+          delete updated.textFailureTask;
+        }
         nodes.set(node.id, {
           ...node,
           data: editNodeGeneration(
             {
-              ...node.data,
-              label: op.label ?? node.data.label,
-              text: op.prompt ?? node.data.text,
+              ...updated,
               ...(op.character
                 ? { character: editCharacter(op.character, node.data.character) }
                 : {}),
@@ -228,6 +302,19 @@ export function compileAgentOps(
           ),
         });
       } else throw new ProjectError("CANVAS_OPERATION_INVALID", "请选择创作节点");
+    }
+  }
+  if (refitGroups.size || pending.size || explicitPositions.size) {
+    const editable = new Map(
+      all()
+        .filter((node) => node.type !== "unknown")
+        .map((node) => [node.id, node]),
+    );
+    warnings.push(
+      ...refitAndPushGroups(canvas, editable, refitGroups, assets, explicitPositions, pending),
+    );
+    for (const node of editable.values()) {
+      if (node !== original.get(node.id)) nodes.set(node.id, node);
     }
   }
   const operations: CanvasOperation[] = [...nodes.values()].map((node) => ({

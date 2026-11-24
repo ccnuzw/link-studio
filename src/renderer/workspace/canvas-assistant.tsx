@@ -28,6 +28,7 @@ import { useAssistantAction, useAssistantSession } from "../assistant/use-assist
 import { Activity } from "../settings/settings-assistant";
 import { settingsError } from "../settings/settings-page";
 import { AgentMarks } from "./agent-marks";
+import { AssistantAttachMenu } from "./assistant-attach-menu";
 import { DocumentPreview, DocumentTray, useAssistantDocuments } from "./assistant-documents";
 import { AssistantEditor, type AssistantEditorHandle } from "./assistant-editor";
 import { CanvasAssistantEmpty } from "./assistant-empty";
@@ -49,6 +50,7 @@ import { GenerationDecisionRow } from "./generation-decision-row";
 import { linkKind } from "./link-rules";
 import { CanvasPet } from "./pet/canvas-pet";
 import type { PetBounds } from "./pet/placement";
+import { canvasPetJobs } from "./pet/result-observer";
 import { SettledDivider } from "./settled-divider";
 
 function fields(value: unknown) {
@@ -408,6 +410,7 @@ export function CanvasAssistant({
   const steers = useSteers(events);
   const approvals = approvalTimeline(events, state?.approvals ?? []);
   const changesByRun = useMemo(() => canvasRunChanges(events), [events]);
+  const petJobs = useMemo(() => canvasPetJobs(jobs, nodes), [jobs, nodes]);
   const watch = summarizeWatches(state?.watches ?? []);
   const titleLabel =
     canvasName === null ? null : canvasTitleLabel(canvasName, !!state?.approvals.length, watch);
@@ -556,6 +559,7 @@ export function CanvasAssistant({
     }, !state?.activeRun);
   };
   const resumable = events.findLast(({ type }) => type === "run.status");
+  const runError = fields(resumable?.payload).error;
   const stop = () => {
     const runId = state?.activeRun;
     if (blocked || !runId) return;
@@ -1156,40 +1160,19 @@ export function CanvasAssistant({
               openSettings={openSettings}
               events={events}
               locked={blocked || Boolean(state?.activeRun)}
-              attachmentsLocked={blocked}
               canSend={canSend && !!message.trim()}
               active={Boolean(state?.activeRun)}
               stop={state?.activeRun && !message.trim() ? stop : undefined}
               stopDisabled={blocked}
               attachments={
-                <>
+                <AssistantAttachMenu
+                  disabled={blocked}
+                  running={!!state?.activeRun}
+                  onImages={images.add}
+                  onDocuments={documents.add}
+                >
                   <fieldset className="assistant-asset-picker">
-                    <legend>项目素材</legend>
-                    <label>
-                      上传故事或剧本
-                      <input
-                        type="file"
-                        accept=".txt,.md,.markdown"
-                        disabled={!!state?.activeRun}
-                        multiple
-                        onChange={({ currentTarget }) => {
-                          if (currentTarget.files) documents.add(currentTarget.files);
-                          currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-                    <label>
-                      上传图片
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/png,image/jpeg,image/webp"
-                        onChange={({ currentTarget }) => {
-                          if (currentTarget.files) images.add(currentTarget.files);
-                          currentTarget.value = "";
-                        }}
-                      />
-                    </label>
+                    <legend>项目文件</legend>
                     {assets.filter(
                       ({ mediaType }) => mediaType === "image" || mediaType === "video",
                     ).length ? (
@@ -1282,7 +1265,7 @@ export function CanvasAssistant({
                     支持公开的 HTTPS 纯文本或 Markdown
                     链接。发送消息时，小灵会读取链接内容并随消息发给所选模型。
                   </small>
-                </>
+                </AssistantAttachMenu>
               }
               media={
                 visible && (
@@ -1337,12 +1320,13 @@ export function CanvasAssistant({
           runId={state?.activeRun}
           pending={state?.approvals[0]}
           available={!!model}
-          jobs={jobs}
+          jobs={petJobs}
           locateResults={locateResults}
           ended={
             resumable && {
               runId: resumable.runId,
               status: String(fields(resumable.payload).status),
+              error: typeof runError === "string" ? runError : undefined,
             }
           }
         />

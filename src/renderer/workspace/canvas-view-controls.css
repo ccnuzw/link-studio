@@ -163,6 +163,28 @@
 .canvas-edit-controls [role="radiogroup"] {
   flex-direction: column;
 }
+.canvas-controls.canvas-edit-controls[aria-orientation="horizontal"] {
+  inset: auto auto 12px 50%;
+  translate: -50% 0;
+}
+.canvas-edit-controls[aria-orientation="horizontal"] .canvas-control-pill,
+.canvas-edit-controls[aria-orientation="horizontal"] [role="radiogroup"] {
+  flex-direction: row;
+}
+.canvas-edit-controls[aria-orientation="horizontal"] .canvas-control-pill {
+  width: max-content;
+  padding: 6px;
+}
+.canvas-edit-controls[aria-orientation="horizontal"] hr[data-ui-divider] {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+}
+@container (max-width: 940px) {
+  .canvas-area:has(.canvas-edit-controls[aria-orientation="horizontal"]) [aria-label="画布视图"] {
+    bottom: 76px;
+  }
+}
 .canvas-edit-controls button {
   height: 40px;
   min-width: 40px;

@@ -75,8 +75,12 @@ export function composeLinkedPrompt(
       if (audio >= 0) voices.push(`${subject}说话时，音色参考音频${audio + 1}。`);
     }
   }
-  const expand = (text: string, allowText: boolean): string => {
-    const resolve = (reference: string, label: string): string => {
+  const expand = (text: string, allowText: boolean, speechOnly = false): string => {
+    const quotes = text.matchAll(/“[^”\n]*”|「[^」\n]*」|"[^"\n]*"/g);
+    let quote = quotes.next().value;
+    const resolve = (reference: string, label: string, offset: number): string => {
+      while (quote && offset >= quote.index + quote[0].length) quote = quotes.next().value;
+      const speech = speechOnly || !!(quote && offset > quote.index);
       const id =
         syntax === "agent" || sources.has(reference) ? reference : reference.replace(/^node:/, "");
       const data = sources.get(id);
@@ -84,18 +88,19 @@ export function composeLinkedPrompt(
       const kind = linkKind(data);
       if (kind === "script" && allowText) {
         cited.add(id);
-        return expand(data.text.trim() || label, false);
+        return expand(data.text.trim() || label, false, speech || syntax === "agent");
       }
       if (kind === "storyboard" || kind === "director" || kind === "script") return label;
       if (kind === "character")
         return names.get(id) || data.character?.name || (syntax === "agent" ? data.label : label);
+      if (speech) return label;
       const index = indexOf(kind, data.assetId);
       return index >= 0 ? `${mediaNames[kind]}${index + 1}` : label;
     };
     if (syntax === "agent")
       return text.replace(
         /@\[([^\]\n]*)\]\((?:node:)?([^)\s]+)\)/g,
-        (_token, label: string, id: string) => resolve(id, label),
+        (_token, label: string, id: string, offset: number) => resolve(id, label, offset),
       );
     return expandPrompt(
       text,
@@ -106,7 +111,7 @@ export function composeLinkedPrompt(
   const parts = [expand(draft, true).trim()];
   for (const [id, data] of sources) {
     if (!cited.has(id) && linkKind(data) === "script" && data.text.trim())
-      parts.push(expand(data.text.trim(), false));
+      parts.push(expand(data.text.trim(), false, true));
   }
   if (!parts.some(Boolean)) return "";
   if (visuals.length) parts.push(`【人物参考】\n${visuals.join("\n")}`);

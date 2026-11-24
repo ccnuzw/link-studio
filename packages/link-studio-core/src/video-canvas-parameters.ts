@@ -1,6 +1,7 @@
 import { Value } from "@sinclair/typebox/value";
 import type { CreativeData } from "./canvas.ts";
 import { GenerationParameters } from "./generation-parameters.ts";
+import { parseCanvasAspect } from "./image-display-size.ts";
 
 const names = {
   size: "size",
@@ -29,12 +30,20 @@ export function canvasParameterKey(name: string) {
 }
 
 export function importVideoCanvasParameters(params: Record<string, unknown>): GenerationParameters {
-  return Object.fromEntries(
+  const standard = Object.fromEntries(
     fields.flatMap((key) => {
       const value = params[names[key]];
       return Value.Check(GenerationParameters.properties[key], value) ? [[key, value]] : [];
     }),
   );
+  const customParams: Record<string, string> = {};
+  for (const key of ["aspect_ratio", "ratio"]) {
+    const value = params[key];
+    if (key === "aspect_ratio" && standard.aspectRatio !== undefined) continue;
+    if (typeof value === "string" && value.length <= 256 && parseCanvasAspect(value))
+      customParams[key] = value;
+  }
+  return Object.keys(customParams).length ? { ...standard, customParams } : standard;
 }
 
 export function canvasVideoDuration(data: Pick<CreativeData, "generation" | "videoDuration">) {
@@ -59,6 +68,10 @@ export function exportVideoCanvasParameters(data: CreativeData) {
     }),
   );
   const seconds = canvasVideoDuration(data);
+  for (const key of ["aspect_ratio", "ratio"]) {
+    const value = params.customParams?.[key];
+    if (result[key] === undefined && parseCanvasAspect(value)) result[key] = value;
+  }
   if (seconds !== undefined) result.duration = seconds;
   return result;
 }

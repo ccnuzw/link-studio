@@ -39,7 +39,8 @@ const localJobs = originalTasks.map((task) => ({
   nodeId: task.node_id,
   status: task.status,
   kind: task.kind,
-  model: task.model_id,
+  model: task.id === "201" ? task.model_id : "视频展示名",
+  ...(task.id === "202" && { modelKey: task.model_id }),
   quotedCredits: task.credits,
   settledCredits: task.charged_credits,
   createdAt: task.created_at,
@@ -64,10 +65,12 @@ export function historyFixture(upstream, theme) {
     const flow=useReactFlow();
     window.selected=()=>flow.getNodes().filter(node=>node.selected).map(node=>node.id);
     window.advance=()=>useTasksStore.getState().upsert({...${JSON.stringify(originalTasks[1])},status:'finalizing',version:2});
+    window.finish=(status,version)=>useTasksStore.getState().upsert({...${JSON.stringify(originalTasks[1])},status,version});
   `
     : `
     const [jobs,setJobs]=React.useState([${JSON.stringify(localJobs[1])}]);
     window.advance=()=>setJobs([{...${JSON.stringify(localJobs[1])},status:'downloading',updatedAt:'2026-11-19T12:01:00Z'}]);
+    window.finish=(error,version)=>setJobs([{...${JSON.stringify(localJobs[1])},status:'failed',error,updatedAt:'2026-11-19T12:0'+version+':00Z'}]);
   `;
   return `import React from 'react';import {createRoot} from 'react-dom/client';${imports}
     const nodes=${JSON.stringify(nodes)};
@@ -93,6 +96,8 @@ export async function replayHistory(page, upstream, expect, checkpoint) {
   await expect(deleted).toContainText("已删除的节点");
   await expect(deleted).toBeDisabled();
   await expect(video).toContainText("20 积分");
+  await expect(video).toContainText("video-B");
+  await expect(deleted).toContainText("image-A");
   await expect(deleted).toContainText("6 积分");
   await page.mouse.move(550, 250);
   await checkpoint("rows");
@@ -106,6 +111,19 @@ export async function replayHistory(page, upstream, expect, checkpoint) {
   await expect(video).toBeFocused();
   await checkpoint("focus");
   const geometry = await Promise.all([dialog, video, deleted].map((item) => item.boundingBox()));
+  for (const [index, error] of [
+    "JOB_QUEUE_TIMEOUT",
+    "JOB_TIMEOUT",
+    "JOB_PROVIDER_FAILED",
+  ].entries()) {
+    const expired = error !== "JOB_PROVIDER_FAILED";
+    await page.evaluate(
+      ([status, version]) => window.finish(status, version),
+      [upstream ? (expired ? "expired" : "failed") : error, index + 3],
+    );
+    await expect(video).toContainText(expired ? "已超时" : "失败");
+    if (index === 0) await checkpoint("expired");
+  }
   await video.press("Enter");
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.selected())).toEqual(["video"]);

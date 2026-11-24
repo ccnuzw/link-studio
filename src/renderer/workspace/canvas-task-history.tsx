@@ -16,6 +16,11 @@ const statuses = {
   outcome_unknown: "结果未知",
 };
 const kinds = { image: "图片", video: "视频", audio: "音频", text: "文本" };
+function taskStatus(job: GenerationJob) {
+  if (job.status === "failed" && (job.error === "JOB_QUEUE_TIMEOUT" || job.error === "JOB_TIMEOUT"))
+    return "已超时";
+  return statuses[job.status];
+}
 const dateFormat = new Intl.DateTimeFormat("zh-CN", {
   month: "numeric",
   day: "numeric",
@@ -73,11 +78,11 @@ function TaskList({ nodes, jobs, inventoryReady, projectHandle, pick }: HistoryP
                 <small>{kinds[job.kind]}</small>
               </strong>
               <small>
-                {dateFormat.format(new Date(job.createdAt))} · {job.model}
+                {dateFormat.format(new Date(job.createdAt))} · {job.modelKey ?? job.model}
               </small>
             </span>
             <span>
-              <strong data-status={job.status}>{statuses[job.status]}</strong>
+              <strong data-status={job.status}>{taskStatus(job)}</strong>
               <small>{job.settledCredits ?? job.quotedCredits ?? "—"} 积分</small>
             </span>
           </button>

@@ -92,7 +92,9 @@ test.each(fixture.cases)("固定版共用样例 · $name", (example) => {
     ["t2v", "i2v", "omni"],
     true,
   );
-  expect(composeLinkedPrompt(target.text, sources, true, result.refs)).toBe(example.expect);
+  expect(composeLinkedPrompt(target.text, sources, true, result.refs, "agent")).toBe(
+    example.expect,
+  );
 });
 
 test("Agent 根据实际模式保留必要参考，并只在名额不足时裁掉角色补充图", () => {

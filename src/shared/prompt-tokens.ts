@@ -28,12 +28,11 @@ export const formatPromptPreset = (kind: PresetKind, id: string, label: string) 
   `#[${label.replace(/[\]\n]/g, " ")}](${kind}/${id})`;
 
 /** 把提示词切成文字段、引用段和预设段，相邻的文字不会被拆开 */
-export function parsePrompt(prompt: string): PromptSegment[] {
-  const segments: PromptSegment[] = [];
+function* promptSegments(prompt: string): Generator<readonly [PromptSegment, number]> {
   let last = 0;
   for (const match of prompt.matchAll(TOKEN_RE)) {
-    if (match.index > last) segments.push({ type: "text", text: prompt.slice(last, match.index) });
-    segments.push(
+    if (match.index > last) yield [{ type: "text", text: prompt.slice(last, match.index) }, last];
+    yield [
       match[2] !== undefined
         ? { type: "ref", label: match[1] ?? "", id: match[2] }
         : {
@@ -42,11 +41,15 @@ export function parsePrompt(prompt: string): PromptSegment[] {
             id: match[5] ?? "",
             label: match[3] ?? "",
           },
-    );
+      match.index,
+    ];
     last = match.index + match[0].length;
   }
-  if (last < prompt.length) segments.push({ type: "text", text: prompt.slice(last) });
-  return segments;
+  if (last < prompt.length) yield [{ type: "text", text: prompt.slice(last) }, last];
+}
+
+export function parsePrompt(prompt: string): PromptSegment[] {
+  return Array.from(promptSegments(prompt), ([segment]) => segment);
 }
 
 /** 提示词里引用了哪些节点，按出现顺序去重 */
@@ -77,7 +80,7 @@ const BREAK_RE = /[\s，。！？；：、,.!?;:）)」』】”"'…—]/;
  */
 export function expandPrompt(
   prompt: string,
-  resolve: (id: string, label: string) => string,
+  resolve: (id: string, label: string, offset: number) => string,
   resolvePreset?: (kind: PresetKind, id: string, label: string) => string | undefined,
 ) {
   const lead: string[] = [];
@@ -86,7 +89,7 @@ export function expandPrompt(
   let afterPreset = false;
   /** 刚拿掉一个模板，它旁边多出来的空格要吃掉 */
   let eatSpace = false;
-  for (const seg of parsePrompt(prompt)) {
+  for (const [seg, offset] of promptSegments(prompt)) {
     if (seg.type === "preset") {
       const text = resolvePreset?.(seg.kind, seg.id, seg.label)?.trim();
       if (text === undefined || text === "") {
@@ -105,7 +108,7 @@ export function expandPrompt(
       afterPreset = true;
       continue;
     }
-    let piece = seg.type === "text" ? seg.text : resolve(seg.id, seg.label);
+    let piece = seg.type === "text" ? seg.text : resolve(seg.id, seg.label, offset);
     if (afterPreset || eatSpace) piece = piece.replace(/^[ \t]+/, "");
     if (afterPreset && piece) {
       if (!BREAK_RE.test(piece.charAt(0))) body += "，";

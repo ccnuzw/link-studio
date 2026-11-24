@@ -161,8 +161,9 @@ try {
       desktop,
       await readFile("resources/icons/icon-32.png", "base64"),
     );
+  await desktop.getByRole("button", { name: /^新建画布项目/ }).click();
   await desktop.getByRole("textbox", { name: "新项目名称" }).fill(title);
-  await desktop.getByRole("button", { name: "新建项目" }).click();
+  await desktop.getByRole("button", { name: "选择保存位置…" }).click();
   await desktop.getByRole("button", { name: "更多", exact: true }).click();
   await desktop.getByRole("menuitem", { name: "主题", exact: true }).press("ArrowRight");
   await desktop
@@ -470,7 +471,7 @@ try {
           if (name === "original") await page.evaluate(() => window.openAuditTarget());
           else {
             await page.getByRole("button", { name: "画布菜单" }).click();
-            await page.getByRole("menuitem", { name: "新建画布" }).click();
+            await page.getByRole("menuitem", { name: "新建画布项目" }).click();
             const title = page.getByRole("textbox", { name: "画布名称" });
             await expect(title).toHaveValue("未命名画布");
             await expect(title).toBeEnabled();

@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 
 export const fixedMenuSide = { side: "none", align: "shift", fallbackAxisSide: "none" } as const;
 
-export function CanvasAccountPill() {
+export function CanvasAccountPill({ creditsOnly = false }: { creditsOnly?: boolean }) {
   return (
     <div className="canvas-view-more canvas-account-pill">
       <Popover.Root>
@@ -44,39 +44,43 @@ export function CanvasAccountPill() {
           </Popover.Positioner>
         </Popover.Portal>
       </Popover.Root>
-      <hr className="canvas-account-divider" data-ui-divider aria-orientation="vertical" />
-      <Menu.Root modal={false}>
-        <Menu.Trigger
-          className="canvas-account-trigger"
-          aria-label="账户"
-          render={<motion.button type="button" whileTap={{ scale: 0.96 }} />}
-        >
-          <span>我</span>
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner
-            className="canvas-frame-positioner"
-            align="end"
-            sideOffset={10}
-            collisionAvoidance={fixedMenuSide}
-          >
-            <Menu.Popup
-              className="canvas-frame-menu canvas-view-menu canvas-account-menu"
+      {!creditsOnly && (
+        <>
+          <hr className="canvas-account-divider" data-ui-divider aria-orientation="vertical" />
+          <Menu.Root modal={false}>
+            <Menu.Trigger
+              className="canvas-account-trigger"
               aria-label="账户"
+              render={<motion.button type="button" whileTap={{ scale: 0.96 }} />}
             >
-              <Menu.Item disabled title="未连接官方账户">
-                <User size={16} />
-                个人中心
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item disabled title="当前未登录" className="canvas-account-logout">
-                <LogOut size={16} />
-                退出登录
-              </Menu.Item>
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+              <span>我</span>
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner
+                className="canvas-frame-positioner"
+                align="end"
+                sideOffset={10}
+                collisionAvoidance={fixedMenuSide}
+              >
+                <Menu.Popup
+                  className="canvas-frame-menu canvas-view-menu canvas-account-menu"
+                  aria-label="账户"
+                >
+                  <Menu.Item disabled title="未连接官方账户">
+                    <User size={16} />
+                    个人中心
+                  </Menu.Item>
+                  <Menu.Separator />
+                  <Menu.Item disabled title="当前未登录" className="canvas-account-logout">
+                    <LogOut size={16} />
+                    退出登录
+                  </Menu.Item>
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
+        </>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ const tools = [
 const tap = { scale: 0.96 };
 
 export function CanvasEditToolbar({
+  orientation = "vertical",
   addMenu,
   locked,
   hand,
@@ -27,6 +28,7 @@ export function CanvasEditToolbar({
   openTasks,
   tasksOpen,
 }: {
+  orientation?: "horizontal" | "vertical";
   addMenu: ComponentProps<typeof AddNodeMenu>;
   locked: boolean;
   hand: boolean;
@@ -40,12 +42,20 @@ export function CanvasEditToolbar({
   openTasks: () => void;
   tasksOpen: boolean;
 }) {
+  const side = orientation === "horizontal" ? "top" : "right";
+  const divider = orientation === "horizontal" ? "vertical" : "horizontal";
   return (
     <Tooltip.Provider delay={0}>
-      <div className="canvas-controls canvas-edit-controls" role="toolbar" aria-label="画布编辑">
+      <div
+        className="canvas-controls canvas-edit-controls"
+        role="toolbar"
+        aria-orientation={orientation}
+        aria-label="画布编辑"
+      >
         <div className="canvas-control-pill">
           <AddNodeMenu
             {...addMenu}
+            triggerSide={side}
             trigger={
               <motion.button
                 type="button"
@@ -58,16 +68,16 @@ export function CanvasEditToolbar({
               </motion.button>
             }
             wrapTrigger={(trigger) => (
-              <CanvasControlTip side="right" label="添加节点">
+              <CanvasControlTip side={side} label="添加节点">
                 {trigger}
               </CanvasControlTip>
             )}
           />
-          <hr data-ui-divider aria-orientation="horizontal" />
+          <hr data-ui-divider aria-orientation={divider} />
           <LayoutGroup id="canvas-tool">
             <div role="radiogroup">
               {tools.map(([pan, label, key, Icon]) => (
-                <CanvasControlTip key={label} side="right" label={label} shortcut={key}>
+                <CanvasControlTip key={label} side={side} label={label} shortcut={key}>
                   <motion.button
                     role="radio"
                     type="button"
@@ -91,8 +101,8 @@ export function CanvasEditToolbar({
               ))}
             </div>
           </LayoutGroup>
-          <hr data-ui-divider aria-orientation="horizontal" />
-          <CanvasControlTip label="撤销" shortcut={`${canvasModifier}Z`} side="right">
+          <hr data-ui-divider aria-orientation={divider} />
+          <CanvasControlTip label="撤销" shortcut={`${canvasModifier}Z`} side={side}>
             <motion.button
               type="button"
               whileTap={tap}
@@ -103,7 +113,7 @@ export function CanvasEditToolbar({
               <Undo2 size={16} />
             </motion.button>
           </CanvasControlTip>
-          <CanvasControlTip label="重做" shortcut={`⇧${canvasModifier}Z`} side="right">
+          <CanvasControlTip label="重做" shortcut={`⇧${canvasModifier}Z`} side={side}>
             <motion.button
               type="button"
               whileTap={tap}
@@ -114,8 +124,8 @@ export function CanvasEditToolbar({
               <Redo2 size={16} />
             </motion.button>
           </CanvasControlTip>
-          <hr data-ui-divider aria-orientation="horizontal" className="canvas-edit-wide" />
-          <CanvasControlTip label="资产库" side="right">
+          <hr data-ui-divider aria-orientation={divider} className="canvas-edit-wide" />
+          <CanvasControlTip label="资产库" side={side}>
             <motion.button
               type="button"
               className="canvas-edit-wide"
@@ -127,7 +137,7 @@ export function CanvasEditToolbar({
               <FolderOpen size={16} />
             </motion.button>
           </CanvasControlTip>
-          <CanvasControlTip label="任务历史" side="right">
+          <CanvasControlTip label="任务历史" side={side}>
             <motion.button
               type="button"
               className="canvas-edit-wide"

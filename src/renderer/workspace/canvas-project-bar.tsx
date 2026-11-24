@@ -132,7 +132,7 @@ export function CanvasProjectBar({
                 <Menu.Separator />
                 <Menu.Item disabled={locked} onClick={create}>
                   <Plus size={16} />
-                  新建画布
+                  新建画布项目
                 </Menu.Item>
                 <Menu.Separator />
                 <Menu.Item disabled={locked} onClick={exportGraph}>
