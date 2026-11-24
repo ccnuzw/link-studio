@@ -198,7 +198,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await chooseCanvasZoom(page, "适应画布");
     await page
       .locator('.node-media[data-kind="image"]')
-      .filter({ has: page.locator("img") })
+      .filter({ has: page.getByAltText("e2e.png", { exact: true }) })
       .dblclick();
     const gallery = page.getByRole("dialog", { name: "媒体预览" });
     await expect(gallery.getByText(`3×2 · ${png.length} B`)).toBeVisible();
@@ -277,10 +277,11 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     try {
       const reopenedPage = await reopenedApplication.firstWindow();
       await reopenedPage.getByRole("button", { name: "e2e", exact: false }).click();
-      await expect(reopenedPage.locator('.node-media[data-kind="image"] img')).toHaveAttribute(
-        "src",
-        /^link-media:/,
-      );
+      await expect(
+        reopenedPage
+          .locator('.node-media[data-kind="image"]')
+          .getByAltText("e2e.png", { exact: true }),
+      ).toHaveAttribute("src", /^link-media:/);
       await projectAction(reopenedPage, "项目文件");
       await expect(reopenedPage.getByTitle("e2e.png", { exact: true })).toBeVisible();
       await expect(reopenedPage.getByText("e2e.wav", { exact: true })).toBeVisible();
