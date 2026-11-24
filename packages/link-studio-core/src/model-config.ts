@@ -68,7 +68,16 @@ const customParameter = Type.Union([
   ),
 ]);
 export const maxModelReferenceMB = 500;
-const reference = Type.Object({ max: integer(12, 0), mb: integer(maxModelReferenceMB) }, strict);
+export const maxReferencesPerKind = 12;
+export const maxMixedReferences = 3 * maxReferencesPerKind;
+const reference = Type.Object(
+  {
+    on: Type.Optional(Type.Boolean()),
+    max: integer(maxReferencesPerKind, 0),
+    mb: integer(maxModelReferenceMB),
+  },
+  strict,
+);
 const credits = integer(1000000, 0);
 const priceCost = Type.Object(
   { input: Type.Optional(credits), output: Type.Optional(credits) },
@@ -282,11 +291,25 @@ export function validCustomInput(
   });
 }
 
+export function modelParameterOrder(config?: ModelConfig) {
+  if (config?.parameterOrder) return config.parameterOrder;
+  if (
+    (config?.kind === "image" || config?.kind === "video") &&
+    (config.params || config.customParams || config.generateAudio)
+  )
+    return [
+      ...Object.keys(config.params ?? {}),
+      ...Object.keys(config.customParams ?? {}),
+      ...(config.generateAudio ? ["generateAudio"] : []),
+    ];
+  return undefined;
+}
+
 export function includesModelParameter(
   config: ModelConfig | undefined,
   key: ModelParameter | "generateAudio",
 ) {
-  return config?.parameterOrder?.includes(key) ?? true;
+  return modelParameterOrder(config)?.includes(key) ?? true;
 }
 
 export function quoteQuantity(config: ModelConfig | undefined, params: Record<string, unknown>) {

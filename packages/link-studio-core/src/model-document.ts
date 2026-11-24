@@ -340,7 +340,11 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
       const ref = caps.refs[kind];
       if (!ref || (!ref.on && (raw.kind === "text" || raw.kind === "agent"))) continue;
       config.refs ??= {};
-      config.refs[kind] = { max: ref.on ? ref.max : 0, mb: ref.max_mb || 1 };
+      config.refs[kind] = {
+        ...(ref.on !== ref.max > 0 && { on: ref.on }),
+        max: ref.max,
+        mb: ref.max_mb || 1,
+      };
     }
   }
   if (caps?.params || raw.pricing?.tiers?.some((tier) => Object.hasOwn(tier.when, "op")))
@@ -483,7 +487,7 @@ export function modelCapabilities(config: ModelConfig) {
     caps.refs = Object.fromEntries(
       Object.entries(config.refs).map(([name, ref]) => [
         name,
-        { on: ref.max > 0, max: ref.max, max_mb: ref.mb },
+        { on: ref.on ?? ref.max > 0, max: ref.max, max_mb: ref.mb },
       ]),
     );
   if (config.promptLimit !== undefined) caps.prompt = { max_length: config.promptLimit };
@@ -508,7 +512,7 @@ export function modelCapabilities(config: ModelConfig) {
             options: field.values.map(convert),
             default: convert(field.default),
             ...(field.unit !== undefined && { unit: field.unit }),
-            ...(name !== "count" && { spec: field.spec ?? true }),
+            ...((field.spec !== undefined || name !== "count") && { spec: field.spec ?? true }),
             ...(field.fanout !== undefined && { fanout: field.fanout }),
           },
         ];

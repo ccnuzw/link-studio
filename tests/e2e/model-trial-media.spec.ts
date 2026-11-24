@@ -53,7 +53,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
       });
       if (!model.ok) throw Error(model.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "测试 音色试跑", exact: true }).click();
     const trial = page.getByRole("dialog", { name: "测试 音色试跑" });
     const picker = trial.getByRole("button", { name: "音色库" });
@@ -232,7 +232,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       });
       if (!model.ok) throw new Error(model.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "测试 图片试跑", exact: true }).click();
     const trial = page.getByRole("dialog", { name: "测试 图片试跑" });
     await expect(trial.getByRole("button", { name: "开始测试 · 8 积分" })).toBeVisible();
@@ -296,7 +296,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await editor.getByRole("tab", { name: "能力与参数" }).click();
     const preview = editor.getByLabel("创作端预览");
     await preview.getByRole("radio", { name: "图生图", exact: true }).click();
-    await preview.getByRole("button", { name: "2 张", exact: true }).click();
+    await preview.getByRole("combobox", { name: "生成数量" }).selectOption("2");
     await preview.locator('input[type="file"]').setInputFiles(image("预览.png"));
     await editor.getByRole("button", { name: "测试模型" }).click();
     await expect(trial.getByRole("button", { name: "开始测试 · 24 积分" })).toBeVisible();
@@ -304,10 +304,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await trial.getByRole("button", { name: "移除素材 预览.png" }).click();
     await trial.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(preview.getByRole("img", { name: "预览.png" })).toHaveCount(0);
-    await expect(preview.getByRole("button", { name: "2 张", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(preview.getByRole("combobox", { name: "生成数量" })).toHaveValue("2");
     await editor.getByRole("button", { name: "关闭弹窗" }).click();
     await page
       .locator(".channel-model-heading")
@@ -370,10 +367,10 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await expect(create).toBeHidden();
     await page.getByRole("button", { name: "测试 视频声音报价", exact: true }).click();
     const video = page.getByRole("dialog", { name: "测试 视频声音报价" });
-    const sound = video.getByRole("group", { name: "生成音频", exact: true });
-    await expect(video.getByRole("group", { name: "清晰度", exact: true })).toHaveCount(0);
-    await expect(sound.getByRole("button", { name: "默认 · 生成声音" })).toHaveAttribute(
-      "aria-pressed",
+    const sound = video.getByRole("radiogroup", { name: "生成音频", exact: true });
+    await expect(video.getByRole("radiogroup", { name: "清晰度", exact: true })).toHaveCount(0);
+    await expect(sound.getByRole("radio", { name: "开启" })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
     await video.getByLabel("测试提示词").fill("视频示例");
@@ -381,7 +378,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       [true, 15],
       [false, 10],
     ] as const) {
-      if (!useAudio) await sound.getByRole("button", { name: "静音", exact: true }).click();
+      if (!useAudio) await sound.getByRole("radio", { name: "关闭", exact: true }).click();
       await expect(video.getByRole("button", { name: `开始测试 · ${credits} 积分` })).toBeVisible();
       await video.getByRole("button", { name: "只看请求（不发送）" }).click();
       await expect
@@ -408,12 +405,12 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
           ).json.duration,
       )
       .toBe(7);
-    await video
-      .getByRole("group", { name: "视频时长", exact: true })
-      .getByRole("button", { name: "重置" })
-      .click();
+    await video.getByRole("spinbutton", { name: "视频时长（数值）" }).fill("");
     await expect(slider).toHaveValue("5");
-    await video.getByRole("button", { name: "关闭", exact: true }).click();
+    await video
+      .locator(".model-dialog-head")
+      .getByRole("button", { name: "关闭", exact: true })
+      .click();
     await page.getByRole("button", { name: /^视频声音报价/ }).click();
     await editor.getByRole("tab", { name: "能力与参数" }).click();
     await editor.getByLabel("视频时长最小").fill("10");
@@ -428,7 +425,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await audioRow.getByRole("button", { name: "上移" }).click();
     await expect(audioRow.getByRole("button", { name: "上移" })).toBeDisabled();
     const orderedPreview = editor.getByLabel("创作端预览");
-    const mute = orderedPreview.getByRole("button", { name: "静音", exact: true });
+    const mute = orderedPreview.getByRole("radio", { name: "关闭", exact: true });
     await mute.focus();
     await mute.press("Tab");
     await expect(orderedPreview.getByRole("slider", { name: "视频时长" })).toBeFocused();

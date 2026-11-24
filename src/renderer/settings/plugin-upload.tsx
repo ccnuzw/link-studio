@@ -112,10 +112,6 @@ export function PluginUpload({
       className="adapter-dialog plugin-upload"
       ref={dialog}
       aria-labelledby="upload-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
       onClose={(event) => {
         if (!event.currentTarget.open && mounted.current) close();
       }}
@@ -250,7 +246,7 @@ export function PluginUpload({
         </>
       )}
       <footer>
-        <button type="button" onClick={close}>
+        <button type="button" onClick={() => dialog.current?.close()}>
           {saved ? "完成" : "取消"}
         </button>
         {saved ? (
@@ -269,7 +265,12 @@ export function PluginUpload({
           </button>
         )}
       </footer>
-      <button type="button" className="upload-close" aria-label="关闭" onClick={close}>
+      <button
+        type="button"
+        className="upload-close"
+        aria-label="关闭"
+        onClick={() => dialog.current?.close()}
+      >
         <X size={16} />
       </button>
     </dialog>

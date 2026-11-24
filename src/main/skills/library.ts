@@ -28,6 +28,7 @@ type RecordRow = {
   scopes: string;
   active: number;
   latest: number;
+  updated: string | null;
 };
 type VersionRow = {
   name: string;
@@ -92,6 +93,7 @@ function itemView(row: RecordRow, versions: SkillVersion[]): SkillItem {
     ),
     activeVersion: row.active,
     origin: "local",
+    updatedAt: row.updated ?? undefined,
     versions,
   };
 }
@@ -131,7 +133,7 @@ export class SkillLibrary {
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS skills (
         name TEXT PRIMARY KEY, title TEXT NOT NULL, enabled INTEGER NOT NULL,
-        scopes TEXT NOT NULL, active INTEGER NOT NULL, latest INTEGER NOT NULL
+        scopes TEXT NOT NULL, active INTEGER NOT NULL, latest INTEGER NOT NULL, updated TEXT
       );
       CREATE TABLE IF NOT EXISTS versions (
         name TEXT NOT NULL REFERENCES skills(name) ON DELETE CASCADE, version INTEGER NOT NULL,
@@ -152,6 +154,11 @@ export class SkillLibrary {
       CREATE TABLE IF NOT EXISTS step_runs(step TEXT NOT NULL,finished INTEGER NOT NULL,passed INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS step_runs_finished ON step_runs(finished);
     `);
+    if (!this.db.prepare("SELECT 1 FROM pragma_table_info('skills') WHERE name='updated'").get()) {
+      this.db.exec("ALTER TABLE skills ADD COLUMN updated TEXT");
+    }
+    this.db.exec(`CREATE TRIGGER IF NOT EXISTS skill_version_removed AFTER DELETE ON versions
+      BEGIN UPDATE skills SET updated = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE name = OLD.name; END;`);
   }
 
   close() {
@@ -257,22 +264,21 @@ export class SkillLibrary {
       if (plan?.action !== current.action || plan.version !== current.version)
         throw new SkillError("技能库已变化，请重新预检。");
       const { version } = current;
+      const updated = new Date().toISOString();
       if (current.action === "create") {
         this.db
-          .prepare("INSERT INTO skills VALUES (?, ?, ?, ?, ?, ?)")
-          .run(name, pkg.title, Number(enabled), JSON.stringify(scopes), version, version);
+          .prepare(
+            "INSERT INTO skills(name,title,enabled,scopes,active,latest,updated) VALUES (?,?,?,?,?,?,?)",
+          )
+          .run(name, pkg.title, Number(enabled), JSON.stringify(scopes), version, version, updated);
         this.db.prepare("INSERT INTO skill_instances VALUES(?,?)").run(name, randomUUID());
-      } else this.db.prepare("UPDATE skills SET latest = ? WHERE name = ?").run(version, name);
+      } else
+        this.db
+          .prepare("UPDATE skills SET latest = ?, updated = ? WHERE name = ?")
+          .run(version, updated, name);
       this.db
         .prepare("INSERT INTO versions VALUES (?, ?, ?, ?, ?, ?)")
-        .run(
-          name,
-          version,
-          pkg.hash,
-          pkg.description,
-          new Date().toISOString(),
-          JSON.stringify(fileList(pkg)),
-        );
+        .run(name, version, pkg.hash, pkg.description, updated, JSON.stringify(fileList(pkg)));
       const insert = this.db.prepare("INSERT INTO files VALUES (?, ?, ?, ?)");
       for (const [path, bytes] of pkg.files) insert.run(name, version, path, bytes);
       this.db
@@ -291,8 +297,8 @@ export class SkillLibrary {
     this.requireRow(name);
     if (!title.trim()) throw new SkillError("请输入显示名称。");
     this.db
-      .prepare("UPDATE skills SET title = ?, enabled = ?, scopes = ? WHERE name = ?")
-      .run(title.trim(), Number(enabled), JSON.stringify(scopes), name);
+      .prepare("UPDATE skills SET title = ?, enabled = ?, scopes = ?, updated = ? WHERE name = ?")
+      .run(title.trim(), Number(enabled), JSON.stringify(scopes), new Date().toISOString(), name);
     return this.item(name);
   }
 
@@ -301,7 +307,9 @@ export class SkillLibrary {
       !this.db.prepare("SELECT 1 FROM versions WHERE name = ? AND version = ?").get(name, version)
     )
       throw new SkillError("找不到该版本，请刷新列表。");
-    this.db.prepare("UPDATE skills SET active = ? WHERE name = ?").run(version, name);
+    this.db
+      .prepare("UPDATE skills SET active = ?, updated = ? WHERE name = ?")
+      .run(version, new Date().toISOString(), name);
     return this.item(name);
   }
 

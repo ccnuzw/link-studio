@@ -25,7 +25,9 @@ export function providerInput(
     count: input.count,
     n: input.count,
     quality: input.quality,
-    aspect_ratio: input.aspectRatio,
+    aspect_ratio:
+      input.aspectRatio ??
+      (adapter === "sora" && input.resolution && !input.size ? "16:9" : undefined),
     resolution: adapter === "agnes-video" ? input.resolution?.toUpperCase() : input.resolution,
     generate_audio: input.generateAudio,
     seed: input.seed,

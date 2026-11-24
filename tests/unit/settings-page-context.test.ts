@@ -5,6 +5,14 @@ import {
   settingsRefs,
 } from "../../packages/link-studio-core/src/settings-page-context";
 
+it("技能管理在输入框与重开的历史中均使用基线技能路由", () => {
+  const context = { route: settingsPaths.skills };
+  expect(historyPageContext(context)).toEqual(context);
+  expect(settingsRefs(context)).toEqual([
+    { id: "page", label: "技能", title: "/admin/agent/skills" },
+  ]);
+});
+
 it("只读引用沿用发送时的标识，不把旧版本的名称、配置或内部插件哈希回显成标识", () => {
   const snapshot = { route: settingsPaths.providers, channel_key: "test", model_key: "model-id" };
   const legacy = {

@@ -1,7 +1,8 @@
 import type { ChannelView, SettingsValues } from "@link-studio/core";
 import { ImagePlus, RotateCw, Star, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { focusOnMount } from "../focus-on-mount";
+import { AssetToolbar } from "../workspace/home-asset-controls";
 import { FilingPersonalPicker } from "./filing-personal-picker";
 import { FilingStorageDialog } from "./filing-storage-dialog";
 import { ModelModal } from "./model-editor";
@@ -65,9 +66,11 @@ export function FilingLibrary({
   channel,
   close,
   renderFilingPicker,
+  home = false,
 }: {
   channel: ChannelView;
   close: () => void;
+  home?: boolean;
   renderFilingPicker?: RenderFilingPicker;
 }) {
   const [assets, setAssets] = useState<SettingsValues["filingAssets"]>([]);
@@ -111,6 +114,8 @@ export function FilingLibrary({
   const [url, setUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading"),
+    [attempt, setAttempt] = useState(0);
   const [removal, setRemoval] = useState<Removal | null>(null);
   const image =
     removal?.action === "remove" ? assets.find((asset) => asset.id === removal.assetId) : undefined;
@@ -124,17 +129,22 @@ export function FilingLibrary({
   );
   useEffect(() => {
     let active = true;
+    setLoadState("loading");
     void settingsRequests
       .filingAssets({ id: channel.id, expectedRevision: channel.revision, action: "list" })
       .then((result) => {
         if (!active) return;
+        setLoadState(result.ok ? "ready" : "error");
         if (result.ok) setAssets(result.value);
         else setNotice(settingsError(result.code));
+      })
+      .catch(() => {
+        if (active) setLoadState("error");
       });
     return () => {
       active = false;
     };
-  }, [channel.id, channel.revision]);
+  }, [channel.id, channel.revision, attempt]);
   useFilingPoll(channel, assets, busy, setAssets, setNotice);
   const run = async (command: Command) => {
     if (busy) return;
@@ -183,8 +193,10 @@ export function FilingLibrary({
       setBusy(false);
     }
   };
+  const Container = home ? HomeFilingSurface : ModelModal;
+  const FilterBar = home ? AssetToolbar : Fragment;
   return (
-    <ModelModal
+    <Container
       title="虚拟人像库"
       subtitle={channel.name}
       close={() => {
@@ -235,125 +247,181 @@ export function FilingLibrary({
           </footer>
         </ModelModal>
       )}
-      <div className="model-dialog-body model-editor-form filing-library-body">
-        <button type="button" disabled={busy} onClick={() => setStorageOpen(true)}>
-          配置图片对象存储
-        </button>
-        {storageOpen && <FilingStorageDialog close={() => setStorageOpen(false)} />}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (choosingExisting && !selected?.length) return;
-            void run({
-              action: "create",
-              name: selected?.[0]?.humanName ?? name,
-              url,
-              ...(selected && { humanId: target }),
-            });
-          }}
-        >
-          <fieldset disabled={busy || !canFile}>
-            <legend>添加备案图片</legend>
-            {people.size > 0 && (
-              <fieldset className="settings-actions" data-ui-group aria-label="加入方式">
-                <button type="button" aria-pressed={!existing} onClick={() => setExisting(false)}>
-                  新建真人
-                </button>
-                <button type="button" aria-pressed={existing} onClick={() => setExisting(true)}>
-                  加到已有真人
-                </button>
-              </fieldset>
-            )}
-            {choosingExisting ? (
-              <fieldset data-ui-group aria-label="选择真人" className="model-chips">
-                {Array.from(people, ([id, members]) => (
-                  <button
-                    type="button"
-                    key={id}
-                    disabled={members.length >= 5}
-                    aria-pressed={id === target}
-                    onClick={() => setTarget(id)}
-                  >
-                    {members[0]?.humanName} {members.length}/5
-                  </button>
-                ))}
-              </fieldset>
-            ) : (
-              <label>
-                真人名称
-                <input
-                  required
-                  value={name}
-                  maxLength={30}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </label>
-            )}
-            <label>
-              图片公网地址
-              <input
-                required
-                type="url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={
-                !channel.hasFilingKeys || (choosingExisting && (!selected || selected.length >= 5))
-              }
-            >
-              加入并提交备案
+      <div
+        className={
+          home ? "home-human-library" : "model-dialog-body model-editor-form filing-library-body"
+        }
+      >
+        {!home && (
+          <>
+            <button type="button" disabled={busy} onClick={() => setStorageOpen(true)}>
+              配置图片对象存储
             </button>
-            {!renderFilingPicker && (
-              <button
-                type="button"
-                disabled={choosingExisting ? !selected || selected.length >= 5 : !name.trim()}
-                onClick={() => setPicking(true)}
-              >
-                从个人库选择图片
-              </button>
-            )}
-          </fieldset>
-        </form>
-        {!channel.hasFilingKeys && <p>请先在渠道设置填写备案凭证。</p>}
-        <fieldset data-ui-group aria-label="按备案状态筛选" className="settings-actions">
-          {(Object.keys(filterLabels) as Filter[]).map((key) => (
-            <button
-              type="button"
-              key={key}
-              aria-pressed={key === filter}
-              onClick={() => setFilter(key)}
-            >
-              {filterLabels[key]}{" "}
-              {key === "all"
-                ? groups.length
-                : groups.filter((group) => group.status === key).length}
-            </button>
-          ))}
-        </fieldset>
-        {!visible.length && <p>暂无符合条件的真人</p>}
-        {visible.map(({ id, members, ready, status }) => (
-          <section key={id} aria-label={members[0]?.humanName}>
-            <h3>
-              {members[0]?.humanName} · {filterLabels[status]}
-            </h3>
-            <small>
-              可用 {ready}/{members.length}
-            </small>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setNotice("");
-                setDetailId(id);
+            {storageOpen && <FilingStorageDialog close={() => setStorageOpen(false)} />}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (choosingExisting && !selected?.length) return;
+                void run({
+                  action: "create",
+                  name: selected?.[0]?.humanName ?? name,
+                  url,
+                  ...(selected && { humanId: target }),
+                });
               }}
             >
-              查看详情
+              <fieldset disabled={busy || !canFile}>
+                <legend>添加备案图片</legend>
+                {people.size > 0 && (
+                  <fieldset className="settings-actions" data-ui-group aria-label="加入方式">
+                    <button
+                      type="button"
+                      aria-pressed={!existing}
+                      onClick={() => setExisting(false)}
+                    >
+                      新建真人
+                    </button>
+                    <button type="button" aria-pressed={existing} onClick={() => setExisting(true)}>
+                      加到已有真人
+                    </button>
+                  </fieldset>
+                )}
+                {choosingExisting ? (
+                  <fieldset data-ui-group aria-label="选择真人" className="model-chips">
+                    {Array.from(people, ([id, members]) => (
+                      <button
+                        type="button"
+                        key={id}
+                        disabled={members.length >= 5}
+                        aria-pressed={id === target}
+                        onClick={() => setTarget(id)}
+                      >
+                        {members[0]?.humanName} {members.length}/5
+                      </button>
+                    ))}
+                  </fieldset>
+                ) : (
+                  <label>
+                    真人名称
+                    <input
+                      required
+                      value={name}
+                      maxLength={30}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </label>
+                )}
+                <label>
+                  图片公网地址
+                  <input
+                    required
+                    type="url"
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={
+                    !channel.hasFilingKeys ||
+                    (choosingExisting && (!selected || selected.length >= 5))
+                  }
+                >
+                  加入并提交备案
+                </button>
+                {!renderFilingPicker && (
+                  <button
+                    type="button"
+                    disabled={choosingExisting ? !selected || selected.length >= 5 : !name.trim()}
+                    onClick={() => setPicking(true)}
+                  >
+                    从个人库选择图片
+                  </button>
+                )}
+              </fieldset>
+            </form>
+          </>
+        )}
+        {!channel.hasFilingKeys && <p>请先在渠道设置填写备案凭证。</p>}
+        <FilterBar>
+          {home && <strong className="home-human-title">真人库</strong>}
+          <fieldset
+            data-ui-group
+            aria-label="按备案状态筛选"
+            className={home ? "home-human-filters home-asset-kinds" : "settings-actions"}
+          >
+            {(Object.keys(filterLabels) as Filter[]).map((key) => (
+              <button
+                type="button"
+                key={key}
+                aria-pressed={key === filter}
+                onClick={() => setFilter(key)}
+              >
+                {filterLabels[key]}{" "}
+                {key === "all"
+                  ? groups.length
+                  : groups.filter((group) => group.status === key).length}
+              </button>
+            ))}
+          </fieldset>
+        </FilterBar>
+        {home && loadState === "loading" ? (
+          <p role="status">正在加载…</p>
+        ) : home && loadState === "error" ? (
+          <p role="alert">
+            真人库加载失败{" "}
+            <button type="button" onClick={() => setAttempt((value) => value + 1)}>
+              重试
             </button>
-          </section>
-        ))}
+          </p>
+        ) : (
+          !visible.length && <p>{home && !groups.length ? "还没有真人" : "暂无符合条件的真人"}</p>
+        )}
+        {home ? (
+          <div className="home-human-grid">
+            {visible.map(({ id, members, ready, status }) => (
+              <button
+                type="button"
+                key={id}
+                aria-label={members[0]?.humanName}
+                onClick={() => setDetailId(id)}
+              >
+                <FilingPreview
+                  channel={channel}
+                  asset={members.find((asset) => asset.cover) ?? members[0]!}
+                />
+                <FilingStatus status={status} />
+                <span>
+                  <strong>{members[0]?.humanName}</strong>
+                  <small>
+                    可用 {ready}/{members.length}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          visible.map(({ id, members, ready, status }) => (
+            <section key={id} aria-label={members[0]?.humanName}>
+              <h3>
+                {members[0]?.humanName} · {filterLabels[status]}
+              </h3>
+              <small>
+                可用 {ready}/{members.length}
+              </small>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setNotice("");
+                  setDetailId(id);
+                }}
+              >
+                查看详情
+              </button>
+            </section>
+          ))
+        )}
         {notice && !detailId && <p role="status">{notice}</p>}
       </div>
       {groups
@@ -519,6 +587,10 @@ export function FilingLibrary({
           }}
         />
       )}
-    </ModelModal>
+    </Container>
   );
+}
+
+function HomeFilingSurface({ children }: { children: ReactNode }) {
+  return <div className="home-filing-surface model-settings">{children}</div>;
 }

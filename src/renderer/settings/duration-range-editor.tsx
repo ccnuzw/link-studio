@@ -63,7 +63,9 @@ export function DurationRangeEditor({
           />
         </label>
       </div>
-      <progress aria-hidden="true" max={1} value={Math.min(1, Math.max(0, progress))} />
+      <div className="model-number-meter" aria-hidden="true">
+        <span style={{ width: `${100 * Math.min(1, Math.max(0, progress))}%` }} />
+      </div>
       <small>
         最短 {range.min || "?"}
         <span>最长 {range.max || "?"}</span>

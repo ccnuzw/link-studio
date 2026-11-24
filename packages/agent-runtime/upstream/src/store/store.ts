@@ -673,14 +673,14 @@ export class AgentStore {
     ).map(approvalOf);
   }
 
-  recentGenerationApprovals(userId: string, canvasId: string, since: number): Approval[] {
+  generationApprovalsToRecover(userId: string, canvasId: string, watchSince: number): Approval[] {
     return this.#all(
       `SELECT * FROM agent_approvals WHERE user_id = ? AND canvas_id = ?
-       AND kind = 'generate' AND decided_at > ?
-       AND status IN ('approved', 'partially_approved', 'executed') ORDER BY id ASC`,
+       AND kind = 'generate' AND (status IN ('approved', 'partially_approved')
+       OR (status = 'executed' AND decided_at > ?)) ORDER BY id ASC`,
       dec(userId),
       dec(canvasId),
-      since,
+      watchSince,
     ).map(approvalOf);
   }
 

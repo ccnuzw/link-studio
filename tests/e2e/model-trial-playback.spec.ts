@@ -177,7 +177,7 @@ test("试跑视频链接和二进制音频在结果页播放并跳转", async ()
       await app?.close();
       app = await launch();
       page = await app.firstWindow();
-      await page.getByRole("button", { name: "模型设置" }).click();
+      await page.getByRole("button", { name: "应用设置" }).click();
     };
     await page.evaluate(async (port) => {
       const api = window.desktop.settings;
@@ -245,7 +245,7 @@ test("试跑视频链接和二进制音频在结果页播放并跳转", async ()
         if (!model.ok) throw new Error(model.code);
       }
     }, address.port);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     for (const name of ["video", "audio", "async-video"]) {
       const kind = name === "async-video" ? "video" : name;
       await page.getByRole("button", { name: `测试 ${name}`, exact: true }).click();

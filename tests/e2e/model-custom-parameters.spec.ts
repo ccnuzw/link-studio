@@ -66,7 +66,7 @@ test("配置 JSON 的自定义参数可编辑、报价并按原类型传给插�
       });
       if (!model.ok) throw new Error(model.code);
     }, address.port);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "参数样例模型", exact: true }).click();
     let editor = page.getByRole("dialog", { name: "编辑模型" });
     await editor.getByRole("button", { name: "配置 JSON" }).click();
@@ -112,7 +112,7 @@ test("配置 JSON 的自定义参数可编辑、报价并按原类型传给插�
         return { ok: false, code: "MODEL_DRAFT_UNAVAILABLE" };
       });
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "参数样例模型", exact: true }).click();
     editor = page.getByRole("dialog", { name: "编辑模型" });
     await expect(editor.getByRole("status")).toHaveText("未能读取模型配置原文。");

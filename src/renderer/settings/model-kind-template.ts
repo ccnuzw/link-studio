@@ -13,43 +13,75 @@ export type TemplateBinding = {
   settings?: Record<string, unknown>;
 };
 
+const imageRatios = ["Auto", "1:1", "16:9", "9:16", "4:3", "3:4"];
+
+const videoTemplateResolutions = ["720P", "1080P", "4K"];
+
+function videoResolutionField(
+  supported: readonly string[],
+  previous?: NonNullable<ModelConfig["params"]>["resolution"],
+) {
+  const allowed = supported.map((value) => value.toUpperCase());
+  const standard = videoTemplateResolutions.filter((value) => allowed.includes(value));
+  const values = (previous?.values ?? []).filter((value) => allowed.includes(value.toUpperCase()));
+  for (const value of [...standard, ...allowed]) {
+    if (!values.some((current) => current.toUpperCase() === value)) values.push(value);
+  }
+  const fallback = values.find((value) => value.toUpperCase() === "720P") ?? values[0];
+  if (!fallback) return undefined;
+  return {
+    label: "清晰度",
+    open: true,
+    spec: true,
+    ...previous,
+    values,
+    default:
+      values.find((value) => value.toUpperCase() === previous?.default.toUpperCase()) ?? fallback,
+  };
+}
+
 function mediaTemplate(kind: ModelKind, binding: TemplateBinding) {
   const options = mediaGenerationOptions(kind, binding.adapter, binding.model, binding.settings);
   const choices = modelParameterChoices(options);
   const video = kind === "video";
   const params: NonNullable<ModelConfig["params"]> = {};
   const tiers: NonNullable<NonNullable<ModelConfig["pricing"]>["tiers"]> = [];
-  const modes = modelGenerationModes(kind, options);
+  const modes: ModelConfig["modes"] =
+    kind === "image" ? ["t2i", "i2i"] : modelGenerationModes(kind, options);
   const refs: NonNullable<ModelConfig["refs"]> = {};
-  for (const key of ["image", "video", "audio"] as const) {
-    const count = options.references[key];
-    if (count)
-      refs[key] = {
-        max: kind === "audio" ? 0 : Math.min(count, key === "image" ? 4 : 1),
-        mb: key === "image" ? 10 : key === "audio" ? 15 : 100,
-      };
+  if (kind === "image") {
+    refs.image = { max: 4, mb: 10 };
+  } else {
+    for (const key of ["image", "video", "audio"] as const) {
+      const count = options.references[key];
+      if (count)
+        refs[key] = {
+          max: kind === "audio" ? 0 : Math.min(count, key === "image" ? 4 : 1),
+          mb: key === "image" ? 10 : key === "audio" ? 15 : 100,
+        };
+    }
   }
   if (kind === "image" || video) {
-    const ratios = (
-      video
-        ? ["Auto", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]
-        : ["Auto", "1:1", "16:9", "9:16", "4:3", "3:4"]
-    ).filter((value) => choices.aspectRatio.includes(value));
+    const ratios = video
+      ? ["Auto", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"].filter((value) =>
+          choices.aspectRatio.includes(value),
+        )
+      : imageRatios;
     if (ratios[0])
       params.aspectRatio = {
         values: ratios,
-        default: ratios[0],
+        default: !video && ratios.includes("1:1") ? "1:1" : ratios[0],
         open: true,
         label: "比例",
         spec: false,
       };
-    const resolutions = (video ? ["720P", "1080P", "4K"] : ["1K", "2K", "4K"]).filter((value) =>
-      choices.resolution.some((choice) => choice.toLowerCase() === value.toLowerCase()),
-    );
-    if (resolutions[0])
+    if (video) {
+      const resolution = videoResolutionField(choices.resolution);
+      if (resolution) params.resolution = resolution;
+    } else
       params.resolution = {
-        values: resolutions,
-        default: resolutions[0],
+        values: ["1K", "2K", "4K"],
+        default: "1K",
         open: true,
         label: "清晰度",
         spec: true,
@@ -78,12 +110,14 @@ function mediaTemplate(kind: ModelKind, binding: TemplateBinding) {
         };
     }
     if (video && options.audio) tiers.push({ on: true, when: { generate_audio: true }, unit: 3 });
+    const resolutions = params.resolution?.values ?? [];
     if (resolutions.includes("1080P")) {
       tiers.push({ on: true, when: { resolution: "1080P" }, unit: 4 });
       if (options.audio)
         tiers.push({ on: true, when: { resolution: "1080P", generate_audio: true }, unit: 5 });
     }
-    if (resolutions.includes("2K")) tiers.push({ on: true, when: { resolution: "2K" }, unit: 8 });
+    if (!video && resolutions.includes("2K"))
+      tiers.push({ on: true, when: { resolution: "2K" }, unit: 8 });
     if (resolutions.includes("4K"))
       tiers.push({ on: true, when: { resolution: "4K" }, unit: video ? 8 : 16 });
     params.count = {
@@ -146,6 +180,20 @@ export function applyKindTemplate(
       ? { agentDeadlineSeconds: deadline, vision: true }
       : { timeoutSeconds: deadline }),
     pricing: batch ? (base.pricing ?? template.pricing) : template.pricing,
+  };
+}
+
+export function restoreKindTemplate(config: ModelConfig, binding: TemplateBinding): ModelConfig {
+  const defaults = applyKindTemplate(config, config.kind, false, binding);
+  return {
+    ...config,
+    promptLimit: defaults.promptLimit,
+    refs: defaults.refs,
+    modes: defaults.modes,
+    params: defaults.params,
+    customParams: undefined,
+    generateAudio: defaults.generateAudio,
+    parameterOrder: undefined,
   };
 }
 

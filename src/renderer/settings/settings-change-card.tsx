@@ -3,6 +3,7 @@ import { Check, ChevronDown, ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { ChoiceButton } from "../choice-button";
 import { ChangeDecisionOptions } from "./change-decision-options";
+import { changeOrderTitle } from "./settings-action-result";
 import { isPluginReview, PluginReviewDetail } from "./settings-plugin-review";
 
 function details(input: unknown): Record<string, unknown> {
@@ -24,7 +25,7 @@ export function ApprovalCard({
   const candidate = details(payload.review);
   const review = payload.kind === "plugin" && isPluginReview(candidate) ? candidate : null;
   const revert = typeof payload.revertOf === "string" ? payload.revertOf : "";
-  const title = revert ? `回滚变更单 ${revert}` : "配置变更单";
+  const title = changeOrderTitle(revert);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const items = Array.isArray(payload.items) ? payload.items.map(details) : [];

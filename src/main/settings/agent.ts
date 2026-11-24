@@ -663,7 +663,8 @@ export class SettingsAgent {
           this.loadModel(modelKey);
           if (
             (pluginHash && (contextId || channelId || route === "providers")) ||
-            (route === "adapters" && (contextId || channelId))
+            (route === "adapters" && (contextId || channelId)) ||
+            (route === "skills" && (pluginHash || contextId || channelId))
           )
             throw new ProviderError("AGENT_ARGUMENT_INVALID");
           const channel = channelId

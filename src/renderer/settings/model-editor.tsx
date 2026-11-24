@@ -4,6 +4,7 @@ import {
   type ChannelView,
   EditableModelDocument,
   hasNumericDuration,
+  imageParameterPresets,
   type ModelConfig,
   type ModelKind,
   type ModelParameter,
@@ -16,6 +17,7 @@ import {
   modelModeLabels,
   modelParameterChoices,
   modelParameterLabels,
+  modelParameterOrder,
   modelPriceLabel,
   type PluginView,
   type ProviderFields,
@@ -44,6 +46,7 @@ import {
   SlidersHorizontal,
   TriangleAlert,
   Type,
+  Video,
   X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -70,7 +73,7 @@ import {
   isModelObject,
   projectModelDraft,
 } from "./model-json-draft";
-import { applyKindTemplate, rebindTemplate } from "./model-kind-template";
+import { applyKindTemplate, rebindTemplate, restoreKindTemplate } from "./model-kind-template";
 import { ModelAvatar, ModelLogoPicker } from "./model-logo";
 import { PricingPreview, PricingRules } from "./model-pricing";
 import { ModelTags } from "./model-tags";
@@ -98,8 +101,8 @@ const kindDescriptions = {
   audio: "语音合成",
   agent: "画布 Agent 的对话大模型",
 };
-export function KindMark({ kind }: { kind: ModelKind }) {
-  const Icon = icons[kind];
+export function KindMark({ kind, preview = false }: { kind: ModelKind; preview?: boolean }) {
+  const Icon = preview && kind === "video" ? Video : icons[kind];
   return (
     <span className="model-kind" data-kind={kind}>
       <Icon size={15} /> {modelKindLabels[kind]}
@@ -769,18 +772,23 @@ function ModelEditorForm({
   const channel = channels.find((entry) => entry.id === targetId) ?? sourceChannel;
   const [trial, setTrial] = useState<ProviderView>();
   const [kindSelected, setKindSelected] = useState(Boolean(initialModel && !initialModel.pending));
-  const [config, setConfig] = useState<ModelConfig>(
-    model?.config ?? {
-      ...defaults,
-      sort: model?.pendingSort ?? defaults.sort,
-      timeoutSeconds: model?.pendingDeadlineSeconds,
-      ...(model && {
-        kind: kindOf(model, plugins),
-        name: model.model,
-        ...(model.agentEnabled && { vision: model.agentVision }),
-      }),
-    },
-  );
+  const [config, setConfig] = useState<ModelConfig>(() => {
+    const existing = model?.config;
+    if (existing?.kind === "image" && !modelParameterOrder(existing))
+      return { ...existing, params: applyKindTemplate(existing, "image", false).params };
+    return (
+      existing ?? {
+        ...defaults,
+        sort: model?.pendingSort ?? defaults.sort,
+        timeoutSeconds: model?.pendingDeadlineSeconds,
+        ...(model && {
+          kind: kindOf(model, plugins),
+          name: model.model,
+          ...(model.agentEnabled && { vision: model.agentVision }),
+        }),
+      }
+    );
+  });
   const [upstreamModel, setUpstream] = useState(model?.model ?? "");
   const [pluginHash, setPlugin] = useState(
     config.kind === "agent" ? "" : (model?.pluginHash ?? ""),
@@ -974,11 +982,12 @@ function ModelEditorForm({
   const supportedParameters: string[] = (Object.keys(params) as ModelParameter[]).filter(
     (key) => params[key].length > 0,
   );
-  if (options.audio) supportedParameters.push("generateAudio");
+  if (options.audio)
+    supportedParameters.splice(supportedParameters.indexOf("count"), 0, "generateAudio");
   supportedParameters.push(...Object.keys(config.customParams ?? {}));
-  const orderedParameters = (config.parameterOrder ?? supportedParameters).filter(
+  const orderedParameters = (modelParameterOrder(config) ?? supportedParameters).filter(
     (key) =>
-      supportedParameters.includes(key) &&
+      (supportedParameters.includes(key) || Object.hasOwn(config.params ?? {}, key)) &&
       (!isLanguage || Object.hasOwn(config.customParams ?? {}, key)),
   );
   const modes = modelGenerationModes(config.kind, options);
@@ -996,6 +1005,23 @@ function ModelEditorForm({
   if (channel.id !== targetId)
     check("basic", "channel", "目标渠道已不存在，请在配置 JSON 中重新选择渠道");
   if (!config.name.trim()) check("basic", "name", "填写展示名称");
+  const activeModes = config.modes ?? modes;
+  const enabledReferences = new Set<string>();
+  for (const kind of ["image", "audio", "video"] as const) {
+    const limit = options.references[kind];
+    if (!limit) continue;
+    const ref = config.refs?.[kind];
+    if (ref && !(ref.on ?? ref.max > 0)) continue;
+    enabledReferences.add(kind);
+    if (ref && (!Number.isInteger(ref.max) || ref.max < 1 || ref.max > limit))
+      check("params", `refs.${kind}.max`, `允许范围 1 – ${limit}`);
+    if (ref && (!Number.isInteger(ref.mb) || ref.mb < 1 || ref.mb > maxModelReferenceMB))
+      check("params", `refs.${kind}.mb`, `允许范围 1 – ${maxModelReferenceMB} MB`);
+  }
+  if (activeModes.some((op) => op === "i2i" || op === "i2v") && !enabledReferences.has("image"))
+    check("params", "refs.image", "选了图生方式，需要开启图片参考素材");
+  if (activeModes.includes("omni") && !enabledReferences.size)
+    check("params", "refs", "选了全能参考，至少要开启一种参考素材");
   const durationParam = config.params?.duration;
   if (durationParam?.range) {
     const { min, max, step } = durationParam.range;
@@ -1063,6 +1089,12 @@ function ModelEditorForm({
         pricing: `${configRoot}/pricing`,
         durationRange: legacy ? "/config/params/duration/range" : "/capabilities/params/duration",
       };
+      if (issue.field === "refs" || issue.field.startsWith("refs.")) {
+        const path = issue.field.replaceAll(".", "/");
+        paths[issue.field] = legacy
+          ? `/config/${path}`
+          : `/capabilities/${path.replace(/\/mb$/, "/max_mb")}`;
+      }
       const pointer = issue.field.startsWith("setting-")
         ? `${legacy ? "/settings" : "/channels/0/protocol/settings"}/${issue.field.slice(8).replaceAll("~", "~0").replaceAll("/", "~1")}`
         : issue.field.startsWith("tier-")
@@ -1140,7 +1172,13 @@ function ModelEditorForm({
   const chooseKind = (kind: ModelKind) => {
     setDurationDraft(undefined);
     setKindSelected(true);
-    setConfig(applyKindTemplate(config, kind));
+    setConfig(
+      applyKindTemplate(config, kind, false, {
+        adapter: plugin?.origin === "builtin" && plugin.kind === kind ? plugin.key : undefined,
+        model: upstreamModel,
+        settings,
+      }),
+    );
     if (kind === "agent" || plugin?.kind !== kind) {
       setPlugin("");
       setSettings(kind === "agent" ? gatewaySettings() : {});
@@ -1503,6 +1541,7 @@ function ModelEditorForm({
         )}
         <div
           className="model-editor-grid"
+          data-media={config.kind === "video" || config.kind === "image" ? true : undefined}
           data-json={json !== undefined}
           data-tab={json === undefined ? tab : undefined}
         >
@@ -1751,7 +1790,11 @@ function ModelEditorForm({
                 {!!modes.length && (
                   <section>
                     <h3>生成方式</h3>
-                    <div className="model-chips">
+                    <fieldset
+                      data-ui-group
+                      className="model-chips model-timeout-choices"
+                      aria-label="生成方式"
+                    >
                       {modes.map((mode) => {
                         const selected = config.modes ?? modes;
                         return (
@@ -1759,71 +1802,138 @@ function ModelEditorForm({
                             type="button"
                             key={mode}
                             aria-pressed={selected.includes(mode)}
-                            disabled={selected.length === 1 && selected.includes(mode)}
-                            onClick={() =>
-                              patch({
-                                modes: selected.includes(mode)
-                                  ? selected.filter((item) => item !== mode)
-                                  : [...selected, mode],
-                              })
-                            }
+                            onClick={() => {
+                              const next = modes.filter((item) =>
+                                item === mode ? !selected.includes(item) : selected.includes(item),
+                              );
+                              if (next.length) patch({ modes: next });
+                            }}
                           >
+                            {selected.includes(mode) && <Check size={14} aria-hidden="true" />}
                             {modelModeLabels[mode]}
                           </button>
                         );
                       })}
-                    </div>
+                    </fieldset>
+                    <table className="model-mode-guide">
+                      <tbody>
+                        {modes.map((mode) => (
+                          <tr key={mode} data-enabled={(config.modes ?? modes).includes(mode)}>
+                            <td>{modelModeLabels[mode]}</td>
+                            <td>
+                              提示词 +{" "}
+                              {mode === "omni"
+                                ? "任意参考素材"
+                                : mode === "i2v" || mode === "i2i"
+                                  ? "图片"
+                                  : "只用文字"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </section>
                 )}
                 {Object.values(options.references).some(Boolean) && (
                   <section>
                     <h3>参考素材</h3>
-                    <div className="model-fields">
-                      {(["image", "video", "audio"] as const).flatMap((kind) => {
+                    <div className="model-reference-grid" data-field="refs" tabIndex={-1}>
+                      {(["image", "audio", "video"] as const).flatMap((kind) => {
                         const count = options.references[kind] ?? 0;
                         if (!count) return [];
                         const value = config.refs?.[kind] ?? { max: count, mb: 10 };
+                        const title = `参考${modelKindLabels[kind]}`;
+                        const on = value.on ?? value.max > 0;
                         return [
-                          <fieldset key={kind}>
-                            <legend>参考{modelKindLabels[kind]}</legend>
-                            <label>
-                              最多数量
-                              <input
-                                type="number"
-                                min={0}
-                                max={count}
-                                value={value.max}
-                                onChange={(event) =>
+                          <div
+                            className="model-reference-card"
+                            key={kind}
+                            data-field={`refs.${kind}`}
+                            tabIndex={-1}
+                          >
+                            <header>
+                              <SettingsSwitch
+                                label={`接收${title}`}
+                                text={title}
+                                checked={on}
+                                onChange={(enabled) =>
                                   patch({
                                     refs: {
                                       ...config.refs,
-                                      [kind]: { ...value, max: Number(event.target.value) },
+                                      [kind]: {
+                                        ...value,
+                                        on: enabled ? undefined : false,
+                                        max: enabled ? value.max || 1 : value.max,
+                                      },
                                     },
                                   })
                                 }
                               />
-                            </label>
-                            <label>
-                              单个最大 MB
-                              <input
-                                type="number"
-                                min={1}
-                                max={maxModelReferenceMB}
-                                value={value.mb}
-                                onChange={(event) =>
-                                  patch({
-                                    refs: {
-                                      ...config.refs,
-                                      [kind]: { ...value, mb: Number(event.target.value) },
-                                    },
-                                  })
-                                }
-                              />
-                            </label>
-                          </fieldset>,
+                              <small>
+                                用于：{kind === "image" ? "图生、全能参考" : "全能参考"}
+                              </small>
+                            </header>
+                            {on && (
+                              <>
+                                <div className="model-reference-fields">
+                                  <label>
+                                    最多
+                                    <input
+                                      type="number"
+                                      aria-label={`${title}最多数量`}
+                                      data-field={`refs.${kind}.max`}
+                                      min={1}
+                                      max={count}
+                                      value={value.max}
+                                      onChange={(event) =>
+                                        patch({
+                                          refs: {
+                                            ...config.refs,
+                                            [kind]: {
+                                              ...value,
+                                              on: Number(event.target.value) > 0 ? undefined : true,
+                                              max: Number(event.target.value),
+                                            },
+                                          },
+                                        })
+                                      }
+                                    />
+                                    个
+                                  </label>
+                                  <label>
+                                    单个不超过
+                                    <input
+                                      type="number"
+                                      aria-label={`${title}单个大小上限`}
+                                      min={1}
+                                      max={maxModelReferenceMB}
+                                      data-field={`refs.${kind}.mb`}
+                                      value={value.mb}
+                                      onChange={(event) =>
+                                        patch({
+                                          refs: {
+                                            ...config.refs,
+                                            [kind]: { ...value, mb: Number(event.target.value) },
+                                          },
+                                        })
+                                      }
+                                    />
+                                    MB
+                                  </label>
+                                </div>
+                                <div aria-hidden="true" className="model-ref-meter">
+                                  <span style={{ width: `${Math.min(100, value.max * 2)}%` }} />
+                                </div>
+                              </>
+                            )}
+                            {hint(`refs.${kind}`)}
+                            {hint(`refs.${kind}.max`)}
+                            {hint(`refs.${kind}.mb`)}
+                          </div>,
                         ];
                       })}
                     </div>
+                    {hint("refs")}
                   </section>
                 )}
                 <section>
@@ -1858,28 +1968,6 @@ function ModelEditorForm({
                     <h3>生成参数</h3>
                     {!orderedParameters.length && (
                       <p className="model-empty-capabilities">暂无生成参数</p>
-                    )}
-                    {(config.params ||
-                      config.customParams ||
-                      config.refs ||
-                      config.modes ||
-                      config.generateAudio ||
-                      config.parameterOrder) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          patch({
-                            params: undefined,
-                            customParams: undefined,
-                            refs: undefined,
-                            modes: undefined,
-                            generateAudio: undefined,
-                            parameterOrder: undefined,
-                          })
-                        }
-                      >
-                        恢复协议默认能力与参数
-                      </button>
                     )}
                     {orderedParameters.map((key, index) => {
                       const orderControls = {
@@ -1924,15 +2012,16 @@ function ModelEditorForm({
                               change={(changes) =>
                                 patch({ generateAudio: { ...field, ...changes } })
                               }
-                            />
-                            <SettingsSwitch
-                              label={`${field.label || "生成音频"} 默认开启`}
-                              text="默认开启"
-                              checked={field.default}
-                              onChange={(preferred) =>
-                                patch({ generateAudio: { ...field, default: preferred } })
-                              }
-                            />
+                            >
+                              <SettingsSwitch
+                                label={`${field.label || "生成音频"} 默认开启`}
+                                text="默认开启"
+                                checked={field.default}
+                                onChange={(preferred) =>
+                                  patch({ generateAudio: { ...field, default: preferred } })
+                                }
+                              />
+                            </ParameterHeading>
                           </fieldset>
                         );
                       }
@@ -1960,59 +2049,63 @@ function ModelEditorForm({
                                 ...(custom.type !== "number" && { spec: custom.spec ?? false }),
                               }}
                               change={(fields) => updateCustom({ ...custom, ...fields })}
-                            />
-                            {custom.type === "boolean" ? (
-                              <SettingsSwitch
-                                label={`${name} 默认值`}
-                                text="默认开启"
-                                checked={custom.default}
-                                onChange={(value) => updateCustom({ ...custom, default: value })}
-                              />
-                            ) : custom.type === "number" ? (
-                              <div className="model-fields">
-                                {(["min", "max", "step", "default"] as const).map((field) => (
-                                  <label key={field}>
-                                    {field === "min"
-                                      ? "最小"
-                                      : field === "max"
-                                        ? "最大"
-                                        : field === "step"
-                                          ? "步长"
-                                          : "默认"}
+                            >
+                              {custom.type === "boolean" ? (
+                                <SettingsSwitch
+                                  label={`${name} 默认值`}
+                                  text="默认开启"
+                                  checked={custom.default}
+                                  onChange={(value) => updateCustom({ ...custom, default: value })}
+                                />
+                              ) : custom.type === "number" ? (
+                                <div className="model-fields">
+                                  {(["min", "max", "step", "default"] as const).map((field) => (
+                                    <label key={field}>
+                                      {field === "min"
+                                        ? "最小"
+                                        : field === "max"
+                                          ? "最大"
+                                          : field === "step"
+                                            ? "步长"
+                                            : "默认"}
+                                      <input
+                                        type="number"
+                                        value={custom[field] ?? ""}
+                                        onChange={(event) =>
+                                          updateCustom({
+                                            ...custom,
+                                            [field]: Number(event.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  ))}
+                                  <label>
+                                    单位
                                     <input
-                                      type="number"
-                                      value={custom[field] ?? ""}
+                                      value={custom.unit ?? ""}
                                       onChange={(event) =>
                                         updateCustom({
                                           ...custom,
-                                          [field]: Number(event.target.value),
+                                          unit: event.target.value || undefined,
                                         })
                                       }
                                     />
                                   </label>
-                                ))}
-                                <label>
-                                  单位
-                                  <input
-                                    value={custom.unit ?? ""}
-                                    onChange={(event) =>
-                                      updateCustom({
-                                        ...custom,
-                                        unit: event.target.value || undefined,
-                                      })
-                                    }
-                                  />
-                                </label>
-                              </div>
-                            ) : (
-                              <CustomEnumEditor field={custom} change={updateCustom} />
-                            )}
+                                </div>
+                              ) : (
+                                <CustomEnumEditor field={custom} change={updateCustom} />
+                              )}
+                            </ParameterHeading>
                           </fieldset>
                         );
                       }
                       const fixedKey = key as ModelParameter;
                       const raw = params[fixedKey] ?? [];
-                      const all = raw.map(String);
+                      const all =
+                        fixedKey === "resolution" && config.kind === "video"
+                          ? raw.map((value) => String(value).toUpperCase())
+                          : raw.map(String);
                       const range =
                         fixedKey === "duration" ? config.params?.duration?.range : undefined;
                       const value = config.params?.[fixedKey] ?? {
@@ -2038,10 +2131,13 @@ function ModelEditorForm({
                           },
                         };
                         if (fixedKey === "size") {
-                          delete params.aspectRatio;
+                          if (!options.nativeImageSize) delete params.aspectRatio;
                           delete params.resolution;
                         }
-                        if (fixedKey === "aspectRatio" || fixedKey === "resolution")
+                        if (
+                          (fixedKey === "aspectRatio" && !options.nativeImageSize) ||
+                          fixedKey === "resolution"
+                        )
                           delete params.size;
                         patch({ params });
                       };
@@ -2050,13 +2146,13 @@ function ModelEditorForm({
                           <legend>{modelParameterLabels[fixedKey]}</legend>
                           <ParameterHeading
                             name={paramNames[fixedKey]}
+                            fanout={value.fanout}
                             kind={range ? "数字" : "枚举"}
                             order={orderControls}
                             controls={{
                               label: range?.label ?? value.label ?? modelParameterLabels[fixedKey],
                               open: range?.open ?? value.open ?? true,
-                              spec:
-                                range || fixedKey === "count" ? undefined : (value.spec ?? true),
+                              spec: range ? undefined : (value.spec ?? fixedKey !== "count"),
                             }}
                             change={(fields) =>
                               update(
@@ -2065,28 +2161,53 @@ function ModelEditorForm({
                                 range ? { range: { ...range, ...fields } } : fields,
                               )
                             }
-                          />
-                          {range ? (
-                            <>
-                              <DurationRangeEditor
-                                range={range}
-                                preferred={value.default}
-                                change={update}
+                          >
+                            {range ? (
+                              <>
+                                <DurationRangeEditor
+                                  range={range}
+                                  preferred={value.default}
+                                  change={update}
+                                />
+                                {hint("durationRange")}
+                              </>
+                            ) : (
+                              <CustomEnumEditor
+                                field={{ ...value, type: "enum" }}
+                                presets={
+                                  (config.kind === "image" && imageParameterPresets[fixedKey]) ||
+                                  all
+                                }
+                                change={(field) =>
+                                  update(field.values.map(String), String(field.default))
+                                }
                               />
-                              {hint("durationRange")}
-                            </>
-                          ) : (
-                            <CustomEnumEditor
-                              field={{ ...value, type: "enum" }}
-                              presets={all}
-                              change={(field) =>
-                                update(field.values.map(String), String(field.default))
-                              }
-                            />
-                          )}
+                            )}
+                          </ParameterHeading>
                         </fieldset>
                       );
                     })}
+                    {(config.params ||
+                      config.customParams ||
+                      config.refs ||
+                      config.modes ||
+                      config.generateAudio ||
+                      config.parameterOrder) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfig((current) =>
+                            restoreKindTemplate(current, {
+                              adapter: plugin?.origin === "builtin" ? plugin.key : undefined,
+                              model: upstreamModel,
+                              settings,
+                            }),
+                          )
+                        }
+                      >
+                        恢复协议默认能力与参数
+                      </button>
+                    )}
                   </section>
                 )}
                 {kindSelected && config.kind === "text" && (
@@ -2144,6 +2265,7 @@ function ModelEditorForm({
             ) : tab === "params" && kindSelected ? (
               <TrialInputCard
                 name={config.name.trim() || "未命名模型"}
+                seed={modelKey}
                 logo={config.logo}
                 kind={config.kind}
                 options={modelGenerationOptions(

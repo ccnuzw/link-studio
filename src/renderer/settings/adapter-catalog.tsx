@@ -19,7 +19,6 @@ import {
   Search,
   Trash2,
   Type,
-  Upload,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -169,7 +168,6 @@ export function Capability({ kind, iconOnly = false }: { kind: string; iconOnly?
 export function AdapterCatalog({
   state,
   reload,
-  upload,
   groups,
   providers,
   initialHash,
@@ -181,7 +179,6 @@ export function AdapterCatalog({
 }: {
   state: "loading" | "error" | "ready";
   reload: () => void;
-  upload: () => void;
   groups: PluginView[][];
   providers: SettingsValues["list"]["providers"];
   initialHash: string;
@@ -247,9 +244,6 @@ export function AdapterCatalog({
     return (
       <section className="adapter-empty" aria-label="插件目录">
         <p>还没有插件</p>
-        <button type="button" className="settings-primary" onClick={upload}>
-          <Upload size={16} /> 上传插件
-        </button>
       </section>
     );
   return (

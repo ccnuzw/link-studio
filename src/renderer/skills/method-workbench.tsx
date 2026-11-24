@@ -106,24 +106,12 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
         </button>
       }
     >
-      <section className="skill-review" aria-busy={busy}>
-        <p>营销工作室按环节选择方法；短剧五个环节仍在开拍设置中选择。</p>
-        {data && (
-          <details>
-            <summary>视频模型格式化器（只读）</summary>
-            <p>同一份脚本的不同输出格式，不读取技能，也不调用模型。</p>
-            {data.formatters.map((formatter) => (
-              <details key={formatter.key}>
-                <summary>{formatter.name}</summary>
-                <p>{formatter.description}</p>
-                <pre>{formatter.preview}</pre>
-              </details>
-            ))}
-          </details>
-        )}
+      <section className="skill-review method-workbench" aria-busy={busy}>
+        <p className="method-note">在这里配置营销工作室的环节方法。短剧环节请在开拍设置中配置。</p>
         {data && protocol && (
           <>
-            <fieldset className="skill-scopes" disabled={busy}>
+            <fieldset className="method-section" disabled={busy}>
+              <legend>环节配置</legend>
               <label className="skill-label">
                 环节
                 <select
@@ -144,6 +132,14 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
                 </select>
               </label>
               <p>{protocol.duty}</p>
+              <p className="method-binding">
+                <span>当前生效：</span>
+                <strong>
+                  {binding?.fallback
+                    ? "内置方法（原绑定 " + label(binding.candidate) + " 不可用）"
+                    : label(binding?.candidate ?? { source: "builtin" })}
+                </strong>
+              </p>
               <details>
                 <summary>查看输入和输出协议</summary>
                 <p>{protocol.inputs.map((input) => input.name + " · " + input.desc).join("；")}</p>
@@ -151,66 +147,70 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
                 <p>必须通过：{protocol.rules.hard.join("；")}</p>
                 <p>质量提示：{protocol.rules.soft?.join("；") || "无"}</p>
               </details>
-              <p>
-                当前生效：
-                {binding?.fallback
-                  ? "内置方法（原绑定 " + label(binding.candidate) + " 不可用）"
-                  : label(binding?.candidate ?? { source: "builtin" })}
-              </p>
-              <label className="skill-label">
-                候选方法
-                <select
-                  value={choice}
-                  onChange={(event) => {
-                    setChoice(event.target.value);
-                    setNotice("");
-                  }}
+            </fieldset>
+            <fieldset className="method-section" disabled={busy}>
+              <legend>试跑配置</legend>
+              <div className="method-fields">
+                <label className="skill-label">
+                  候选方法
+                  <select
+                    value={choice}
+                    onChange={(event) => {
+                      setChoice(event.target.value);
+                      setNotice("");
+                    }}
+                  >
+                    {candidates.map((entry) => (
+                      <option key={label(entry)}>{label(entry)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="skill-label">
+                  试跑样例
+                  <select
+                    value={sampleKey ?? ""}
+                    onChange={(event) => setSample(event.target.value)}
+                  >
+                    {protocol.samples.map((entry) => (
+                      <option key={entry.key} value={entry.key}>
+                        {entry.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="skill-label">
+                  试跑模型
+                  <select
+                    value={selectedModel?.id ?? ""}
+                    onChange={(event) => setModel(event.target.value)}
+                  >
+                    {!models.length && <option value="">没有支持此环节的模型</option>}
+                    {models.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="method-actions">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={compare}
+                    onChange={(event) => setCompare(event.target.checked)}
+                  />
+                  使用同一模型和样例，与当前生效方法对比
+                </label>
+                <button
+                  type="button"
+                  className="skill-primary"
+                  disabled={!selectedModel || !sampleKey}
+                  onClick={() => void act()}
                 >
-                  {candidates.map((entry) => (
-                    <option key={label(entry)}>{label(entry)}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="skill-label">
-                试跑样例
-                <select value={sampleKey ?? ""} onChange={(event) => setSample(event.target.value)}>
-                  {protocol.samples.map((entry) => (
-                    <option key={entry.key} value={entry.key}>
-                      {entry.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="skill-label">
-                试跑模型
-                <select
-                  value={selectedModel?.id ?? ""}
-                  onChange={(event) => setModel(event.target.value)}
-                >
-                  {!models.length && <option value="">没有支持此环节的模型</option>}
-                  {models.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={compare}
-                  onChange={(event) => setCompare(event.target.checked)}
-                />
-                使用同一模型和样例，与当前生效方法对比
-              </label>
-              <button
-                type="button"
-                className="skill-primary"
-                disabled={!selectedModel || !sampleKey}
-                onClick={() => void act()}
-              >
-                {busy ? "处理中…" : "试跑候选方法"}
-              </button>
+                  {busy ? "处理中…" : "试跑候选方法"}
+                </button>
+              </div>
             </fieldset>
             <details>
               <summary>生产统计与生效历史</summary>
@@ -229,7 +229,11 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
               ))}
             </details>
             <h3>试跑记录</h3>
-            {!recent.length && <p>还没有试跑记录。</p>}
+            {!recent.length && (
+              <p className="method-empty">
+                还没有试跑记录。完成试跑后，可在这里查看结果并启用通过校验的方法。
+              </p>
+            )}
             {recent.map((trial) => (
               <div key={trial.id} className="skill-confirm">
                 <strong>
@@ -260,6 +264,19 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
               </div>
             ))}
           </>
+        )}
+        {data && (
+          <details>
+            <summary>视频模型格式化器（只读）</summary>
+            <p>同一份脚本的不同输出格式，不读取技能，也不调用模型。</p>
+            {data.formatters.map((formatter) => (
+              <details key={formatter.key}>
+                <summary>{formatter.name}</summary>
+                <p>{formatter.description}</p>
+                <pre>{formatter.preview}</pre>
+              </details>
+            ))}
+          </details>
         )}
         {error && <p role="alert">{error}</p>}
         {notice && <p role="status">{notice}</p>}

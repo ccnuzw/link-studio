@@ -22,7 +22,7 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const catalog = await api.list({});
@@ -58,7 +58,7 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
       });
       if (!imported.ok) throw Error(imported.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = page.getByRole("button", { name: /^version-model/ });
     await open.click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
@@ -218,7 +218,7 @@ test("协议鉴权变化：升级失败后手动取消或授权，试跑只使�
       ok: true,
       value: { status: "succeeded" },
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: /^鉴权验收/ }).click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
     await chooseFilter(page, "协议版本", "v2.0.0（最新）");
@@ -279,7 +279,7 @@ test("批量删除最后两个模型，列表刷新为空时结果仍可读", as
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const channel = await api.channelSave({
@@ -302,7 +302,7 @@ test("批量删除最后两个模型，列表刷新为空时结果仍可读", as
       });
       if (!added.ok) throw Error(added.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("checkbox", { name: "选择本页模型" }).check();
     await page.getByRole("button", { name: "批量删除", exact: true }).click();
     await page
@@ -334,7 +334,7 @@ test("渠道模型首次加载、失败重试及无 Key 空状态", async () => 
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     const saved = await page.evaluate(() =>
       window.desktop.settings.channelSave({
         expectedRevision: 0,
@@ -385,7 +385,7 @@ test("渠道模型首次加载、失败重试及无 Key 空状态", async () => 
         return { ok: false, code: "SETTINGS_ACTION_FAILED" };
       });
     }, saved.value);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await expect(page.getByLabel("渠道列表加载中").locator(":scope > div")).toHaveCount(3);
     await expect(page.getByLabel("渠道详情加载中").locator(":scope > div")).toHaveCount(2);
     await app.evaluate(({ ipcMain }) => ipcMain.emit("finish-channel-list-load"));
@@ -503,7 +503,7 @@ test("拉取时关闭不会串单，导入失败保留选择并可重试", async
         return { ok: true, value: { added: 1, prefixed: 1 } };
       });
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = () =>
       page
         .getByRole("region", { name: "渠道模型空状态" })
@@ -556,7 +556,7 @@ test("渠道表单在首次保存后逐字段报错，修正后保留授权并�
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道" })
@@ -659,7 +659,7 @@ test("渠道授权按实际端点和本机网络范围判断，等价地址不�
     );
     expect(seeded.ok).toBe(true);
     const list = () => page.evaluate(() => window.desktop.settings.channelList({}));
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = page.getByRole("button", { name: "编辑渠道", exact: true });
     await open.click();
     const editor = page.getByRole("dialog", { name: "编辑渠道" });
@@ -733,7 +733,7 @@ test("方舟配置与备案凭证分步保存，第二步失败后原窗只重�
       }),
     );
     expect(seeded.ok).toBe(true);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "编辑渠道", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "编辑渠道" });
     await editor.getByRole("switch", { name: "虚拟人像库" }).press("Space");
@@ -794,7 +794,7 @@ test("新增渠道部分凭证失败不重复创建，设置 Key 可补写，原
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道" })
@@ -921,7 +921,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     app = await launch();
     const page = await app.firstWindow();
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1024, 700));
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道", exact: true })
@@ -949,13 +949,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
       .getByRole("dialog", { name: "新建模型" })
       .getByRole("button", { name: "取消", exact: true })
       .click();
-    await emptyChannelPanel.getByRole("button", { name: "拉取模型", exact: true }).click();
-    const missingKey = page.getByRole("dialog", { name: "选择要导入的模型" });
-    await expect(missingKey.getByRole("alert")).toBeVisible();
-    await missingKey.getByRole("button", { name: "重试" }).click();
-    await expect(missingKey.getByRole("alert")).toBeVisible();
-    await missingKey.getByRole("button", { name: "关闭", exact: true }).last().click();
-    await page.getByRole("button", { name: "设置 Key", exact: true }).click();
+    await emptyChannelPanel.getByRole("button", { name: "配置 API Key" }).click();
     const keys = page.getByRole("dialog", { name: /的 Key/ });
     await keys.getByLabel("API Key", { exact: true }).fill("channel-fixture-key");
     await keys.getByRole("button", { name: "保存", exact: true }).click();
@@ -1417,7 +1411,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await app.close();
     app = await launch();
     const restored = await app.firstWindow();
-    await restored.getByRole("button", { name: "模型设置" }).click();
+    await restored.getByRole("button", { name: "应用设置" }).click();
     await expect(restored.locator(".channel-model-name strong")).toHaveText([
       "剧本助手模型",
       "pending-fixture",
@@ -1633,7 +1627,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await app.close();
     app = await launch();
     const finalPage = await app.firstWindow();
-    await finalPage.getByRole("button", { name: "模型设置" }).click();
+    await finalPage.getByRole("button", { name: "应用设置" }).click();
     const finalNav = finalPage.getByRole("navigation", { name: "选择渠道" });
     await expect(finalNav.locator(".channel-item strong")).toHaveText(["备用服务", "创作服务"]);
     await finalNav.getByRole("button", { name: /^创作服务/ }).click();
@@ -2061,7 +2055,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await expect(
       finalPage.getByRole("switch", { name: "停用插件 OpenAI", exact: true }),
     ).toBeChecked();
-    await finalPage.getByRole("button", { name: "返回模型渠道", exact: true }).click();
+    await finalPage.getByRole("button", { name: "模型与渠道", exact: true }).click();
     await finalNav.getByRole("button", { name: /^创作服务/ }).click();
     await finalPage
       .locator(".channel-model-heading")

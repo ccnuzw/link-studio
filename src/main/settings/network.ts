@@ -2,6 +2,8 @@ import { lookup } from "node:dns/promises";
 import { request as httpRequest, type IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import type { HostRequest, Transport } from "../../../packages/provider-runtime/src/host.ts";
 import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
@@ -201,6 +203,7 @@ export async function openProviderResponse(
   allowLocal: boolean,
   input: HostRequest,
   signal?: AbortSignal,
+  stream?: Readable,
 ): Promise<IncomingMessage> {
   const origin = endpointURL(base, allowLocal);
   const target = new URL(input.url);
@@ -249,7 +252,8 @@ export async function openProviderResponse(
       },
     );
     request.on("error", reject);
-    request.end(input.body);
+    if (stream) void pipeline(stream, request).catch(reject);
+    else request.end(input.body);
   });
 }
 

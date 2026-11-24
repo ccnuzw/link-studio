@@ -68,7 +68,7 @@ import {
 } from "../../../packages/provider-runtime/src/runner.ts";
 import provenance from "../../../resources/provider-plugins/provenance.json" with { type: "json" };
 import { projectCanvas } from "../project/canvas.ts";
-import { dramaKindSample } from "../project/drama-source.ts";
+import { dramaKindSample, dramaPromptLimit } from "../project/drama-source.ts";
 import { canonicalJson } from "../project/encoding.ts";
 import { ProjectStore } from "../project/store.ts";
 import type { SkillLibrary } from "../skills/library.ts";
@@ -2288,6 +2288,7 @@ export class SettingsRegistry {
         const result = await probeAgentStream(binding, this.redactor(), 30_000, {
           prompt,
           generation: true,
+          drama: true,
           signal,
         });
         const guess = (await this.runner.call("", "dramaKindGuess", [result.text], signal)) as {
@@ -2327,6 +2328,10 @@ export class SettingsRegistry {
   }
 
   dramaStepSeconds(model: { id: string; revision: number }, step: "analyze" | "plan") {
+    return this.dramaObservedSeconds(model, step) ?? 60;
+  }
+
+  dramaObservedSeconds(model: { id: string; revision: number }, step: "analyze" | "plan") {
     const seconds = this.database
       .prepare(
         "SELECT seconds FROM drama_step_durations WHERE model=? AND revision=? AND step=? ORDER BY finished DESC,task DESC LIMIT 50",
@@ -2334,7 +2339,7 @@ export class SettingsRegistry {
       .all(model.id, model.revision, step)
       .map((row) => Number(row.seconds))
       .sort((left, right) => left - right);
-    if (!seconds.length) return 60;
+    if (!seconds.length) return undefined;
     return Math.floor(
       (seconds[Math.floor((seconds.length - 1) / 2)]! + seconds[Math.floor(seconds.length / 2)]!) /
         2,
@@ -2469,13 +2474,26 @@ export class SettingsRegistry {
     for (let attempt = 0; attempt < 2; attempt++) {
       const prompt = await this.dramaPromptText(step, input, signal, draft);
       const context = binding.profile.config?.contextWindow;
-      if (Array.from(prompt).length > (context ? Math.max(1, Math.floor(context * 0.6)) : 12000))
+      if (Array.from(prompt).length > dramaPromptLimit(context))
         throw new ProviderError("DRAMA_CONTEXT");
+      const diagnostic = {
+        step,
+        model_revision: model.revision,
+        prompt_hash: createHash("sha256").update(prompt).digest("hex"),
+        prompt_chars: Array.from(prompt).length,
+        template: draft ? ("snapshot" as const) : ("builtin" as const),
+        ...(draft && { template_hash: createHash("sha256").update(draft).digest("hex") }),
+      };
       const result = await probeAgentStream(
-        binding,
+        binding.origin === "gateway"
+          ? {
+              ...binding,
+              observeAttempt: (record) => binding.observeAttempt({ ...record, drama: diagnostic }),
+            }
+          : binding,
         this.redactor(),
         agentDeadlineMs(binding.profile),
-        { prompt, generation: true, signal },
+        { prompt, generation: true, drama: true, signal },
       );
       try {
         return await this.runner.call("", "dramaAssetOutput", [step, result.text, scope], signal);
@@ -4566,19 +4584,21 @@ export class SettingsRegistry {
     const receiptId = `trial:${approvalId}`;
     const fingerprint = digest(target);
     const prior = this.receipt(receiptId, fingerprint);
-    if (prior) return JSON.parse(prior) as { tested?: true; code?: string };
+    if (prior) return JSON.parse(prior) as { tested?: true; code?: string; duration_ms?: number };
     if (recovery) return { code: "PROVIDER_OUTCOME_UNKNOWN" };
     const current = this.actionTarget("admin_test_run", target.id, target.expectedRevision);
     if (digest(current) !== fingerprint) throw new ProviderError("SETTINGS_REVISION_CONFLICT");
     this.database
       .prepare("INSERT INTO settings_receipts VALUES (?, ?, ?)")
       .run(receiptId, fingerprint, JSON.stringify({ code: "PROVIDER_OUTCOME_UNKNOWN" }));
-    let result: { tested?: true; code?: string };
+    const startedAt = performance.now();
+    let result: { tested?: true; code?: string; duration_ms?: number };
     try {
       result = await this.test(target);
     } catch (error) {
       result = { code: error instanceof ProviderError ? error.code : "PROVIDER_OUTCOME_UNKNOWN" };
     }
+    result.duration_ms = Math.round(performance.now() - startedAt);
     this.database
       .prepare("UPDATE settings_receipts SET result = ? WHERE id = ?")
       .run(JSON.stringify(result), receiptId);

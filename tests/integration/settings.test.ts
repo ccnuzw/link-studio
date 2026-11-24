@@ -7,17 +7,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
+import { AgentWorkerClient } from "../../packages/agent-runtime/src/client";
 import { LocalAgentRuntime } from "../../packages/agent-runtime/src/runtime";
 import { SpikeTargets } from "../../packages/agent-runtime/src/targets";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
+import type { Approval, Run } from "../../packages/agent-runtime/upstream/src/store/types";
+import { fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
 import type { SettingsInput } from "../../packages/link-studio-core/src/settings-api";
 import { PluginRunner, ProviderError } from "../../packages/provider-runtime/src/runner";
 import {
+  addDramaSegment,
   createDrama,
   DramaTools,
   dramaDocument,
   updateDramaBoardSettings,
 } from "../../src/main/project/drama";
+import { adaptDramaSegment } from "../../src/main/project/drama-adaptation";
 import { commitBreakdownBatch } from "../../src/main/project/drama-assets";
 import {
   estimateDramaJob,
@@ -112,6 +117,245 @@ async function withRegistry(
 }
 
 describe("S3 设置持久化", () => {
+  it("批准改名后拒绝回滚：Worker 重开保留原单号和拒绝说明，不重放写入", async () => {
+    await withRegistry(async ({ registry, input, directory }) => {
+      const original = registry.save(input);
+      const label = "保留的新名称";
+      const answer = "保留现有名称，不要回滚。";
+      const change = {
+        providerId: original.id,
+        expectedRevision: original.revision,
+        changes: [{ field: "label", value: label }],
+      };
+      const reverse = { revert_of: "" };
+      const server = await fakeGo({
+        turns: [
+          { tools: [{ id: "rename", name: "admin_propose_changes", args: { value: change } }] },
+          { text: "已改名。" },
+          { tools: [{ id: "rollback", name: "admin_propose_changes", args: reverse }] },
+          { text: "保留现有配置。" },
+        ],
+      });
+      const applied: string[] = [];
+      const open = () =>
+        AgentWorkerClient.open({
+          directory,
+          workerPath: join(process.cwd(), "out/agent-runtime/worker.mjs"),
+          modelBridgeUrl: server.url,
+          settings: async (command, raw) => {
+            const args = raw as {
+              proposal: unknown;
+              order: string;
+              sessionId: string;
+              approvalId: string;
+              selected: number[];
+              payload: Awaited<ReturnType<SettingsRegistry["preview"]>>;
+            };
+            if (command === "model")
+              return { name: "fixture", context_window: 32768, max_tokens: 1024 };
+            if (command === "forgetPluginChecks") return null;
+            if (command === "preview") return registry.preview(args.proposal);
+            if (command === "reversePreview")
+              return registry.reverseProposal(args.order, args.sessionId);
+            if (command === "apply") {
+              applied.push(args.approvalId);
+              return registry.applyProposal(
+                args.approvalId,
+                args.payload,
+                args.selected,
+                args.sessionId,
+              );
+            }
+            throw Error(`意外的设置桥接调用：${command}`);
+          },
+        });
+      let worker: AgentWorkerClient | undefined;
+      try {
+        const client = await open();
+        worker = client;
+        const { sessionId } = await client.request<{ sessionId: string }>("create", { scope });
+        const context = { scope, sessionId };
+        const pending = async (message: string) => {
+          const run = await client.request<Run>("start", { ...context, message });
+          await client.request("idle");
+          const approvals = await client.request<Approval[]>("approvals", {
+            ...context,
+            runId: run.id,
+          });
+          expect(approvals).toMatchObject([{ kind: "admin_change", status: "pending" }]);
+          return approvals[0]!;
+        };
+        const forward = await pending("请更改模型名称");
+        reverse.revert_of = (forward.payload as { orderNo: string }).orderNo;
+        await client.request("decide", {
+          ...context,
+          approvalId: forward.id,
+          decision: { decision: "approve", items: [{ index: 0, approve: true }] },
+        });
+        await client.request("idle");
+        expect(registry.provider(original.id)).toMatchObject({
+          label,
+          revision: original.revision + 1,
+        });
+        const rollback = await pending(`请回滚 ${reverse.revert_of}`);
+        expect(rollback.payload).toMatchObject({
+          revertOf: reverse.revert_of,
+          items: [{ before: label, after: original.label }],
+        });
+        expect((rollback.payload as { orderNo: string }).orderNo).not.toBe(reverse.revert_of);
+        await client.request("decide", {
+          ...context,
+          approvalId: rollback.id,
+          decision: { decision: "reject", answer },
+        });
+        await client.request("idle");
+        expect(server.modelRequests).toHaveLength(4);
+        expect(JSON.stringify(server.modelRequests[3]?.body.messages)).toContain(answer);
+        await client.close();
+        worker = await open();
+        const page = await worker.request<Awaited<ReturnType<LocalAgentRuntime["page"]>>>("page", {
+          ...context,
+          after: 0,
+        });
+        expect(page.approvals).toEqual([]);
+        expect(page.events.filter((event) => event.approvalId === rollback.id)).toMatchObject([
+          { type: "approval.created", payload: { payload: { revertOf: reverse.revert_of } } },
+          {
+            type: "approval.decided",
+            payload: {
+              status: "rejected",
+              payload: { revertOf: reverse.revert_of },
+              decision: { answer },
+            },
+          },
+        ]);
+        expect(registry.provider(original.id)).toMatchObject({
+          label,
+          revision: original.revision + 1,
+        });
+        expect(applied).toEqual([forward.id]);
+        expect(server.modelRequests).toHaveLength(4);
+      } finally {
+        await worker?.close();
+        await server.close();
+      }
+    });
+  });
+
+  it("已批准试跑的成功和失败均保存实测耗时，恢复返回原收据且不重复出站", async () => {
+    await withRegistry(async ({ registry, input, directory }) => {
+      let requests = 0;
+      const server = createServer((_request, response) => {
+        const success = ++requests === 1;
+        setTimeout(
+          () =>
+            response
+              .writeHead(success ? 200 : 400, { "content-type": "application/json" })
+              .end(
+                JSON.stringify(
+                  success
+                    ? { choices: [{ message: { content: "OK" } }] }
+                    : { error: { message: "trial failed" } },
+                ),
+              ),
+          35,
+        );
+      });
+      server.listen(0, "127.0.0.1");
+      try {
+        await once(server, "listening");
+        const address = server.address();
+        if (!address || typeof address === "string") throw Error("测试模型未监听");
+        const profile = registry.save({
+          ...input,
+          fields: { ...input.fields, endpoint: `http://127.0.0.1:${address.port}` },
+        });
+        const target = registry.actionTarget("admin_test_run", profile.id, profile.revision);
+        const history: {
+          sessionId: string;
+          id: string;
+          result: Awaited<ReturnType<SettingsRegistry["approvedTest"]>>;
+        }[] = [];
+        const store = openStore(join(directory, "agent.sqlite"));
+        const targets = new SpikeTargets(join(directory, "targets.sqlite"));
+        try {
+          targets.scope(scope);
+          for (const success of [true, false]) {
+            const owner = { canvasId: "0", userId: "1", mode: "admin" };
+            const { id: sessionId } = store.createSession({
+              ...owner,
+              title: "模型试跑",
+              modelKey: "fixture",
+            });
+            targets.bindSession(sessionId, scope);
+            const run = store.createRun({ ...owner, sessionId, status: "interrupted" });
+            const { id } = store.createApproval({
+              ...owner,
+              sessionId,
+              runId: run.id,
+              toolCallId: "trial",
+              kind: "admin_test_run",
+              payload: target,
+              status: "pending",
+              quoteCredits: 0,
+              expiresAt: Date.now() + 60000,
+            });
+            store.updateApprovalIf(id, ["pending"], {
+              status: "approved",
+              decision: { decision: "approve" },
+            });
+            const result = await registry.approvedTest(id, target, false);
+            if (success) expect(result.tested).toBe(true);
+            else expect(result.code).toBeTruthy();
+            expect(result.duration_ms).toBeGreaterThanOrEqual(30);
+            history.push({ sessionId, id, result });
+          }
+        } finally {
+          store.close();
+          targets.close();
+        }
+        for (const boot of [1, 2]) {
+          const runtime = await LocalAgentRuntime.open({
+            directory,
+            modelBridgeUrl: "http://127.0.0.1:1",
+            settings: async (command, raw) => {
+              expect(command).toBe("approvedTest");
+              expect(boot).toBe(1);
+              const args = raw as { approvalId: string; recovery: boolean };
+              expect(args.recovery).toBe(true);
+              return registry.approvedTest(args.approvalId, target, true);
+            },
+          });
+          try {
+            for (const { sessionId, id, result } of history) {
+              const page = await runtime.page(scope, sessionId, 0);
+              expect(
+                page.events.filter((event) => event.type === "approval.decided"),
+              ).toMatchObject([
+                {
+                  approvalId: id,
+                  payload: {
+                    status: result.tested ? "executed" : "failed",
+                    payload: { label: profile.label },
+                    result,
+                  },
+                },
+              ]);
+            }
+          } finally {
+            await runtime.close();
+          }
+        }
+        expect(await registry.approvedTest("missing", target, true)).toEqual({
+          code: "PROVIDER_OUTCOME_UNKNOWN",
+        });
+        expect(requests).toBe(2);
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+  });
   it("营销技能试跑发送样例图片并按固定协议重写一次，文本模型不能冒充视觉模型", async () => {
     await withRegistry(async ({ registry, input, directory }) => {
       const valid = await readFile(
@@ -487,15 +731,25 @@ describe("S3 设置持久化", () => {
         const model = registry.list().providers[0]!;
         const modelQuote = await registry.agentQuote({ key: model.id, input: { prompt: "估" } });
         expect(modelQuote, JSON.stringify(modelQuote)).not.toHaveProperty("error");
-        registry.modelSave({
+        const localAgent = registry.modelSave({
           expectedRevision: 0,
           channelId: channel.id,
           channelRevision: channel.revision,
           upstreamModel: "legacy",
-          config: { name: "旧模型", kind: "agent", description: "", sort: 0 },
-          settings: { api: "chat_completions" },
+          config: { name: "本地 Agent", kind: "agent", description: "", sort: 2 },
+          settings: { api: "responses" },
           enabled: true,
         });
+        await expect(
+          estimateDramaSource(
+            {
+              script: "第一章\n下雨了\n第二章\n天晴了",
+              sourceKind: "novel",
+              textModel: localAgent.id,
+            },
+            registry,
+          ),
+        ).resolves.toMatchObject({ priceUnavailable: true, kind: "chapter", units: 2 });
         const modelRef = { id: model.id, revision: model.revision };
         const sourceEstimate = await estimateDramaSource({ script, textModel: model.id }, registry);
         expect(sourceEstimate.exactEpisodes).toBe(2);
@@ -4517,6 +4771,7 @@ describe("S3 设置持久化", () => {
           skipped: 0,
           items: [{ field: "label", before: profile.label, after: "已提交", status: "applied" }],
         });
+        const reverse = await registry.reverseProposal(proposal.orderNo, sessions[0]!);
         await expect(registry.applyProposal("stale-fixture", proposal, [0])).rejects.toMatchObject({
           code: "SETTINGS_REVISION_CONFLICT",
         });
@@ -4527,6 +4782,23 @@ describe("S3 设置持久化", () => {
           "replacement-fixture",
         );
         create("admin_test_run", registry.actionTarget("admin_test_run", profile.id, 3));
+        const forward = store.getApproval("1", changeId);
+        const rollback = store.createApproval({
+          runId: forward.runId,
+          sessionId: forward.sessionId,
+          userId: "1",
+          canvasId: "0",
+          kind: "admin_change",
+          toolCallId: "rollback",
+          payload: reverse,
+          quoteCredits: 0,
+          status: "pending",
+          expiresAt: Date.now() + 60_000,
+        });
+        store.updateApprovalIf(rollback.id, ["pending"], {
+          status: "approved",
+          decision: forward.decision,
+        });
       } finally {
         store.close();
         targets.close();
@@ -4567,12 +4839,35 @@ describe("S3 设置持久化", () => {
             { configured: true },
             { code: "PROVIDER_OUTCOME_UNKNOWN" },
           ]);
-          for (const [index, sessionId] of sessions.entries())
+          for (const [index, sessionId] of sessions.entries()) {
+            const decisions = (await runtime.page(scope, sessionId, 0)).events.filter(
+              (event) => event.type === "approval.decided",
+            );
             expect(
-              (await runtime.page(scope, sessionId, 0)).events.filter(
-                ({ type }) => type === "approval.decided",
-              ),
-            ).toMatchObject([{ approvalId: approvalIds[index] }]);
+              decisions.filter((event) => event.approvalId === approvalIds[index]),
+            ).toHaveLength(1);
+            if (index === 0) {
+              const failed = decisions.filter((event) => event.approvalId !== approvalIds[index]);
+              expect(failed).toMatchObject([
+                { payload: { kind: "admin_change", status: "failed" } },
+              ]);
+              expect((failed[0]!.payload as { payload: unknown }).payload).toEqual({
+                revertOf: savedReceipt.order,
+              });
+            } else expect(decisions).toHaveLength(1);
+          }
+          const trialHistory = await runtime.page(scope, sessions[2]!, 0);
+          const trialDecision = trialHistory.events.find(
+            (event) => event.type === "approval.decided",
+          );
+          expect(trialDecision?.payload).toMatchObject({
+            kind: "admin_test_run",
+            status: "failed",
+            result: { code: "PROVIDER_OUTCOME_UNKNOWN" },
+          });
+          expect((trialDecision?.payload as { payload: unknown } | undefined)?.payload).toEqual({
+            label: "已提交",
+          });
           expect(registry.provider(profile.id)).toMatchObject({
             revision: 3,
             label: "已提交",
@@ -4619,6 +4914,137 @@ it("S3 生产传输拒绝跨源、重定向和未授权的本机端点", async (
   }
 });
 
+it("片场转写经项目文本模型校验重试，失败和取消保留已存稿", async () => {
+  await withRegistry(async ({ registry, input, directory }) => {
+    const source = "@[信使](n1)敲门。@[信使](n1)转身。";
+    const valid =
+      "integrated_multimodal_description: 0-5秒 @[信使](n1)转身。\noverall_soundscape: 雨声\nnon_diegetic_music: 无";
+    const replies = [
+      valid.replace("@[信使](n1)", "信使"),
+      valid,
+      source,
+      valid.replace("0-5秒", "0-7秒"),
+    ];
+    const requests: { model: string; variables: unknown }[] = [];
+    const controller = new AbortController();
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const prompt = body.messages.at(-1).content;
+      requests.push({
+        model: body.model,
+        variables: JSON.parse(prompt.split("```json\n")[1].split("\n```")[0]),
+      });
+      if (requests.length === 5) {
+        controller.abort();
+        return;
+      }
+      const delta = { content: JSON.stringify({ prompt: replies[requests.length - 1] }) };
+      response
+        .writeHead(200, { "content-type": "text/event-stream" })
+        .end(
+          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+        );
+    });
+    let store = await ProjectStore.create(directory, "片场转写");
+    server.listen(0, "127.0.0.1");
+    try {
+      await once(server, "listening");
+      const address = server.address();
+      if (!address || typeof address === "string") throw Error("回环服务缺少端口");
+      const endpoint = `http://127.0.0.1:${address.port}`;
+      registry.save(input);
+      const model = registry.save({
+        ...input,
+        fields: { ...input.fields, endpoint, label: "片场模型", model: "fixture-adapt" },
+      });
+      const style = "纸上水墨";
+      const doc = await createDrama(store, {
+        title: "来信",
+        script: "敲门。",
+        styleKey: "custom",
+        styleCustom: style,
+        ratio: "16:9",
+        textModel: model.id,
+      });
+      const added = await addDramaSegment(store, {
+        episode_no: 1,
+        revision: doc.revision,
+        prompt: source,
+        seconds: 5,
+      });
+      const segment = added.segments![0]!;
+      const args = {
+        segmentId: segment.id,
+        episodeNo: 1,
+        episodeOrder: 0,
+        revision: segment.revision,
+        format: "h3",
+      };
+      const saved = await adaptDramaSegment(store, registry, args, controller.signal);
+      const variables = {
+        source_prompt: source,
+        seconds: 5,
+        ratio: "16:9",
+        style,
+        assets: [{ node_id: "n1", name: "信使" }],
+      };
+      expect(requests).toEqual([
+        { model: "fixture-adapt", variables },
+        {
+          model: "fixture-adapt",
+          variables: {
+            ...variables,
+            validation_error: expect.stringContaining("丢了原稿里的引用"),
+          },
+        },
+      ]);
+      const stored = saved.segments![0]!;
+      expect(stored).toMatchObject({
+        prompt: source,
+        revision: segment.revision + 1,
+        adaptations: {
+          h3: {
+            prompt: valid,
+            source_hash: createHash("sha256").update(source).digest("hex"),
+            edited: false,
+          },
+        },
+      });
+      const retry = { ...args, revision: stored.revision };
+      await expect(
+        adaptDramaSegment(store, registry, retry, controller.signal),
+      ).rejects.toMatchObject({ code: "模型输出无法解析" });
+      expect(requests.slice(2)).toEqual([
+        { model: "fixture-adapt", variables },
+        {
+          model: "fixture-adapt",
+          variables: {
+            ...variables,
+            validation_error: expect.stringContaining("缺少字段 integrated_multimodal_description"),
+          },
+        },
+      ]);
+      await expect(adaptDramaSegment(store, registry, retry, controller.signal)).rejects.toThrow();
+      expect(requests).toHaveLength(5);
+      const path = store.directory;
+      await store.close();
+      store = await ProjectStore.open(path);
+      expect(dramaDocument(store.snapshot)).toEqual(saved);
+      const read = await new DramaTools().command(store, "drama-read", {
+        runId: "read",
+        input: { scope: "segments", episode_no: 1 },
+      });
+      expect(read).toMatchObject([{ prompt: source, adaptations: stored.adaptations }]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await store.close();
+    }
+  });
+});
+
 it("小说研读与分集规划经回环模型返回，遗漏末章的格式段携带反馈重试", async () => {
   await withRegistry(async ({ registry, input }) => {
     const analysis = {
@@ -4642,15 +5068,19 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
       JSON.stringify({ episodes: [episode] }),
     ];
     const requests: string[] = [];
+    const envelopes: { messages: { role: string }[]; max_tokens?: number }[] = [];
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      requests.push(JSON.parse(Buffer.concat(chunks).toString()).messages.at(-1).content);
-      const delta = { content: replies[requests.length - 1] };
+      const envelope = JSON.parse(Buffer.concat(chunks).toString());
+      envelopes.push(envelope);
+      requests.push(envelope.messages.at(-1).content);
+      const truncated = requests.length > replies.length;
+      const delta = { content: truncated ? "部分输出" : replies[requests.length - 1] };
       response
         .writeHead(200, { "content-type": "text/event-stream" })
         .end(
-          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: truncated ? "length" : "stop" }] })}\n\ndata: [DONE]\n\n`,
         );
     });
     server.listen(0, "127.0.0.1");
@@ -4687,6 +5117,10 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
       const variables = requests.map((prompt) =>
         JSON.parse(prompt.split("```json\n")[1]!.split("\n```")[0]!),
       );
+      for (const envelope of envelopes) {
+        expect(envelope.messages.map((message) => message.role)).toEqual(["user"]);
+        expect(envelope.max_tokens).toBeUndefined();
+      }
       expect(variables).toEqual([
         { source, source_kind: "novel" },
         { source, source_summary: analysis.summary },
@@ -4698,6 +5132,16 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
           validation_error: expect.stringContaining("规划未覆盖批次末尾"),
         },
       ]);
+      await expect(
+        registry.dramaAssetStage(
+          model,
+          "plan",
+          { source, source_summary: analysis.summary },
+          scope,
+          signal,
+        ),
+      ).rejects.toMatchObject({ code: "DRAMA_OUTPUT_TRUNCATED" });
+      expect(requests).toHaveLength(5);
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -70,7 +70,7 @@ test("上下文识别不覆盖手填值，媒体能力只在确认时应用", as
       if (!model.ok) throw Error(model.code);
       return model.value.id;
     }, address.port);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = () => page.getByRole("button", { name: "规格模型", exact: true }).click();
     await open();
     const dialog = page.getByRole("dialog", { name: "编辑模型" }),

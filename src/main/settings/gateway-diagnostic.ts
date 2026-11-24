@@ -16,6 +16,14 @@ type Attempt = {
   request_bytes: number;
 };
 export type GatewayRecord = Attempt & {
+  drama?: {
+    step: string;
+    model_revision: number;
+    prompt_hash: string;
+    prompt_chars: number;
+    template: "builtin" | "snapshot";
+    template_hash?: string;
+  };
   event: "llm.call";
   started_at: number;
   latency_ms: number;
