@@ -2,11 +2,13 @@ import type { DramaDocument } from "@link-studio/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { Autosaver, type AutosaveStatus } from "./drama-autosave";
+import { useDramaSaveStatus } from "./drama-save-status";
 import { markdownExtensions, TextFormatBar } from "./text-editor-dialog";
 
 export function EpisodePaper({
   projectHandle,
   episode,
+  documentField,
   episodeOrder,
   registerFlush,
   saved,
@@ -14,15 +16,25 @@ export function EpisodePaper({
   notify,
 }: {
   projectHandle: string;
-  episode: DramaDocument["episodes"][number];
+  episode?: DramaDocument["episodes"][number];
+  documentField?: {
+    field: "outline_md" | "characters_md";
+    value: string;
+    revision: number;
+    label: string;
+  };
   episodeOrder: number;
   registerFlush: React.RefObject<(() => Promise<void>) | null>;
   saved: (doc: DramaDocument) => void;
   refresh: () => Promise<void>;
   notify: (message: string) => void;
 }) {
-  const { episode_no: no, script_md: value, revision = 1, locked = false } = episode;
+  const no = episode?.episode_no;
+  const value = documentField?.value ?? episode?.script_md ?? "";
+  const revision = documentField?.revision ?? episode?.revision ?? 1;
+  const locked = episode?.locked ?? false;
   const [status, setStatus] = useState<AutosaveStatus>("saved");
+  useDramaSaveStatus(status);
   const lastSaved = useRef(value),
     callbacks = useRef({ saved, refresh, notify });
   callbacks.current = { saved, refresh, notify };
@@ -34,19 +46,38 @@ export function EpisodePaper({
       save: async (markdown, expected) => {
         const result = await window.desktop.projects.drama({
           projectHandle,
-          saveScript: { episode_no: no, revision: expected, episodeOrder, script_md: markdown },
+          ...(documentField
+            ? {
+                editField: {
+                  field: documentField.field,
+                  previous: lastSaved.current,
+                  value: markdown,
+                },
+              }
+            : {
+                saveScript: {
+                  episode_no: no!,
+                  revision: expected,
+                  episodeOrder,
+                  script_md: markdown,
+                },
+              }),
         });
         if (!result.ok || !result.value) {
           const code = result.ok ? "短剧不存在" : result.error.code;
           if (code === "AGENT_APPROVAL_STALE") {
-            callbacks.current.notify(`第 ${no} 集在别处被修改过，已加载最新内容，你的改动没有保存`);
+            callbacks.current.notify(
+              `${documentField?.label ?? `第 ${no} 集`}在别处被修改过，请复制草稿并重新载入。`,
+            );
             void callbacks.current.refresh();
           }
           throw code;
         }
         lastSaved.current = markdown;
         callbacks.current.saved(result.value);
-        return result.value.episodes.find((item) => item.episode_no === no)!.revision!;
+        return documentField
+          ? result.value.revision
+          : result.value.episodes.find((item) => item.episode_no === no)!.revision!;
       },
     });
     instance.reset(value, revision);
@@ -62,7 +93,7 @@ export function EpisodePaper({
     editorProps: {
       attributes: {
         role: "textbox",
-        "aria-label": "分集剧本",
+        "aria-label": documentField?.label ?? "分集剧本",
         "aria-multiline": "true",
         class: "drama-paper-prose",
       },
@@ -74,12 +105,9 @@ export function EpisodePaper({
   }, [editor, locked]);
   useEffect(() => {
     if (!editor || saver.getRevision() > revision) return;
-    if (
-      !["saved", "conflict"].includes(saver.getStatus()) ||
-      (saver.getStatus() === "conflict" && revision === saver.getRevision())
-    )
-      return;
-    if (value !== lastSaved.current || saver.getStatus() === "conflict")
+    saver.advanceIfUnchanged(value, revision);
+    if (saver.getStatus() !== "saved") return;
+    if (value !== lastSaved.current)
       editor.commands.setContent(value, { contentType: "markdown", emitUpdate: false });
     lastSaved.current = value;
     saver.reset(value, revision);
@@ -110,7 +138,6 @@ export function EpisodePaper({
   }, [saver]);
   return (
     <div className="drama-episode-paper">
-      {locked && <p>这一集已经拆解资产，剧本已锁定。资产和分镜都以这一版为准。</p>}
       {editor && !locked && <TextFormatBar editor={editor} />}
       <EditorContent editor={editor} />
       {!locked && (
@@ -127,6 +154,32 @@ export function EpisodePaper({
           {status === "error" && (
             <button type="button" onClick={() => void saver.flush()}>
               重试保存
+            </button>
+          )}
+          {status === "conflict" && (
+            <button
+              type="button"
+              onClick={async () => {
+                const result = await window.desktop.projects.drama({ projectHandle });
+                if (!result.ok || !result.value) return;
+                const latest = result.value.episodes.find((item) => item.episode_no === no);
+                const markdown = documentField
+                  ? result.value[documentField.field]
+                  : latest?.script_md;
+                if (markdown === undefined) return;
+                editor?.commands.setContent(markdown, {
+                  contentType: "markdown",
+                  emitUpdate: false,
+                });
+                lastSaved.current = markdown;
+                saver.reset(
+                  markdown,
+                  documentField ? result.value.revision : (latest!.revision ?? 1),
+                );
+                saved(result.value);
+              }}
+            >
+              放弃草稿并载入最新版
             </button>
           )}
         </small>

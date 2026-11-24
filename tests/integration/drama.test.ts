@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,11 +15,16 @@ import {
   DramaTools,
   deleteDramaEpisode,
   dramaDocument,
+  reorderDramaSegments,
   saveDramaScript,
+  setDramaSegmentPrompt,
+  setDramaSegmentSeconds,
   updateDramaBoardSettings,
 } from "../../src/main/project/drama";
+import { adaptDramaSegment } from "../../src/main/project/drama-adaptation";
 import { type DramaAsset, mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { syncDramaBoards } from "../../src/main/project/drama-boards";
+import { estimateDramaJob } from "../../src/main/project/drama-estimate";
 import { storyboardClearHash, submitApprovedDramaJob } from "../../src/main/project/drama-job";
 import {
   controlDramaPlanning,
@@ -28,6 +34,261 @@ import {
 import { runDramaAssetJob } from "../../src/main/project/drama-worker";
 import { ProjectStore } from "../../src/main/project/store";
 import type { SettingsRegistry } from "../../src/main/settings/registry";
+
+test("片段转写保留启动时原稿指纹，两种格式重开后由小灵读回", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "studio-adapt-"));
+  let store = await ProjectStore.create(directory, "转写");
+  try {
+    const doc = await createDrama(store, { title: "来信", script: "敲门。" });
+    const source = "@[信使](n1)敲门。@[信使](n1)转身。";
+    const added = await addDramaSegment(store, {
+      episode_no: 1,
+      revision: doc.revision,
+      prompt: source,
+      seconds: 5,
+    });
+    const segment = added.segments![0]!;
+    const base = { segmentId: segment.id, episodeNo: 1, episodeOrder: 0 };
+    const signal = new AbortController().signal;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const registry = {
+      withDramaTextModel: (_preferred: string, task: (model: object) => unknown) => task({}),
+      dramaAssetStage: async (_model: object, step: string, variables: { assets: unknown[] }) => {
+        expect(variables.assets).toEqual([{ node_id: "n1", name: "信使" }]);
+        await gate;
+        return { prompt: `${step} @[信使](n1)` };
+      },
+    } as unknown as SettingsRegistry;
+    const request = { ...base, revision: segment.revision, format: "h3" };
+    const adapting = adaptDramaSegment(store, registry, request, signal);
+    await expect(adaptDramaSegment(store, registry, request, signal)).rejects.toThrow("正在转写");
+    const updatedSource = source + "雨停了。";
+    await setDramaSegmentPrompt(store, {
+      ...base,
+      revision: segment.revision,
+      prompt: updatedSource,
+    });
+    release();
+    const adapted = (await adapting).segments![0]!;
+    expect(adapted.prompt).toBe(updatedSource);
+    expect(adapted.adaptations?.h3).toMatchObject({
+      source_hash: createHash("sha256").update(source).digest("hex"),
+      edited: false,
+    });
+    await expect(adaptDramaSegment(store, registry, request, signal)).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    const both = await adaptDramaSegment(
+      store,
+      registry,
+      { ...request, revision: adapted.revision, format: "generic" },
+      signal,
+    );
+    let releaseRewrite!: () => void;
+    const rewriteGate = new Promise<void>((resolve) => {
+      releaseRewrite = resolve;
+    });
+    const rewriting = adaptDramaSegment(
+      store,
+      {
+        ...registry,
+        dramaAssetStage: () => rewriteGate.then(() => ({ prompt: "不应覆盖手改" })),
+      } as unknown as SettingsRegistry,
+      { ...request, revision: both.segments![0]!.revision },
+      signal,
+    );
+    const rejectedRewrite = expect(rewriting).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    const edited = await setDramaSegmentPrompt(store, {
+      ...base,
+      revision: both.segments![0]!.revision,
+      format: "h3",
+      prompt: "手改的镜头",
+    });
+    releaseRewrite();
+    await rejectedRewrite;
+    expect(edited.segments![0]!.adaptations?.generic).toEqual(
+      both.segments![0]!.adaptations?.generic,
+    );
+    const path = store.directory;
+    await store.close();
+    store = await ProjectStore.open(path);
+    const read = await new DramaTools().command(store, "drama-read", {
+      runId: "read",
+      input: { scope: "segments", episode_no: 1 },
+    });
+    expect(read).toMatchObject([
+      {
+        prompt: updatedSource,
+        adaptations: {
+          h3: {
+            prompt: "手改的镜头",
+            edited: true,
+            source_hash: adapted.adaptations!.h3!.source_hash,
+          },
+          generic: {
+            prompt: "adapt_generic @[信使](n1)",
+            source_hash: createHash("sha256").update(updatedSource).digest("hex"),
+          },
+        },
+      },
+    ]);
+    expect(dramaDocument(store.snapshot)).toEqual(edited);
+  } finally {
+    await store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("片段时长按版本和分集保存，同值不重写，保留采用的视频和相邻片段", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drama-seconds-"));
+  const store = await ProjectStore.create(root, "片场时长");
+  try {
+    const created = await createDrama(store, { title: "来信", script: "敲门。离开。" });
+    const first = await addDramaSegment(store, {
+      episode_no: 1,
+      revision: created.revision,
+      prompt: "敲门",
+      seconds: 5,
+    });
+    await addDramaSegment(store, {
+      episode_no: 1,
+      revision: first.revision,
+      prompt: "离开",
+      seconds: 20,
+    });
+    await store.updateGeneration((state) => {
+      dramaDocument(state)!.segments![1]!.chosen_task_id = "selected";
+      return { changed: true, result: null };
+    });
+    const before = dramaDocument(store.snapshot)!;
+    const [neighbor, selected] = before.segments!;
+    const input = {
+      segmentId: selected!.id,
+      revision: selected!.revision,
+      seconds: 8,
+      episodeNo: 1,
+      episodeOrder: 0,
+    };
+    const after = await setDramaSegmentSeconds(store, input);
+    expect(after.segments).toEqual([
+      neighbor,
+      { ...selected, seconds: 8, revision: input.revision + 1 },
+    ]);
+    expect(after.episodes).toEqual(before.episodes);
+    const current = { ...input, revision: input.revision + 1 };
+    expect((await setDramaSegmentSeconds(store, current)).revision).toBe(after.revision);
+    for (const mismatch of [{ revision: input.revision }, { episodeNo: 2 }, { episodeOrder: 1 }]) {
+      await expect(
+        setDramaSegmentSeconds(store, { ...current, seconds: 3, ...mismatch }),
+      ).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
+    }
+    expect(dramaDocument(store.snapshot)).toEqual(after);
+    const { seconds: _seconds, ...base } = current;
+    const empty = await setDramaSegmentPrompt(store, { ...base, prompt: "" });
+    expect(empty.segments).toEqual([
+      neighbor,
+      { ...after.segments![1], prompt: "", revision: base.revision + 1 },
+    ]);
+    await expect(setDramaSegmentPrompt(store, { ...base, prompt: "旧稿" })).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    expect(dramaDocument(store.snapshot)).toEqual(empty);
+  } finally {
+    await store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("片场新增空白片段写在本集末尾，重开可编辑，旧请求不会再次新增", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drama-add-clip-"));
+  let store = await ProjectStore.create(root, "时间线新增");
+  try {
+    let doc = await createDrama(store, {
+      title: "两集",
+      script: "第一集 初见\n敲门。\n第二集 离开\n出门。",
+    });
+    doc = await addDramaSegment(store, {
+      episode_no: 2,
+      revision: doc.revision,
+      seconds: 5,
+      prompt: "楼梯",
+    });
+    const original = doc.segments![0]!;
+    const neighbor = doc.episodes[0]!;
+    const request = { episode_no: 2, revision: doc.revision, seconds: 8 };
+    const saved = await addDramaSegment(store, request);
+    const blank = saved.segments![1]!;
+    expect(blank).toMatchObject({ seq: 1, episode_no: 2, prompt: "", revision: 1, seconds: 8 });
+    expect(saved.segments![0]).toEqual(original);
+    expect(saved.episodes[0]).toEqual(neighbor);
+    expect(saved.episodes[1]!.segment_version).toBe(doc.episodes[1]!.segment_version! + 1);
+    await expect(addDramaSegment(store, request)).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    const dir = store.directory;
+    await store.close();
+    store = await ProjectStore.open(dir);
+    expect(dramaDocument(store.snapshot)).toEqual(saved);
+    const edited = await setDramaSegmentPrompt(store, {
+      segmentId: blank.id,
+      episodeNo: 2,
+      episodeOrder: 0,
+      revision: 1,
+      prompt: "开门。",
+    });
+    expect(edited.segments![1]).toEqual({ ...blank, revision: 2, prompt: "开门。" });
+  } finally {
+    await store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("排序只接受本集完整排列，换位片段分别递增版本", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drama-order-"));
+  const store = await ProjectStore.create(root, "时间线");
+  try {
+    let doc = await createDrama(store, {
+      title: "两集",
+      script: "第一集 初见\n敲门。\n第二集 离开\n出门。",
+    });
+    for (const episodeNo of [1, 2, 1]) {
+      doc = await addDramaSegment(store, {
+        episode_no: episodeNo,
+        revision: doc.revision,
+        seconds: 5,
+        prompt: "镜头",
+      });
+    }
+    const [first, other, last] = doc.segments!;
+    const previous = [first!.id, last!.id];
+    const input = {
+      episodeNo: 1,
+      episodeOrder: doc.episode_order ?? 0,
+      previous,
+      ids: [...previous].reverse(),
+    };
+    for (const ids of [[other!.id, first!.id], [first!.id], [first!.id, first!.id]]) {
+      await expect(reorderDramaSegments(store, { ...input, ids })).rejects.toThrow();
+      expect(dramaDocument(store.snapshot)).toEqual(doc);
+    }
+    const ordered = await reorderDramaSegments(store, input);
+    expect(ordered.segments).toEqual([
+      { ...last, seq: 0, revision: last!.revision + 1 },
+      other,
+      { ...first, seq: 1, revision: first!.revision + 1 },
+    ]);
+    expect(ordered.episodes[0]!.segment_version).toBe(doc.episodes[0]!.segment_version! + 2);
+    expect(ordered.episodes[1]).toEqual(doc.episodes[1]);
+  } finally {
+    await store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("删集与画布引用一次提交，全集、未分类、已有素材和历史任务保留；旧读取和审批不作用于补位集", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-delete-"));
@@ -464,6 +725,17 @@ test("逐集写剧本：已提交集不重跑；后一集失败保留旧稿并�
     ).resolves.toMatchObject({
       active_jobs: [{ id: job.id, step: "scripts", status: "running", progress: 40 }],
     });
+    const [finished, pending] = dramaDocument(store.snapshot)!.episodes;
+    await expect(
+      saveDramaScript(store, {
+        episode_no: 1,
+        revision: finished!.revision,
+        script_md: firstScript,
+      }),
+    ).resolves.toMatchObject({ status: "scripting" });
+    await expect(
+      saveDramaScript(store, { episode_no: 2, revision: pending!.revision, script_md: "覆写" }),
+    ).rejects.toThrow("正在生成这一集的剧本");
     mode = "fail";
     await runDramaAssetJob(store, registry, job.id, new AbortController().signal);
     const doc = dramaDocument(store.snapshot)!;
@@ -552,7 +824,12 @@ test("资产拆解按原始批次数计进度；第二批中断重开不重复�
             },
           ],
         };
-      if (step === "asset_prompts") return "写信封";
+      if (step === "asset_prompts") {
+        const job = dramaDocument(store.snapshot)?.jobs?.at(-1);
+        expect(job?.progress).toBe(scopes.at(-1)?.[0] === 13 ? 70 : 30);
+        expect(job?.done_episodes?.length).toBe(scopes.at(-1)?.[0] === 13 ? 13 : 12);
+        return "写信封";
+      }
       return { prompts: scope.nodes.map((node_id) => ({ node_id, prompt: "信封特写" })) };
     },
   } as unknown as SettingsRegistry;
@@ -1193,11 +1470,34 @@ test("小灵按集读到分镜排队、失败和就绪状态", async () => {
 test("覆盖已有视频的分镜：确认绑定片段版本和报价，失败不删除，重复提交不重清", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-redo-")),
     store = await ProjectStore.create(root, "重做");
+  const videoModel = "07020702-0000-4000-8000-000000000001";
+  let available = true;
   const registry = {
+    list: () => ({
+      plugins: [
+        { hash: "video", kind: "video", key: "doubao-video", origin: "builtin", auth: "none" },
+      ],
+      providers: [
+        {
+          id: videoModel,
+          enabled: available,
+          pluginHash: "video",
+          model: "doubao-seedance-2-0",
+          channel: {},
+          config: { kind: "video", refs: { audio: { max: 2, mb: 10 } } },
+        },
+      ],
+    }),
     dramaJobQuote: async () => ({ model: { id: "text", revision: 1 }, estimate: 14 }),
   } as unknown as SettingsRegistry;
   const assetId = "927c4701-3bc2-42cf-b1f5-4c387428cb60",
-    args = { step: "storyboard" as const, episodes: [1], max_seconds: 15 };
+    args = {
+      step: "storyboard" as const,
+      episodes: [1],
+      video_model: videoModel,
+      max_seconds: 15,
+      max_audios: 99,
+    };
   const submit = (clearHash?: string, estimate = 14) =>
     submitApprovedDramaJob(store, registry, "workspace", "workspace:redo", {
       args,
@@ -1250,9 +1550,18 @@ test("覆盖已有视频的分镜：确认绑定片段版本和报价，失败�
     await expect(submit()).rejects.toMatchObject({ code: "DRAMA_STORYBOARD_HAS_TAKES" });
     await expect(submit(stale)).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
     await expect(submit(hash, 13)).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
+    const preview = { ...dramaDocument(before)!, segments: [] };
+    await expect(estimateDramaJob(preview, args, registry)).resolves.toMatchObject({
+      storyboardLimits: { max_audios: 2 },
+    });
+    available = false;
+    await expect(estimateDramaJob(preview, args, registry)).rejects.toThrow("所选视频模型已不可用");
+    await expect(submit(hash)).rejects.toThrow("所选视频模型已不可用");
+    available = true;
     expect(store.snapshot).toEqual(before);
     const job = await submit(hash),
       after = store.snapshot;
+    expect(job.request).toMatchObject({ video_model: videoModel, max_seconds: 15, max_audios: 2 });
     expect(after.assets).toEqual(before.assets);
     expect(dramaDocument(after)!.segments).toEqual(dramaDocument(before)!.segments!.slice(1));
     expect(projectCanvas(after.canvas).nodes).toEqual(

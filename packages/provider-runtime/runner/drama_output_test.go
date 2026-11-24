@@ -27,3 +27,23 @@ func TestDramaAssetOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestAdaptSegmentOutput(t *testing.T) {
+	scope := json.RawMessage(`{"source_prompt":"@[信使](n1)开门", "max_seconds":5}`)
+	valid := "integrated_multimodal_description: @[信使](n1) At 00:04.250 overall_soundscape: rain non_diegetic_music: none"
+	for _, test := range []struct{ format, prompt, failure string }{
+		{"h3", valid, ""}, {"generic", "@[信使](n1)开门", ""},
+		{"h3", strings.Replace(valid, "@[信使](n1)", "信使", 1), "丢了原稿里的引用"},
+		{"generic", valid + "@[街道](n2)", "原稿没有的引用"},
+		{"h3", strings.Replace(valid, "overall_soundscape:", "sound:", 1), "缺少字段"},
+		{"generic", valid + " At 00:05.125", "超过片段时长"},
+	} {
+		step, _ := json.Marshal("adapt_" + test.format)
+		object, _ := json.Marshal(map[string]string{"prompt": test.prompt})
+		text, _ := json.Marshal(string(object))
+		result := decodeDramaAssetOutput([]json.RawMessage{step, text, scope})
+		if result.OK != (test.failure == "") || !strings.Contains(result.Code, test.failure) {
+			t.Errorf("%s %s: %+v", test.format, test.prompt, result)
+		}
+	}
+}

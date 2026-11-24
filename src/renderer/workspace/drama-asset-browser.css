@@ -93,6 +93,10 @@
 .drama-asset-toggle button:hover {
   color: var(--asset-fg);
 }
+.drama-asset-toggle button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--rail-primary, currentColor) 50%, transparent);
+}
 .drama-asset-browser > [role="tablist"] {
   display: flex;
   gap: 2px;
@@ -691,14 +695,38 @@
     0 10px 15px -3px #0000001a;
   padding: 12px;
 }
-.drama-asset-float label {
+.drama-asset-float-heading {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 4px 8px 12px;
+  font-size: 14px;
+}
+.drama-asset-float-heading span {
+  color: var(--asset-soft);
+  font-size: 12px;
+}
+.drama-asset-float label {
+  position: relative;
+  display: block;
+}
+.drama-asset-float label svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  translate: 0 -50%;
+  pointer-events: none;
 }
 .drama-asset-float input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
+  height: 36px;
+  padding-left: 34px;
+  border: 1px solid var(--asset-line);
+  border-radius: 999px;
+  background: var(--asset-muted);
+  color: inherit;
 }
 .drama-asset-float small,
 .drama-asset-float button {

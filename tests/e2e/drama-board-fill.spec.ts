@@ -7,6 +7,7 @@ import { _electron as electron, expect, test } from "@playwright/test";
 import { projectCanvas } from "../../src/main/project/canvas";
 import { addDramaSegment, createDrama, dramaDocument } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
+import { syncDramaBoards } from "../../src/main/project/drama-boards";
 import { ProjectStore } from "../../src/main/project/store";
 import { projectAction } from "./workspace-actions";
 
@@ -16,12 +17,18 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
   const directory = store.directory;
   try {
     let { revision } = await createDrama(store, { title: "双片段", script: "灯亮了。门开了。" });
-    for (const prompt of ["灯亮了。", "门开了。"]) {
-      const updated = await addDramaSegment(store, { episode_no: 1, revision, prompt, seconds: 5 });
+    for (const [prompt, seconds] of [
+      ["灯亮了。", 5],
+      ["门开了。", 20],
+    ] as const) {
+      const updated = await addDramaSegment(store, { episode_no: 1, revision, prompt, seconds });
       revision = updated.revision;
     }
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      const doc = dramaDocument(state)!;
+      doc.episodes[0]!.locked = true;
+      doc.episodes[0]!.storyboard_status = "ready";
+      syncDramaBoards(state, 1, doc.segments!);
       mergeDramaAssets(
         state,
         (["character", "scene", "prop"] as const).map((type) => ({
@@ -30,7 +37,7 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
           look: "",
           description: "",
           aliases: [],
-          episodes: [1],
+          episodes: type === "prop" ? [2] : [1],
           voice_prompt: "",
         })),
       );
@@ -124,9 +131,12 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     const done = settings.getByRole("button", { name: "完成" });
     const body = "水彩{{格数}}格 {{比例}}\n{{画面}}";
     await openSettings.click();
-    await settings.getByLabel("人物图片模型").selectOption(models.scene);
-    await settings.getByLabel("场景图片模型").selectOption(models.scene);
-    await settings.getByLabel("物品图片模型").selectOption(models.board);
+    await settings.getByRole("button", { name: "人物图片模型", exact: true }).click();
+    await settings.getByRole("button", { name: "场景出图", exact: true }).click();
+    await settings.getByRole("button", { name: "场景图片模型", exact: true }).click();
+    await settings.getByRole("button", { name: "场景出图", exact: true }).click();
+    await settings.getByRole("button", { name: "物品图片模型", exact: true }).click();
+    await settings.getByRole("button", { name: "测试出图", exact: true }).click();
     const boardChoice = settings.getByRole("button", { name: "故事板提示词", exact: true });
     await boardChoice.click();
     await settings.getByRole("button", { name: "新建", exact: true }).click();
@@ -140,12 +150,64 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await expect(boardChoice).toHaveText("我的 · 双片段水彩");
     await done.click();
     await page.getByRole("tab", { name: "片场", exact: true }).click();
-    await page.getByRole("button", { name: "灯亮了。 · 5 秒" }).click();
+    const seconds = page.getByTitle("片段时长 · 模型上限 15s");
+    await expect(seconds).toHaveText("5s");
+    await page.getByRole("button", { name: "片段 2，20 秒" }).click();
+    await expect(seconds).toHaveText("20s");
+    await seconds.click();
+    const durations = page.getByRole("dialog", { name: "片段时长" });
+    await expect(durations.getByRole("button")).toHaveText([
+      "3s",
+      "4s",
+      "5s",
+      "6s",
+      "8s",
+      "10s",
+      "12s",
+      "15s",
+      "20s超出模型上限",
+    ]);
+    await durations.getByRole("button", { name: "12s", exact: true }).click();
+    await expect(page.getByRole("button", { name: "片段 2，12 秒" })).toBeVisible();
+    await page.getByRole("button", { name: "片段 1，5 秒" }).click();
     const stage = page.getByRole("region", { name: "故事板预览" });
-    const fill = stage.getByRole("button", { name: /^批量生成故事板/ });
+    const toggle = page.getByRole("group", { name: "视图" }),
+      canvasFace = page.getByRole("region", { name: "片场画布" });
+    await stage.getByRole("button", { name: "进入画布查看" }).click();
+    await expect(toggle.getByRole("button", { name: "画布" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(canvasFace.locator(".react-flow__node.selected")).toContainText(
+      "故事板 · 第 1 集 · 01",
+    );
+    await expect(page.getByRole("button", { name: "批量生成脚本", exact: true })).toHaveCount(0);
+    await expect(seconds).toHaveCount(0);
+    const selectedBoard = canvasFace.locator(".react-flow__node.selected");
+    const boardId = await selectedBoard.getAttribute("data-id");
+    const flow = await canvasFace.locator(".react-flow").elementHandle();
+    await toggle.getByRole("button", { name: "片场", exact: true }).click();
+    await expect(stage).toBeVisible();
+    await expect(page.getByRole("button", { name: "片段 1，5 秒" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await toggle.getByRole("button", { name: "画布" }).click();
+    expect(
+      await flow!.evaluate(
+        (node) => node === document.querySelector('[aria-label="片场画布"] .react-flow'),
+      ),
+    ).toBe(true);
+    await selectedBoard.getByText("故事板 · 第 1 集 · 01", { exact: true }).dblclick();
+    const title = selectedBoard.getByRole("textbox", { name: "节点名称" });
+    await title.fill("片场灯光草图");
+    await title.press("Enter");
+    await expect(selectedBoard.getByText("片场灯光草图", { exact: true })).toBeVisible();
+    await toggle.getByRole("button", { name: "片场", exact: true }).click();
+    const fill = page.getByRole("button", { name: /^批量生成故事板/ });
     await expect(fill).toHaveText("批量生成故事板 · 2");
     await fill.click();
-    const dialog = stage.getByRole("dialog");
+    const dialog = page.getByRole("dialog", { name: /张故事板/ });
     await expect(dialog).toContainText("片段 01、02");
     await dialog.getByRole("button", { name: "开始生成" }).click();
     await expect.poll(() => requests.slice().sort()).toEqual(["灯", "门"]);
@@ -170,7 +232,8 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await settings.getByRole("button", { name: "取消" }).click();
     await openSettings.click();
     await expect(boardChoice).toHaveAttribute("title", /使用快照/);
-    await settings.getByLabel("故事板图片模型").selectOption(models.board);
+    await settings.getByRole("button", { name: "故事板图片模型", exact: true }).click();
+    await settings.getByRole("button", { name: "测试出图", exact: true }).click();
     await done.click();
     await stage.getByRole("button", { name: "重新生成" }).click();
     await expect.poll(() => payloads[3]?.model).toBe("gpt-image-1");
@@ -180,24 +243,65 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await boardChoice.click();
     await settings.getByRole("button", { name: "内置 推荐" }).click();
     await settings.getByRole("button", { name: "取消" }).click();
+    const sourcePrompt = page.getByRole("textbox", { name: "片段原稿" });
+    await sourcePrompt.fill("灯亮了。镜头转向窗沿。");
+    await page.setViewportSize({ width: 1279, height: 900 });
+    const library = page.getByRole("complementary", { name: "资产库" });
+    await expect(library).toBeHidden();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(library.getByRole("button", { name: "本集" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(library.getByText("scene", { exact: true })).toBeVisible();
+    await expect(library.getByText("prop", { exact: true })).toHaveCount(0);
+    await library.getByRole("button", { name: "全集" }).click();
+    const prop = library.getByTitle("拖到提示词里").filter({ hasText: "prop" });
+    await prop.dragTo(sourcePrompt, { targetPosition: { x: 2, y: 5 } });
+    const chip = sourcePrompt.locator("[data-ref]");
+    await expect(chip).toHaveText("prop");
+    await expect(chip).toHaveAttribute("data-gone", "false");
+    const refId = await chip.getAttribute("data-ref");
     await page.getByRole("button", { name: "返回画布" }).click();
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
     await projectAction(page, "短剧工作室");
     await openSettings.click();
-    await expect(settings.getByLabel("场景图片模型")).toHaveValue(models.scene);
-    await expect(settings.getByLabel("故事板图片模型")).toHaveValue(models.board);
+    await expect(settings.getByRole("button", { name: "场景图片模型", exact: true })).toContainText(
+      "场景出图",
+    );
+    await expect(
+      settings.getByRole("button", { name: "故事板图片模型", exact: true }),
+    ).toContainText("测试出图");
     await expect(boardChoice).toHaveText("我的 · 双片段水彩");
     await expect(boardChoice).toHaveAttribute("title", /使用快照/);
-    await expect(settings.getByLabel("人物图片模型")).toHaveValue(models.scene);
-    await expect(settings.getByLabel("物品图片模型")).toHaveValue(models.board);
+    await expect(settings.getByRole("button", { name: "人物图片模型", exact: true })).toContainText(
+      "场景出图",
+    );
+    await expect(settings.getByRole("button", { name: "物品图片模型", exact: true })).toContainText(
+      "测试出图",
+    );
     await settings.getByRole("button", { name: "取消" }).click();
+    await page.getByRole("tab", { name: "片场", exact: true }).click();
+    await page.getByRole("button", { name: "片段 1，5 秒" }).click();
+    await expect(chip).toHaveAttribute("data-ref", refId!);
+    await expect(sourcePrompt).toHaveText("prop 灯亮了。镜头转向窗沿。");
     await page.getByRole("button", { name: "返回画布" }).click();
     await projectAction(page, "关闭项目");
     await expect(page.getByRole("button", { name: "打开项目", exact: true })).toBeVisible();
     const reopened = await ProjectStore.open(directory);
     try {
+      expect(
+        dramaDocument(reopened.snapshot)?.segments?.map(({ prompt, seconds }) => [prompt, seconds]),
+      ).toEqual([
+        [`@[prop](${refId}) 灯亮了。镜头转向窗沿。`, 5],
+        ["门开了。", 12],
+      ]);
       const nodes = projectCanvas(reopened.snapshot.canvas).nodes;
+      expect(nodes.find((node) => node.id === boardId)).toMatchObject({
+        type: "creative",
+        data: { label: "片场灯光草图" },
+      });
       const fallback = await settingsFallback();
       for (const [type, expected] of [
         ["character", models.scene],

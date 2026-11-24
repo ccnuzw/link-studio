@@ -7,7 +7,9 @@ import {
   type ProviderView,
   promptSteps,
 } from "@link-studio/core";
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { DramaStartModel } from "./drama-start-model";
 import { legacyBoardPick, PromptEditor, PromptRows, useStartPrompts } from "./drama-start-prompts";
 
 export function DramaProjectSettings({
@@ -106,14 +108,14 @@ export function DramaProjectSettings({
       setSaving(false);
     }
   }
-  const choices = models.map((model) => (
-    <option key={model.id} value={model.id}>
-      {model.config?.name ?? model.label}
-    </option>
-  ));
+  const imageFields = [
+    ["人物", characterModel, setCharacterModel],
+    ["场景", sceneModel, setSceneModel],
+    ["物品", propModel, setPropModel],
+  ] as const;
   return (
     <dialog
-      className="drama-start-dialog"
+      className="drama-start-dialog drama-project-settings"
       ref={dialog}
       aria-label="项目设置"
       onCancel={(event) => {
@@ -129,78 +131,79 @@ export function DramaProjectSettings({
           void save();
         }}
       >
-        <h2>项目设置</h2>
-        <p>修改只影响之后发起的任务，还没生成的资产会换成新的图片模型</p>
-        <label>
-          Agent 模型
-          <select
-            value={textModel === agents[0]?.id ? "" : textModel}
-            onChange={(event) => setTextModel(event.currentTarget.value)}
-          >
-            <option value="">
-              {agents.length
-                ? `${agents[0]?.config?.name ?? agents[0]?.label}（默认）`
-                : "暂无可用的 Agent 模型"}
-            </option>
-            {textModel && !agents.some((model) => model.id === textModel) && (
-              <option value={textModel}>{textModel}（已停用）</option>
-            )}
-            {agents.slice(1).map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.config?.name ?? model.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          人物图片模型
-          <select
-            value={characterModel}
-            onChange={(event) => setCharacterModel(event.currentTarget.value)}
-          >
-            <option value="">跟随默认</option>
-            {choices}
-          </select>
-        </label>
-        <label>
-          场景图片模型
-          <select value={sceneModel} onChange={(event) => setSceneModel(event.currentTarget.value)}>
-            <option value="">跟随默认</option>
-            {choices}
-          </select>
-        </label>
-        <label>
-          物品图片模型
-          <select value={propModel} onChange={(event) => setPropModel(event.currentTarget.value)}>
-            <option value="">跟随默认</option>
-            {choices}
-          </select>
-        </label>
-        <label>
-          故事板图片模型
-          <select value={boardModel} onChange={(event) => setBoardModel(event.currentTarget.value)}>
-            <option value="">跟随场景图片</option>
-            {choices}
-          </select>
-        </label>
-        <PromptRows
-          library={library}
-          container={dialog}
-          saved={document.prompt_snapshots}
-          script={!document.planning}
-        />
-        {legacy && (
-          <label>
-            故事板模板
-            <textarea
-              rows={8}
-              maxLength={24000}
-              value={template}
-              onChange={(event) => setTemplate(event.currentTarget.value)}
+        <header className="project-settings-heading">
+          <h2>项目设置</h2>
+          <button type="button" aria-label="关闭项目设置" disabled={saving} onClick={onClose}>
+            <X size={16} />
+          </button>
+        </header>
+        <div className="project-settings-scroll">
+          <p className="project-settings-note">
+            修改只影响之后发起的任务，还没生成的资产会换成新的图片模型
+          </p>
+          <section className="project-model-section" aria-label="Agent 模型设置">
+            <h3>Agent 模型</h3>
+            <DramaStartModel
+              container={dialog}
+              label="Agent 模型"
+              kind="文本"
+              models={agents}
+              plugins={[]}
+              loading={false}
+              value={textModel}
+              change={setTextModel}
             />
-          </label>
-        )}
-        {(problem || error) && <p role="alert">{problem || error}</p>}
+          </section>
+          <section className="project-model-section" aria-label="资产图片">
+            <h3>资产图片</h3>
+            {imageFields.map(([prefix, value, change]) => (
+              <DramaStartModel
+                key={prefix}
+                container={dialog}
+                kind="图片"
+                prefix={prefix}
+                models={models}
+                plugins={[]}
+                loading={false}
+                value={value}
+                change={change}
+              />
+            ))}
+          </section>
+          <section className="project-model-section" aria-label="故事板">
+            <h3>故事板</h3>
+            <DramaStartModel
+              container={dialog}
+              kind="图片"
+              prefix="故事板"
+              models={models}
+              plugins={[]}
+              loading={false}
+              value={boardModel}
+              change={setBoardModel}
+              defaultLabel="跟随场景图片"
+              fallback={models.find((model) => model.id === sceneModel)}
+            />
+          </section>
+          <PromptRows
+            library={library}
+            container={dialog}
+            saved={document.prompt_snapshots}
+            script={!document.planning}
+          />
+          {legacy && (
+            <label>
+              故事板模板
+              <textarea
+                rows={8}
+                maxLength={24000}
+                value={template}
+                onChange={(event) => setTemplate(event.currentTarget.value)}
+              />
+            </label>
+          )}
+          {(problem || error) && <p role="alert">{problem || error}</p>}
+        </div>
         <footer>
           <button type="button" disabled={saving} onClick={onClose}>
             取消

@@ -301,11 +301,12 @@ export function novelPlanningBatches(units: Unit[], rangeEnd: number, contextWin
   return batches;
 }
 
+export function dramaPromptLimit(contextWindow?: number) {
+  return contextWindow ? Math.max(1, Math.floor(contextWindow * 0.6)) : 12000;
+}
+
 export function dramaBatchBudget(contextWindow?: number) {
-  return Math.min(
-    30000,
-    (contextWindow ? Math.max(1, Math.floor(contextWindow * 0.6)) : 12000) - 8192,
-  );
+  return Math.min(30000, dramaPromptLimit(contextWindow) - 8192);
 }
 
 export function nextNovelBatch(units: Unit[], cursor: number, end: number, budget: number) {
@@ -319,7 +320,11 @@ export function nextNovelBatch(units: Unit[], cursor: number, end: number, budge
     source += part;
     to++;
   }
-  if (to === cursor) throw new ProjectError("DRAMA_CONTEXT", "一个完整单元超过上下文预算");
+  if (to === cursor)
+    throw new ProjectError(
+      "DRAMA_CONTEXT",
+      `「${units[cursor]?.title ?? `原文单元 ${cursor + 1}`}」的完整内容超过输入预算，请在项目设置中选择上下文更大的模型`,
+    );
   return { source, to };
 }
 

@@ -33,6 +33,11 @@ export class Autosaver {
     return this.revision;
   }
 
+  advanceIfUnchanged(persisted: string, revision: number) {
+    if (this.status === "dirty" && persisted === this.saved && revision > this.revision)
+      this.revision = revision;
+  }
+
   reset(value: string, revision: number) {
     this.clearTimer();
     this.value = value;

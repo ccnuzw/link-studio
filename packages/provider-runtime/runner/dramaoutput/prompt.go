@@ -15,7 +15,7 @@ func Prompt(step string, variables json.RawMessage, override string) (string, er
 	switch step {
 	case "plan", "scripts", "breakdown", "asset_prompts", "storyboard":
 		step += "_draft"
-	case "analyze", "plan_format", "breakdown_format", "asset_prompts_format", "storyboard_format":
+	case "analyze", "plan_format", "breakdown_format", "asset_prompts_format", "storyboard_format", "adapt_h3", "adapt_generic":
 		if override != "" {
 			return "", fmt.Errorf("不能替换格式化提示词")
 		}

@@ -222,6 +222,8 @@ type outputDefinition struct {
 // definitionForStep 列出流水线允许的步骤，避免未知步骤或字段被静默接受。
 func definitionForStep(step string) (outputDefinition, error) {
 	switch step {
+	case "adapt_h3", "adapt_generic":
+		return outputDefinition{value: &AdaptOutput{}, fields: []string{"prompt"}}, nil
 	case "analyze":
 		return outputDefinition{value: &AnalyzeOutput{}, fields: []string{"source_kind", "summary", "characters_md", "outline_md"}}, nil
 	case "plan_format":
@@ -260,6 +262,8 @@ func (d outputDefinition) checkFields(data []byte) error {
 // outputValue 将已经校验的目标指针转回契约约定的值类型。
 func outputValue(output any) (any, error) {
 	switch value := output.(type) {
+	case *AdaptOutput:
+		return *value, nil
 	case *AnalyzeOutput:
 		return *value, nil
 	case *PlanOutput:

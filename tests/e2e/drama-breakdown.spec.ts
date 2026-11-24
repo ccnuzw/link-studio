@@ -344,7 +344,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await expect(dialog.getByRole("alert")).toBeVisible();
     expect(stages).toHaveLength(requests);
     await dialog.press("Escape");
-    await page.evaluate(
+    const reenabled = await page.evaluate(
       async ({ id, revision }) => {
         const result = await window.desktop.settings.modelToggle({
           id,
@@ -352,6 +352,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
           enabled: true,
         });
         if (!result.ok) throw Error(result.code);
+        return result.value.revision;
       },
       { id: pricingDraft.id, revision: disabledRevision },
     );
@@ -398,6 +399,59 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await expect.poll(() => storyAborted).toBe(2);
     await expect(page.getByRole("button", { name: /镜头停在最后一封信上/ })).toBeVisible();
     expect(limits).toEqual([15, 15, 15, 15]);
+    const batchOpen = page.getByRole("button", { name: "批量生成脚本", exact: true }),
+      batch = page.getByRole("dialog", { name: "批量生成分镜脚本" });
+    await batchOpen.click();
+    await expect(batch.getByRole("button", { name: /第二集 候车/ })).toHaveAttribute(
+      "title",
+      "已有分镜",
+    );
+    await expect(batch.getByRole("button", { name: "至少选一集" })).toBeDisabled();
+    await batch.getByRole("button", { name: "全选可用" }).click();
+    await expect(batch.getByText("已选 2 集")).toBeVisible();
+    await batch.press("Escape");
+    expect(storyRuns).toBe(4);
+    await rail.getByRole("button", { name: /^第 1 集 ·/ }).click();
+    await batchOpen.click();
+    await expect(batch.getByRole("button", { name: /^1\./ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const price = batch.locator(".script-estimate small b");
+    await expect(price).toBeVisible();
+    const oldPrice = Number(await price.innerText());
+    await page.evaluate(
+      async ({ fields, expectedRevision }) => {
+        const result = await window.desktop.settings.modelSave({
+          ...fields,
+          expectedRevision,
+          config: { ...fields.config, pricing: { unit: "token", input: 8000, output: 8000 } },
+        });
+        if (!result.ok) throw Error(result.code);
+      },
+      { fields: pricingDraft, expectedRevision: reenabled },
+    );
+    await batch.getByLabel("起始集").fill("3");
+    await batch.getByLabel("结束集").fill("1");
+    await batch.getByRole("button", { name: "选中", exact: true }).click();
+    await expect(price).toBeVisible();
+    const thirdPrice = Number(await price.innerText()) - oldPrice;
+    await batch.getByRole("button", { name: "生成 2 集脚本" }).dblclick();
+    await expect(batch).toHaveCount(0);
+    await expect(page.getByText(/^有 1 集没能提交：第 1 集/)).toBeVisible();
+    await expect.poll(() => storyRuns).toBe(5);
+    await batchOpen.click();
+    await expect(price).toBeVisible();
+    const retryPrice = Number(await price.innerText());
+    expect(retryPrice).toBeGreaterThan(oldPrice);
+    const batchPrice = retryPrice + thirdPrice;
+    await batch.getByRole("button", { name: "生成 1 集脚本" }).click();
+    await expect(batch).toHaveCount(0);
+    await expect.poll(() => storyRuns).toBe(6);
+    await expect(page.getByText(/已提交 \d+ 集分镜脚本|有 1 集没能提交/)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "重新生成分镜脚本" })).toBeVisible();
+    await rail.getByRole("button", { name: /^第 3 集 ·/ }).click();
+    await expect(page.getByRole("button", { name: "重新生成分镜脚本" })).toBeVisible();
     await page.getByRole("button", { name: "返回画布" }).click();
     await projectAction(page, "关闭项目");
     const reopened = await ProjectStore.open(directory);
@@ -418,12 +472,18 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
       expect(doc.episodes.filter((ep) => ep.locked).map((ep) => ep.episode_no)).toEqual([1, 2, 3]);
       expect(
         doc.jobs
-          ?.filter((job) => job.step === "storyboard")
+          ?.filter((job) => job.step === "storyboard" && job.episodes.includes(2))
           .map((job) => [job.status, job.episodes, job.frozen_credits]),
       ).toEqual(
         ["canceled", "failed", "succeeded", "canceled"].map((status) => [status, [2], credits]),
       );
-      expect(doc.segments).toHaveLength(1);
+      const batchJobs = doc.jobs!.filter(
+        (job) => job.step === "storyboard" && !job.episodes.includes(2),
+      );
+      expect(batchJobs.map((job) => job.episodes[0]).sort()).toEqual([1, 3]);
+      expect(batchJobs.every((job) => job.status === "succeeded")).toBe(true);
+      expect(batchJobs.reduce((sum, job) => sum + job.frozen_credits, 0)).toBe(batchPrice);
+      expect(doc.segments).toHaveLength(3);
       expect(doc.episodes[1]?.storyboard_status).toBe("ready");
     } finally {
       await reopened.close();
@@ -432,6 +492,73 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     continueOverview();
     server.closeAllConnections();
     server.close();
+    if (app) await app.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消后没有任务", async () => {
+  const root = await mkdtemp(join(tmpdir(), "studio-batch-limit-"));
+  const store = await ProjectStore.create(root, "末班车"),
+    directory = store.directory;
+  let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
+  try {
+    try {
+      await createDrama(store, { title: "末班车", script: "站台钟响了。" });
+      await store.updateGeneration((state) => {
+        const doc = dramaDocument(state)!,
+          first = doc.episodes[0]!;
+        doc.episodes = Array.from({ length: 52 }, (_, index) => ({
+          ...first,
+          episode_no: index + 1,
+          title: `站台${index + 1}`,
+          locked: true,
+        }));
+        return { changed: true, result: null };
+      });
+    } finally {
+      await store.close();
+    }
+    const env = { ...process.env, LINK_STUDIO_TEST_USER_DATA: root };
+    delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
+    const executablePath = process.env.LINK_STUDIO_E2E_EXECUTABLE;
+    app = await electron.launch({
+      ...(executablePath
+        ? { executablePath, args: [] }
+        : { args: [process.env.LINK_STUDIO_E2E_APP ?? "."] }),
+      env,
+    });
+    const page = await app.firstWindow();
+    await app.evaluate(({ dialog }, directory) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+    }, directory);
+    await page.getByRole("button", { name: "打开项目", exact: true }).click();
+    await projectAction(page, "短剧工作室");
+    await page.getByRole("tab", { name: "片场", exact: true }).click();
+    await page.getByRole("button", { name: "批量生成脚本", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "批量生成分镜脚本" });
+    await dialog.getByRole("button", { name: "全选可用" }).click();
+    await expect(dialog.getByRole("button", { name: "生成 50 集脚本" })).toBeEnabled();
+    await dialog.getByLabel("结束集").fill("52");
+    await dialog.getByRole("button", { name: "选中", exact: true }).click();
+    await expect(dialog.getByText("已选 52 集")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "一次最多 50 集" })).toBeDisabled();
+    await dialog.getByLabel("起始集").fill("51");
+    await dialog.getByRole("button", { name: "选中", exact: true }).click();
+    await expect(dialog.locator(".script-estimate [data-error]")).toContainText(/第 5[12] 集/);
+    await dialog.getByRole("button", { name: "生成 2 集脚本" }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/第 51 集.*第 52 集/);
+    await expect(dialog.getByRole("button", { name: "生成 2 集脚本" })).toBeEnabled();
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    await page.getByRole("button", { name: "返回画布" }).click();
+    await projectAction(page, "关闭项目");
+    const reopened = await ProjectStore.open(directory);
+    try {
+      expect(dramaDocument(reopened.snapshot)!.jobs ?? []).toEqual([]);
+    } finally {
+      await reopened.close();
+    }
+  } finally {
     if (app) await app.close();
     await rm(root, { recursive: true, force: true });
   }

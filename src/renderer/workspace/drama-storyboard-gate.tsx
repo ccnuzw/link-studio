@@ -11,23 +11,20 @@ import {
 import { Clapperboard, Loader2, RotateCw } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { dramaJobFeedback } from "./drama-job-feedback";
 
-export function storyboardSeconds(
-  projectId: string,
+export function studioVideoSelection(
+  local: string,
   preferred: string | undefined,
   models: ProviderView[],
   plugins: PluginView[],
 ) {
-  let local = "";
-  try {
-    local = localStorage.getItem(`drama-studio:${projectId}:video-model`) ?? "";
-  } catch {}
   const usable = models.filter((model) => !dramaVideoModelIssue(model, plugins)),
     model =
       usable.find((entry) => entry.id === local) ??
       usable.find((entry) => entry.id === preferred) ??
       usable[0];
-  if (!model) return 15;
+  if (!model) return {};
   const plugin = plugins.find((entry) => entry.hash === model.pluginHash),
     options = modelGenerationOptions(
       "video",
@@ -36,16 +33,7 @@ export function storyboardSeconds(
       model.channel,
       model.config,
     );
-  return Math.min(
-    60,
-    Math.max(
-      4,
-      Math.floor(
-        options.durationRange?.max ??
-          (options.durations.length ? Math.max(...options.durations) : 15),
-      ),
-    ),
-  );
+  return { model, options };
 }
 
 export function StoryboardGateContent({
@@ -88,7 +76,11 @@ export function StoryboardGateContent({
               />
             </div>
             <small>
-              <span>{job.status === "queued" ? "排队中" : `${job.progress ?? 0}%`}</span>
+              <span>
+                {job.status === "queued"
+                  ? "排队中"
+                  : `${dramaJobFeedback(job).detail ?? "进行中"}${job.progress ? ` · ${job.progress}%` : ""}`}
+              </span>
               <button type="button" disabled={busy} onClick={cancel}>
                 取消
               </button>
@@ -122,6 +114,7 @@ export function DramaStoryboardGate({
   episode,
   projectHandle,
   maxSeconds,
+  videoModel,
   saved,
   toolbar = false,
 }: {
@@ -129,6 +122,7 @@ export function DramaStoryboardGate({
   episode: DramaDocument["episodes"][number];
   projectHandle: string;
   maxSeconds: number;
+  videoModel?: string;
   saved: (doc: DramaDocument) => void;
   toolbar?: boolean;
 }) {
@@ -155,7 +149,7 @@ export function DramaStoryboardGate({
   const load = useCallback(
     () =>
       (pending.current ??= window.desktop.projects
-        .estimateDramaStoryboard({ projectHandle, episodeNo: no, maxSeconds })
+        .estimateDramaStoryboard({ projectHandle, episodeNo: no, maxSeconds, videoModel })
         .then((result) => {
           if (!result.ok)
             throw Object.assign(Error(result.error.message ?? result.error.code), {
@@ -163,7 +157,7 @@ export function DramaStoryboardGate({
             });
           return result.value.credits;
         })),
-    [projectHandle, no, maxSeconds],
+    [projectHandle, no, maxSeconds, videoModel],
   );
   useEffect(() => {
     live.current = true;
@@ -198,6 +192,7 @@ export function DramaStoryboardGate({
       projectHandle,
       episodeNo: no,
       maxSeconds,
+      videoModel,
       previewClear: true,
     });
     if (!live.current) return;
@@ -232,6 +227,7 @@ export function DramaStoryboardGate({
             storyboard: {
               episodeNo: no,
               maxSeconds,
+              videoModel,
               episodeOrder: order,
               estimate: confirm ? preview!.credits : (quote.credits ?? (await load())),
               operationId: operation.current,
@@ -293,7 +289,7 @@ export function DramaStoryboardGate({
           className="drama-storyboard-redo"
           aria-label="重新生成分镜脚本"
           title={blocked || "重新生成分镜脚本（已有出视频的片段会先确认）"}
-          disabled={!!blocked || busy}
+          disabled={!!blocked || busy || generating}
           onClick={() => void submit(false)}
         >
           {busy ? <Loader2 size={16} /> : <RotateCw size={16} />}

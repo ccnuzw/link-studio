@@ -2,6 +2,7 @@ import { type DramaDocument, dramaBusyReason } from "@link-studio/core";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { EpisodeProgress } from "./drama-episode-rail";
+import { dramaJobFeedback } from "./drama-job-feedback";
 
 type Job = NonNullable<DramaDocument["jobs"]>[number];
 const active = (job: Job) => job.status === "queued" || job.status === "running";
@@ -26,22 +27,22 @@ function BreakdownRow({ job, cancel }: { job: Job; cancel: (id: string) => Promi
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const queued = job.status === "queued",
-    progress = job.progress ?? 0;
+    { progress, detail } = dramaJobFeedback(job);
   return (
     <>
       <div role="status" className="drama-breakdown-row">
-        <EpisodeProgress size={16} queued={queued} progress={progress} />
+        <EpisodeProgress size={16} queued={queued} progress={progress ?? 0} />
         <span>拆解{rangeLabel(job.episodes)}</span>
         {!queued && (
           <div className="drama-breakdown-track">
             <motion.i
               initial={false}
-              animate={{ scaleX: Math.max(0.03, progress / 100) }}
+              animate={{ scaleX: Math.max(0.03, (progress ?? 0) / 100) }}
               transition={{ type: "spring", stiffness: 500, damping: 38, mass: 0.8 }}
             />
           </div>
         )}
-        <small>{queued ? "排队中" : `${progress}%`}</small>
+        <small>{queued ? "排队中" : progress === null ? "进行中" : `${progress}%`}</small>
         <button
           type="button"
           disabled={busy}
@@ -60,6 +61,7 @@ function BreakdownRow({ job, cancel }: { job: Job; cancel: (id: string) => Promi
           取消
         </button>
       </div>
+      {!queued && detail && <small>{detail}</small>}
       {error && <span role="alert">{error}</span>}
     </>
   );

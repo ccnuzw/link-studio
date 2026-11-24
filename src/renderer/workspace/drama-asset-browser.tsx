@@ -5,7 +5,9 @@ import {
   dramaAssetMeta,
   dramaBoardMeta,
   type GenerationJob,
+  type ProjectAsset,
   type ProjectCanvasView,
+  pendingDramaPromptIds,
 } from "@link-studio/core";
 import {
   AudioLines,
@@ -61,7 +63,10 @@ type AssetType = keyof typeof types;
 const keys = Object.keys(types) as AssetType[];
 type Creative = Extract<ProjectCanvasView["nodes"][number], { type: "creative" }>;
 export type DramaAssetEditor = {
+  assets: readonly ProjectAsset[];
+  enroll?: (asset: ProjectAsset) => void;
   graph: ProjectCanvasView;
+  canvasRevision?: number;
   ready: boolean;
   selected?: string;
   toolbar: HTMLDivElement | null;
@@ -70,6 +75,7 @@ export type DramaAssetEditor = {
   activeImport?: { id: string; percent: number };
   mount: (element: HTMLDivElement | null) => void;
   focus: (id: string) => boolean;
+  save: () => Promise<boolean>;
   clearSelection: () => void;
   classify: (id: string, patch: CreativeData["drama"]) => void;
   create: (type: AssetType, episode: number) => void;
@@ -92,15 +98,19 @@ export type DramaAssetEditor = {
 export function DramaAssetViewToggle({
   view,
   change,
+  listLabel = "列表",
+  listIcon = LayoutGrid,
 }: {
   view: "list" | "canvas";
   change: (view: "list" | "canvas") => void;
+  listLabel?: string;
+  listIcon?: typeof LayoutGrid;
 }) {
   return (
-    <fieldset className="drama-asset-toggle" aria-label="视图">
+    <fieldset data-ui-group className="drama-asset-toggle" aria-label="视图">
       {(
         [
-          ["list", "列表", LayoutGrid],
+          ["list", listLabel, listIcon],
           ["canvas", "画布", Frame],
         ] as const
       ).map(([key, label, Icon]) => (
@@ -385,6 +395,10 @@ export function AssetCard({
     status.state === "done" && data.kind !== "audio" ? data.assetId : undefined,
   );
   const uploaded = data.uploaded || (!!data.character && !characterShowsGenerator(data));
+  const filingAsset =
+    type === "character" && status.state === "done" && data.kind === "image"
+      ? editor.assets.find((asset) => asset.assetId === data.assetId)
+      : undefined;
   const fillable = canReceiveFile(data, status.state);
   return (
     <motion.li
@@ -463,7 +477,7 @@ export function AssetCard({
               <i />
               <button type="button" onClick={() => editor.fill(node, "library")}>
                 <FolderOpen size={14} />
-                素材库
+                资产库
               </button>
             </div>
           </div>
@@ -515,6 +529,17 @@ export function AssetCard({
         )}
       </div>
       <div className="drama-asset-badges">
+        {typeof filingAsset?.metadata.filingHumanName === "string" ? (
+          <span title="已加入真人库">真人 · {filingAsset.metadata.filingHumanName}</span>
+        ) : (
+          filingAsset?.metadata.filingEnabled === true &&
+          !multi &&
+          editor.enroll && (
+            <button type="button" onClick={() => editor.enroll?.(filingAsset)}>
+              加入真人库
+            </button>
+          )
+        )}
         {data.character?.voice && <AudioLines size={12} aria-label="已设定音色" />}
         {numbers?.length ? (
           numbers.map((no) => <i key={no}>{no}</i>)
@@ -563,6 +588,68 @@ export function StageAssets({
   );
   const visible = filtered.filter((item) => item.type === type);
   const [fileOver, setFileOver] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairError, setRepairError] = useState("");
+  const [repairQuote, setRepairQuote] = useState<{
+    key: string;
+    estimate: number;
+    operationId: string;
+  }>();
+  const blank = new Set(
+    items
+      .filter((item) => dramaAssetMeta(item.node.data) && !item.node.data.text?.trim())
+      .map((item) => item.node.id),
+  );
+  const jobs = (doc.jobs ?? []).filter(
+    (job) => (job.episode_order ?? 0) === (doc.episode_order ?? 0),
+  );
+  const repair = jobs.find(
+    (job) =>
+      job.step === "breakdown" &&
+      (!ep || job.episodes.includes(ep)) &&
+      pendingDramaPromptIds(
+        [job, ...jobs.filter((other) => other.step === "asset_prompts")],
+        job.episodes,
+        blank,
+      ).length,
+  );
+  const missing = repair ? pendingDramaPromptIds(jobs, repair.episodes, blank) : [];
+  const repairKey = JSON.stringify([repair?.id, missing, doc.episode_order]);
+  async function repairMissing() {
+    if (!repair || repairBusy) return;
+    setRepairBusy(true);
+    setRepairError("");
+    try {
+      if (!(await editor.save())) throw Error("画布尚未保存，请先保存后再试");
+      if (repairQuote?.key !== repairKey) {
+        const quote = await window.desktop.projects.estimateDramaBreakdown({
+          projectHandle: handle,
+          episodes: repair.episodes,
+          promptsOnly: true,
+        });
+        if (!quote.ok) throw Error(quote.error.message ?? quote.error.code);
+        setRepairQuote({ key: repairKey, estimate: quote.value, operationId: crypto.randomUUID() });
+        return;
+      }
+      const result = await window.desktop.projects.drama({
+        projectHandle: handle,
+        repairPrompts: {
+          episodes: repair.episodes,
+          episodeOrder: doc.episode_order,
+          estimate: repairQuote.estimate,
+          operationId: repairQuote.operationId,
+        },
+      });
+      if (!result.ok) throw Error(result.error.message ?? result.error.code);
+      if (result.value) saved(result.value);
+      setRepairQuote(undefined);
+    } catch (error) {
+      setRepairQuote(undefined);
+      setRepairError(error instanceof Error ? error.message : "补写失败，请重试");
+    } finally {
+      setRepairBusy(false);
+    }
+  }
   const analyzing = !!doc.jobs?.some(
     (job) =>
       (job.step === "asset_prompts" || job.step === "breakdown") &&
@@ -633,12 +720,6 @@ export function StageAssets({
     });
     return () => cancelAnimationFrame(frame);
   }, [view, pending, editor]);
-  const breaking = doc.jobs?.some(
-    (job) =>
-      job.step === "breakdown" &&
-      ["queued", "running"].includes(job.status) &&
-      (!ep || job.episodes.includes(ep)),
-  );
   return (
     <section className="drama-asset-browser" aria-label="资产列表">
       <h2 className="sr-only">资产管理 · {ep ? `第 ${ep} 集` : "全集"}</h2>
@@ -679,6 +760,19 @@ export function StageAssets({
           }}
         />
         <span className="drama-asset-bar-spacer" />
+        {!!missing.length && !analyzing && (
+          <button
+            className="drama-generate-all"
+            type="button"
+            disabled={repairBusy}
+            onClick={repairMissing}
+          >
+            {repairQuote?.key === repairKey
+              ? `确认补写 · 约 ${repairQuote.estimate} 积分`
+              : `继续补写 · ${missing.length} 个资产待补提示词`}
+          </button>
+        )}
+        {repairError && <small role="alert">{repairError}</small>}
         <BreakdownProgress
           doc={doc}
           cancel={async (id) => {
@@ -718,6 +812,10 @@ export function StageAssets({
         <div className="drama-asset-surface">
           <div className="drama-canvas-slot" ref={editor.mount} />
           <aside aria-label="画布资产定位" className="drama-asset-float">
+            <div className="drama-asset-float-heading">
+              <strong>资产库</strong>
+              <span>{items.length}</span>
+            </div>
             <label>
               <Search size={14} />
               <input
@@ -752,7 +850,9 @@ export function StageAssets({
                 )
               );
             })}
-            {!library.length && <p>这个筛选下没有资产</p>}
+            {editor.ready && !library.length && query.trim() && (
+              <p role="status">未找到匹配的资产</p>
+            )}
           </aside>
         </div>
       ) : (
@@ -857,13 +957,6 @@ export function StageAssets({
                     </button>
                   </li>
                 </ul>
-                {!visible.length && (
-                  <p>
-                    {breaking
-                      ? `资产正在拆解，拆出的${types[type]}会出现在这里`
-                      : `这个筛选下还没有${types[type]}`}
-                  </p>
-                )}
                 {fileOver && type !== "text" && <AssetFileOverlay />}
                 {marquee.box && (
                   <div aria-hidden className="drama-asset-marquee" style={marquee.box} />

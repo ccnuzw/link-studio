@@ -16,9 +16,19 @@ func dramaJobQuote(args []json.RawMessage) response {
 	if len(args) != 2 {
 		return response{Code: "AGENT_ARGUMENT_INVALID"}
 	}
-	config, issues := modelcfg.ParseModel(args[0])
-	if config == nil || len(issues) != 0 || config.Kind != "agent" {
+	var config struct {
+		Kind         string                `json:"kind"`
+		Capabilities modelcfg.Capabilities `json:"capabilities"`
+		Pricing      modelcfg.Pricing      `json:"pricing"`
+	}
+	if json.Unmarshal(args[0], &config) != nil || config.Kind != "agent" {
 		return response{Code: "DRAMA_NO_TEXT_MODEL"}
+	}
+	if config.Pricing.Billing != "" && (config.Pricing.Billing != "token" || config.Pricing.Token == nil || config.Pricing.Pending) {
+		return response{Code: "MODEL_PRICING_INVALID"}
+	}
+	if config.Capabilities.Context == nil {
+		config.Capabilities.Context = &modelcfg.ContextSpec{Output: 2048}
 	}
 	var scope dramaQuoteScope
 	if json.Unmarshal(args[1], &scope) != nil || scope.ContextChars < 0 || scope.ContextChars > 10000000 || len(scope.Episodes) < 1 || len(scope.Episodes) > 200 {

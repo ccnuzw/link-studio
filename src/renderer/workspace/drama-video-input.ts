@@ -1,4 +1,5 @@
 import {
+  boardLine,
   dramaAssetMeta,
   dramaBoardMeta,
   type GenerationJob,
@@ -7,19 +8,19 @@ import {
   type modelGenerationOptions,
   type ProjectAsset,
   type ProjectCanvasView,
+  promptLang,
 } from "@link-studio/core";
 import { composeLinkedPrompt } from "./compose-canvas-prompt";
 import { parsePrompt } from "./prompt-tokens";
 
 type CreativeData = Extract<ProjectCanvasView["nodes"][number], { type: "creative" }>["data"];
 type Options = ReturnType<typeof modelGenerationOptions>;
-export const BOARD_LINE =
-  "图片1是本段的手绘分镜宫格图，各格按编号顺序对应各个镜头，只参考构图、站位、景别和镜头衔接；成片是完整连续的画面，按下面写的画风生成，不出现宫格线、边框、编号、线稿笔触和图上的批注文字。";
 type BoardSelection = { segmentId: string; sourceHash: string; off: boolean };
 type BoardView = {
   state: "none" | "off" | "unsupported" | "stale" | "image";
   reason: string;
   thumbnail?: string;
+  shotCount?: number;
 };
 
 function boardView(
@@ -50,6 +51,7 @@ function boardView(
   return {
     state: dramaBoardMeta(node.data)?.sourceHash === selection.sourceHash ? "image" : "stale",
     thumbnail,
+    shotCount: dramaBoardMeta(node.data)?.shotCount,
     reason: "",
   };
 }
@@ -63,6 +65,7 @@ export function dramaVideoInput(
   assets: ProjectAsset[],
   jobs: GenerationJob[],
   selection?: BoardSelection,
+  resolution?: string,
 ) {
   const sources = new Map<string, CreativeData>();
   const labels = new Map(
@@ -209,22 +212,25 @@ export function dramaVideoInput(
     audios: chosen.filter((asset) => asset.mediaType === "audio").length,
     audioMax: options.references.audio ?? 0,
   };
+  const line =
+    withBoard && chosen[0]?.assetId === board.thumbnail
+      ? boardLine(board.shotCount ?? 0, ratio, promptLang(prompt))
+      : "";
   return {
+    boardLine: line,
     board,
     refs,
     counts,
     notices: [...new Set(notices)],
     errors: [...new Set(errors)],
     input: {
-      prompt: composeLinkedPrompt(
-        withBoard ? `${BOARD_LINE}\n${prompt}` : prompt,
-        sources,
-        true,
-        chosen,
-      ),
+      prompt: composeLinkedPrompt(line ? `${line}\n${prompt}` : prompt, sources, true, chosen),
       referenceAssetIds: chosen.map((asset) => asset.assetId),
       op,
       ...(duration && { duration }),
+      ...(resolution &&
+        !options.hiddenParameters.includes("resolution") &&
+        options.resolutions.includes(resolution) && { resolution }),
       ...(options.ratios.includes(ratio) && { aspectRatio: ratio }),
     },
   };

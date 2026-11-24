@@ -54,8 +54,6 @@ export function EpisodeDeleteDialog({
   remove: () => Promise<void>;
   close: () => void;
 }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
   const { no, title, segments, total } = target;
   const description =
     "这一集的剧本会一起删除，不能撤销。" +
@@ -66,6 +64,32 @@ export function EpisodeDeleteDialog({
         ? `第 ${total} 集会变成第 ${no} 集。`
         : `第 ${no + 1}–${total} 集会依次变成第 ${no}–${total - 1} 集。`);
   return (
+    <DramaDeleteDialog
+      title={`删除第 ${no} 集${title.trim() ? `「${title.trim()}」` : ""}？`}
+      description={description}
+      blocked={blocked}
+      remove={remove}
+      close={close}
+    />
+  );
+}
+
+export function DramaDeleteDialog({
+  title,
+  description,
+  blocked,
+  remove,
+  close,
+}: {
+  title: string;
+  description: string;
+  blocked?: string;
+  remove: () => Promise<void>;
+  close: () => void;
+}) {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
     <AlertDialog.Root
       open
       onOpenChange={(open) => {
@@ -75,9 +99,9 @@ export function EpisodeDeleteDialog({
       <AlertDialog.Portal className="storyboard-layer drama-delete-layer">
         <AlertDialog.Backdrop className="shot-confirm-backdrop" />
         <AlertDialog.Popup className="shot-confirm drama-delete-confirm">
-          <AlertDialog.Title
-            render={(props) => <h3 {...props}>{props.children}</h3>}
-          >{`删除第 ${no} 集${title.trim() ? `「${title.trim()}」` : ""}？`}</AlertDialog.Title>
+          <AlertDialog.Title render={(props) => <h3 {...props}>{props.children}</h3>}>
+            {title}
+          </AlertDialog.Title>
           <AlertDialog.Description>{description}</AlertDialog.Description>
           {(error || blocked) && <p role="alert">{blocked || error}</p>}
           <div>

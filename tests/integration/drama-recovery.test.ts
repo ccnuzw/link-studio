@@ -50,6 +50,14 @@ test("短剧恢复只查原收据，未写入不自动重试，待审批原样�
         decidedAt: Date.now(),
         decision: { decision: "approve" },
       });
+    for (let index = 0; index < 210; index++)
+      runtime.store.appendEvent(sessionId, run.id, "run.usage", { index });
+    runtime.store.appendEvent(sessionId, run.id, "approval.decided", {
+      recoveryId: `approval:${one.id}`,
+      kind: one.kind,
+      status: "executed",
+      result: { applied: true },
+    });
     await runtime.close();
     runtime = await LocalAgentRuntime.open(options);
     await runtime.recoverCanvas(scope, bridge);
@@ -65,6 +73,12 @@ test("短剧恢复只查原收据，未写入不自动重试，待审批原样�
       result: { code: "DRAMA_APPROVAL_INTERRUPTED" },
     });
     expect(runtime.store.getApproval("1", pending.id).status).toBe("pending");
+    const page = await runtime.page(scope, sessionId, 200);
+    expect(
+      page.events
+        .filter((event) => event.type === "approval.decided")
+        .map((event) => event.approvalId),
+    ).toEqual([one.id, two.id]);
     const file = join(directory, "agent.sqlite");
     const audits = settingsHistory(file, "audits");
     expect(audits.rows).toHaveLength(2);

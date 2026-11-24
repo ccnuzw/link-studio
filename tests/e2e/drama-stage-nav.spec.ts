@@ -166,7 +166,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await expect(narrator.getByRole("button", { name: "上传" })).toBeFocused();
     await expect(pill).toHaveCSS("opacity", "1");
     await page.keyboard.press("Tab");
-    await expect(narrator.getByRole("button", { name: "素材库" })).toBeFocused();
+    await expect(narrator.getByRole("button", { name: "资产库" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(narrator.getByRole("button", { name: /在画布中打开/ })).toBeFocused();
     await expect(pill).toHaveCSS("opacity", "0");

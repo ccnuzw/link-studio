@@ -22,6 +22,58 @@ export const BOARD_RATIO = "16:9";
 
 const MAX_CELLS = 9;
 
+export type PromptLang = "zh" | "en";
+export function promptLang(prompt: string): PromptLang {
+  const body = prompt
+    .replace(/<d>[\s\S]*?<\/d>/g, "")
+    .replace(/@\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/"[^"\n]*"|“[^”\n]*”/g, "");
+  const han = body.match(/\p{Script=Han}/gu)?.length ?? 0;
+  const latin = body.match(/[A-Za-z]/g)?.length ?? 0;
+  return latin > han * 3 ? "en" : "zh";
+}
+export function boardLine(shots: number, ratio: string, lang: PromptLang = "zh"): string {
+  const { cols, rows } = boardLayout(shots);
+  const cells = cols * rows;
+  const counted = shots > 0 && shots <= MAX_CELLS;
+  const spare = counted && shots < cells;
+  const reframe = ratio && ratio !== BOARD_RATIO ? ratio : "";
+  if (lang === "en") {
+    const order = !counted
+      ? "the panels correspond to the shots below in order"
+      : shots === 1
+        ? "panel 1 corresponds to the shot below"
+        : `panels 1-${shots} correspond to shots 1-${shots} below`;
+    const rest = !spare
+      ? ""
+      : shots + 1 === cells
+        ? `; ignore panel ${cells}`
+        : `; ignore panels ${shots + 1}-${cells}`;
+    return (
+      `Image 1 is the storyboard grid for this segment. Read it left to right, top to bottom: ${order}${rest}. ` +
+      "Use each panel only for composition, character blocking, shot size and continuity between shots; " +
+      "character appearance, costumes and set details follow the other reference images and the text. " +
+      (reframe ? `Reframe for ${reframe}. ` : "") +
+      "The video is continuous footage in the style described below, with no grid lines, borders, panel numbers or annotation text, " +
+      "and does not copy the storyboard's own linework or colors."
+    );
+  }
+  const order = !counted
+    ? "各格依次对应下面的各个镜头"
+    : shots === 1
+      ? "第1格对应下面的镜头"
+      : `第1到第${shots}格依次对应下面的第1到第${shots}个镜头`;
+  const rest = !spare
+    ? ""
+    : `，${shots + 1 === cells ? `第${cells}格` : `第${shots + 1}到第${cells}格`}不用`;
+  return (
+    `图片1是本段的分镜宫格图，按从左到右、从上到下的编号顺序，${order}${rest}；` +
+    "只参考每格的构图、人物站位、景别和镜头衔接，人物形象、服装和场景细节以其他参考图和文字描述为准。" +
+    `${reframe ? `成片按 ${reframe} 画幅重新构图，` : "成片"}是完整连续的画面，画风按下面写的生成，` +
+    "不出现宫格线、边框、格子编号和批注文字，也不沿用宫格图本身的笔触和色调。"
+  );
+}
+
 const SHOT_RE = /^\s*\d+(?:\.\d+)?\s*[-–~]\s*\d+(?:\.\d+)?\s*秒\s*[:：]\s*(.*)$/;
 const SPOKEN_RE = /^(台词|对白|声音|音效|环境声)/;
 

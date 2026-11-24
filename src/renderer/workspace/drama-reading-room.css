@@ -1,0 +1,296 @@
+.drama-studio:has(> .drama-workbar) {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--desk-text);
+  background: var(--desk-bg);
+  font-family: "Geist Variable", "PingFang SC", sans-serif;
+}
+.drama-workbar + .drama-columns,
+.drama-studio:has(> .drama-workbar) > .drama-columns {
+  flex: 1;
+  min-height: 0;
+}
+.drama-studio:has(> .drama-workbar) > .drama-columns > article {
+  height: 100%;
+  min-height: 0;
+}
+.drama-studio > .drama-workbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--desk-border);
+}
+.drama-project-name,
+.drama-work-tools,
+.drama-reading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.drama-work-tools {
+  justify-content: flex-end;
+  gap: 3px;
+}
+.drama-work-tools .canvas-account-pill {
+  --pill-muted: var(--desk-muted);
+  --pill-ink: var(--desk-text);
+  --pill-edge: var(--desk-border);
+  --pill-credit: light-dark(oklch(0.72 0.15 75), oklch(0.82 0.15 85));
+  --chrome: var(--desk-card);
+  flex-shrink: 0;
+}
+.drama-work-tools .canvas-account-pill .canvas-credit-trigger {
+  border: 0;
+  background: transparent;
+  color: var(--desk-text);
+}
+.drama-work-tools .canvas-account-pill .canvas-credit-trigger:hover {
+  background: var(--desk-hover);
+}
+.drama-work-tools > button[aria-label="命令面板"],
+.drama-work-tools > .drama-theme-button {
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 6px;
+}
+.drama-work-tools kbd {
+  color: var(--desk-muted);
+  font: inherit;
+  font-size: 11px;
+}
+.drama-settings-summary {
+  max-width: clamp(120px, 15vw, 280px);
+}
+.drama-work-tools > button[aria-label="项目设置"] {
+  min-width: 32px;
+}
+@media (max-width: 1150px) {
+  .drama-work-tools kbd {
+    display: none;
+  }
+}
+.drama-work-tools button,
+.drama-project-name button,
+.drama-reading-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--desk-border);
+  border-radius: 999px;
+  background: var(--desk-card);
+  color: var(--desk-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.drama-work-tools button:hover,
+.drama-project-name button:hover,
+.drama-reading-actions button:hover {
+  background: var(--desk-hover);
+}
+.drama-workbar button:focus-visible,
+.drama-reading-actions button:focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 2px;
+}
+.drama-reading-actions button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.drama-project-name button {
+  width: 32px;
+  flex: none;
+  padding: 0;
+}
+.drama-project-name h1,
+.drama-settings-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-project-name h1 {
+  margin: 0;
+  font-size: 16px;
+}
+.drama-work-tools button:last-child {
+  min-width: 32px;
+}
+.drama-work-tools svg {
+  flex: none;
+}
+.drama-reading-room {
+  box-sizing: border-box;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 12px 24px 72px;
+  color: var(--rail-ink);
+}
+.drama-reading-room h2 {
+  margin: 0 0 24px;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+.drama-reading-progress h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.drama-reading-progress ol {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 0;
+  list-style: none;
+}
+.drama-reading-progress li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+}
+.drama-reading-progress li p {
+  margin: 4px 0 0;
+  color: var(--rail-soft);
+}
+.drama-step-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1px solid var(--desk-border);
+  border-radius: 50%;
+}
+[aria-current="step"] > .drama-step-icon {
+  color: var(--desk-focus);
+  border-color: currentColor;
+}
+.drama-pause-reason {
+  font-size: 14px;
+  color: var(--desk-text);
+}
+.drama-reading-skeleton {
+  display: grid;
+  gap: 9px;
+  margin: 28px 0;
+}
+.drama-reading-skeleton i {
+  width: 88%;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--rail-muted);
+}
+.drama-reading-skeleton i:nth-child(2) {
+  width: 96%;
+}
+.drama-reading-skeleton i:last-child {
+  width: 65%;
+}
+.drama-reading-paper {
+  margin-top: 20px;
+  padding: clamp(18px, 3vw, 36px);
+  border: 1px solid var(--rail-line);
+  border-radius: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  background: var(--paper);
+  color: var(--paper-ink);
+}
+.drama-reading-paper pre,
+.drama-reading-paper .canvas-text-table {
+  overflow-x: auto;
+}
+.drama-reading-paper > :first-child {
+  margin-top: 0;
+}
+.drama-reading-paper > :last-child {
+  margin-bottom: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drama-reading-spinner {
+    animation: drama-reading-spin 1.2s linear infinite;
+  }
+  @keyframes drama-reading-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+@media (max-width: 1150px) {
+  .drama-settings-summary {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .drama-studio > .drama-workbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px;
+    gap: 8px;
+  }
+  .drama-workbar .drama-stage-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .drama-reading-room {
+    padding-inline: 4px;
+  }
+}
+.drama-project-tabs {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+  padding: 4px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  color: var(--desk-muted);
+  background: var(--desk-bg);
+  border-bottom: 1px solid var(--desk-border);
+}
+.drama-project-tabs > div {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border-radius: 6px;
+}
+.drama-project-tabs > div[data-current="true"] {
+  background: var(--desk-card);
+  color: var(--desk-text);
+}
+.drama-project-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.drama-project-tabs button:hover {
+  background: var(--desk-hover);
+}
+.drama-project-tabs button span {
+  max-width: 16ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drama-project-tabs small {
+  color: var(--desk-muted);
+}

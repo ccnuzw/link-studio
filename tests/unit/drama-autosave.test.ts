@@ -41,6 +41,29 @@ test("连续输入等停手 800ms；在保存中切集也按新版本号串行�
   }
 });
 
+test("只在持久化原文相同时跟进其他字段的修订，保留草稿和冲突保护", async () => {
+  const save = vi.fn(async (_value: string, revision: number) => {
+    if (revision !== 8) throw "conflict";
+    return revision + 1;
+  });
+  const saver = new Autosaver({ revision: 7, save, isConflict: (error) => error === "conflict" });
+  try {
+    saver.reset("原稿", 7);
+    saver.update("编辑中的原稿");
+    saver.advanceIfUnchanged("原稿", 8);
+    saver.advanceIfUnchanged("原稿", 7);
+    await saver.flush();
+    expect(save).toHaveBeenLastCalledWith("编辑中的原稿", 8);
+    saver.update("继续编辑");
+    saver.advanceIfUnchanged("别处已改的原稿", 10);
+    await saver.flush();
+    expect(save).toHaveBeenLastCalledWith("继续编辑", 9);
+    expect(saver.getStatus()).toBe("conflict");
+  } finally {
+    saver.dispose();
+  }
+});
+
 test("冲突停止自动写入；重载后才能重试；临时失败保留草稿", async () => {
   const save = vi
     .fn()

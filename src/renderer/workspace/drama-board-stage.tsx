@@ -8,14 +8,16 @@ import {
   type PluginView,
   type ProviderView,
 } from "@link-studio/core";
+import { CircleX, Grid2X2, LoaderCircle, PanelsTopLeft, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { composeLinkedPrompt } from "./compose-canvas-prompt";
 import { boardSourceHash, type referenceContext } from "./drama-segment-video";
 import { promptRefIds } from "./prompt-tokens";
 
 type Context = Awaited<ReturnType<typeof referenceContext>>;
 type Segment = NonNullable<DramaDocument["segments"]>[number];
-function boardOf(context: Context, segmentId: string) {
+export function boardOf(context: Context, segmentId: string) {
   const node = context.graph.canvas.nodes.findLast(
     (node) => node.type === "creative" && dramaBoardMeta(node.data)?.segmentId === segmentId,
   );
@@ -61,6 +63,9 @@ function needsBoard(context: Context, segment: Segment, hash: string) {
 }
 
 export function DramaBoardStage({
+  batchHost,
+  hidden,
+  openBoard,
   projectHandle,
   segment,
   episodeSegments,
@@ -69,15 +74,22 @@ export function DramaBoardStage({
   context,
   settings,
   settingsRevision,
+  prepareSegments,
+  draftPrompt,
   read,
   refresh,
 }: {
+  batchHost?: HTMLElement | null;
+  hidden?: boolean;
+  openBoard: (id: string) => void;
   projectHandle: string;
   segment: Segment;
   episodeSegments: Segment[];
   models: ProviderView[];
   plugins: PluginView[];
   context: Context;
+  draftPrompt?: string;
+  prepareSegments?: () => Promise<Segment[]>;
   read: (prompt?: string) => Promise<Context>;
   refresh: () => void;
   settings: DramaDocument["board_settings"];
@@ -91,16 +103,22 @@ export function DramaBoardStage({
   useEffect(() => {
     let live = true;
     void Promise.all(
-      episodeSegments.map(async (item) =>
-        needsBoard(context, item, await boardSourceHash(item.prompt)) ? item : null,
-      ),
+      episodeSegments
+        .map((entry) =>
+          entry.id === segment.id && draftPrompt !== undefined
+            ? { ...entry, prompt: draftPrompt }
+            : entry,
+        )
+        .map(async (item) =>
+          needsBoard(context, item, await boardSourceHash(item.prompt)) ? item : null,
+        ),
     ).then((items) => {
       if (live) setTargets(items.filter((item): item is Segment => !!item));
     });
     return () => {
       live = false;
     };
-  }, [context, episodeSegments]);
+  }, [context, episodeSegments, segment.id, draftPrompt]);
   const pointer = useRef<number | null>(null);
   const wheel = useRef({ distance: 0, next: 0 });
   const node = boardOf(context, segment.id);
@@ -123,7 +141,12 @@ export function DramaBoardStage({
           ...(pricing.tiers ?? []).filter((tier) => tier.on).map((tier) => tier.unit),
         )
       : 0;
-  async function submit(item: Segment, model: ProviderView, fill: boolean) {
+  async function submit(
+    item: Segment,
+    model: ProviderView,
+    fill: boolean,
+    retries = 3,
+  ): Promise<void> {
     const current = await read(item.prompt);
     if (fill && !needsBoard(current, item, current.sourceHash)) return;
     const built = boardPrompt(item.prompt, settings?.template);
@@ -165,6 +188,8 @@ export function DramaBoardStage({
         ...(options.ratios.includes("16:9") && { aspectRatio: "16:9" }),
       },
     });
+    if (!result.ok && result.error.code === "CANVAS_REVISION_CONFLICT" && retries > 0)
+      return submit(item, model, fill, retries - 1);
     if (!result.ok) throw Error(result.error.message);
   }
   async function generate(list: Segment[], fill: boolean) {
@@ -173,16 +198,28 @@ export function DramaBoardStage({
     setError("");
     const failures: string[] = [];
     try {
-      for (const item of list) {
-        try {
-          await submit(item, model, fill);
-        } catch (failure) {
-          failures.push(failure instanceof Error ? failure.message : "生成故事板失败");
+      const latest = prepareSegments ? await prepareSegments() : list;
+      const byId = new Map(latest.map((item) => [item.id, item]));
+      const queue = [...list];
+      async function worker(provider: ProviderView) {
+        for (let item = queue.shift(); item; item = queue.shift()) {
+          try {
+            const current = byId.get(item.id);
+            if (!current) throw Error("片段已移除");
+            await submit(current, provider, fill);
+          } catch (failure) {
+            failures.push(
+              `第 ${item.seq + 1} 段：${failure instanceof Error ? failure.message : "生成故事板失败"}`,
+            );
+          }
         }
       }
+      await Promise.all(Array.from({ length: Math.min(3, list.length) }, () => worker(model)));
       if (failures.length)
         setError(`${list.length > 1 ? failures.length + " 张" : ""}没能开始生成：${failures[0]}`);
       refresh();
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : "读取分镜原稿失败");
     } finally {
       setBusy(false);
     }
@@ -220,96 +257,153 @@ export function DramaBoardStage({
   }
   const step = (delta: number) => void choose(outputs[index + delta]?.id);
   return (
-    <section className="drama-board-stage" aria-label="故事板预览">
-      <fieldset
-        data-ui-group
-        aria-label={outputs.length > 1 ? `故事板版本 ${index + 1} / ${outputs.length}` : "故事板"}
-        // biome-ignore lint/a11y/noNoninteractiveTabindex: Arrow keys on the focused preview switch storyboard versions.
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
-            event.preventDefault();
-            step(event.key === "ArrowLeft" ? -1 : 1);
-          }
-        }}
-        onWheel={(event) => {
-          if (
-            Math.abs(event.deltaX) <= Math.abs(event.deltaY) ||
-            performance.now() < wheel.current.next
-          )
-            return;
-          wheel.current.distance += event.deltaX;
-          if (Math.abs(wheel.current.distance) >= 60) {
-            step(Math.sign(wheel.current.distance));
-            wheel.current = { distance: 0, next: performance.now() + 260 };
-          }
-        }}
-      >
-        <div
-          className="drama-board-frame"
-          onPointerDown={(event) => {
-            pointer.current = event.clientX;
+    <>
+      <section className="drama-board-stage" aria-label="故事板预览" hidden={hidden}>
+        <fieldset
+          aria-label={outputs.length > 1 ? `故事板版本 ${index + 1} / ${outputs.length}` : "故事板"}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: Arrow keys on the focused preview switch storyboard versions.
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
+              event.preventDefault();
+              step(event.key === "ArrowLeft" ? -1 : 1);
+            }
           }}
-          onPointerUp={(event) => {
-            if (pointer.current !== null && Math.abs(event.clientX - pointer.current) >= 40)
-              step(event.clientX < pointer.current ? 1 : -1);
-            pointer.current = null;
+          onWheel={(event) => {
+            if (
+              Math.abs(event.deltaX) <= Math.abs(event.deltaY) ||
+              performance.now() < wheel.current.next
+            )
+              return;
+            wheel.current.distance += event.deltaX;
+            if (Math.abs(wheel.current.distance) >= 60) {
+              step(Math.sign(wheel.current.distance));
+              wheel.current = { distance: 0, next: performance.now() + 260 };
+            }
           }}
         >
-          {running ? (
-            <span role="status">故事板生成中 · {latest.progress}%</span>
-          ) : node?.data.assetId ? (
-            <BoardImage
-              projectHandle={projectHandle}
-              assetId={node.data.assetId}
-              alt={`片段 ${segment.seq + 1} 的故事板`}
-            />
-          ) : (
-            <span>还没有故事板</span>
+          <div
+            className="drama-board-frame"
+            data-state={
+              running
+                ? "running"
+                : node?.data.assetId
+                  ? "ready"
+                  : latest?.status === "failed"
+                    ? "failed"
+                    : "empty"
+            }
+            onPointerDown={(event) => {
+              pointer.current = event.clientX;
+            }}
+            onPointerUp={(event) => {
+              if (pointer.current !== null && Math.abs(event.clientX - pointer.current) >= 40)
+                step(event.clientX < pointer.current ? 1 : -1);
+              pointer.current = null;
+            }}
+          >
+            {running ? (
+              <div className="drama-board-placeholder" role="status">
+                <LoaderCircle aria-hidden />
+                <strong>
+                  {latest.status === "queued" ? "故事板排队中" : "故事板生成中"}
+                  {latest.progress > 0 && ` · ${latest.progress}%`}
+                </strong>
+              </div>
+            ) : node?.data.assetId ? (
+              <BoardImage
+                projectHandle={projectHandle}
+                assetId={node.data.assetId}
+                alt={`片段 ${segment.seq + 1} 的故事板`}
+              />
+            ) : (
+              <div className="drama-board-placeholder">
+                {latest?.status === "failed" ? <CircleX aria-hidden /> : <Grid2X2 aria-hidden />}
+                <strong>{latest?.status === "failed" ? "故事板生成失败" : "还没有故事板"}</strong>
+              </div>
+            )}
+            {!running && node?.data.assetId && meta?.sourceHash !== context.sourceHash && (
+              <small className="drama-board-stale">原稿已改</small>
+            )}
+          </div>
+          <div className="drama-board-strip">
+            {outputs.length > 1 &&
+              outputs.map((output) => (
+                <button
+                  type="button"
+                  key={output.id}
+                  aria-label={`故事板版本 ${output.id}`}
+                  aria-current={output.id === node?.data.activeOutputId || undefined}
+                  onClick={() => void choose(output.id)}
+                >
+                  <BoardImage projectHandle={projectHandle} assetId={output.assetId!} alt="" />
+                </button>
+              ))}
+          </div>
+        </fieldset>
+        <div className="drama-board-actions">
+          {node?.data.assetId && meta && meta.shotCount > 0 && (
+            <small>
+              {meta.shotCount} 镜 · {meta.layout.replace("x", "×")} · 16:9
+            </small>
+          )}
+          {!running && (
+            <button
+              type="button"
+              disabled={!model || busy || !segment.prompt.trim()}
+              title={[model?.config?.name ?? model?.label ?? "请先配置故事板图片模型", built.notice]
+                .filter(Boolean)
+                .join(" · ")}
+              onClick={() => void generate([segment], false)}
+            >
+              {node?.data.assetId || latest?.status === "failed" ? (
+                <>
+                  <RotateCw size={15} />
+                  重新生成
+                </>
+              ) : (
+                <>
+                  <Grid2X2 size={15} />
+                  生成故事板
+                </>
+              )}
+            </button>
+          )}
+          {node && (
+            <button type="button" onClick={() => openBoard(node.id)}>
+              <PanelsTopLeft size={15} />
+              进入画布查看
+            </button>
           )}
         </div>
-        <div className="drama-board-strip">
-          {outputs.length > 1 &&
-            outputs.map((output) => (
-              <button
-                type="button"
-                key={output.id}
-                aria-label={`故事板版本 ${output.id}`}
-                aria-current={output.id === node?.data.activeOutputId || undefined}
-                onClick={() => void choose(output.id)}
-              >
-                <BoardImage projectHandle={projectHandle} assetId={output.assetId!} alt="" />
-              </button>
-            ))}
-        </div>
-      </fieldset>
-      {node?.data.assetId && meta && meta.shotCount > 0 && (
-        <small>
-          {meta.shotCount} 镜 · {meta.layout.replace("x", "×")} · 16:9
-        </small>
-      )}
-      {node?.data.assetId && meta?.sourceHash !== context.sourceHash && <span>原稿已改</span>}
-      <span>{model?.config?.name ?? model?.label ?? "暂无可用图片模型"}</span>
-      {built.notice && <small>{built.notice}</small>}
-      {!running && (
-        <button
-          type="button"
-          disabled={!model || busy || !segment.prompt.trim()}
-          onClick={() => void generate([segment], false)}
-        >
-          {node?.data.assetId || latest?.status === "failed" ? "重新生成" : "生成故事板"}
-        </button>
-      )}
-      <button
-        type="button"
-        disabled={!targets.length || !model || busy}
-        onClick={() => {
-          setConfirmedList(targets);
-          dialog.current?.showModal();
-        }}
-      >
-        批量生成故事板{targets.length > 0 && ` · ${targets.length}`}
-      </button>
+        {(error || (latest?.status === "failed" && latest.error)) && (
+          <p role="alert">{error || latest?.error}</p>
+        )}
+      </section>
+      {hidden &&
+        error &&
+        batchHost &&
+        createPortal(
+          <span role="alert" className="dp-task-error">
+            {error}
+          </span>,
+          batchHost,
+        )}
+      {batchHost &&
+        createPortal(
+          <button
+            type="button"
+            className="studio-batch-video studio-batch-boards"
+            disabled={!targets.length || !model || busy}
+            onClick={() => {
+              setConfirmedList(targets);
+              dialog.current?.showModal();
+            }}
+          >
+            批量生成故事板{targets.length > 0 && ` · ${targets.length}`}
+          </button>,
+          batchHost,
+        )}
       <dialog
         ref={dialog}
         className="drama-start-dialog"
@@ -336,7 +430,6 @@ export function DramaBoardStage({
           </footer>
         </form>
       </dialog>
-      {(error || latest?.error) && <p role="alert">{error || latest?.error}</p>}
-    </section>
+    </>
   );
 }

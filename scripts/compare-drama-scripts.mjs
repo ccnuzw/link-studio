@@ -10,6 +10,7 @@ const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const workspace = process.cwd(),
   reference = path.resolve(process.env.VIDEO_CANVAS_REFERENCE ?? "../video-canvas");
 const continuation = process.argv.includes("--continue");
+const batch = process.argv.includes("--storyboard-batch");
 const quotations = process.argv.includes("--breakdown-quotes"),
   breakdown = quotations || process.argv.includes("--breakdown");
 const series = process.argv.includes("--series");
@@ -19,21 +20,23 @@ const rings = process.argv.includes("--rings"),
 const output = path.join(
   workspace,
   "test-results",
-  quotations
-    ? "drama-breakdown-quote-parity"
-    : breakdown
-      ? "drama-breakdown-parity"
-      : rings
-        ? "drama-episode-progress-parity"
-        : deletion
-          ? "drama-episode-delete-parity"
-          : rail
-            ? "drama-episode-rail-parity"
-            : series
-              ? "drama-series-scripts-parity"
-              : continuation
-                ? "drama-continue-parity"
-                : "drama-scripts-parity",
+  batch
+    ? "drama-storyboard-batch-parity"
+    : quotations
+      ? "drama-breakdown-quote-parity"
+      : breakdown
+        ? "drama-breakdown-parity"
+        : rings
+          ? "drama-episode-progress-parity"
+          : deletion
+            ? "drama-episode-delete-parity"
+            : rail
+              ? "drama-episode-rail-parity"
+              : series
+                ? "drama-series-scripts-parity"
+                : continuation
+                  ? "drama-continue-parity"
+                  : "drama-scripts-parity",
 );
 const temp = await mkdtemp(path.join(tmpdir(), "link-script-dialog-"));
 const browser = await chromium.launch({ channel: "chrome" });
@@ -52,6 +55,12 @@ const episodes =
         scriptStatus: index >= 2 ? "ready" : "empty",
       }));
 if (breakdown) episodes[0].scriptStatus = "ready";
+if (batch)
+  for (const episode of episodes) {
+    episode.locked = episode.no !== 2;
+    episode.storyboardStatus = episode.no === 4 ? "ready" : episode.no === 3 ? "failed" : "empty";
+    episode.doneSegmentCount = 0;
+  }
 const hooks = {
   "./context": `export const useWorkspace=()=>({drama:{id:'fixture',episodes:window.fixture,unitKind:'chapter',unitsTotal:35,rangeEnd:13,sourceChars:7000},jobs:[],refresh:()=>{}});`,
   "@/api/drama": `export async function estimateJobDetail(id,{episodes}) {return {credits:episodes.length*7,gapEpisodes:episodes.filter(no=>no>1&&!episodes.includes(no-1)&&window.fixture[no-2].scriptStatus!=='ready')};}export function submitJob(){throw Error('visual fixture');}`,
@@ -63,14 +72,21 @@ if (continuation)
 if (quotations)
   hooks["@/api/drama"] =
     `export async function estimateJobDetail(){if(location.search==='?phase=error')throw Error();return new Promise(()=>{});}export function submitJob(){throw Error('visual fixture');}`;
-const referenceEntry = breakdown
-  ? `import {BreakdownDialog} from './src/pages/drama/workspace/breakdown-dialog';const dialog=<BreakdownDialog open onOpenChange={()=>{}} onStarted={()=>{}}/>;`
+if (batch)
+  hooks["@/api/drama"] =
+    `export async function estimateJob(){return 7;} export function submitJob(){throw Error('visual fixture');}`;
+const referenceEntry = batch
+  ? `import {StoryboardBatchDialog} from './src/pages/drama/workspace/storyboard-batch-dialog';const dialog=<StoryboardBatchDialog open onOpenChange={()=>{}} session={1} initial={1} maxSeconds={15}/>;`
+  : breakdown
+    ? `import {BreakdownDialog} from './src/pages/drama/workspace/breakdown-dialog';const dialog=<BreakdownDialog open onOpenChange={()=>{}} onStarted={()=>{}}/>;`
+    : continuation
+      ? `import {ContinuePlanDialog} from './src/pages/drama/workspace/continue-plan-dialog';const dialog=<ContinuePlanDialog open onOpenChange={()=>{}}/>;`
+      : `import {ScriptsDialog} from './src/pages/drama/workspace/scripts-dialog';const dialog=<ScriptsDialog open onOpenChange={()=>{}}/>;`;
+const desktopEntry = batch
+  ? `import {DramaStoryboardBatch} from './src/renderer/workspace/drama-storyboard-batch';window.desktop={projects:{estimateDramaStoryboard:async()=>({ok:true,value:{credits:7}})}};const doc={episodes:window.fixture.map(episode=>({...episode,episode_no:episode.no,storyboard_status:episode.storyboardStatus}))};const dialog=<main className="drama-studio"><DramaStoryboardBatch doc={doc} projectHandle="fixture" current={1} maxSeconds={15} close={()=>{}} started={()=>{}}/></main>;`
   : continuation
-    ? `import {ContinuePlanDialog} from './src/pages/drama/workspace/continue-plan-dialog';const dialog=<ContinuePlanDialog open onOpenChange={()=>{}}/>;`
-    : `import {ScriptsDialog} from './src/pages/drama/workspace/scripts-dialog';const dialog=<ScriptsDialog open onOpenChange={()=>{}}/>;`;
-const desktopEntry = continuation
-  ? `import {DramaContinueDialog} from './src/renderer/workspace/drama-continue-dialog';window.desktop={projects:{estimateDramaContinuation:async({rangeEnd})=>({ok:true,value:{credits:rangeEnd===18?4:14,episodeMin:1,episodeMax:rangeEnd===18?1:3,minutes:rangeEnd===18?1:4}})}};const dialog=<main className="drama-studio"><DramaContinueDialog projectHandle="fixture" doc={{source:{total:35,chars:7000,kind:'chapter'},planning:{end:13}}} close={()=>{}} saved={()=>{}}/></main>;`
-  : `import {DramaScriptsDialog} from './src/renderer/workspace/drama-scripts-dialog';window.desktop={projects:{${breakdown ? "estimateDramaBreakdown" : "estimateDramaScripts"}:async({episodes})=>${quotations ? "location.search==='?phase=error'?{ok:false,error:{message:'估算失败'}}:new Promise(()=>{})" : "({ok:true,value:episodes.length*7})"}}};
+    ? `import {DramaContinueDialog} from './src/renderer/workspace/drama-continue-dialog';window.desktop={projects:{estimateDramaContinuation:async({rangeEnd})=>({ok:true,value:{credits:rangeEnd===18?4:14,episodeMin:1,episodeMax:rangeEnd===18?1:3,minutes:rangeEnd===18?1:4}})}};const dialog=<main className="drama-studio"><DramaContinueDialog projectHandle="fixture" doc={{source:{total:35,chars:7000,kind:'chapter'},planning:{end:13}}} close={()=>{}} saved={()=>{}}/></main>;`
+    : `import {DramaScriptsDialog} from './src/renderer/workspace/drama-scripts-dialog';window.desktop={projects:{${breakdown ? "estimateDramaBreakdown" : "estimateDramaScripts"}:async({episodes})=>${quotations ? "location.search==='?phase=error'?{ok:false,error:{message:'估算失败'}}:new Promise(()=>{})" : "({ok:true,value:episodes.length*7})"}}};
 const doc={episodes:window.fixture.map(episode=>({...episode,episode_no:episode.no,script_status:episode.scriptStatus,script_md:episode.scriptStatus==='ready'?'在门廊相遇。':''}))};const dialog=<main className="drama-studio"><DramaScriptsDialog projectHandle="fixture" doc={doc} mode="${breakdown ? "breakdown" : "scripts"}" initial={[]} close={()=>{}} saved={()=>{}}/></main>;`;
 const report = {
   revision,
@@ -82,9 +98,12 @@ const report = {
 if (breakdown)
   report.scope =
     "资产拆解选集弹窗；四集，两集可拆、缺稿一集、已锁一集；默认、全选、清空，两主题两视口，含背景";
+if (batch)
+  report.scope =
+    "批量分镜弹窗，四集，空分镜、未拆解、可重试、已有分镜。默认、全选、清空，双主题与双视口，含背景。";
 if (quotations)
   report.scope =
-    "资产拆解等待估价、估价失败；同一可用选集，同错误消息，断言开始按钮仍可操作；整视口，DPR 1";
+    "资产拆解等待估价、估价失败；桌面端收到报价前不能提交，估价失败只允许重新估价；整视口，DPR 1";
 const captures = new Map();
 if (rail) {
   report.scope = "204 集，剧本工序分集栏；固定背景，高 768/620 px，DPR 1，不含工作室外壳";
@@ -162,9 +181,11 @@ try {
                     ? "/episode-rail.tsx"
                     : continuation
                       ? "/continue-plan-dialog.tsx"
-                      : breakdown
-                        ? "/breakdown-dialog.tsx"
-                        : "/scripts-dialog.tsx",
+                      : batch
+                        ? "/storyboard-batch-dialog.tsx"
+                        : breakdown
+                          ? "/breakdown-dialog.tsx"
+                          : "/scripts-dialog.tsx",
                 ))
             )
               return "\0mock:" + id;
@@ -235,48 +256,55 @@ try {
           const dialog = rail
             ? page.getByRole("navigation", { name: "分集" })
             : page.getByRole("dialog", {
-                name: continuation ? "继续规划" : breakdown ? "资产拆解" : "生成分集剧本",
+                name: batch
+                  ? "批量生成分镜脚本"
+                  : continuation
+                    ? "继续规划"
+                    : breakdown
+                      ? "资产拆解"
+                      : "生成分集剧本",
               });
           if (deletion)
             await page.evaluate(
               (color) => document.documentElement.style.setProperty("--fixture-bg", color),
               theme === "dark" ? "oklch(.145 .002 286)" : "oklch(.95 .007 85)",
             );
-          const states = breakdown
-            ? [
-                ["default", [1]],
-                ["all", [1, 3]],
-                ["empty", []],
-              ]
-            : deletion
+          const states =
+            breakdown || batch
               ? [
-                  ["menu", []],
-                  ["confirm", []],
+                  ["default", [1]],
+                  ["all", [1, 3]],
+                  ["empty", []],
                 ]
-              : rail
+              : deletion
                 ? [
-                    ["first", []],
-                    ["outline", []],
-                    ["last", []],
+                    ["menu", []],
+                    ["confirm", []],
                   ]
-                : series
+                : rail
                   ? [
-                      ["first", episodes.slice(0, 200)],
-                      ["all", episodes],
-                      ["limit", episodes.slice(4)],
-                      ["last", episodes.slice(200)],
+                      ["first", []],
+                      ["outline", []],
+                      ["last", []],
                     ]
-                  : continuation
+                  : series
                     ? [
-                        ["default", []],
-                        ["range", []],
+                        ["first", episodes.slice(0, 200)],
+                        ["all", episodes],
+                        ["limit", episodes.slice(4)],
+                        ["last", episodes.slice(200)],
                       ]
-                    : [
-                        ["default", [1, 2]],
-                        ["gap", [2]],
-                        ["overwrite", [1, 2, 3]],
-                        ["empty", []],
-                      ];
+                    : continuation
+                      ? [
+                          ["default", []],
+                          ["range", []],
+                        ]
+                      : [
+                          ["default", [1, 2]],
+                          ["gap", [2]],
+                          ["overwrite", [1, 2, 3]],
+                          ["empty", []],
+                        ];
           for (const [state, chosen] of quotations
             ? [
                 ["loading", [1]],
@@ -358,8 +386,15 @@ try {
               await dialog
                 .getByText(state === "loading" ? "估算中…" : "估算失败", { exact: true })
                 .waitFor();
-              assert.ok(await dialog.getByRole("button", { name: "开始拆解" }).isEnabled());
-            } else if (breakdown) {
+              if (side === "desktop") {
+                assert.equal(
+                  await dialog
+                    .getByRole("button", { name: state === "loading" ? "开始拆解" : "重新估价" })
+                    .isEnabled(),
+                  state !== "loading",
+                );
+              } else assert.ok(await dialog.getByRole("button", { name: "开始拆解" }).isEnabled());
+            } else if (breakdown || batch) {
               if (state !== "default")
                 await dialog
                   .getByRole("button", { name: state === "all" ? "全选可用" : "清空" })
@@ -530,6 +565,15 @@ try {
                   parent: getComputedStyle(el.parentElement).font,
                 })),
               );
+            if (quotations) {
+              row[side].approvalButton = await dialog
+                .getByRole("button", {
+                  name: side === "desktop" && state === "error" ? "重新估价" : "开始拆解",
+                })
+                .boundingBox();
+              if (!upstream)
+                assert.deepEqual(row.desktop.approvalButton, row.reference.approvalButton);
+            }
             const image = await page.screenshot({
               ...(rail &&
                 !deletion && {
@@ -544,7 +588,7 @@ try {
               Object.assign(
                 row,
                 await page.evaluate(
-                  async ({ pair, grid }) => {
+                  async ({ pair, grid, approvalButton }) => {
                     const pixels = await Promise.all(
                       pair.map(async (data) => {
                         const image = new Image();
@@ -564,6 +608,20 @@ try {
                       (total, color, index) => total + Number(color !== pixels[1][index]),
                       0,
                     );
+                    if (approvalButton) {
+                      const { x, y, width, height } = approvalButton;
+                      const outsideButton = pixels[0].reduce((total, color, index) => {
+                        const left = index % innerWidth,
+                          top = Math.floor(index / innerWidth);
+                        const inside =
+                          left >= Math.floor(x) &&
+                          left < Math.ceil(x + width) &&
+                          top >= Math.floor(y) &&
+                          top < Math.ceil(y + height);
+                        return total + Number(!inside && color !== pixels[1][index]);
+                      }, 0);
+                      return { differentPixels, outsideButton };
+                    }
                     if (!grid) return { differentPixels };
                     let gridDifferentPixels = 0;
                     for (let top = Math.ceil(grid.y); top < Math.floor(grid.y + grid.height); top++)
@@ -580,6 +638,7 @@ try {
                   {
                     pair: [captures.get(key), image].map((buffer) => buffer.toString("base64")),
                     grid: deletion ? row.reference : row.reference.grid,
+                    approvalButton: row.reference.approvalButton,
                   },
                 ),
               );
@@ -662,7 +721,8 @@ try {
   }
   await writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(report.states);
-  if (Object.values(report.states).some((row) => row.differentPixels)) process.exitCode = 1;
+  if (Object.values(report.states).some((row) => row.outsideButton ?? row.differentPixels))
+    process.exitCode = 1;
 } finally {
   await browser.close();
   await rm(temp, { recursive: true, force: true });

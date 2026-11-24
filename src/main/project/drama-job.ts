@@ -133,14 +133,15 @@ export async function submitApprovedDramaJob(
       progress: 0,
       step,
       episodes: quote.episodes,
+      episode_order: doc.episode_order ?? 0,
       created_at: new Date().toISOString(),
-      request: payload.args,
+      request: { ...payload.args, ...("storyboardLimits" in quote && quote.storyboardLimits) },
       ...("model" in quote && { model: quote.model }),
       frozen_credits: quote.estimate,
       approval_id: approvalId,
       approval_hash: contentHash({ runId, payload }),
       ...(quote.compose_input && { compose_input: quote.compose_input }),
-      ...(step === "scripts" && { known_cast: dramaKnownCast(state, doc) }),
+      ...(textSteps.has(step) && { known_cast: dramaKnownCast(state, doc) }),
       ...(stages.length && {
         prompt_snapshots: Object.fromEntries(
           stages.flatMap((key) =>

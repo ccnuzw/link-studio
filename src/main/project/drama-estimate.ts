@@ -1,12 +1,19 @@
 import { Value } from "@sinclair/typebox/value";
+import { dramaAssetMeta } from "../../../packages/link-studio-core/src/canvas.ts";
+import { canvasAgentMediaModels } from "../../../packages/link-studio-core/src/canvas-agent.ts";
 import {
   type DramaDocument,
   DramaJobRequest,
   type DramaSourcePreview,
+  dramaPromptBatchSize,
+  dramaVideoModelIssue,
+  pendingDramaPromptIds,
 } from "../../../packages/link-studio-core/src/drama.ts";
+import { modelGenerationOptions } from "../../../packages/link-studio-core/src/media-generation.ts";
 import type { ProjectState } from "../../../packages/link-studio-core/src/project.ts";
 import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
 import type { SettingsRegistry } from "../settings/registry.ts";
+import { projectCanvas } from "./canvas.ts";
 import { segmentTakes } from "./drama.ts";
 import {
   checkDramaUnitsFit,
@@ -65,6 +72,7 @@ export async function quoteDramaSource(
     const chars = runeCount(result.source.text);
     const quote = await registry.dramaJobQuote("analyze", chars, [chars], input.textModel);
     const base = {
+      ...(!registry.provider(quote.model.id).config?.pricing && { priceUnavailable: true }),
       kindSignals: result.kindSignals,
       kindGuess: result.kindGuess,
       issues: result.issues,
@@ -109,7 +117,10 @@ export async function quoteDramaSource(
     };
   } catch (error) {
     if (error instanceof ProviderError && error.code === "DRAMA_NO_TEXT_MODEL")
-      throw new ProjectError("DRAMA_NO_TEXT_MODEL", "暂无可用的 Agent 模型，请先配置文本模型");
+      throw new ProjectError(
+        "DRAMA_NO_TEXT_MODEL",
+        "请在模型与渠道中启用 Agent 模型，并为其渠道配置 API Key。",
+      );
     throw error;
   }
 }
@@ -169,6 +180,38 @@ export function checkStoryboardTakes(doc: DramaDocument, episodeNo: number) {
     );
 }
 
+export function storyboardLimits(
+  input: DramaJobRequest,
+  preferred: string | undefined,
+  registry: Pick<SettingsRegistry, "list">,
+) {
+  const key = input.video_model || preferred;
+  if (!key) return { max_seconds: input.max_seconds ?? 15, max_audios: 0 };
+  const catalog = registry.list();
+  const model = canvasAgentMediaModels(catalog).find(
+    (entry) => entry.kind === "video" && entry.provider.id === key,
+  )?.provider;
+  if (!model || dramaVideoModelIssue(model, catalog.plugins)) {
+    if (input.video_model)
+      throw new ProjectError("DRAMA_STEP_NOT_READY", "所选视频模型已不可用，请重新选择");
+    return { max_seconds: input.max_seconds ?? 15, max_audios: 0 };
+  }
+  const plugin = catalog.plugins.find((entry) => entry.hash === model.pluginHash);
+  const options = modelGenerationOptions(
+    "video",
+    plugin?.origin === "builtin" ? plugin.key : undefined,
+    model.model,
+    model.channel,
+    model.config,
+  );
+  const seconds =
+    options.durationRange?.max ?? (options.durations.length ? Math.max(...options.durations) : 15);
+  return {
+    max_seconds: input.max_seconds ?? Math.max(4, Math.min(60, Math.floor(seconds))),
+    max_audios: options.references.audio ?? 0,
+  };
+}
+
 export async function estimateDramaJob(
   doc: DramaDocument,
   input: unknown,
@@ -211,16 +254,18 @@ export async function estimateDramaJob(
   let nodes: string[] | undefined;
   if (step === "asset_prompts") {
     const numbers = scope.map((episode) => episode.episode_no);
-    const previous = doc.jobs?.findLast(
-      (job) =>
-        ["asset_prompts", "breakdown"].includes(job.step) &&
-        job.new_nodes?.length &&
-        job.episodes.length === numbers.length &&
-        numbers.every((number) => job.episodes.includes(number)),
+    const blank = state
+      ? projectCanvas(state.canvas).nodes.flatMap((node) =>
+          node.type === "creative" && dramaAssetMeta(node.data) && !node.data.text?.trim()
+            ? [node.id]
+            : [],
+        )
+      : [];
+    const jobs = (doc.jobs ?? []).filter(
+      (job) => (job.episode_order ?? 0) === (doc.episode_order ?? 0),
     );
-    if (!previous?.new_nodes) notReady("没有待生成提示词的新资产");
-    const pending = previous.new_nodes.filter((node) => !previous.prompted_nodes?.includes(node));
-    nodes = pending.length ? pending : [...previous.new_nodes];
+    nodes = pendingDramaPromptIds(jobs, numbers, new Set(blank));
+    if (!nodes.length) notReady("没有待补写提示词的资产");
   }
   if (step === "compose") {
     const episode = scope[0]!;
@@ -249,6 +294,8 @@ export async function estimateDramaJob(
       compose_input: { segment_version: episode.segment_version ?? 0, asset_ids, skipped_seqs },
     };
   }
+  const limits =
+    step === "storyboard" ? storyboardLimits(input, doc.video_model, registry) : undefined;
   const quote = await registry.dramaJobQuote(
     step,
     Array.from(doc.outline_md).length + Array.from(doc.planning?.summary ?? "").length,
@@ -257,6 +304,8 @@ export async function estimateDramaJob(
   );
   return {
     ...quote,
+    ...(limits && { storyboardLimits: limits }),
+    ...(nodes && { estimate: quote.estimate * Math.ceil(nodes.length / dramaPromptBatchSize) }),
     episodes: scope.map((episode) => episode.episode_no),
     ...(nodes && { nodes }),
   };

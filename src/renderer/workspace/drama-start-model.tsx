@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { FieldMenu } from "./drama-start-style";
 import { ShotModelLogo } from "./shot-model-picker";
 
-function videoNote(model: ProviderView, plugins: PluginView[]) {
+export function videoNote(model: ProviderView, plugins: PluginView[]) {
   const plugin = plugins.find((item) => item.hash === model.pluginHash);
   const options = modelGenerationOptions(
     "video",
@@ -32,6 +32,9 @@ export function DramaStartModel({
   container,
   kind,
   prefix,
+  label,
+  defaultLabel = "跟随默认",
+  fallback,
   models,
   plugins,
   issues,
@@ -42,6 +45,9 @@ export function DramaStartModel({
   container: RefObject<HTMLDialogElement | null>;
   kind: "文本" | "视频" | "图片";
   prefix?: string;
+  label?: string;
+  defaultLabel?: string;
+  fallback?: ProviderView;
   models: ProviderView[];
   plugins: PluginView[];
   issues?: Map<string, string>;
@@ -52,7 +58,8 @@ export function DramaStartModel({
   const text = kind === "文本";
   const selected = models.find((model) => model.id === value);
   const shown =
-    selected ?? (text && value ? undefined : models.find((model) => !issues?.get(model.id)));
+    selected ??
+    (text && value ? undefined : (fallback ?? models.find((model) => !issues?.get(model.id))));
   const name =
     shown?.config?.name ??
     shown?.label ??
@@ -62,11 +69,11 @@ export function DramaStartModel({
         : "Agent 模型"
       : loading
         ? "加载模型…"
-        : "跟随默认");
+        : defaultLabel);
   return (
     <FieldMenu
       container={container}
-      label={`${prefix ?? ""}${kind}模型`}
+      label={label ?? `${prefix ?? ""}${kind}模型`}
       kind={text ? "agent" : "media"}
       value={prefix ? `${prefix} · ${name}` : name}
       icon={shown && <ShotModelLogo logo={shown.config?.logo} />}
@@ -85,7 +92,8 @@ export function DramaStartModel({
                 aria-pressed={!selected}
                 onClick={() => choose("")}
               >
-                跟随默认{!selected && <Check size={16} />}
+                {defaultLabel}
+                {!selected && <Check size={16} />}
               </button>
             )}
             {!models.length && (
