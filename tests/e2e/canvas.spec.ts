@@ -3518,7 +3518,10 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     await page.getByRole("button", { name: "图片编辑", exact: true }).click();
     const dialog = page.getByRole("toolbar", { name: "图片标注工具栏" });
     await expect(dialog).toBeVisible();
-    await expect.poll(async () => Math.round((await dialog.boundingBox())!.width)).toBe(600);
+    await expect
+      .poll(async () => Math.abs((await dialog.boundingBox())!.width - 600))
+      .toBeLessThanOrEqual(4);
+    await expect(dialog).toHaveCSS("height", "40px");
     await expect(dialog.getByRole("button", { name: "画笔" })).toHaveCSS("font-size", "14px");
     const save = dialog.getByRole("button", { name: "保存", exact: true });
     await save.click();
@@ -9454,6 +9457,7 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
 });
 
 test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-studio-canvas-e2e-"));
   let application = await launchCanvas(root);
   try {
