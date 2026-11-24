@@ -3631,7 +3631,9 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     await expect(reopened.locator(".react-flow__node")).toHaveCount(3);
     await expect(reopened.locator(".react-flow__edge")).toHaveCount(2);
     await expect(reopened.locator(".react-flow__node img")).toHaveCount(3);
-    const derivedImage = reopened.locator(`.react-flow__node[data-id="${firstCopy!.id}"] img`);
+    const derivedImage = reopened.locator(
+      `.react-flow__node[data-id="${firstCopy!.id}"] img[alt="doodle.png"]`,
+    );
     const counts = await derivedImage.evaluate(async (element) => {
       const image = new Image();
       image.crossOrigin = "anonymous";

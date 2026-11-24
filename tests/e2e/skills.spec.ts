@@ -93,7 +93,16 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
       const anchor = await trigger.boundingBox(),
         popup = await picker.boundingBox();
       if (!anchor || !popup) throw new Error("技能弹层或按钮未显示");
-      expect(Math.abs(anchor.y - popup.y - popup.height - 8)).toBeLessThan(1);
+      await expect
+        .poll(async () => {
+          const [currentAnchor, currentPopup] = await Promise.all([
+            trigger.boundingBox(),
+            picker.boundingBox(),
+          ]);
+          if (!currentAnchor || !currentPopup) return Infinity;
+          return Math.abs(currentAnchor.y - currentPopup.y - currentPopup.height - 8);
+        })
+        .toBeLessThan(1);
       expect(popup.width).toBe(372);
       await page.screenshot({
         path: test.info().outputPath("skill-menu.png"),
