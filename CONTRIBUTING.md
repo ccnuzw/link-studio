@@ -60,7 +60,7 @@ docs: 补充本地开发说明
 
 1. `PR Title` 工作流：检查 Conventional Commits 标题，标题修改时只重跑这项轻量检查。
 2. `CI` 工作流的 `Quality`：Ubuntu 快速检查。
-3. `CI` 工作流的 `Desktop macOS ARM64`：快速检查通过后，在 `macos-15` runner 上验证构建、集成、Agent 回归和桌面 E2E；先确认实际架构，云端沙箱、VideoToolbox 与 GUI 能力以首次 Actions 实测为准。
+3. `CI` 工作流的 `Desktop macOS ARM64`：快速检查通过后，在 `macos-26` runner 上验证构建、集成、Agent 回归和桌面 E2E；先校验实际架构，云端沙箱、VideoToolbox 与 GUI 能力以该镜像的 Actions 实测为准。
 
 `PR Title` 在 PR 创建、标题编辑和更新提交时校验标题。标题只作为环境变量传入 shell，不会被当作命令执行；该任务无需检出仓库、安装项目依赖或额外配置 Node。
 
