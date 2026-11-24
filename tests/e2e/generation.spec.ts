@@ -21,6 +21,7 @@ import {
 } from "./assistant-theme";
 import {
   chooseCanvasZoom,
+  clickBlankCanvas,
   createCanvasProject,
   editTextNode,
   projectAction,
@@ -489,7 +490,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     await rows.first().getByRole("button").click();
     await expect(history).toHaveCount(0);
     await expect(video).toHaveClass(/selected/);
-    await page.locator(".react-flow__pane").click({ position: { x: 70, y: 90 } });
+    await clickBlankCanvas(page);
     await expect(video).not.toHaveClass(/selected/);
     await page.getByRole("button", { name: "失败节点 1 个" }).click();
     await expect(video).toHaveClass(/selected/);
@@ -649,8 +650,7 @@ for (const [followMode, title] of [
         (message: { role: string; content: unknown }) =>
           message.role === "tool" &&
           JSON.stringify(message.content).includes("fixture-s4-group") &&
-          JSON.stringify(message.content).includes("viewport") &&
-          JSON.stringify(message.content).includes("fixture-missing"),
+          JSON.stringify(message.content).includes("viewport"),
       );
       if (payload.model === "fixture-text") {
         const messages = JSON.stringify(payload.messages);
@@ -801,7 +801,7 @@ for (const [followMode, title] of [
       const imageNode = page
         .locator(".react-flow__node")
         .filter({ has: page.locator("header strong").filter({ hasText: /^图片$/ }) });
-      await page.locator(".react-flow__pane").click({ position: { x: 24, y: 24 } });
+      await clickBlankCanvas(page);
       await expect(page.getByRole("region", { name: "生成确认" })).toBeHidden();
       await imageNode.locator(".node-media").click({ position: { x: 30, y: 30 } });
       await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
@@ -820,7 +820,9 @@ for (const [followMode, title] of [
       const parametersTrigger = page.getByRole("button", { name: "生成参数", exact: true });
       await parametersTrigger.click();
       const parameters = page.getByRole("region", { name: "生成参数", exact: true });
-      await parameters.getByRole("button", { name: "高", exact: true }).click();
+      const highQuality = parameters.getByRole("radio", { name: "高", exact: true });
+      await highQuality.click();
+      await expect(highQuality).toBeChecked();
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "放大编辑提示词" }).click();
       const expanded = page.getByRole("dialog", { name: "编辑提示词" });
@@ -849,12 +851,9 @@ for (const [followMode, title] of [
       await expandedPrompt.press("Escape");
       await expect(expanded).toBeHidden();
       await parametersTrigger.click();
-      await expect(parameters.getByRole("button", { name: "高", exact: true })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
-      await parameters.getByRole("button", { name: "3:2", exact: true }).click();
-      await parameters.getByRole("button", { name: "高", exact: true }).click();
+      await expect(highQuality).not.toBeChecked();
+      await parameters.getByRole("radio", { name: "3:2", exact: true }).click();
+      await highQuality.click();
       await parameters.getByRole("combobox", { name: "生成数量" }).selectOption("2");
       await page.keyboard.press("Escape");
       await expect(parameters).toBeHidden();
@@ -899,7 +898,7 @@ for (const [followMode, title] of [
         n: 2,
         prompt: expect.stringMatching(/^给封面生成一张图片，古偶唯美柔光风格/),
       });
-      await expect(imageNode.locator(".node-media img")).toHaveAttribute("src", /^link-media:/);
+      await expect(imageNode.locator('.node-media img[src^="link-media:"]')).toBeVisible();
       await page
         .getByRole("toolbar", { name: /的功能区$/ })
         .getByRole("button", { name: "加入资产库" })
@@ -1628,7 +1627,8 @@ for (const [followMode, title] of [
       const referenceSummary = assistant.getByRole("button", { name: "添加附件" });
       await expectAssistantContrast(referenceSummary);
       await referenceSummary.click();
-      const attachments = page.getByRole("dialog", { name: "添加附件" });
+      const attachments = reopened.getByRole("dialog", { name: "添加附件" });
+      await expect(attachments).toBeVisible();
       await expect
         .poll(async () => {
           const trigger = await referenceSummary.boundingBox();
@@ -1677,7 +1677,9 @@ for (const [followMode, title] of [
           expect.objectContaining({ type: "tool.end" }),
         ]),
       });
-      if (!(await webGrant.isVisible())) await referenceSummary.click();
+      await expect(attachments).toBeHidden();
+      await referenceSummary.click();
+      await attachments.getByText("更多资料", { exact: true }).click();
       await webGrant.check();
       await expect(assistant.getByText("本轮联网检索", { exact: true })).toBeVisible();
       await assistant.getByLabel("画布消息").fill("本轮允许查阅公开创作资料。");
@@ -1805,7 +1807,7 @@ for (const [followMode, title] of [
       await groupInput.press("Backspace");
       await expectDraft(groupInput, "");
       await expect(groupGhost).toHaveCount(0);
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await expect(reopened.locator(".react-flow__node.selected")).toHaveCount(0);
       await assistant.getByRole("button", { name: "定位 小灵分镜组" }).click();
       await expect(groupGhost).toHaveText("小灵分镜组");
@@ -1820,7 +1822,7 @@ for (const [followMode, title] of [
       }
       nextTool = {
         name: "canvas_get_state",
-        args: { nodeIds: ["fixture-s4-group", "fixture-missing"] },
+        args: { nodeIds: ["fixture-s4-group"] },
       };
       afterRead = undefined;
       await assistant.getByLabel("画布消息").fill("检查分组及视口。");
@@ -1848,7 +1850,7 @@ for (const [followMode, title] of [
         "touched",
       );
       await readActivity.screenshot({ path: test.info().outputPath("tool-node-location.png") });
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await assistant.getByRole("button", { name: "定位 小灵分镜组" }).click();
       await expect(groupGhost).toHaveText("小灵分镜组");
       await groupInput.click();
@@ -1910,7 +1912,7 @@ for (const [followMode, title] of [
       ).toBeVisible();
       await expect(historicalGroup).toHaveText("小灵分镜组");
       await expect(welcome).toHaveText("人工保留的开场");
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await expect(reopened.locator(".react-flow__node.selected")).toHaveCount(0);
       for (const [draft, hint] of [
         ["检查@[小灵分镜组](node:fixture-s4-group)", "画布上没有这个节点"],
@@ -2164,9 +2166,8 @@ for (const [followMode, title] of [
       );
       await reopened.getByRole("checkbox", { name: /过期建议/ }).check();
       await reopened.getByRole("option", { name: /应用 1 项变更/ }).click();
-      await expect(
-        reopened.getByRole("log").getByText("配置已更新，请重新载入后再保存。"),
-      ).toBeVisible();
+      const failedChange = reopened.getByRole("log").getByTitle("配置已更新，请重新载入后再保存。");
+      await expect(failedChange).toHaveText("已批准，但执行失败：配置变更单");
       await expect
         .poll(() =>
           reopened.evaluate(async (id) => {

@@ -25,7 +25,9 @@ import { chooseAssistantModel, expectDraft } from "./assistant-theme";
 import { annotateWithComposition } from "./doodle-composition";
 import {
   addCanvasNode,
+  blankCanvasPosition,
   chooseCanvasZoom,
+  clickBlankCanvas,
   createCanvasProject,
   editTextNode,
   projectAction,
@@ -177,7 +179,7 @@ test("画布快捷键的三个入口、模态键盘隔离和焦点恢复", async
     await trigger.focus();
     await page.keyboard.press("?");
     await expect(dialog).toBeVisible();
-    await page.mouse.click(8, 8);
+    await page.locator(".storyboard-backdrop").click({ position: { x: 32, y: 120 } });
     await expect(dialog).toHaveCount(0);
     const prompt = page.locator("[data-node-prompt][contenteditable=true]");
     await prompt.click();
@@ -711,13 +713,9 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     };
     await trigger.click();
     await page
+      .getByRole("menu", { name: "选择模型" })
       .getByRole("menuitemradio")
-      .filter({ hasText: next })
-      .filter({
-        has: page.locator(".generation-model-copy > span:first-child", {
-          hasText: new RegExp(`^${next}$`),
-        }),
-      })
+      .filter({ has: page.getByText(next, { exact: true }) })
       .click();
     await page.keyboard.press("Escape");
     await expect(trigger).toHaveText(next);
@@ -1269,6 +1267,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     await expect(start).toBeEnabled();
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: /^连线批量/ }).click();
+    await chooseCanvasZoom(page, "适应画布");
     await card.getByRole("button", { name: "历史记录，共 2 版", exact: true }).click();
     await expect(history.getByRole("button", { name: "第 1 版（当前主图）" })).toBeVisible();
     expect(replies).toHaveLength(3);
@@ -1533,9 +1532,6 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
   const app = await launchCanvas(root, paths.join("\n"));
   try {
     const page = await app.firstWindow();
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.setIgnoreMouseEvents(true),
-    );
     const create = async (name: string) => {
       await createCanvasProject(page, name);
     };
@@ -1551,11 +1547,19 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
     );
     const nodes = page.locator(".react-flow__node"),
       edges = page.locator(".react-flow__edge");
-    await nodes.filter({ hasText: "上游主图" }).click({ position: { x: 36, y: 52 } });
-    await nodes
-      .filter({ hasText: "上游视频" })
-      .click({ modifiers: ["ControlOrMeta"], position: { x: 40, y: 48 } });
-    await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
+    const image = nodes.filter({ hasText: "上游主图" });
+    const video = nodes.filter({ hasText: "上游视频" });
+    await expect(nodes).toHaveCount(2);
+    await chooseCanvasZoom(page, "适应画布");
+    await image.locator("header strong").click();
+    await expect(image).toHaveClass(/\bselected\b/);
+    await page.keyboard.down("ControlOrMeta");
+    try {
+      await video.locator("header strong").click();
+      await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
+    } finally {
+      await page.keyboard.up("ControlOrMeta");
+    }
     const plain = await page.evaluate(() => {
       document.body.dispatchEvent(
         new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true, cancelable: true }),
@@ -1811,18 +1815,18 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
       stage = await page.locator(".pet-stage").boundingBox();
     const initial = await frame.boundingBox();
     if (!initial || !stage) throw new Error("浮窗未就绪");
+    const offset = { x: -130, y: 10 };
+    const moved = { x: initial.x + offset.x, y: initial.y + offset.y };
     expect(initial.x + initial.width).toBe(stage.x + stage.width - 12);
     expect(initial.y + initial.height).toBe(stage.y + stage.height - 68);
     await page.mouse.move(initial.x + 20, initial.y + 28);
     await page.mouse.down();
-    await page.mouse.move(initial.x - 110, initial.y + 18);
+    await page.mouse.move(moved.x + 20, moved.y + 28);
     await page.mouse.up();
-    await expect.poll(savedLayout).toMatchObject({ offset: { x: -130, y: -10 } });
+    await expect.poll(savedLayout).toMatchObject({ offset });
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await fallback.click();
-    await expect
-      .poll(() => frame.boundingBox())
-      .toMatchObject({ x: initial.x - 130, y: initial.y - 10 });
+    await expect.poll(() => frame.boundingBox()).toMatchObject(moved);
     await page.getByRole("button", { name: "停靠到右侧" }).click();
     await page.getByRole("separator", { name: "调整 Agent 宽度" }).press("ArrowLeft");
     await expect.poll(savedLayout).toMatchObject({ mode: "hidden", docked: true, width: 416 });
@@ -1838,9 +1842,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
       "416",
     );
     await page.getByRole("button", { name: "改为浮窗" }).click();
-    await expect
-      .poll(() => page.locator(".assistant-frame").boundingBox())
-      .toMatchObject({ x: initial.x - 130, y: initial.y - 10 });
+    await expect.poll(() => page.locator(".assistant-frame").boundingBox()).toMatchObject(moved);
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await fallback.click({ button: "right" });
     await page.getByRole("button", { name: "活泼", exact: true }).click();
@@ -1859,7 +1861,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await pet.click();
     await expect.poll(() => temporary.boundingBox()).toEqual(attached);
-    expect((await savedLayout()).offset).toEqual({ x: -130, y: -10 });
+    expect((await savedLayout()).offset).toEqual(offset);
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await pet.click({ button: "right" });
     await page.getByRole("button", { name: "回到右下角" }).click();
@@ -2898,6 +2900,7 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "复制文本" })).toHaveCount(0);
+    await chooseCanvasZoom(page, "适应画布");
     await image.click({ position: { x: 32, y: 32 } });
     await page.getByRole("button", { name: "开始生成", exact: true }).click();
     await expect
@@ -3139,10 +3142,19 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
     const drag = { x: heading.x + heading.width / 2, y: heading.y + heading.height / 2 };
     await page.mouse.move(drag.x, drag.y);
     await page.mouse.down();
-    await page.mouse.move(drag.x + 36, drag.y + 8, { steps: 5 });
-    await expect(strip).toHaveCount(0);
-    await page.mouse.up();
+    try {
+      await page.mouse.move(drag.x + 36, drag.y + 8, { steps: 5 });
+      await expect(strip).toHaveCount(0);
+    } finally {
+      await page.mouse.up();
+    }
     await checkAnchor();
+    await expect
+      .poll(
+        async () =>
+          (await page.locator(".react-flow__node.selected header strong").boundingBox())?.x,
+      )
+      .toBeGreaterThan(heading.x + 15);
     await projectAction(page, "所选节点属性");
     await page.getByRole("button", { name: "生成内容", exact: true }).click();
     await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
@@ -3504,6 +3516,7 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将doodle.png加入画布" }).click();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
+    await chooseCanvasZoom(page, "适应画布");
     await page.getByRole("button", { name: "图片编辑", exact: true }).click();
     const dialog = page.getByRole("toolbar", { name: "图片标注工具栏" });
     await expect(dialog).toBeVisible();
@@ -3718,7 +3731,7 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将底图.png加入画布" }).click();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    await chooseCanvasZoom(page, "缩放到 100%");
+    await chooseCanvasZoom(page, "适应画布");
     const cards = page.locator(".react-flow__node"),
       edges = page.locator(".react-flow__edge");
     const source = await cards.first().getAttribute("data-id");
@@ -3732,10 +3745,16 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
       await toolbar.getByRole("button", { name: "框选" }).click();
       const bounds = (await page.getByLabel("涂鸦画布", { exact: true }).boundingBox())!;
       drawingRect = bounds;
-      await page.mouse.move(bounds.x + 26, bounds.y + 26);
+      await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.25);
       await page.mouse.down();
-      await page.mouse.move(bounds.x + 82, bounds.y + 88, { steps: 8 });
-      await page.mouse.up();
+      try {
+        await page.mouse.move(bounds.x + bounds.width * 0.75, bounds.y + bounds.height * 0.75, {
+          steps: 8,
+        });
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(toolbar.getByRole("button", { name: "撤销" })).toBeEnabled();
     };
     const holdExport = () =>
       page.evaluate(() => {
@@ -4195,7 +4214,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
     );
     await expect(location.getByRole("button", { name: "加入", exact: true })).toBeEnabled();
     await location.getByRole("button", { name: "取消" }).click();
-    const db = new DatabaseSync(join(root, "personal-library/items.sqlite"));
+    const db = new DatabaseSync(join(root, "personal-library/items.sqlite"), { timeout: 3000 });
     try {
       const items = () =>
         db
@@ -5055,6 +5074,7 @@ for (const fixture of [
       await createCanvasProject(page, "媒体失败回放");
       await addCanvasNode(page, fixture.menu);
       const card = page.locator(`article[data-card-kind="${fixture.kind}"]`);
+      const renderedImage = card.locator('.node-media img[src^="link-media:"]');
       const heading = card.locator("header");
       await card.click({ position: { x: 30, y: 30 } });
       const prompt = page.getByRole("textbox", { name: "生成提示词" });
@@ -5074,7 +5094,6 @@ for (const fixture of [
       await expect(card.getByRole("alert")).toBeVisible();
       const copy = card.getByRole("button", { name: /任务 ID/ });
       const original = await copy.getAttribute("aria-label");
-      await card.click({ position: { x: 30, y: 30 } });
       await prompt.fill("");
       await expect(card.getByRole("button", { name: "重试" })).toBeDisabled();
       await expect(card.locator(".task-retry")).toHaveAttribute("title", "请先填写提示词。");
@@ -5099,7 +5118,7 @@ for (const fixture of [
       await prompt.fill("下次使用的第三稿");
       await expect.poll(async () => (await savedNode())?.data.text).toBe("下次使用的第三稿");
       finish?.();
-      if (fixture.kind === "image") await expect(card.locator(".node-media img")).toBeVisible();
+      if (fixture.kind === "image") await expect(renderedImage).toHaveCSS("opacity", "1");
       else {
         if (fixture.kind === "video") {
           await expect(heading).toContainText("生成中 37%", { timeout: 15_000 });
@@ -5178,7 +5197,7 @@ for (const fixture of [
         finish?.();
         await expect.poll(async () => (await savedNode())?.data.outputs?.length).toBe(2);
         expect((await savedNode())?.data.activeOutputId).not.toBe(adopted);
-        await expect(card.locator(".node-media img")).toBeVisible();
+        await expect(renderedImage).toHaveCSS("opacity", "1");
         const previousVersion = (await savedNode())!.data.activeOutputId!;
         await capture("two-results");
         const versionDialog = page.getByRole("dialog", { name: "历史记录", exact: true });
@@ -5262,14 +5281,14 @@ for (const fixture of [
           versionDialog.getByRole("button", { name: "第 2 版（当前主图）", exact: true }),
         ).toHaveAttribute("aria-pressed", "true");
         await versionDialog.getByRole("button", { name: "关闭", exact: true }).click();
-        await expect(card.locator(".node-media img")).toBeVisible();
+        await expect(renderedImage).toHaveCSS("opacity", "1");
         await expect
           .poll(async () => (await savedNode())?.data.activeOutputId)
           .toBe(previousVersion);
         await capture("choose-prior");
         await projectAction(page, "关闭项目");
         await page.getByRole("button", { name: /^媒体失败回放/ }).click();
-        await expect(card.locator(".node-media img")).toBeVisible();
+        await expect(renderedImage).toHaveCSS("opacity", "1");
         await expect(card.getByRole("alert")).toHaveCount(0);
         expect(prompts.length).toBe(4);
         await capture("reopened-choice");
@@ -5347,6 +5366,8 @@ test("角色形象封面显示生成状态，重开后从失败卡面直接重�
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Missing fixture endpoint");
     let page = await application.firstWindow();
+    const windowHandle = await application.browserWindow(page);
+    await windowHandle.evaluate((browserWindow) => browserWindow.setSize(1024, 700));
     await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
@@ -5564,7 +5585,9 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
     await expect(page.getByRole("dialog", { name: /^生成-/ })).toHaveCount(0);
     await expect(history.getByRole("listitem").first()).toContainText("当前");
     const adopted = await dialog.locator(".voice-current-row").getAttribute("data-asset-id");
-    expect(adopted).not.toBe("");
+    if (!adopted) throw Error("缺少当前音色素材");
+    const adoptedName = (await latestSnapshot(root)).assets[adopted]?.displayName;
+    expect(adoptedName).toMatch(/^生成-.+\.ogg$/);
     await modelMenu.click();
     await dialog.getByRole("menuitemradio", { name: /备用音频渠道/ }).click();
     await dialog.getByRole("button", { name: "关闭角色卡" }).click();
@@ -5574,7 +5597,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
         expect.objectContaining({
           data: expect.objectContaining({
             character: expect.objectContaining({
-              voice: { assetId: adopted, origin: "generated" },
+              voice: expect.objectContaining({ assetId: adopted, origin: "generated" }),
             }),
           }),
         }),
@@ -5615,7 +5638,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
           node.type === "creative" ? [node.data.character?.voice] : [],
         ),
       )
-      .toEqual([{ assetId: adopted, origin: "library" }]);
+      .toEqual([{ assetId: adopted, origin: "library", name: adoptedName }]);
     await reopened.getByRole("button", { name: "编辑角色卡", exact: true }).click();
     const alternateFile = join(root, "备用配音.wav");
     await runMediaProcess(
@@ -5645,7 +5668,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
           node.type === "creative" ? [node.data.character?.voice] : [],
         ),
       )
-      .toEqual([{ assetId: adopted, origin: "generated" }]);
+      .toEqual([{ assetId: adopted, origin: "generated", name: adoptedName }]);
     await reopened.locator(".character-cover").click({ position: { x: 45, y: 45 } });
     await reopened.getByRole("textbox", { name: "生成提示词" }).fill("备用配音的形象");
     const combined = reopened.getByRole("button", { name: "含音色", exact: true });
@@ -6304,7 +6327,8 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
     expect(before.shot?.imageNodeId).toBeTruthy();
     const imageNode = page.locator(".react-flow__node").filter({ hasText: "月台分镜图" });
     await imageNode.locator("header strong").click();
-    await page.keyboard.press("Backspace");
+    await expect(imageNode).toHaveClass(/\bselected\b/);
+    await imageNode.press("Backspace");
     const { imageNodeId, ...remaining } = before.shot!;
     await expect.poll(readBoard).toEqual({
       shot: remaining,
@@ -6832,8 +6856,7 @@ for (const kind of ["图片", "视频"]) {
         const failedCell = second.locator(".shot-image-frame");
         await expect(failedCell).toHaveAttribute("title", /\S/);
         await expect(failedCell.getByText("生成失败", { exact: true })).toBeVisible();
-        await failedCell.focus();
-        await page.keyboard.press("Tab");
+        await second.getByRole("button", { name: "拖动第 2 镜排序" }).press("Tab");
         await expect(
           failedCell.getByRole("button", { name: "重新生成", exact: true }),
         ).toBeFocused();
@@ -7072,11 +7095,10 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     const preview = editor.getByRole("img", { name: "机位预览" });
     await preview.scrollIntoViewIfNeeded();
     const bounds = (await preview.boundingBox())!;
-    const centerX = bounds.x + bounds.width / 2,
-      centerY = bounds.y + bounds.height / 2;
-    await page.mouse.move(centerX, centerY);
+    const position = { x: bounds.width / 3, y: bounds.height / 3 };
+    await preview.hover({ position });
     await page.mouse.down();
-    await page.mouse.move(centerX + 40, centerY, { steps: 5 });
+    await page.mouse.move(bounds.x + position.x + 40, bounds.y + position.y, { steps: 5 });
     await page.mouse.up();
     const yaw = editor.getByLabel("偏航");
     await expect(yaw).not.toHaveValue("0");
@@ -7089,7 +7111,7 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await redo.click();
     await undo.click();
     await preview.scrollIntoViewIfNeeded();
-    await preview.hover();
+    await preview.hover({ position });
     const pitch = editor.getByLabel("俯仰"),
       fov = editor.getByLabel("FOV", { exact: true }),
       depth = editor.getByLabel("位置 Z"),
@@ -7106,7 +7128,7 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await undo.click();
     await expect.poll(async () => Number(await pitch.inputValue())).toBeCloseTo(initialPitch, 6);
     await expect(undo).toBeDisabled();
-    await preview.hover();
+    await preview.hover({ position });
     await page.keyboard.down("Alt");
     await page.mouse.wheel(0, 100);
     await page.keyboard.up("Alt");
@@ -7464,10 +7486,9 @@ test("导演台运镜套用、播放、一次撤销和跨重启恢复", async ()
     await expect(keys).toHaveCount(0);
     await editor.getByRole("button", { name: "重做（Ctrl+Shift+Z）" }).click();
     await expect(keys).toHaveCount(11);
-    await apply.focus();
-    await page.keyboard.press("Space");
+    await editor.press("Space");
     await expect(editor.getByRole("button", { name: "暂停（空格）" })).toBeVisible();
-    await page.keyboard.press("Space");
+    await editor.press("Space");
     await expect(editor.getByRole("button", { name: "播放（空格）" })).toBeVisible();
     await preset.selectOption("follow");
     await expect(editor.getByLabel("运镜强度")).toHaveCount(0);
@@ -8142,9 +8163,10 @@ test("图片端口菜单按目标模型能力禁用文生图并允许图片参�
     await page.getByRole("button", { name: /^图片生成 文字或参考图出图/ }).click();
     await expect(page.getByRole("button", { name: "选择模型" })).toHaveText("dall-e-3");
     const imageId = await page.locator(".react-flow__node.selected").getAttribute("data-id");
+    const pane = page.locator(".react-flow__pane:visible");
     await page
       .locator(".react-flow__handle-right")
-      .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 250, y: 190 } });
+      .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 250, y: 190 }) });
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ });
     await expect(menu.getByRole("menuitem", { name: "图片生成", exact: true })).toBeDisabled();
     await menu.getByRole("menuitem", { name: "音频", exact: true }).click();
@@ -8279,13 +8301,14 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
     for (const reference of [false, true]) {
       await choose(reference ? "doubao-seedance-2-0" : "sora-2");
       await chooseCanvasZoom(page, "适应画布");
+      const pane = page.locator(".react-flow__pane:visible");
       await audio
         .locator(".react-flow__handle-right")
-        .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 75, y: 125 } });
+        .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 75, y: 125 }) });
       if (reference) await expect(video).toBeEnabled();
       else await expect(video).toBeDisabled();
       await page.keyboard.press("Escape");
-      await page.locator(".react-flow__pane").click({ position: { x: 75, y: 125 } });
+      await clickBlankCanvas(page);
       await audio.locator("header strong").click({ modifiers: ["ControlOrMeta"] });
       await page.getByText("来源-image", { exact: true }).click({ modifiers: ["ControlOrMeta"] });
       await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
@@ -8573,6 +8596,7 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
     await expect(menu.getByRole("menuitem").last()).toBeFocused();
     await expect.poll(() => menu.evaluate((element) => element.scrollTop)).toBeGreaterThan(300);
     await page.keyboard.press("Home");
+    await expect(menu.getByRole("menuitem", { name: "图片生成", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
     const image = page.locator(".react-flow__node.selected");
     await expect(image.locator("header strong")).toHaveText("图片");
@@ -8777,9 +8801,10 @@ test("从视频输入端上传四张图片，按三列单独放下；重开后�
     await page.getByRole("button", { name: /^视频生成 文生/ }).click();
     const target = page.locator(".react-flow__node").first();
     const id = await target.getAttribute("data-id");
+    const pane = page.locator(".react-flow__pane:visible");
     await target
       .locator(".react-flow__handle-left")
-      .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 250, y: 170 } });
+      .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 250, y: 170 }) });
     await chooseCanvasFiles(
       page,
       page
@@ -9459,7 +9484,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
       };
     });
     expect(titleLayout).toEqual({ width: 576, height: 324, gap: 8, left: 2 });
-    await editableTitle.dblclick();
+    await sourceNode.getByRole("button", { name: "重命名节点：文本", exact: true }).press("Enter");
     const nameField = page.getByRole("textbox", { name: "节点名称", exact: true });
     await expect(nameField).toBeFocused();
     expect(
@@ -9717,7 +9742,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
       };
       expect(
         await editableTitle.evaluate(
-          (el, point) => el === document.elementFromPoint(point.x, point.y),
+          (el, point) => el.contains(document.elementFromPoint(point.x, point.y)),
           from,
         ),
       ).toBe(true);

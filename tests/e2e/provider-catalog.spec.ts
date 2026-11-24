@@ -41,7 +41,7 @@ test("插件目录区分首次读取、可重试的故障和无插件，空态�
     await expect(catalog.getByRole("alert")).toHaveText("加载失败");
     await catalog.getByRole("button", { name: "重试" }).click();
     await expect(catalog.getByText("还没有插件")).toBeVisible();
-    await catalog.getByRole("button", { name: "上传插件" }).click();
+    await page.getByRole("button", { name: "上传插件", exact: true }).click();
     const upload = page.getByRole("dialog", { name: "上传插件" });
     const field = upload.getByLabel("选择插件文件");
     const submit = upload.getByRole("button", { name: "上传", exact: true });

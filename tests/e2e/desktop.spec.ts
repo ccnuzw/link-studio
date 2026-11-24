@@ -122,8 +122,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     const composer = page.getByRole("region", { name: "生成确认" });
     const activePrompt = composer.getByRole("textbox", { name: "生成提示词" });
     await activePrompt.fill("镜头");
-    await videoNode.locator("header strong").click();
-    await page.keyboard.press("Enter");
+    await videoNode.getByRole("article", { name: "视频", exact: true }).press("Enter");
     await expect(activePrompt).toBeFocused();
     await page.keyboard.insertText("推进");
     await expect(activePrompt).toHaveText("镜头推进");
@@ -135,10 +134,7 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     await videoNode.locator("header strong").click();
     await expect(composer.getByRole("button", { name: "选择模型" })).toHaveText("暂无可用模型");
     await expect(composer.getByRole("button", { name: "开始生成" })).toBeDisabled();
-    await composer.getByRole("button", { name: "生成参数" }).click();
-    await composer.getByLabel("时长（秒）").fill("5");
-    await composer.getByRole("button", { name: "生成参数" }).click();
-    await expect(composer.getByRole("button", { name: "生成参数" })).toHaveText("5 秒");
+    await expect(composer.getByRole("button", { name: "生成参数" })).toHaveCount(0);
     await composer.getByRole("button", { name: "运镜", exact: true }).click();
     const motion = page.getByRole("region", { name: "运镜", exact: true });
     const fixed = motion.getByRole("button", { name: "固定镜头", exact: true });

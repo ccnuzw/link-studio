@@ -106,8 +106,7 @@ for (const flow of ["模型试跑", "工程任务"] as const) {
       } else {
         await createCanvasProject(page, "原回执验收");
         await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
-        await page.mouse.click(420, 210);
-        await page.locator(".react-flow__node .node-media").click({ position: { x: 30, y: 30 } });
+        await page.locator('.react-flow__node.selected article[data-card-kind="image"]').click();
         await page.getByRole("textbox", { name: "生成提示词" }).fill("恢复测试");
         await page.getByRole("button", { name: "开始生成" }).click();
       }

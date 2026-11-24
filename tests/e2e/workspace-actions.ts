@@ -1,5 +1,34 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+export async function blankCanvasPosition(pane: Locator, preferred?: { x: number; y: number }) {
+  const position = await pane.evaluate((element, preferred) => {
+    const { left, top, right, bottom } = element.getBoundingClientRect();
+    if (preferred && document.elementFromPoint(left + preferred.x, top + preferred.y) === element)
+      return preferred;
+    const visibleLeft = Math.max(0, left);
+    const visibleTop = Math.max(0, top);
+    const width = Math.min(innerWidth, right) - visibleLeft;
+    const height = Math.min(innerHeight, bottom) - visibleTop;
+    if (width <= 0 || height <= 0) return null;
+    const fractions = [0.5, 0.25, 0.75, 0.125, 0.875, 0.05, 0.95];
+    for (const row of fractions) {
+      for (const column of fractions) {
+        const x = visibleLeft + width * column;
+        const y = visibleTop + height * row;
+        if (document.elementFromPoint(x, y) === element) return { x: x - left, y: y - top };
+      }
+    }
+    return null;
+  }, preferred);
+  if (!position) throw Error("找不到可点击的画布空白区域");
+  return position;
+}
+
+export async function clickBlankCanvas(page: Page) {
+  const pane = page.locator(".react-flow__pane:visible");
+  await pane.click({ position: await blankCanvasPosition(pane) });
+}
+
 export async function createCanvasProject(page: Page, name?: string) {
   await page.getByRole("button", { name: /^新建画布项目/ }).click();
   const dialog = page.getByRole("dialog", { name: "新建画布项目" });

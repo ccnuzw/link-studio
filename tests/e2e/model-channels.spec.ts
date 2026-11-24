@@ -460,6 +460,7 @@ test("拉取时关闭不会串单，导入失败保留选择并可重试", async
       window.desktop.settings.channelSave({
         expectedRevision: 0,
         approve: true,
+        secret: "fixture-pull-key",
         fields: {
           name: "拉取测试",
           endpoint: "https://unused.invalid",
