@@ -33,7 +33,7 @@ export function OfficialVoicePicker({
           align="start"
           sideOffset={6}
           collisionBoundary={document.documentElement}
-          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         >
           <Menu.Popup className="trial-ref-menu trial-voice-menu">
             <Menu.Group>
