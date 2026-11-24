@@ -201,10 +201,12 @@ export function SettingsPage({
       if (
         trigger.current?.closest("[hidden]") ||
         event.defaultPrevented ||
+        event.isComposing ||
         document.querySelector("dialog[open]")
       )
         return;
       if (event.key === "Escape" && assistant) {
+        if (document.querySelector(".settings-drawer :popover-open,select:open")) return;
         setAssistant(false);
         trigger.current?.focus();
         return;
@@ -213,7 +215,6 @@ export function SettingsPage({
         !(event.metaKey || event.ctrlKey) ||
         event.shiftKey ||
         event.altKey ||
-        event.isComposing ||
         event.repeat ||
         event.key.toLowerCase() !== "j" ||
         document.querySelector("dialog[open]")

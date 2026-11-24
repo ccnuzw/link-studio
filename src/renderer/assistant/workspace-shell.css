@@ -472,6 +472,10 @@
   color: inherit;
   font: inherit;
 }
+.attach-more input[type="url"]::placeholder {
+  color: light-dark(oklch(0.52 0 0), var(--menu-muted));
+  opacity: 1;
+}
 .attach-more pre {
   max-height: 140px;
   overflow: auto;

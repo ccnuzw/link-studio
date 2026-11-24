@@ -503,15 +503,18 @@ export function SettingsAssistant({
       onKeyDown={(event) => {
         if (
           event.key !== "Escape" ||
-          !stop ||
-          blocked ||
-          state?.approvals.length ||
           event.defaultPrevented ||
           event.nativeEvent.isComposing ||
+          event.currentTarget.querySelector(":popover-open,select:open") ||
           (event.target instanceof Element &&
             event.target.closest("[popover],dialog,[role=dialog],[role=menu]"))
         )
           return;
+        if (state?.approvals.length) {
+          event.preventDefault();
+          return;
+        }
+        if (!stop || blocked) return;
         event.preventDefault();
         stop();
       }}

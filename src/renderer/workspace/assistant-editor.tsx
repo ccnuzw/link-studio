@@ -187,6 +187,7 @@ export function AssistantEditor({
         !!(event.clipboardData && live.current.onImages?.(event.clipboardData.files)),
       handleDOMEvents: {
         keydown: (_view, event) => {
+          if (settings && event.key === "Escape" && !live.current.showMenu) return true;
           if (event.key !== "Enter" || !event.isComposing) return false;
           return true;
         },

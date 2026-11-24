@@ -21,6 +21,10 @@ describe("panelSize", () => {
     expect(panelSize({ width: 1200, height: 800 })).toEqual({ width: 400, height: 600 });
     expect(panelSize({ width: 1200, height: 500 })).toEqual({ width: 400, height: 476 });
   });
+
+  test("替换胶囊上方的浮窗保留底部空间和顶部边距", () => {
+    expect(panelSize({ width: 1024, height: 660 }, 68)).toEqual({ width: 400, height: 580 });
+  });
 });
 
 describe("placePanel", () => {
