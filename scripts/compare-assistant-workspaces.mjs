@@ -533,6 +533,14 @@ async function capturePlan(page, panel, scope, side) {
   const strip = panel.getByRole("button", { name: "收起计划" }).locator("../..");
   await expect(panel.getByRole("region", { name: "等待读取的插话" })).toHaveCount(0);
   await expect(strip.getByRole("listitem")).toHaveText(planSteps.map((step) => step.title));
+  if (scope === "settings" && side === "desktop") {
+    const row = panel.locator(".assistant-tool-row").first();
+    await expect(row).toBeDisabled();
+    await expect(row).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(row).toHaveCSS("justify-content", "flex-start");
+    const surface = panel.locator(".settings-assistant");
+    assert.ok(await surface.evaluate((element) => element.scrollHeight <= element.clientHeight));
+  }
   for (const theme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
     if (side === "reference")
@@ -880,10 +888,11 @@ try {
         if (!model.ok) throw Error(model.code);
       }, server.address().port);
       if (scope === "canvas") {
-        await page.getByRole("button", { name: "新建项目" }).click();
+        await page.getByRole("button", { name: /^新建画布项目/ }).click();
+        await page.getByRole("button", { name: "选择保存位置…" }).click();
         await page.getByRole("button", { name: "打开小灵", exact: true }).click();
       } else {
-        await page.getByRole("button", { name: "模型设置" }).click();
+        await page.getByRole("button", { name: "应用设置" }).click();
         await page.getByRole("button", { name: "设置助手" }).click();
       }
       const panel = page.locator(

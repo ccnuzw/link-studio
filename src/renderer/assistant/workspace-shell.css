@@ -11,11 +11,6 @@
 .settings-drawer {
   --shell-paper: light-dark(oklch(0.985 0.004 85), oklch(0.205 0 0));
 }
-@media (min-width: 768px) {
-  .settings-drawer {
-    background: light-dark(oklch(0.95 0.007 85), oklch(0.145 0 0));
-  }
-}
 .assistant-frame {
   border-radius: 22px;
   background: color-mix(in oklab, var(--shell-paper) 94%, transparent);
@@ -56,6 +51,7 @@
 }
 .settings-drawer .settings-assistant {
   --shell-muted: light-dark(oklch(0.5 0.015 85), oklch(0.708 0 0));
+  overflow: clip;
 }
 :is(.canvas-assistant, .settings-assistant) .assistant-heading {
   height: 52px;
@@ -129,9 +125,13 @@
 }
 :is(.canvas-assistant, .settings-assistant) .assistant-events:has(> .assistant-history-content) {
   padding: 0;
-  scrollbar-gutter: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--shell-ink) 14%, transparent) transparent;
+  overscroll-behavior-y: contain;
 }
 :is(.canvas-assistant, .settings-assistant) .assistant-history-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -412,6 +412,71 @@
   padding: 2px;
   border-radius: 10px;
   background: color-mix(in oklab, var(--menu-text) 5%, transparent);
+}
+.assistant-model-menu.assistant-attach-menu {
+  width: min(250px, calc(100vw - 24px));
+  padding: 6px;
+  gap: 2px;
+  overscroll-behavior: contain;
+}
+.assistant-attach-menu .attach-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+.attach-action svg {
+  flex: none;
+  margin-top: 2px;
+}
+.assistant-attach-menu small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.375;
+  color: var(--menu-muted);
+}
+.assistant-attach-menu .attach-action:enabled:hover,
+.assistant-attach-menu summary:hover {
+  background: var(--menu-hover);
+}
+.assistant-attach-menu .attach-action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.attach-more {
+  border-top: 1px solid var(--menu-line);
+  font-size: 12px;
+}
+.attach-more summary {
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--menu-muted);
+  cursor: pointer;
+}
+.attach-more > div {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  --assistant-text: var(--menu-text);
+  --muted: var(--menu-muted);
+}
+.attach-more input[type="url"],
+.attach-more > div > button {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--menu-line);
+  border-radius: 6px;
+  background: var(--menu-hover);
+  color: inherit;
+  font: inherit;
+}
+.attach-more pre {
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .assistant-model-menu .assistant-model-kinds button {
   position: relative;
@@ -965,7 +1030,22 @@ body:has(.settings-assistant .composer-model-choice[data-popup-open]) .agent-mod
 :is(.canvas-assistant, .settings-assistant) .assistant-tool-row {
   line-height: 16px;
 }
-.agent-question-record > div {
+.assistant-tool-group svg:first-child {
+  stroke-width: 1.75;
+}
+.assistant-tool-group > button > svg:last-child {
+  opacity: 0.7;
+}
+.assistant-tool-group > button small {
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .assistant-tool-group[data-running="true"] > button > svg:first-child {
+    animation: assistant-tool-spin 1s linear infinite;
+  }
+}
+.agent-question-record-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1144,6 +1224,7 @@ body:has(.settings-assistant .composer-model-choice[data-popup-open]) .agent-mod
 .agent-ask-form .agent-ask-options button {
   display: flex;
   align-items: flex-start;
+  justify-content: flex-start;
   gap: 10px;
   min-height: 36px;
   padding: 8px 10px;

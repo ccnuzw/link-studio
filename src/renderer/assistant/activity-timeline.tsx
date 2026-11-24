@@ -73,16 +73,17 @@ function ActivityGroup({ group, locate }: { group: ActivityGroupModel; locate?: 
       : (group.summary ?? fallback);
   const failures = tools.filter((tool) => tool.failed).length;
   return (
-    <section className="assistant-tool-group">
+    <section className="assistant-tool-group" data-running={group.running}>
       <button
         type="button"
         aria-label={label}
+        title={group.running ? undefined : label}
         aria-expanded={open}
         onClick={() => setManual(!open)}
       >
         <HeadIcon size={14} aria-hidden />
         <span>{label}</span>
-        {failures > 0 && <small>· {failures} 项失败</small>}
+        {!group.running && failures > 0 && <small>· {failures} 项失败</small>}
         {!group.running && summary.seconds !== null && (
           <small>{formatSeconds(summary.seconds)}</small>
         )}

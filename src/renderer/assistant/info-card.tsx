@@ -41,7 +41,7 @@ export function InfoCard({ raw, resolveJump }: { raw: unknown; resolveJump?: Car
     const jump = ref && resolveJump?.(ref);
     return jump ? (
       <button type="button" className="card-reference" onClick={jump}>
-        {text}
+        <span>{text}</span>
         <ArrowUpRight aria-hidden size={12} />
       </button>
     ) : (

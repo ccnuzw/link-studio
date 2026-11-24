@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
-import { confirmDramaScript, projectAction } from "./workspace-actions";
+import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 for (const scope of ["设置", "画布", "短剧"] as const)
   test(`${scope}小灵：重启打开长会话，加载失败可重试，翻页保留阅读位置并独立追更`, async () => {
@@ -87,14 +87,13 @@ for (const scope of ["设置", "画布", "短剧"] as const)
             });
       const open = async (reopen = false) => {
         if (scope === "设置") {
-          await page.getByRole("button", { name: "模型设置" }).click();
+          await page.getByRole("button", { name: "应用设置" }).click();
           await page.getByRole("button", { name: "设置助手" }).click();
           return;
         }
         if (reopen) await page.getByRole("button", { name: /^翻页验收项目/ }).click();
         else {
-          await page.getByRole("textbox", { name: "新项目名称" }).fill("翻页验收项目");
-          await page.getByRole("button", { name: "新建项目" }).click();
+          await createCanvasProject(page, "翻页验收项目");
         }
         const action = async (name: string) => {
           await projectAction(page, name);

@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { confirmDramaScript, projectAction } from "./workspace-actions";
+import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 function gate() {
   let resolve!: () => void;
@@ -159,14 +159,13 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         };
         const open = async (reopen = false) => {
           if (scope === "设置") {
-            await page.getByRole("button", { name: "模型设置" }).click();
+            await page.getByRole("button", { name: "应用设置" }).click();
             await page.getByRole("button", { name: "设置助手" }).click();
             return;
           }
           if (reopen) await page.getByRole("button", { name: /^自动整理验收项目/ }).click();
           else {
-            await page.getByRole("textbox", { name: "新项目名称" }).fill("自动整理验收项目");
-            await page.getByRole("button", { name: "新建项目" }).click();
+            await createCanvasProject(page, "自动整理验收项目");
           }
           if (scope === "画布") {
             await page.getByRole("button", { name: "打开小灵", exact: true }).click();

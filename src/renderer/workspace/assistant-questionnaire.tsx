@@ -76,7 +76,11 @@ export function QuestionRecord({
   return (
     <section className="agent-question-record" aria-label="小灵提问记录">
       {keyedItems(entries, (entry) => entry.label).map(({ item: { label, answer }, key }) => (
-        <section key={key} aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}>
+        <section
+          key={key}
+          className="agent-question-record-row"
+          aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}
+        >
           <CornerDownRight size={14} aria-hidden />
           {label && <span title={label}>{label}</span>}
           <strong
