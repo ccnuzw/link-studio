@@ -454,7 +454,7 @@ test("短剧：五百万码点 DOCX 建剧，仅规划首章，关闭重开后�
     }, `http://127.0.0.1:${address.port}`);
     await createCanvasProject(page, "五百万字项目");
     await projectAction(page, "短剧工作室");
-    const upload = page.getByLabel("剧本文件"),
+    const upload = page.locator('input[type="file"][aria-label="剧本文件"]'),
       start = page.getByRole("button", { name: "开始", exact: true });
     for (const extra of ["尾", ""]) {
       const paragraphs = (text + extra)
@@ -1863,7 +1863,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await page.keyboard.press("Escape");
     await expect(start).toBeFocused();
     await page.getByRole("button", { name: "上传剧本 / 小说" }).click();
-    const upload = page.getByLabel("剧本文件");
+    const upload = page.locator('input[type="file"][aria-label="剧本文件"]');
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser"),
       page.getByRole("button", { name: "选择文件" }).click(),

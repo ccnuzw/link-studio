@@ -801,7 +801,7 @@ for (const [followMode, title] of [
       const imageNode = page
         .locator(".react-flow__node")
         .filter({ has: page.locator("header strong").filter({ hasText: /^图片$/ }) });
-      await page.mouse.click(420, 210);
+      await page.locator(".react-flow__pane").click({ position: { x: 24, y: 24 } });
       await expect(page.getByRole("region", { name: "生成确认" })).toBeHidden();
       await imageNode.locator(".node-media").click({ position: { x: 30, y: 30 } });
       await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
