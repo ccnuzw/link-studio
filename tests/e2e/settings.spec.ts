@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { _electron as electron, expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { addDramaSegment, dramaDocument } from "../../src/main/project/drama";
@@ -17,6 +17,7 @@ import {
   expectDraft,
   expectReadableModelHover,
 } from "./assistant-theme";
+import { compactViewport, desktopElectron as electron } from "./desktop-window";
 import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 async function seedLegacyClips(root: string, clips: Array<[number, string]>) {
@@ -3995,9 +3996,7 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
     });
     try {
       const page = await app.firstWindow();
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]?.setSize(1024, 700),
-      );
+      await page.setViewportSize(compactViewport);
       const profile = await seedAssistantModel(page, {
         endpoint: `http://127.0.0.1:${address.port}`,
         label: "Responses 模型",

@@ -4,7 +4,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { _electron as electron, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { desktopElectron as electron } from "./desktop-window";
 import { createCanvasProject, projectAction } from "./workspace-actions";
 
 test("生成三份时满队列就地提示，释放两个名额后提示一份未提交", async () => {

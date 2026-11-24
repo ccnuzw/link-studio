@@ -6,14 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { crc32 } from "node:zlib";
-import {
-  type ElectronApplication,
-  _electron as electron,
-  expect,
-  type Locator,
-  type Page,
-  test,
-} from "@playwright/test";
+import { type ElectronApplication, expect, type Locator, type Page, test } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
 import { defaultDirectorScene } from "../../packages/link-studio-core/src/director";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
@@ -22,6 +15,7 @@ import { projectCanvas } from "../../src/main/project/canvas";
 import { contentHash } from "../../src/main/project/encoding";
 import { orientedJpeg } from "../fixtures/jpeg-orientation";
 import { chooseAssistantModel, expectDraft } from "./assistant-theme";
+import { compactViewport, desktopElectron as electron } from "./desktop-window";
 import { annotateWithComposition } from "./doodle-composition";
 import {
   addCanvasNode,
@@ -675,21 +669,25 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     const nodeId = (await page.locator(".react-flow__node.selected").getAttribute("data-id"))!;
     await expect(page.getByRole("toolbar", { name: /的功能区$/ })).toHaveCount(0);
-    const placement = await page
-      .locator(".react-flow__node.selected .creative-card")
-      .evaluate((card) => {
-        const bounds = card.getBoundingClientRect();
-        return [
-          bounds.x + bounds.width / 2 - innerWidth / 2,
-          bounds.y + bounds.height / 2 - innerHeight * 0.4,
-        ];
-      });
-    for (const delta of placement) expect(Math.abs(delta)).toBeLessThan(1);
     const modes = page.getByRole("tablist", { name: "生成方式" });
     await expect(modes.getByRole("tab", { name: "文生视频" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
+    const placement = await page
+      .locator(".react-flow__node.selected .creative-card")
+      .evaluate((card) => {
+        const bounds = card.getBoundingClientRect();
+        const projectBar = document.querySelector(".canvas-project-zone")!.getBoundingClientRect();
+        return {
+          horizontalOffset: bounds.x + bounds.width / 2 - innerWidth / 2,
+          verticalOffset: bounds.y + bounds.height / 2 - innerHeight * 0.4,
+          projectBarClearance: bounds.top - projectBar.bottom,
+        };
+      });
+    expect(Math.abs(placement.horizontalOffset)).toBeLessThan(1);
+    expect(Math.abs(placement.verticalOffset)).toBeLessThan(1);
+    expect(placement.projectBarClearance).toBeGreaterThan(0);
     await expect(modes.getByRole("tab", { name: "图生视频" })).toHaveAttribute(
       "title",
       "需要连接图片节点",
@@ -3726,6 +3724,7 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
   try {
     await writeFile(image, await readFile(join(process.cwd(), "resources/icons/icon-32.png")));
     const page = await app.firstWindow();
+    await page.setViewportSize(compactViewport);
     await createCanvasProject(page);
     await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
@@ -5366,8 +5365,7 @@ test("角色形象封面显示生成状态，重开后从失败卡面直接重�
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Missing fixture endpoint");
     let page = await application.firstWindow();
-    const windowHandle = await application.browserWindow(page);
-    await windowHandle.evaluate((browserWindow) => browserWindow.setSize(1024, 700));
+    await page.setViewportSize(compactViewport);
     await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
@@ -8043,6 +8041,7 @@ test("视频节点提帧并保留派生图片和来源连线", async () => {
     await page.getByRole("button", { name: "截取帧", exact: true }).click();
     await page.getByRole("menuitem", { name: "自定义" }).click();
     await expect(extract).toBeDisabled();
+    await expect(time).toBeEnabled();
     await time.press("Shift+ArrowRight");
     await expect(time).toHaveAttribute("aria-valuenow", "1");
     await capture.click();

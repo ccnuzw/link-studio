@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { _electron as electron, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
@@ -19,6 +19,7 @@ import {
   expectDraft,
   expectReadableModelHover,
 } from "./assistant-theme";
+import { compactViewport, desktopElectron as electron } from "./desktop-window";
 import {
   chooseCanvasZoom,
   clickBlankCanvas,
@@ -133,15 +134,8 @@ test("旧工程结果未知：任务中心区分缺少原绑定和仍可查询�
     const center = page.getByRole("region", { name: "生成任务中心" });
     const blocked = center.getByRole("article").filter({ hasText: "绑定缺失" });
     const available = center.getByRole("article").filter({ hasText: "绑定可用" });
-    const window = await app.browserWindow(page);
-    for (const [width, height] of [
-      [1280, 800],
-      [1024, 700],
-    ] as const) {
-      await window.evaluate((win, [width, height]) => win.setContentSize(width, height), [
-        width,
-        height,
-      ] as const);
+    for (const viewport of [{ width: 1280, height: 800 }, compactViewport]) {
+      await page.setViewportSize(viewport);
       await expect(blocked.getByText(/请到原供应商核对结果/)).toBeVisible();
       await expect(blocked.getByRole("button", { name: "查询原任务" })).toHaveCount(0);
       await expect(blocked).toContainText("结果未知");
@@ -796,6 +790,7 @@ for (const [followMode, title] of [
         if (!saved.ok) throw new Error(saved.code);
         return saved.value;
       }, endpoint);
+      if (followMode === "follow") await page.setViewportSize(compactViewport);
       await createCanvasProject(page, "生成闭环验收");
       await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
       const imageNode = page

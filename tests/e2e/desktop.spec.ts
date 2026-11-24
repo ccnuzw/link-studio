@@ -11,8 +11,9 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { _electron as electron, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
+import { desktopElectron as electron } from "./desktop-window";
 import {
   addCanvasNode,
   chooseCanvasZoom,
