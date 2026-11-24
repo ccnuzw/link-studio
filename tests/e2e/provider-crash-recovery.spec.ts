@@ -145,7 +145,7 @@ for (const flow of ["模型试跑", "工程任务"] as const) {
       } else {
         await page.getByRole("button", { name: /^原回执验收/ }).click();
         await finishQuery();
-        const image = page.locator(".react-flow__node .node-media img");
+        const image = page.locator('.react-flow__node .node-media img[src^="link-media:"]');
         await expect(image).toHaveCount(1);
         await expect
           .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
