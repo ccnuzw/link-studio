@@ -24,6 +24,8 @@
 
 单击图片或视频节点可打开生成面板，选择已启用的模型、调整模型支持的参数并应用预设。风格、模板、运镜及封面来自 `video-canvas` 提交 `ccffac4e2f628c2b3a3655cafeffd4b38524ab22` 的 `web/src/constants/presets.ts` 与 `web/public/presets`。上游许可见 [UPSTREAM-LICENSE](resources/provider-plugins/UPSTREAM-LICENSE)。
 
+试跑默认在本机准备附件，可内联的文件合计上限为 10 MB。需要使用更大的附件或只接受 URL 的适配器时，可在启动桌面前将 `LINK_STUDIO_TRIAL_ASSET_ENDPOINT` 设为自己的素材服务完整上传地址（如 `https://assets.your-domain.com/api/assets`），服务需要鉴权时另设 `LINK_STUDIO_TRIAL_ASSET_TOKEN`。配置后，在模型预览或测试中选择「上传」会向该服务发送 multipart 表单字段 `file`。服务返回公开 HTTPS `url` 后，请求预览与正式测试复用这个地址。各类素材仍遵循模型配置的数量和单文件上限。
+
 将图片节点连到生成节点时，面板会列出符合当前模型要求的参考素材；只有点击「确认生成」才会发送。视频节点可切回「文生视频」不发送参考图，或断开连线移除引用。超过模型上限时，手动添加的素材优先。
 
 技术栈为 Electron + React + TypeScript、typed IPC；小灵保留原 Pi Durable engine/store，以独立 Worker、SQLite 和 QuickJS 运行，后续接入真实业务服务。版本和验证范围见实施基线。
