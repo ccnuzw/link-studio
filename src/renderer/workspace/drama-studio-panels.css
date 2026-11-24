@@ -98,6 +98,10 @@
   color: var(--rail-ink);
   background: var(--rail-muted);
 }
+.studio-panel-preview > .drama-take-carousel {
+  width: 100%;
+  min-width: 0;
+}
 .studio-panel-preview .drama-board-stage:not([hidden]) {
   width: 100%;
   flex: 1;

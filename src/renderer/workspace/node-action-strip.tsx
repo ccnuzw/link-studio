@@ -23,12 +23,10 @@ export type StripKind = "script" | "storyboard" | "image" | "video" | "audio";
 export function NodeActionAnchor({
   id,
   moving,
-  offsetExtra = 0,
   children,
 }: {
   id: string;
   moving: boolean;
-  offsetExtra?: number;
   children: ReactNode;
 }) {
   const zoom = useStore((state) => state.transform[2]);
@@ -38,7 +36,7 @@ export function NodeActionAnchor({
       nodeId={id}
       position={Position.Top}
       align="center"
-      offset={28 * zoom + 16 + offsetExtra}
+      offset={28 * zoom + 16}
     >
       <motion.div
         initial={{ opacity: 0, y: 6 }}

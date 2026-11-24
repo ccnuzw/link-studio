@@ -979,7 +979,6 @@ export function App() {
   const [canvasHost] = useState(() => document.createElement("div"));
   const normalCanvasSlot = useRef<HTMLDivElement>(null);
   const [dramaCanvasSlot, setDramaCanvasSlot] = useState<HTMLDivElement | null>(null);
-  const [dramaNodeToolbar, setDramaNodeToolbar] = useState<HTMLDivElement | null>(null);
   const [withDramaAssistant, setWithDramaAssistant] = useState(false);
   const settingsPage = (renderFilingPicker?: RenderFilingPicker) =>
     showSettings && (
@@ -1181,6 +1180,7 @@ export function App() {
     [nodes, jobs, runningEdgeTargets],
   );
   const [generationNodeId, setGenerationNodeId] = useState<string>();
+  const [placedGenerationId, setPlacedGenerationId] = useState<string>();
   const [versionNodeId, setVersionNodeId] = useState<string>();
   const mediaForm = useRef<HTMLFormElement>(null);
   const [mountedDraft, setMountedDraft] = useState<{ id: string; reason?: string }>();
@@ -3785,6 +3785,7 @@ export function App() {
     kind: NodeKind | "character" | "storyboard" | "director",
     position = defaultPlacement(),
     dramaScope?: DramaScope,
+    placed = false,
   ) => {
     if (!persistence.loaded || writing || nodes.length >= 1000) return;
     const id = crypto.randomUUID();
@@ -3825,7 +3826,10 @@ export function App() {
         { id, type: "creative", position, selected: true, data },
       ];
     });
-    if (kind === "character" || isGenerationMedia(kind)) setGenerationNodeId(id);
+    if (kind === "character" || isGenerationMedia(kind)) {
+      setPlacedGenerationId(placed ? id : undefined);
+      setGenerationNodeId(id);
+    }
     return id;
   };
 
@@ -3838,6 +3842,8 @@ export function App() {
     const id = addNode(
       kind,
       fan ? canvasAnchorPosition(position, 0, 0.5) : droppedPosition({ position, pending }),
+      undefined,
+      !addMenu.toolbar,
     );
     if (id && fan) {
       const nextMode = sources.reduce<CreativeData["videoMode"]>((mode, source) => {
@@ -4557,6 +4563,7 @@ export function App() {
     setSidePanel(sidePanel === panel ? null : panel);
   };
   const revealGeneration = (id: string, visual = false) => {
+    setPlacedGenerationId(undefined);
     setGenerationNodeId(id);
     if (sidePanel === "jobs") setSidePanel(null);
     const bounds = canvasArea.current?.getBoundingClientRect();
@@ -5199,7 +5206,6 @@ export function App() {
                   }
                 : undefined,
             selected: inspected?.id,
-            toolbar: dramaNodeToolbar,
             mount: setDramaCanvasSlot,
             focus: focusCanvasNode,
             save: async () => {
@@ -6413,18 +6419,6 @@ export function App() {
                                       />
                                     </NodeActionAnchor>
                                   )}
-                                {dramaCanvasSlot &&
-                                  inspected?.type === "creative" &&
-                                  !inspected.data.director &&
-                                  !(inspected.data.drama && "board" in inspected.data.drama) && (
-                                    <NodeActionAnchor
-                                      id={inspected.id}
-                                      moving={dragging}
-                                      offsetExtra={48}
-                                    >
-                                      <div ref={setDramaNodeToolbar} />
-                                    </NodeActionAnchor>
-                                  )}
                                 {stripKind &&
                                   inlineGeneration &&
                                   generationForm &&
@@ -6575,7 +6569,11 @@ export function App() {
                                   !doodling &&
                                   !framing &&
                                   !splitting && (
-                                    <MediaPanelAnchor id={visualNode.id} hidden={hand || dragging}>
+                                    <MediaPanelAnchor
+                                      id={visualNode.id}
+                                      hidden={hand || dragging}
+                                      reveal={placedGenerationId !== visualNode.id}
+                                    >
                                       {renderMediaForm(visualNode)}
                                     </MediaPanelAnchor>
                                   )}

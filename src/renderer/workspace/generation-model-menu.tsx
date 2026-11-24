@@ -91,7 +91,7 @@ export function GenerationModelMenu({
           sideOffset={8}
           positionMethod="fixed"
           collisionBoundary={document.documentElement}
-          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         >
           <Menu.Popup
             className="reference-menu generation-model-menu nodrag nopan nowheel"
@@ -115,7 +115,7 @@ export function GenerationModelMenu({
                     <ModelAvatar name={name(provider)} logo={vendor(provider)} seed={provider.id} />
                     <span className="generation-model-copy">
                       <span>
-                        {name(provider)}
+                        <span>{name(provider)}</span>
                         {provider.config?.tags?.map((tag) => (
                           <small key={tag}>{tag}</small>
                         ))}

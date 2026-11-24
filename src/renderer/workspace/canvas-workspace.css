@@ -816,6 +816,8 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
   font: inherit;
 }
 .canvas-card-heading .canvas-card-rename {
+  cursor: text;
+  pointer-events: auto;
   max-width: 100%;
   padding: 0;
   border: 0;
@@ -1356,10 +1358,6 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
     --group-muted: oklch(0.708 0 0);
     --group-border: oklch(1 0 0 / 0.08);
   }
-}
-.canvas-workspace strong[title="双击重命名"] {
-  cursor: text;
-  pointer-events: auto;
 }
 .canvas-workspace .group-resize-corner.handle {
   width: 10px;

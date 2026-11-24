@@ -1370,7 +1370,9 @@ export function DramaStudio({
                       container={dialog}
                       script={sourceKind === "script"}
                     />
-                    {currentPreview?.error && <p role="alert">{currentPreview.error}</p>}
+                    {!modelBlocked && currentPreview?.error && (
+                      <p role="alert">{currentPreview.error}</p>
+                    )}
                     {sourceProblem && <p role="alert">{sourceProblem}</p>}
                     {error && <p role="alert">{settingsError(error)}</p>}
                     <footer>

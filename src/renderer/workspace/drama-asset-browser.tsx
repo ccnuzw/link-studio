@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useLocalPreviewResult } from "./character-card-body";
 import { characterShowsGenerator } from "./character-pick";
 import { useAssetMarquee } from "./drama-asset-marquee";
@@ -69,7 +68,6 @@ export type DramaAssetEditor = {
   canvasRevision?: number;
   ready: boolean;
   selected?: string;
-  toolbar: HTMLDivElement | null;
   jobs: ReadonlyMap<string, GenerationJob[]>;
   progress: ReadonlyMap<string, number | "interrupted">;
   activeImport?: { id: string; percent: number };
@@ -736,18 +734,6 @@ export function StageAssets({
           )}
         </div>
       )}
-      {view === "canvas" &&
-        editor.toolbar &&
-        selected &&
-        createPortal(
-          <DramaNodeEpisodes
-            key={selected.node.id}
-            node={selected.node}
-            episodes={doc.episodes}
-            change={(patch) => editor.classify(selected.node.id, patch)}
-          />,
-          editor.toolbar,
-        )}
       <div className="drama-asset-bar">
         <DramaAssetViewToggle
           view={view}
@@ -759,6 +745,14 @@ export function StageAssets({
             if (next === "list") editor.clearSelection();
           }}
         />
+        {view === "canvas" && selected && (
+          <DramaNodeEpisodes
+            key={selected.node.id}
+            node={selected.node}
+            episodes={doc.episodes}
+            change={(patch) => editor.classify(selected.node.id, patch)}
+          />
+        )}
         <span className="drama-asset-bar-spacer" />
         {!!missing.length && !analyzing && (
           <button

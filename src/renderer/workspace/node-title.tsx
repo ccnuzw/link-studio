@@ -101,12 +101,13 @@ export function CardHeading({
         <strong>
           <button
             type="button"
-            className="canvas-card-rename nodrag nopan"
+            className="canvas-card-rename nopan"
             aria-label={`重命名节点：${label}`}
             title="双击重命名"
             onClick={(event) => {
+              if (event.detail !== 0) return;
               event.stopPropagation();
-              if (event.detail === 0) setDraft(label);
+              setDraft(label);
             }}
             onDoubleClick={(event) => {
               event.stopPropagation();
