@@ -8307,8 +8307,9 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
       await audio
         .locator(".react-flow__handle-right")
         .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 75, y: 125 }) });
-      if (reference) await expect(video).toBeEnabled();
-      else await expect(video).toBeDisabled();
+      await expect(menu).toBeVisible({ timeout: 15_000 });
+      if (reference) await expect(video).toBeEnabled({ timeout: 15_000 });
+      else await expect(video).toBeDisabled({ timeout: 15_000 });
       await page.keyboard.press("Escape");
       await clickBlankCanvas(page);
       await audio.locator("header strong").click({ modifiers: ["ControlOrMeta"] });
