@@ -1,9 +1,59 @@
-import { imageDisplaySize, type ProjectAsset } from "@link-studio/core";
+import { type CreativeData, imageDisplaySize, type ProjectAsset } from "@link-studio/core";
 import { imageFrameSize } from "./grid-placement";
 import { assetNodeLabel, availableNodeLabel } from "./node-label";
 
 const mediaLabels = { image: "图片", video: "视频", audio: "音频" };
 export const assetPickLimit = 20;
+
+export function replaceImageAsset(
+  data: CreativeData,
+  asset: ProjectAsset,
+  createdAt: string,
+): CreativeData {
+  if (
+    data.kind !== "image" ||
+    data.character ||
+    !data.assetId ||
+    asset.mediaType !== "image" ||
+    asset.availability !== "ready" ||
+    data.assetId === asset.assetId
+  )
+    return data;
+  const versions = [...(data.outputs ?? [])];
+  const previous = versions.find(
+    (entry) => entry.id === data.activeOutputId && entry.assetId === data.assetId,
+  ) ??
+    versions.findLast((entry) => entry.assetId === data.assetId) ?? {
+      id: data.assetId,
+      assetId: data.assetId,
+      kind: "image" as const,
+      createdAt: "",
+    };
+  if (!versions.includes(previous)) versions.push(previous);
+  const next = versions.findLast((entry) => entry.assetId === asset.assetId) ?? {
+    id: asset.assetId,
+    assetId: asset.assetId,
+    kind: "image" as const,
+    createdAt,
+  };
+  if (!versions.includes(next)) versions.push(next);
+  if (versions.length > 50) {
+    const keep = new Set([
+      previous,
+      next,
+      ...versions.filter((entry) => entry !== previous && entry !== next).slice(-48),
+    ]);
+    versions.splice(0, versions.length, ...versions.filter((entry) => keep.has(entry)));
+  }
+  const { width, height } = imageDisplaySize(asset.metadata);
+  return {
+    ...data,
+    outputs: versions,
+    activeOutputId: next.id,
+    assetId: asset.assetId,
+    ...(width > 0 && height > 0 && { mediaAspect: width / height }),
+  };
+}
 
 export function pickAsset<Item extends { assetId: string }>(
   selected: Item[],

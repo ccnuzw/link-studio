@@ -1,7 +1,7 @@
 import type { ProjectValues } from "@link-studio/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function usePersonalLibrary(handle: string, enabled = true, filingChannelId?: string) {
+export function usePersonalLibrary(handle?: string, enabled = true, filingChannelId?: string) {
   const [snapshot, setSnapshot] = useState<ProjectValues["listLibrary"]>({
     items: [],
     folders: [],
@@ -19,11 +19,14 @@ export function usePersonalLibrary(handle: string, enabled = true, filingChannel
     let removedSourceIds: string[] | undefined;
     try {
       do {
-        const result = await window.desktop.projects.listLibrary({
-          projectHandle: handle,
-          ...(before && { before }),
-          ...(filingChannelId && { filingChannelId }),
-        });
+        const result =
+          handle === undefined
+            ? await window.desktop.projects.globalLibrary(before ? { before } : {})
+            : await window.desktop.projects.listLibrary({
+                projectHandle: handle,
+                ...(before && { before }),
+                ...(filingChannelId && { filingChannelId }),
+              });
         if (generation.current !== current) return;
         if (!result.ok) throw new Error();
         if (!before) {

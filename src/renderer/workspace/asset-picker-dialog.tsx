@@ -16,6 +16,7 @@ import { assetPickLimit, pickAsset } from "./asset-node-batch";
 import { AssetUploadCard } from "./asset-upload-card";
 import { BackdropDialog } from "./backdrop-dialog";
 import { useThumbURL } from "./canvas-prompt-editor";
+import { CanvasVoices, type VoiceChoice } from "./canvas-voices";
 import { type CharacterPick, characterPickReason, characterPickTitles } from "./character-pick";
 import { FilingCover } from "./human-picker";
 import { LocalVideoPoster } from "./local-video-poster";
@@ -113,6 +114,8 @@ export function AssetPickerDialog({
   capacity,
   lockedKind,
   character,
+  attachOfficialVoice,
+  voicesFirst,
   attachFiled,
   attachLibrary,
   upload,
@@ -132,6 +135,8 @@ export function AssetPickerDialog({
   capacity: number;
   lockedKind?: ProjectAsset["mediaType"];
   character?: CharacterPick;
+  attachOfficialVoice?: (file: string) => Promise<ProjectAsset>;
+  voicesFirst?: boolean;
   attachFiled?: (file: FiledChoice["filed"]) => Promise<ProjectAsset>;
   attachLibrary?: (itemId: string) => Promise<ProjectAsset>;
   upload: PickerUpload;
@@ -145,7 +150,9 @@ export function AssetPickerDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const [source, setSource] = useState<"library" | "history" | "humans">("library");
+  const [source, setSource] = useState<"library" | "history" | "humans" | "voices">(
+    voicesFirst ? "voices" : "library",
+  );
   const [kind, setKind] = useState<ProjectAsset["mediaType"]>(lockedKind ?? "image");
   const limit =
     character?.purpose === "extra"
@@ -162,10 +169,12 @@ export function AssetPickerDialog({
   }, [query]);
   const [range, setRange] = useState("0");
   const [filter, setFilter] = useState("all");
-  const [selected, renderSelection] = useState<(ProjectAsset | FiledChoice)[]>([]);
+  const [selected, renderSelection] = useState<(ProjectAsset | FiledChoice | VoiceChoice)[]>([]);
   const selection = useRef(selected);
   function setSelected(
-    change: (current: (ProjectAsset | FiledChoice)[]) => (ProjectAsset | FiledChoice)[],
+    change: (
+      current: (ProjectAsset | FiledChoice | VoiceChoice)[],
+    ) => (ProjectAsset | FiledChoice | VoiceChoice)[],
   ) {
     selection.current = change(selection.current);
     renderSelection(selection.current);
@@ -232,7 +241,14 @@ export function AssetPickerDialog({
   const live = useRef(false);
   const library = source === "library";
   const humans = source === "humans";
-  const title = library ? "搜索文件名" : humans ? "搜索真人名称" : "搜索提示词";
+  const title =
+    source === "voices"
+      ? "搜索音色"
+      : library
+        ? "搜索文件名"
+        : humans
+          ? "搜索真人名称"
+          : "搜索提示词";
   const keyword = search.trim().toLocaleLowerCase();
   const pending = library && !keyword ? tasks.filter((task) => task.folderId === folderId) : [];
   const shownFolders = library && !keyword && !folderId ? folders : [];
@@ -315,8 +331,9 @@ export function AssetPickerDialog({
     };
   }, [uploads]);
   const remoteChoices = useRef(new WeakSet<ProjectAsset>());
-  const toggle = (asset: ProjectAsset | FiledChoice) => {
-    if (!("filed" in asset) && remoteItems.has(asset.assetId)) remoteChoices.current.add(asset);
+  const toggle = (asset: ProjectAsset | FiledChoice | VoiceChoice) => {
+    if (!("filed" in asset) && !("official" in asset) && remoteItems.has(asset.assetId))
+      remoteChoices.current.add(asset);
     setSelected((current) => pickAsset(current, asset, false, limit));
   };
   const full = limit !== 1 && selected.length >= limit;
@@ -345,7 +362,14 @@ export function AssetPickerDialog({
       <header inert={resolving}>
         <div className="asset-pick-line">
           <div role="tablist" aria-label="资产来源" className="asset-pick-tabs">
-            {(["library", "history", "humans"] as const)
+            {(["library", "history", "humans", "voices"] as const)
+              .filter(
+                (value) =>
+                  value !== "voices" ||
+                  (attachOfficialVoice &&
+                    (!lockedKind || lockedKind === "audio") &&
+                    (!character || character.purpose === "voice")),
+              )
               .filter((value) => value !== "humans" || (character && character.purpose !== "voice"))
               .map((value) => (
                 <motion.button
@@ -370,9 +394,11 @@ export function AssetPickerDialog({
                   <span>
                     {value === "library"
                       ? "个人资产库"
-                      : value === "humans"
-                        ? "真人库"
-                        : "生成历史"}
+                      : value === "voices"
+                        ? "官方音色库"
+                        : value === "humans"
+                          ? "真人库"
+                          : "生成历史"}
                   </span>
                 </motion.button>
               ))}
@@ -403,7 +429,7 @@ export function AssetPickerDialog({
                 <Upload size={16} />
                 上传
               </button>
-            ) : humans ? null : (
+            ) : humans || source === "voices" ? null : (
               <>
                 <PickerFilter
                   label="时间"
@@ -507,7 +533,9 @@ export function AssetPickerDialog({
             </b>
           </nav>
         )}
-        {humans ? (
+        {source === "voices" ? (
+          <CanvasVoices query={search} selected={selected} full={full} toggle={toggle} />
+        ) : humans ? (
           <AssetHumanPane
             query={search}
             assets={assets}
@@ -695,7 +723,9 @@ export function AssetPickerDialog({
                     title={asset.displayName}
                     onClick={() => toggle(asset)}
                   >
-                    {"filed" in asset ? (
+                    {"official" in asset ? (
+                      "♫"
+                    ) : "filed" in asset ? (
                       <FilingCover channel={asset.filed.channel} imageId={asset.filed.image.id} />
                     ) : (
                       <Cover
@@ -732,14 +762,16 @@ export function AssetPickerDialog({
                 for (const choice of selected) {
                   if (!live.current) return;
                   const asset =
-                    "filed" in choice
-                      ? await attachFiled?.(choice.filed)
-                      : remoteChoices.current.has(choice)
-                        ? await attachLibrary?.(choice.assetId)
-                        : assets.find(
-                            (item) =>
-                              item.assetId === choice.assetId && item.availability === "ready",
-                          );
+                    "official" in choice
+                      ? await attachOfficialVoice?.(choice.official)
+                      : "filed" in choice
+                        ? await attachFiled?.(choice.filed)
+                        : remoteChoices.current.has(choice)
+                          ? await attachLibrary?.(choice.assetId)
+                          : assets.find(
+                              (item) =>
+                                item.assetId === choice.assetId && item.availability === "ready",
+                            );
                   if (!asset || characterPickReason(character, asset.assetId)) throw new Error();
                   const reason = reasonOf?.(asset);
                   if (reason) {
@@ -747,7 +779,11 @@ export function AssetPickerDialog({
                     return;
                   }
                   if (!live.current) return;
-                  if ("filed" in choice || remoteChoices.current.has(choice))
+                  if (
+                    "official" in choice ||
+                    "filed" in choice ||
+                    remoteChoices.current.has(choice)
+                  )
                     setSelected((current) =>
                       current.map((item) => (item.assetId === choice.assetId ? asset : item)),
                     );

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, unlink } from "node:fs/promises";
+import { type FileHandle, mkdir, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Value } from "@sinclair/typebox/value";
@@ -292,12 +292,28 @@ export class PersonalLibrary {
     await requireDirectory(tempDir);
     const temporary = join(tempDir, `${randomUUID()}.upload`);
     const handle = await open(temporary, "wx+", 0o600);
-    let staged: StagedAsset | undefined;
     try {
       await handle.writeFile(bytes, { signal });
-      staged = await this.blobs.stage(this, handle, name, randomUUID(), { signal });
+      return await this.importFile(handle, name, folder, signal);
+    } finally {
+      await handle.close();
+      await unlink(temporary).catch(() => {});
+    }
+  }
+  async importFile(
+    handle: FileHandle,
+    name: string,
+    folder?: string,
+    signal?: AbortSignal,
+    onProgress?: (copied: number, total: number) => void,
+  ) {
+    const db = await this.index();
+    await mkdir(join(this.directory, "tmp"), { recursive: true, mode: 0o700 });
+    let staged: StagedAsset | undefined;
+    try {
+      staged = await this.blobs.stage(this, handle, name, randomUUID(), { signal, onProgress });
       await this.blobs.publishBlob(this, staged, signal);
-      signal.throwIfAborted();
+      signal?.throwIfAborted();
       const { asset } = staged;
       this.transaction(db, () => {
         if (folder) this.requireFolder(db, folder);
@@ -312,8 +328,6 @@ export class PersonalLibrary {
       });
       return asset;
     } finally {
-      await handle.close();
-      await unlink(temporary).catch(() => {});
       if (staged) await this.blobs.discard(staged);
     }
   }
@@ -388,10 +402,14 @@ export class PersonalLibrary {
     }
   }
   async register(store: ProjectStore, assetId: string, folderId?: string) {
-    const database = await this.index();
     const source = store.snapshot.assets[assetId];
     if (source?.availability !== "ready")
       throw new ProjectError("ASSET_NOT_FOUND", "项目素材不可用");
+    return this.registerSource(store, source, folderId);
+  }
+  async registerSource(store: MediaLocation, source: AssetRecord, folderId?: string) {
+    const database = await this.index();
+    const assetId = source.assetId;
     if (typeof source.metadata.libraryItemId === "string") {
       const existing = await this.get(source.metadata.libraryItemId);
       if (existing.sha256 === source.sha256) return this.restore(database, existing, folderId);

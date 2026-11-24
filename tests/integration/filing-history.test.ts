@@ -68,6 +68,25 @@ test.skipIf(process.platform !== "darwin")(
           input,
           outputs: ids.slice(0, 44).map((assetId) => ({ kind: "image", assetId })),
         };
+        for (const media of ["video", "audio"] as const) {
+          const assetId = randomUUID(),
+            mediaJob = randomUUID();
+          state.assets[assetId] = {
+            ...staged.asset,
+            assetId,
+            origin: "generated",
+            mediaType: media,
+            metadata: { jobId: mediaJob },
+          };
+          state.jobs[mediaJob] = {
+            id: mediaJob,
+            version: 1,
+            kind: media,
+            model: "模型",
+            input,
+            outputs: [{ kind: media, assetId }],
+          };
+        }
         return { changed: true, result: undefined };
       });
       const first = await history.page({}, "pOrTrAiT");
@@ -79,9 +98,27 @@ test.skipIf(process.platform !== "darwin")(
       const recent = await history.page({ days: 7 }, "");
       expect((await history.page({ days: 7 }, "", recent.next)).items).toHaveLength(2);
       const selected = first.items[0]!;
+      for (const media of ["audio", "video"] as const) {
+        const page = await history.page({}, "", undefined, media);
+        expect(page.items.map((item) => item.asset.mediaType)).toEqual([media]);
+        expect(await history.selection(page.items[0]!.asset.assetId)).toBeUndefined();
+      }
+      const ascending = await history.page({}, "", undefined, "image", true);
+      expect(ascending.items[0]?.origin.asset).toBe(ids[42]);
+      expect(
+        (await history.page({}, "", ascending.next, "image", true)).items.at(-1)?.origin.asset,
+      ).toBe(ids[0]);
       expect((await history.image(selected.asset.assetId)).bytes).toEqual(await readFile(file));
       expect((await library.filingPage()).assets).toHaveLength(0);
-      const registered = await library.register(store, ids[0]!);
+      const entry = (await history.lookup(selected.asset.assetId))!;
+      const registered = await library.registerSource(entry.canvas, {
+        ...entry.asset,
+        assetId: entry.origin.asset,
+      });
+      expect((await library.register(store, ids[0]!)).assetId).toBe(registered.assetId);
+      const attached = await library.attach(empty, registered.assetId, randomUUID());
+      expect(attached.asset.sha256).toBe(staged.asset.sha256);
+      expect(attached.asset.metadata.libraryItemId).toBe(registered.assetId);
       expect(await library.filingMembership(first.items)).toEqual(
         new Set([selected.asset.assetId]),
       );

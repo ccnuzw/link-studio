@@ -7,7 +7,7 @@ export function LibraryFolderForm({
   folder,
   close,
 }: {
-  handle: string;
+  handle?: string;
   folder?: { id: string; name: string };
   close: () => void;
 }) {
@@ -47,12 +47,12 @@ export function LibraryFolderForm({
           try {
             const result = folder
               ? await window.desktop.projects.renameLibraryFolder({
-                  projectHandle: handle,
+                  ...(handle && { projectHandle: handle }),
                   folderId: folder.id,
                   name: clean,
                 })
               : await window.desktop.projects.createLibraryFolder({
-                  projectHandle: handle,
+                  ...(handle && { projectHandle: handle }),
                   name: clean,
                 });
             if (result.ok) close();

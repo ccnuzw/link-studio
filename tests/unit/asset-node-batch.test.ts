@@ -1,7 +1,11 @@
 import type { ProjectAsset } from "@link-studio/core";
 import { expect, test } from "vitest";
 import { videoDisplayAspect } from "../../packages/media-runtime/src/probe";
-import { pickAsset, planAssetNodes } from "../../src/renderer/workspace/asset-node-batch";
+import {
+  pickAsset,
+  planAssetNodes,
+  replaceImageAsset,
+} from "../../src/renderer/workspace/asset-node-batch";
 import { mediaNodeFrame } from "../../src/renderer/workspace/media-node-model";
 
 function asset(
@@ -22,6 +26,46 @@ function asset(
     storage: { kind: "blob", hash: assetId },
   };
 }
+
+test("从库换主图保留生成配置和上传身份，历史满时不丢当前采用的旧图", () => {
+  const before = {
+    kind: "image" as const,
+    text: "继续生成",
+    label: "自定义名",
+    assetId: "old",
+    generation: { modelKey: "image" },
+  };
+  const picked = asset("new", "image", { width: 9, height: 16 });
+  for (const data of [before, { ...before, uploaded: true as const }]) {
+    const after = replaceImageAsset(data, picked, "now");
+    expect(after).toMatchObject({
+      ...data,
+      assetId: "new",
+      activeOutputId: "new",
+      mediaAspect: 9 / 16,
+    });
+    expect(after.uploaded).toBe("uploaded" in data ? true : undefined);
+    expect(after.outputs?.map((v) => v.assetId)).toEqual(["old", "new"]);
+    const restored = replaceImageAsset(after, asset("old", "image"), "later");
+    expect(restored.activeOutputId).toBe("old");
+    expect(restored.outputs).toEqual(after.outputs);
+    expect(replaceImageAsset(after, asset("audio", "audio"), "later")).toBe(after);
+  }
+  const outputs = Array.from({ length: 50 }, (_, index) => ({
+    id: `job-${index}`,
+    assetId: `asset-${index}`,
+    kind: "image" as const,
+    createdAt: "then",
+  }));
+  const full = replaceImageAsset(
+    { ...before, outputs, activeOutputId: "job-0", assetId: "asset-0" },
+    picked,
+    "now",
+  );
+  expect(full.outputs).toHaveLength(50);
+  expect(full.outputs).toContainEqual(outputs[0]);
+  expect(full.outputs?.at(-1)?.assetId).toBe("new");
+});
 
 test("混合素材按逐卡宽度和逐行最高卡排布，从已有标题中取空号", () => {
   const files = [

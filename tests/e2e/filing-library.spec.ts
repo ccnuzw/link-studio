@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { addCanvasNode, projectAction } from "./workspace-actions";
+import { addCanvasNode, createCanvasProject, projectAction } from "./workspace-actions";
 
-test("素材库选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
+test("项目文件选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-enroll-"));
   const image = join(directory, "林舟_正面.png");
   await copyFile(join(process.cwd(), "resources/icons/icon-32.png"), image);
@@ -97,7 +97,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       });
       process.getBuiltinModule("module").syncBuiltinESMExports();
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page.getByRole("button", { name: "配置图片对象存储" }).click();
     const storage = page.getByRole("dialog", { name: "图片对象存储" });
@@ -119,9 +119,12 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     const enroll = page.getByRole("dialog", { name: "加入真人库", exact: true });
     await page.getByRole("button", { name: "加入真人库", exact: true }).click();
@@ -134,8 +137,8 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     ).toBeVisible();
     await expect(page.getByText("真人 · 林舟", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "加入真人库", exact: true })).toHaveCount(0);
-    await projectAction(page, "素材库");
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
+    await projectAction(page, "项目文件");
     await expect(page.getByText("真人 · 林舟", { exact: true })).toBeVisible();
     const sent = await app.evaluate(() => Reflect.get(globalThis, "enrollRequests"));
     expect(sent).toMatchObject([
@@ -199,7 +202,10 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
     await projectAction(page, "关闭项目");
     const folderFixture = new DatabaseSync(join(directory, "personal-library", "items.sqlite"));
     try {
@@ -236,7 +242,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     } finally {
       folderFixture.close();
     }
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page.getByRole("button", { name: "查看详情" }).click();
     await detail.getByRole("button", { name: "添加图片" }).click();
@@ -617,9 +623,11 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("跨项目备案");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
+    await createCanvasProject(page, "跨项目备案");
     await projectAction(page, "模型设置");
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page
@@ -751,8 +759,7 @@ test("角色从真人库引入可用图片，保存后跨重启保护封面和�
     } finally {
       db.close();
     }
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("引入验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "引入验收");
     await addCanvasNode(page, "角色卡");
     await page.getByRole("button", { name: "编辑角色卡" }).click();
     const character = page.getByRole("dialog", { name: "角色卡详情", exact: true });
@@ -938,7 +945,7 @@ test("已有真人满五张后禁选，仍可选择其他真人或切回新建",
       ok: true,
       value: expect.arrayContaining([expect.objectContaining({ humanId: "full", cover: true })]),
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     const dialog = page.getByRole("dialog", { name: "虚拟人像库" });
     await expect(dialog.getByRole("button", { name: "加到已有真人" })).toBeVisible({
