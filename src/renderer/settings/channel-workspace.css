@@ -3561,7 +3561,7 @@
 }
 .trial-voice-menu {
   width: 240px;
-  max-height: min(320px, var(--available-height));
+  max-height: min(320px, var(--available-height, 320px));
   overflow: auto;
   overscroll-behavior: contain;
   outline: none;

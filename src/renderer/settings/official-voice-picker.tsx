@@ -1,6 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
 import { Music2 } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 export type OfficialVoice = { name: string; url: string };
 
@@ -13,6 +13,22 @@ export function OfficialVoicePicker({
 }) {
   const [trigger, setTrigger] = useState<HTMLElement | null>(null);
   const [voices, setVoices] = useState<OfficialVoice[]>();
+  const [popup, setPopup] = useState<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!popup) return;
+    function revealFocus() {
+      const item = document.activeElement;
+      if (item?.getAttribute("role") === "menuitem" && popup?.contains(item))
+        item.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    }
+    const observer = new ResizeObserver(revealFocus);
+    observer.observe(popup);
+    popup.addEventListener("focusin", revealFocus);
+    return () => {
+      observer.disconnect();
+      popup.removeEventListener("focusin", revealFocus);
+    };
+  }, [popup]);
   function load(open: boolean) {
     if (!open || voices) return;
     void import("./official-voices.json").then(
@@ -32,24 +48,10 @@ export function OfficialVoicePicker({
           positionMethod="fixed"
           align="start"
           sideOffset={6}
-          collisionBoundary={document.documentElement}
+          collisionBoundary={trigger?.closest("dialog") ?? document.documentElement}
           collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         >
-          <Menu.Popup
-            className="trial-ref-menu trial-voice-menu"
-            onFocus={({ currentTarget: menu, target: item }) => {
-              if (item.getAttribute("role") !== "menuitem") return;
-              requestAnimationFrame(() => {
-                if (document.activeElement !== item || !menu.contains(item)) return;
-                const top = menu.getBoundingClientRect().top + menu.clientTop;
-                const bottom = top + menu.clientHeight;
-                const bounds = item.getBoundingClientRect();
-                if (bounds.top < top) menu.scrollTop -= Math.ceil(top - bounds.top);
-                else if (bounds.bottom > bottom)
-                  menu.scrollTop += Math.ceil(bounds.bottom - bottom);
-              });
-            }}
-          >
+          <Menu.Popup ref={setPopup} className="trial-ref-menu trial-voice-menu">
             <Menu.Group>
               <Menu.GroupLabel>音色库</Menu.GroupLabel>
               {!voices?.length && <p>{voices ? "暂无音色" : "加载中…"}</p>}

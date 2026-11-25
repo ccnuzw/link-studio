@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { compactViewport } from "./desktop-window";
 
 test("全能参考按原顺序展示前一百个音色，选择去重并进入豆包请求", async () => {
   const directory = await mkdtemp(join(tmpdir(), "link-studio-voice-trial-"));
@@ -14,6 +15,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
   });
   try {
     const page = await app.firstWindow();
+    await page.setViewportSize(compactViewport);
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const channel = await api.channelSave({
@@ -77,6 +79,9 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     await items.first().press("End");
     await expect(items.last()).toBeFocused();
     await expect(items.last()).toBeInViewport();
+    await items.last().press("Home");
+    await expect(items.first()).toBeFocused();
+    await expect(items.first()).toBeInViewport();
     await page.keyboard.press("Escape");
     await expect(picker).toBeFocused();
     for (const name of [first, first, last]) {
