@@ -6663,9 +6663,11 @@ test("分镜表按镜头拆分，支持撤销和重开恢复", async () => {
     await expect(board.getByRole("listbox").getByRole("option")).toHaveCount(8);
     await board.getByRole("option", { name: "特写 BCU" }).click();
     const camera = board.getByRole("combobox", { name: "运镜" });
-    await camera.click();
+    await camera.press("Enter");
     await expect(board.getByRole("listbox").getByRole("option")).toHaveCount(13);
+    await expect(board.getByRole("option", { name: "固定", exact: true })).toBeFocused();
     await page.keyboard.press("End");
+    await expect(board.getByRole("option", { name: "航拍", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect
       .poll(savedRows)
