@@ -41,6 +41,8 @@ pnpm exec playwright test tests/e2e/canvas.spec.ts tests/e2e/model-trial-media.s
 
 出现失败先按 trace 定位。若单跑通过、整组失败，加上原顺序相邻的用例检查焦点、项目数据及进程清理。短剧合成恢复可单独运行 `pnpm exec vitest run --project integration tests/integration/generation.test.ts -t '短剧片段采用首次成功视频'`。修复集中后，在候选提交运行 `pnpm check` 和 `pnpm check:desktop`，再推送一次进行远端验收。
 
+复查画布模型导入和音色键盘导航时，可对当前构建运行 `pnpm exec playwright test -g '节点模型和生成参数|导入画布仅按本机模型键|全能参考按原顺序'`。模型键匹配使用挂载的文件输入框独立回放，画布菜单打开选择器由实际菜单导入用例覆盖。音色末项滚动断言失败时，附件包含窗口与各层容器的几何数据和当前画面。Actions 摘要列出集成与 E2E 报告中的执行计数，便于区分实际测试失败和阶段未执行。
+
 依赖画布坐标和宽屏布局的 Electron 用例通过 `tests/e2e/desktop-window.ts` 固定 1440×888 CSS 视口。窄窗场景显式设置 1024×672，覆盖生成面板、图片标注和设置交互。
 
 涉及真实进程、媒体和崩溃恢复的集成测试及其生命周期钩子使用 30 秒上限，单元测试保留默认上限；不通过重试掩盖失败。行为变化应覆盖用户可观察结果、边界和失败路径；修复问题时添加能复现问题的回归测试。纯文档、格式等变更无需编造测试。

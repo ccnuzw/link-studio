@@ -38,14 +38,19 @@ const lines = [
   "| --- | --- | --- |",
 ];
 const failures = [];
+const counts = [];
 for (const [id, label, reportName] of stages) {
   const step = steps[id];
   const seconds = step?.outputs?.seconds;
   lines.push(`| ${label} | ${step?.outcome ?? "skipped"} | ${seconds ? `${seconds}s` : "—"} |`);
-  if (step?.outcome !== "failure" || !reportName) continue;
+  if (!["failure", "success"].includes(step?.outcome) || !reportName) continue;
   try {
     const report = JSON.parse(await readFile(`test-results/${reportName}.json`, "utf8"));
     if (id === "integration") {
+      counts.push(
+        `${label}：通过 ${report.numPassedTests}，失败 ${report.numFailedTests}，总计 ${report.numTotalTests}`,
+      );
+      if (step.outcome !== "failure") continue;
       for (const suite of report.testResults) {
         for (const test of suite.assertionResults ?? []) {
           if (test.status !== "passed")
@@ -55,6 +60,11 @@ for (const [id, label, reportName] of stages) {
         }
       }
     } else {
+      const { expected, unexpected, skipped, flaky } = report.stats;
+      counts.push(
+        `${label}：符合预期 ${expected}，失败 ${unexpected}，跳过 ${skipped}，重试通过 ${flaky}`,
+      );
+      if (step.outcome !== "failure") continue;
       failures.push(...playwrightFailures(report.suites));
       for (const error of report.errors ?? [])
         failures.push(diagnostic("Playwright", error.message));
@@ -63,6 +73,7 @@ for (const [id, label, reportName] of stages) {
     console.warn(`无法读取 ${reportName} 报告：${error.message}`);
   }
 }
+if (counts.length) lines.push("", ...counts.map((line) => `- ${line}`));
 if (failures.length) {
   const text = failures
     .join("\n")
