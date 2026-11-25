@@ -3803,10 +3803,14 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     const derivedImage = reopened.locator(
       `.react-flow__node[data-id="${requireTestValue(firstCopy).id}"] img[alt="doodle.png"]`,
     );
+    await derivedImage.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => derivedImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
     const counts = await derivedImage.evaluate(async (element) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
-      image.src = (element as HTMLImageElement).currentSrc;
+      image.src = (element as HTMLImageElement).src;
       await image.decode();
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 256;
