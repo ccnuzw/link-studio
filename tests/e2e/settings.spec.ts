@@ -4092,6 +4092,7 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
       await expect(log).toHaveAttribute("data-scrolled", "true");
       await log.evaluate((element) => {
         element.scrollTop = 0;
+        element.dispatchEvent(new Event("scroll"));
       });
       await expect(log).toHaveAttribute("data-scrolled", "false");
       const latest = page.getByRole("button", { name: "回到底部" });

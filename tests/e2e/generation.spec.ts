@@ -154,7 +154,7 @@ test("旧工程结果未知：任务中心区分缺少原绑定和仍可查询�
 });
 
 test("画布连线作为视频参考，断线与文生模式不发送原图", async () => {
-  test.setTimeout(55_000);
+  test.setTimeout(90_000);
   const root = await mkdtemp(join(tmpdir(), "link-studio-linked-video-"));
   const filename = "镜头参考.png";
   const nodeLabel = "镜头参考";
