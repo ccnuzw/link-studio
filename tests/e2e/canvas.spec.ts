@@ -817,9 +817,11 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
         assets: {},
       }),
     );
-    const chooser = reopened.waitForEvent("filechooser");
-    await projectAction(reopened, "导入画布");
-    await (await chooser).setFiles(exchange);
+    const [chooser] = await Promise.all([
+      reopened.waitForEvent("filechooser", { timeout: 10_000 }),
+      projectAction(reopened, "导入画布"),
+    ]);
+    await chooser.setFiles(exchange);
     await expect(reopened.locator(".react-flow__node")).toHaveCount(4);
     await chooseCanvasZoom(reopened, "适应画布");
     await reopened

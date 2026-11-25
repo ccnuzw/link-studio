@@ -66,7 +66,8 @@ export async function projectAction(page: Page, name: string) {
       .getByRole("menuitem", { name: label, exact: true });
     await expect(item).toBeVisible();
     await expect(item).toBeEnabled();
-    await item.press("Enter");
+    if (label === "导入画布") await item.click();
+    else await item.press("Enter");
     return;
   }
   await page.getByRole("menuitem", { name: label, exact: true }).click();
