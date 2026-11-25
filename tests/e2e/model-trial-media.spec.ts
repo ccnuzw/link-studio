@@ -70,11 +70,11 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     const items = trial.getByRole("menuitem");
     const first = "Young - Male - Zayne 2.0",
       last = "Middle-aged - Female - Anna";
-    await picker.click();
+    await picker.press("Enter");
     await expect(items).toHaveCount(100);
     await expect(items.first()).toHaveText(first);
     await expect(items.last()).toHaveText(last);
-    await page.keyboard.press("End");
+    await items.first().press("End");
     await expect(items.last()).toBeFocused();
     await expect(items.last()).toBeInViewport();
     await page.keyboard.press("Escape");

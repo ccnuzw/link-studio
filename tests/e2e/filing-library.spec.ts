@@ -496,6 +496,8 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     expect(cancelled).toEqual([true, false, false, "跨页.png", false, false]);
     await sideDetail.getByRole("button", { name: "添加图片" }).click();
     await picker.getByRole("button", { name: "打开文件夹 角色图" }).click();
+    await expect(picker.getByRole("button", { name: "配角_角色.png", exact: true })).toBeVisible();
+    await expect(picker.getByRole("button", { name: "上传", exact: true })).toBeEnabled();
     const failureDb = new DatabaseSync(join(directory, "personal-library", "items.sqlite"), {
       timeout: 3000,
     });
