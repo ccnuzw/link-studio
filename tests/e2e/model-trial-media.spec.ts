@@ -77,7 +77,8 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     await expect(items).toHaveCount(100);
     await expect(items.first()).toHaveText(first);
     await expect(items.last()).toHaveText(last);
-    await items.first().press("End");
+    await expect(items.first()).toBeFocused();
+    await page.keyboard.press("End");
     await expect(items.last()).toBeFocused();
     try {
       await expect.poll(() => voiceMenu.evaluate((menu) => menu.scrollTop)).toBeGreaterThan(0);
