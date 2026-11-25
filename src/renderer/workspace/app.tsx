@@ -1064,6 +1064,7 @@ export function App() {
   const [enrollNotice, setEnrollNotice] = useState("");
   const canvasArea = useRef<HTMLElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
+  const canvasExchangeInput = useRef<HTMLInputElement>(null);
   const uploadPlacement = useRef<{ target: DropPlacement; projectHandle: string } | null>(null);
   const [petStage, setPetStage] = useState<HTMLDivElement | null>(null);
   const [fileOver, setFileOver] = useState(false);
@@ -4286,48 +4287,44 @@ export function App() {
   };
   const importCanvasExchange = () => {
     if (!projectSession || writing) return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json,application/json";
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      void (async () => {
-        setWriting(true);
-        setProjectError("");
-        try {
-          if (!(await saveCanvas(projectSession))) return;
-          if (file.size > 10 * 1024 * 1024) throw new Error("交换文件超过 10 MB 限制");
-          const raw = JSON.parse(await file.text());
-          const prepared =
-            raw?.format === "video-canvas/canvas"
-              ? prepareVideoCanvasExchange(raw, assets)
-              : prepareCanvasExchange(
-                  parseCanvasExchange(raw),
-                  new Set(assets.map(({ assetId }) => assetId)),
-                );
-          if (prepared.document.nodes.length + nodes.length > 1000)
-            throw new Error("导入后节点数量超过 1000 个上限");
-          if (prepared.document.edges.length + edges.length > 4000)
-            throw new Error("导入后连线数量超过 4000 条上限");
-          restoreCanvas(mergeCanvasExchange(canvas, prepared.document, () => crypto.randomUUID()));
-          const notices = [
-            ...(prepared.report.missingAssetIds.length
-              ? [`${prepared.report.missingAssetIds.length} 个素材引用无法在当前项目中定位`]
-              : []),
-            ...(prepared.report.droppedEdgeCount
-              ? [`已跳过 ${prepared.report.droppedEdgeCount} 条无效连线`]
-              : []),
-          ];
-          if (notices.length) setProjectError(`已合并画布，${notices.join("，")}。`);
-        } catch (error) {
-          setProjectError(error instanceof Error ? error.message : "画布交换文件无效");
-        } finally {
-          setWriting(false);
-        }
-      })();
-    };
-    input.click();
+    canvasExchangeInput.current?.click();
+  };
+  const importCanvasFile = (file: File) => {
+    if (!projectSession || writing) return;
+    void (async () => {
+      setWriting(true);
+      setProjectError("");
+      try {
+        if (!(await saveCanvas(projectSession))) return;
+        if (file.size > 10 * 1024 * 1024) throw new Error("交换文件超过 10 MB 限制");
+        const raw = JSON.parse(await file.text());
+        const prepared =
+          raw?.format === "video-canvas/canvas"
+            ? prepareVideoCanvasExchange(raw, assets)
+            : prepareCanvasExchange(
+                parseCanvasExchange(raw),
+                new Set(assets.map(({ assetId }) => assetId)),
+              );
+        if (prepared.document.nodes.length + nodes.length > 1000)
+          throw new Error("导入后节点数量超过 1000 个上限");
+        if (prepared.document.edges.length + edges.length > 4000)
+          throw new Error("导入后连线数量超过 4000 条上限");
+        restoreCanvas(mergeCanvasExchange(canvas, prepared.document, () => crypto.randomUUID()));
+        const notices = [
+          ...(prepared.report.missingAssetIds.length
+            ? [`${prepared.report.missingAssetIds.length} 个素材引用无法在当前项目中定位`]
+            : []),
+          ...(prepared.report.droppedEdgeCount
+            ? [`已跳过 ${prepared.report.droppedEdgeCount} 条无效连线`]
+            : []),
+        ];
+        if (notices.length) setProjectError(`已合并画布，${notices.join("，")}。`);
+      } catch (error) {
+        setProjectError(error instanceof Error ? error.message : "画布交换文件无效");
+      } finally {
+        setWriting(false);
+      }
+    })();
   };
   const outputAsset = (output: CreativeOutput) =>
     output.assetId ? assets.find(({ assetId }) => assetId === output.assetId) : undefined;
@@ -5312,6 +5309,17 @@ export function App() {
                 uploadPlacement.current = null;
                 if (files.length && placement?.projectHandle === projectSession.projectHandle)
                   void importMedia(placement.target, files);
+              }}
+            />
+            <input
+              ref={canvasExchangeInput}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) importCanvasFile(file);
               }}
             />
             {!showSettings && dramaHandle !== projectSession.projectHandle && (

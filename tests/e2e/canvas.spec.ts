@@ -780,6 +780,20 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     await reopened.getByRole("textbox", { name: "生成提示词" }).fill("检验下线而非空提示词");
     await expect(reopened.getByRole("button", { name: "开始生成" })).toBeDisabled();
     expect((await disk())?.providerId).toBe(providers[next]);
+  } finally {
+    await application.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("导入画布仅按本机模型键恢复配置", async () => {
+  const root = await mkdtemp(join(tmpdir(), "link-canvas-model-import-"));
+  const application = await launchCanvas(root);
+  try {
+    const page = await application.firstWindow();
+    const providers = await installVideoChoices(page);
+    const model = "sora-2";
+    await createCanvasProject(page, "模型键回放");
     const exchange = join(root, "foreign.canvas.json");
     await writeFile(
       exchange,
@@ -797,7 +811,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
               data: {
                 kind: "video",
                 label: "外来模型",
-                model: initial,
+                model,
                 params: { duration: 4, prompt: "模型同名不等于同一配置" },
               },
             },
@@ -808,7 +822,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
               data: {
                 kind: "video",
                 label: "已知模型",
-                model: providers[initial],
+                model: providers[model],
                 params: { duration: 12, prompt: "使用本机模型键" },
               },
             },
@@ -817,26 +831,22 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
         assets: {},
       }),
     );
-    const [chooser] = await Promise.all([
-      reopened.waitForEvent("filechooser", { timeout: 10_000 }),
-      projectAction(reopened, "导入画布"),
-    ]);
-    await chooser.setFiles(exchange);
-    await expect(reopened.locator(".react-flow__node")).toHaveCount(4);
-    await chooseCanvasZoom(reopened, "适应画布");
-    await reopened
+    await page
+      .locator('input[type="file"][accept=".json,application/json"]')
+      .setInputFiles(exchange);
+    await expect(page.locator(".react-flow__node")).toHaveCount(2);
+    await chooseCanvasZoom(page, "适应画布");
+    await page
       .locator("header strong")
       .filter({ hasText: /^外来模型$/ })
       .click();
-    await expect(reopened.getByRole("button", { name: "选择模型" })).toHaveText("模型已下线");
-    await reopened
+    await expect(page.getByRole("button", { name: "选择模型" })).toHaveText("模型已下线");
+    await page
       .locator("header strong")
       .filter({ hasText: /^已知模型$/ })
       .click();
-    await expect(reopened.getByRole("button", { name: "选择模型" })).toHaveText(initial);
-    await expect(reopened.getByRole("button", { name: "生成参数", exact: true })).toContainText(
-      "12秒",
-    );
+    await expect(page.getByRole("button", { name: "选择模型" })).toHaveText(model);
+    await expect(page.getByRole("button", { name: "生成参数", exact: true })).toContainText("12秒");
   } finally {
     await application.close();
     await rm(root, { recursive: true, force: true });
