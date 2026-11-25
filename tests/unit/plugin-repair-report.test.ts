@@ -3,6 +3,7 @@ import {
   normalizeUploadIssues,
   uploadRepairReport,
 } from "../../src/renderer/settings/repair-report";
+import { requireTestValue } from "../require-test-value";
 
 it("预检响应忽略非列表、去重并保留同一路径的问题顺序", () => {
   for (const raw of [undefined, null, "error", { path: "meta" }])
@@ -36,7 +37,7 @@ it("上传修复信息保留问题路径、整文件问题和续行缩进", () =
 
 it("按 UTF-8 字节控制问题和整个报告的长度，保留完整字符", () => {
   const issue = { path: "meta.name", message: "🖼中".repeat(1000) };
-  const line = uploadRepairReport([issue]).split("- meta.name：")[1]!;
+  const line = requireTestValue(uploadRepairReport([issue]).split("- meta.name：")[1]);
   expect(Buffer.byteLength(line)).toBeLessThanOrEqual(2048);
   const report = uploadRepairReport(Array.from({ length: 20 }, () => issue));
   expect(Buffer.byteLength(report)).toBeLessThanOrEqual(16384);

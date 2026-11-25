@@ -15,6 +15,7 @@ import { ProjectIpc } from "../../src/main/project/ipc";
 import { ProjectStore } from "../../src/main/project/store";
 import voices from "../../src/renderer/settings/official-voices.json";
 import { canvasSeed } from "../../src/renderer/workspace/canvas-seed";
+import { requireTestValue } from "../require-test-value";
 
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("node:events");
@@ -55,12 +56,11 @@ test.skipIf(process.platform !== "darwin")(
     });
     ipc.registerWindow(window as unknown as BrowserWindow, frame.url);
     const invoke = (method: ProjectMethod, input: Record<string, unknown> = {}) =>
-      vi
-        .mocked(ipcMain.handle)
-        .mock.calls.find(([channel]) => channel === ProjectChannels[method])![1](
-          { sender, senderFrame: frame } as never,
-          { requestId: randomUUID(), ...input },
-        );
+      requireTestValue(
+        vi
+          .mocked(ipcMain.handle)
+          .mock.calls.find(([channel]) => channel === ProjectChannels[method]),
+      )[1]({ sender, senderFrame: frame } as never, { requestId: randomUUID(), ...input });
     const ok = async (method: ProjectMethod, input: Record<string, unknown> = {}) => {
       const response = await invoke(method, input);
       expect(response, method).toMatchObject({ ok: true });
@@ -83,7 +83,7 @@ test.skipIf(process.platform !== "darwin")(
       expect(original.ok).toBe(true);
       const projectHandle = original.value.projectHandle;
       handles.add(projectHandle);
-      const file = voices[0]!.url.split("/").at(-1)!;
+      const file = requireTestValue(requireTestValue(voices[0]).url.split("/").at(-1));
       expect(
         (
           await invoke("attachOfficialVoice", {
@@ -100,7 +100,7 @@ test.skipIf(process.platform !== "darwin")(
       });
       expect(asset).toMatchObject({
         mediaType: "audio",
-        metadata: { officialVoice: voices[0]!.url },
+        metadata: { officialVoice: requireTestValue(voices[0]).url },
       });
       expect(
         (await ok("attachOfficialVoice", { projectHandle, file, operationId: randomUUID() })).asset
@@ -159,14 +159,16 @@ test.skipIf(process.platform !== "darwin")(
       expect((await ok("getCanvas", { projectHandle })).canvas.nodes).toEqual([]);
       const path = join(
         parent,
-        (await readdir(parent)).find(
-          (name) => !before.includes(name) && name.endsWith(".linkstudio"),
-        )!,
+        requireTestValue(
+          (await readdir(parent)).find(
+            (name) => !before.includes(name) && name.endsWith(".linkstudio"),
+          ),
+        ),
       );
       const view = await second.open(9, await second.grantProjectDirectory(9, path), "open", true);
       expect(view).toMatchObject({
         disposition: "readOnly",
-        canvas: { nodes: [operations[0]!.node] },
+        canvas: { nodes: [requireTestValue(operations[0]).node] },
       });
       if (view.disposition !== "readOnly") throw Error("预期只读快照");
       await ok("close", { projectHandle: copy.value.projectHandle });
@@ -182,7 +184,7 @@ test.skipIf(process.platform !== "darwin")(
       const { AssetFiles } = await import("../../src/main/project/asset-files");
       const verified = await new AssetFiles(parent).inspect(
         reopened,
-        reopened.snapshot.assets[asset.assetId]!,
+        requireTestValue(reopened.snapshot.assets[asset.assetId]),
         true,
       );
       await verified.handle.close();
@@ -240,7 +242,7 @@ test.skipIf(process.platform !== "darwin")(
       expect(bitmap.readUInt32BE(16)).toBeGreaterThan(0);
       expect(bitmap.readUInt32BE(20)).toBeLessThanOrEqual(576);
       expect((await ProjectStore.inspectCanvas(reopened.directory)).canvas.nodes).toEqual([
-        operations[0]!.node,
+        requireTestValue(operations[0]).node,
       ]);
     } finally {
       for (const projectHandle of handles) await invoke("close", { projectHandle });

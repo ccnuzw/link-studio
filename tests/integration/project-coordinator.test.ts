@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectCoordinator } from "../../src/main/project/coordinator";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 let directory: string;
 let projectDirectory: string;
@@ -162,7 +163,7 @@ describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", ()
     const results = await Promise.all([coordinator.open(1, first), coordinator.open(2, second)]);
     expect(results.map((result) => result.disposition)).toEqual(["opened", "focusedExisting"]);
     expect(focus).toHaveBeenCalledOnce();
-    const [{ projectHandle, directoryToken }] = focus.mock.calls[0]!;
+    const [{ projectHandle, directoryToken }] = requireTestValue(focus.mock.calls[0]);
     if (results[0]?.disposition !== "opened") throw Error("首窗口未打开项目");
     expect(projectHandle).toBe(results[0].session.projectHandle);
     await expect(coordinator.open(2, directoryToken)).rejects.toMatchObject({
@@ -176,7 +177,7 @@ describe.skipIf(process.platform !== "darwin")("S1-01 项目会话协调器", ()
     await coordinator.park(1, session.projectHandle);
     const token = await coordinator.authorizeRecent(2, projectDirectory);
     expect(await coordinator.open(2, token)).toEqual({ disposition: "focusedExisting" });
-    const [{ directoryToken }] = focus.mock.calls[0]!;
+    const [{ directoryToken }] = requireTestValue(focus.mock.calls[0]);
     await coordinator.releaseIdle(
       () => false,
       async () => {},

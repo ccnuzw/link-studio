@@ -9,6 +9,7 @@ import {
   type StampStorage,
 } from "../../src/renderer/workspace/pet/easter";
 import { EASTER_LINES } from "../../src/renderer/workspace/pet/lines";
+import { requireTestValue } from "../require-test-value";
 
 const memory = (
   init: Record<string, string> = {},
@@ -101,8 +102,8 @@ describe("彩蛋短句库", () => {
   });
 
   test("pickEasterLine 按随机数选句，随机数接近 1 也不越界", () => {
-    expect(pickEasterLine("wake", () => 0)).toBe(EASTER_LINES.wake[0]!);
+    expect(pickEasterLine("wake", () => 0)).toBe(requireTestValue(EASTER_LINES.wake[0]));
     const last = EASTER_LINES.night.length - 1;
-    expect(pickEasterLine("night", () => 0.999)).toBe(EASTER_LINES.night[last]!);
+    expect(pickEasterLine("night", () => 0.999)).toBe(requireTestValue(EASTER_LINES.night[last]));
   });
 });

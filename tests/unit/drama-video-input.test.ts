@@ -8,6 +8,7 @@ import {
 } from "@link-studio/core";
 import { expect, test } from "vitest";
 import { dramaVideoInput } from "../../src/renderer/workspace/drama-video-input";
+import { requireTestValue } from "../require-test-value";
 
 const options = modelGenerationOptions("video", "doubao-video", "doubao-seedance-2-0");
 test("开拍和片段禁用不收参考图的视频模型，保留同一适配器的图生视频模型", () => {
@@ -74,7 +75,7 @@ test("切换模型后只提交开放且仍可选的分辨率", () => {
         name: "片场",
         description: "",
         sort: 1,
-        params: { resolution: { values, default: values[0]!, open } },
+        params: { resolution: { values, default: requireTestValue(values[0]), open } },
       },
     );
     return dramaVideoInput(prompt, 6, "4:3", profile, graph, assets, [], undefined, selected).input;
@@ -93,7 +94,7 @@ test("故事板沿用采用版，只在全能模式占图片1，关闭后恢复�
     assetId: "board-image",
   });
   const boardGraph = { ...graph, nodes: [...graph.nodes, board] };
-  const available = [...assets, { ...assets[0]!, assetId: "board-image" }];
+  const available = [...assets, { ...requireTestValue(assets[0]), assetId: "board-image" }];
   const build = (
     off: boolean,
     overrides: Partial<typeof options> = {},

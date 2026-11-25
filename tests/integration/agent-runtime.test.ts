@@ -10,6 +10,7 @@ import { type AgentScope, SpikeTargets } from "../../packages/agent-runtime/src/
 import type { PublishedEvent } from "../../packages/agent-runtime/upstream/src/engine/engine";
 import type { Approval, Run } from "../../packages/agent-runtime/upstream/src/store/types";
 import { type FakeGoOptions, fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
+import { requireTestValue } from "../require-test-value";
 
 const clients: AgentWorkerClient[] = [];
 const servers: Awaited<ReturnType<typeof fakeGo>>[] = [];
@@ -112,7 +113,7 @@ it("画布 Worker 超出预算时保留审批，追加预算和部分批准仅�
     client.request("decide", {
       scope,
       sessionId,
-      approvalId: approval!.id,
+      approvalId: requireTestValue(approval).id,
       decision: { decision: "approve", ...fields },
     });
   await expect(decide({})).rejects.toMatchObject({ code: "AGENT_OVER_BUDGET" });
@@ -218,7 +219,7 @@ it("等待审批的图片插话跨重启交给模型，按本轮模型和项目�
   const [approval] = await client.request<Approval[]>("approvals", query);
   await client.request("decide", {
     ...query,
-    approvalId: approval!.id,
+    approvalId: requireTestValue(approval).id,
     decision: { decision: "reject" },
   });
   await client.request("idle");

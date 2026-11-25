@@ -15,6 +15,7 @@ import {
   rebindTemplate,
   restoreKindTemplate,
 } from "../../src/renderer/settings/model-kind-template";
+import { requireTestValue } from "../require-test-value";
 
 const base: ModelConfig = { kind: "text", name: "样例", description: "", sort: 100 };
 const imageRatios = ["Auto", "1:1", "16:9", "9:16", "4:3", "3:4"];
@@ -196,9 +197,9 @@ it.each([
   const adapter = "doubao-video",
     model = "doubao-seedance-2-0";
   const config = applyKindTemplate(base, "video", false, { adapter, model });
-  const field = config.params!.duration!;
+  const field = requireTestValue(requireTestValue(config.params).duration);
   field.open = open;
-  field.range!.open = rangeOpen;
+  requireTestValue(field.range).open = rangeOpen;
   const options = modelGenerationOptions("video", adapter, model, {}, config);
   expect(options.durationControl).toBe(false);
   expect(options.hiddenParameters).toContain("duration");

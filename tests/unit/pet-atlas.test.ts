@@ -1,14 +1,14 @@
 import { describe, expect, test } from "vitest";
-
 import { buildKeyframes } from "../../src/renderer/workspace/pet/atlas";
 import { PET_CELL, PET_ROWS } from "../../src/renderer/workspace/pet/rows";
+import { requireTestValue } from "../require-test-value";
 
 const css = buildKeyframes(PET_ROWS, PET_CELL);
 
 const block = (row: number) => {
   const m = css.match(new RegExp(`@keyframes pet-row-${row}\\{([^@]*?)\\}\\n`));
   expect(m).not.toBeNull();
-  return m![1]!;
+  return requireTestValue(requireTestValue(m)[1]);
 };
 
 describe("buildKeyframes", () => {

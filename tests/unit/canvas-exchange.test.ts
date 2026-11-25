@@ -17,6 +17,7 @@ import {
 } from "../../packages/link-studio-core/src/video-canvas-exchange";
 import upstreamFile from "../fixtures/upstream-reference.canvas.json";
 import storyboardFile from "../fixtures/upstream-storyboard.canvas.json";
+import { requireTestValue } from "../require-test-value";
 
 const canvas: ProjectCanvasView = {
   nodes: [
@@ -197,7 +198,7 @@ describe("画布交换", () => {
   });
   it("导演台缩略图按哈希重新绑定，缺图时仍保留场景", () => {
     const original = defaultDirectorScene();
-    original.characters[0]!.keys = [0.01, 0.02].map((t, index) => ({
+    requireTestValue(original.characters[0]).keys = [0.01, 0.02].map((t, index) => ({
       t,
       x: index,
       z: 0,
@@ -207,7 +208,7 @@ describe("画布交换", () => {
     const director = retimeDirectorScene(original, 1),
       assetId = "11111111-1111-4111-8111-111111111111",
       sha256 = "a".repeat(64);
-    expect(director.characters[0]!.keys.map(({ t, x }) => [t, x])).toEqual([
+    expect(requireTestValue(director.characters[0]).keys.map(({ t, x }) => [t, x])).toEqual([
       [0, 0],
       [0, 1],
     ]);
@@ -338,9 +339,11 @@ describe("画布交换", () => {
         count: 2,
       };
       const fixture = structuredClone(storyboardFile);
-      const video = fixture.canvas.nodes.find((node) => node.data.kind === "video")!;
+      const video = requireTestValue(
+        fixture.canvas.nodes.find((node) => node.data.kind === "video"),
+      );
       Object.assign(video.data, { mediaAspect: 9 / 16, model: "remote-artist-v2" });
-      Object.assign(video.data.params!, params, {
+      Object.assign(requireTestValue(video.data.params), params, {
         endpoint: "https://example.invalid",
         sample_rate: 5,
       });
@@ -414,10 +417,10 @@ describe("画布交换", () => {
       availability: "ready",
     }));
     const result = JSON.parse(exportVideoCanvas({ ...canvas, nodes }, "历史版本", assets).json);
-    expect(Object.keys(result.assets)).toEqual([assets[0]!.sha256]);
+    expect(Object.keys(result.assets)).toEqual([requireTestValue(assets[0]).sha256]);
     expect(result.canvas.nodes[1].data.outputs).toEqual([
       {
-        assetHash: assets[0]!.sha256,
+        assetHash: requireTestValue(assets[0]).sha256,
         mediaType: "image",
         model: "画布模型",
         createdAt: Date.parse(createdAt),

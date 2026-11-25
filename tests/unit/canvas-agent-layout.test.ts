@@ -13,6 +13,7 @@ import { compileAgentOps } from "../../src/main/project/canvas-agent-ops";
 import { mediaNodeFrame } from "../../src/renderer/workspace/media-node-model";
 import fixtures from "../fixtures/canvasgraph/arrange-cases.json";
 import frames from "../fixtures/canvasgraph/node-frame-cases.json";
+import { requireTestValue } from "../require-test-value";
 
 it("组内整理后按组报告左侧节点留下的重叠", () => {
   const canvas: ProjectCanvasView = {
@@ -88,7 +89,7 @@ it("横竖图和分组交错创建的 180 种合法顺序均贴合且不重叠",
             op: "create_node",
             kind: key === "M2" ? "video" : "image",
             tempId: key,
-            params: { aspect_ratio: ratios[key]! },
+            params: { aspect_ratio: requireTestValue(ratios[key]) },
             ...(key.startsWith("M") && { parentGroup: "G" }),
           },
     );
@@ -111,11 +112,11 @@ it("横竖图和分组交错创建的 180 种合法顺序均贴合且不重叠",
           parentId: result.created.G,
           position: { x: memberX, y: 72 },
         });
-        memberX += widths[key]! + 120;
+        memberX += requireTestValue(widths[key]) + 120;
       } else {
         expect(operation.node.position).toEqual({ x: rootX, y: 0 });
         if (key === "G") expect(operation.node).toMatchObject({ width: widths.G, height: 696 });
-        rootX += widths[key]! + 120;
+        rootX += requireTestValue(widths[key]) + 120;
       }
     }
     checked++;

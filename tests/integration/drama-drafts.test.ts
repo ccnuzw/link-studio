@@ -7,6 +7,7 @@ import { createDrama, dramaDocument } from "../../src/main/project/drama";
 import { DramaDrafts } from "../../src/main/project/drama-drafts";
 import { readDramaText } from "../../src/main/project/drama-source-blob";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 test("长篇剧本随整个项目搬移，删掉原项目仍可读取；损坏的原文不作为空稿使用", async () => {
   const parent = await mkdtemp(join(tmpdir(), "drama-source-move-"));
@@ -28,7 +29,7 @@ test("长篇剧本随整个项目搬移，删掉原项目仍可读取；损坏�
     await rm(created.directory, { recursive: true });
     const opened = await ProjectStore.open(moved);
     try {
-      const source = dramaDocument(opened.snapshot)!.source!;
+      const source = requireTestValue(requireTestValue(dramaDocument(opened.snapshot)).source);
       expect(await readDramaText(source, opened.directory)).toBe(script);
       await writeFile(join(opened.directory, "assets", `drama-${hash}.txt`), "错误的原稿");
       await expect(readDramaText(source, opened.directory)).rejects.toThrow("短剧原文校验失败");

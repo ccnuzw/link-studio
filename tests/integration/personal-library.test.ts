@@ -8,6 +8,7 @@ import { AssetFiles } from "../../src/main/project/asset-files";
 import { AssetService } from "../../src/main/project/assets";
 import { PersonalLibrary } from "../../src/main/project/personal-library";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 test("首页导入队列：复制进度、目标文件夹和取消不登记素材", async () => {
   const directory = await mkdtemp(join(tmpdir(), "home-library-import-"));
@@ -189,7 +190,7 @@ test.skipIf(process.platform !== "darwin")(
       await library.moveItem(newest.assetId, null);
       await library.moveItem(newest.assetId, other.id);
       await library.moveItem(newest.assetId, other.id);
-      const victim = localPage.items[1]!;
+      const victim = requireTestValue(localPage.items[1]);
       await library.moveItem(victim.asset.assetId, other.id);
       const fixture = new DatabaseSync(join(library.directory, "items.sqlite"));
       try {
@@ -212,14 +213,16 @@ test.skipIf(process.platform !== "darwin")(
       expect((await library.list(source.projectId)).removedSourceIds).toContain(victim.sourceId);
       expect((await library.list(target.projectId)).removedSourceIds).toBeUndefined();
       await expect(library.moveItem(newest.assetId, null)).rejects.toThrow("不存在");
-      await expect(library.register(source, victim.sourceId!, other.id)).rejects.toThrow("不存在");
+      await expect(
+        library.register(source, requireTestValue(victim.sourceId), other.id),
+      ).rejects.toThrow("不存在");
       expect(
         (await library.list("")).items.some((row) => row.asset.assetId === victim.asset.assetId),
       ).toBe(false);
       expect((await library.get(victim.asset.assetId)).assetId).toBe(victim.asset.assetId);
-      expect((await library.register(source, victim.sourceId!, folder.id)).assetId).toBe(
-        victim.asset.assetId,
-      );
+      expect(
+        (await library.register(source, requireTestValue(victim.sourceId), folder.id)).assetId,
+      ).toBe(victim.asset.assetId);
       expect((await library.list("")).folders[0]?.itemCount).toBe(43);
       expect((await library.list(source.projectId)).removedSourceIds).not.toContain(
         victim.sourceId,

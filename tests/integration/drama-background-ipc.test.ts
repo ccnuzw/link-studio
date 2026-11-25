@@ -12,6 +12,7 @@ import {
 import { createDrama, dramaDocument } from "../../src/main/project/drama";
 import { ProjectIpc } from "../../src/main/project/ipc";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("node:events");
@@ -63,9 +64,9 @@ test("桌面 IPC：接回规划、后台确认和真正退出时保留断点", a
   const window = Object.assign(new EventEmitter(), { webContents: sender, minimize: vi.fn() });
   ipc.registerWindow(window as unknown as BrowserWindow, url);
   const invoke = async (method: ProjectMethod, data: Record<string, unknown> = {}) => {
-    const handler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([channel]) => channel === ProjectChannels[method])![1];
+    const handler = requireTestValue(
+      vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === ProjectChannels[method]),
+    )[1];
     return handler({ sender, senderFrame: frame } as never, { requestId: randomUUID(), ...data });
   };
   try {

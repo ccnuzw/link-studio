@@ -9,6 +9,7 @@ import { AssetService } from "../../src/main/project/assets";
 import { FilingHistory } from "../../src/main/project/filing-history";
 import { PersonalLibrary } from "../../src/main/project/personal-library";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 test.skipIf(process.platform !== "darwin")(
   "备案生成历史：多图独立、跨本地日、游标锚删除、重启及撤销访问",
@@ -27,8 +28,8 @@ test.skipIf(process.platform !== "darwin")(
     }));
     const history = new FilingHistory(join(root, "index", "history.sqlite"), files, () => recents);
     try {
-      await history.observe(store, recents[0]!);
-      await history.observe(empty, recents[1]!);
+      await history.observe(store, requireTestValue(recents[0]));
+      await history.observe(empty, requireTestValue(recents[1]));
       const file = join(process.cwd(), "resources/icons/icon-16.png");
       const descriptor = await open(file, "r");
       const staged = await blobs
@@ -51,7 +52,7 @@ test.skipIf(process.platform !== "darwin")(
             ).toISOString(),
           };
         });
-        state.assets[ids[43]!]!.availability = "deleted";
+        requireTestValue(state.assets[requireTestValue(ids[43])]).availability = "deleted";
         const input = {
           nodeId: "lead",
           providerId: randomUUID(),
@@ -92,16 +93,20 @@ test.skipIf(process.platform !== "darwin")(
       const first = await history.page({}, "pOrTrAiT");
       expect(first.canvases).toHaveLength(2);
       expect(first.items.map((entry) => entry.origin.asset)).toEqual(ids.slice(0, 40));
-      expect((await history.page({ canvas: recents[1]!.recentEntryId }, "")).items).toEqual([]);
+      expect(
+        (await history.page({ canvas: requireTestValue(recents[1]).recentEntryId }, "")).items,
+      ).toEqual([]);
       expect((await history.page({ conversation: true }, "")).items).toEqual([]);
       expect((await history.page({}, "图.png")).items).toEqual([]);
       const recent = await history.page({ days: 7 }, "");
       expect((await history.page({ days: 7 }, "", recent.next)).items).toHaveLength(2);
-      const selected = first.items[0]!;
+      const selected = requireTestValue(first.items[0]);
       for (const media of ["audio", "video"] as const) {
         const page = await history.page({}, "", undefined, media);
         expect(page.items.map((item) => item.asset.mediaType)).toEqual([media]);
-        expect(await history.selection(page.items[0]!.asset.assetId)).toBeUndefined();
+        expect(
+          await history.selection(requireTestValue(page.items[0]).asset.assetId),
+        ).toBeUndefined();
       }
       const ascending = await history.page({}, "", undefined, "image", true);
       expect(ascending.items[0]?.origin.asset).toBe(ids[42]);
@@ -110,12 +115,14 @@ test.skipIf(process.platform !== "darwin")(
       ).toBe(ids[0]);
       expect((await history.image(selected.asset.assetId)).bytes).toEqual(await readFile(file));
       expect((await library.filingPage()).assets).toHaveLength(0);
-      const entry = (await history.lookup(selected.asset.assetId))!;
+      const entry = requireTestValue(await history.lookup(selected.asset.assetId));
       const registered = await library.registerSource(entry.canvas, {
         ...entry.asset,
         assetId: entry.origin.asset,
       });
-      expect((await library.register(store, ids[0]!)).assetId).toBe(registered.assetId);
+      expect((await library.register(store, requireTestValue(ids[0]))).assetId).toBe(
+        registered.assetId,
+      );
       const attached = await library.attach(empty, registered.assetId, randomUUID());
       expect(attached.asset.sha256).toBe(staged.asset.sha256);
       expect(attached.asset.metadata.libraryItemId).toBe(registered.assetId);
@@ -130,7 +137,7 @@ test.skipIf(process.platform !== "darwin")(
           "CREATE TRIGGER reject_index BEFORE UPDATE ON canvases BEGIN SELECT RAISE(ABORT,'fixture'); END",
         );
         await store.updateGeneration((state) => {
-          delete state.assets[ids[39]!];
+          delete state.assets[requireTestValue(ids[39])];
           return { changed: true, result: undefined };
         });
         expect(store.warnings).toContain("生成历史索引未更新，重新打开项目后重建");
@@ -138,7 +145,7 @@ test.skipIf(process.platform !== "darwin")(
         await expect(history.image(selected.asset.assetId)).rejects.toThrow("历史图片已失效");
         expect((await history.page({}, "")).items).toEqual([]);
         db.exec("DROP TRIGGER reject_index");
-        await history.observe(store, recents[0]!);
+        await history.observe(store, requireTestValue(recents[0]));
         expect((await history.selection(selected.asset.assetId))?.origin.asset).toBe(ids[0]);
       } finally {
         db.close();
@@ -156,11 +163,11 @@ test.skipIf(process.platform !== "darwin")(
         await rename(`${store.directory}-moved`, store.directory);
       }
       const [revoked] = recents.splice(0, 1);
-      await history.forget(revoked!.recentEntryId);
+      await history.forget(requireTestValue(revoked).recentEntryId);
       await expect(history.image(selected.asset.assetId)).rejects.toThrow();
       expect((await history.page({}, "")).items).toEqual([]);
-      recents.push({ ...revoked!, recentEntryId: randomUUID() });
-      await history.observe(store, recents.at(-1)!);
+      recents.push({ ...requireTestValue(revoked), recentEntryId: randomUUID() });
+      await history.observe(store, requireTestValue(recents.at(-1)));
       expect(await history.selection(selected.asset.assetId)).toBeUndefined();
       expect((await history.page({}, "")).items).toHaveLength(40);
     } finally {

@@ -11,6 +11,7 @@ import { runDramaAssetJob } from "../../src/main/project/drama-worker";
 import { ProjectStore } from "../../src/main/project/store";
 import type { SettingsRegistry } from "../../src/main/settings/registry";
 import { parseCharacters } from "../../src/renderer/workspace/drama-parse-characters";
+import { requireTestValue } from "../require-test-value";
 
 test("已锁定集仅补缺失提示词，中断重开保留人工修改与节点身份", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-repair-"));
@@ -50,10 +51,10 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
         if (fail) throw Error("模拟上游失败");
         batches.push(scope.nodes);
         if (batches.length === 1) {
-          await store!.updateGeneration((state) => {
-            const node = projectCanvas(state.canvas).nodes.find(
-              (entry) => entry.id === scope.nodes[0],
-            )!;
+          await requireTestValue(store).updateGeneration((state) => {
+            const node = requireTestValue(
+              projectCanvas(state.canvas).nodes.find((entry) => entry.id === scope.nodes[0]),
+            );
             if (node.type !== "creative") throw Error("缺少资产");
             state.canvas = applyCanvas(state, [
               { type: "putNode", node: { ...node, data: { ...node.data, text: "手工提示词" } } },
@@ -71,7 +72,7 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
       const directory = join(root, basename(fixture));
       await cp(fixture, directory, { recursive: true });
       store = await ProjectStore.open(directory);
-      const cards = parseCharacters(dramaDocument(store.snapshot)!.characters_md);
+      const cards = parseCharacters(requireTestValue(dramaDocument(store.snapshot)).characters_md);
       expect(cards).toHaveLength(23);
       expect(cards[0]).toMatchObject({ name: "上官淳儿", group: "上官家" });
     } else {
@@ -82,7 +83,9 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
         estimate: 2,
       });
       await runDramaAssetJob(store, registry, breakdown.id, signal);
-      const completed = dramaDocument(store.snapshot)!.jobs![0]!;
+      const completed = requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs)[0],
+      );
       expect(completed).toMatchObject({
         status: "succeeded",
         done_episodes: [1],
@@ -92,14 +95,14 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
       const directory = store.directory;
       await store.close();
       store = await ProjectStore.open(directory);
-      expect(dramaDocument(store.snapshot)!.jobs).toEqual([completed]);
+      expect(requireTestValue(dramaDocument(store.snapshot)).jobs).toEqual([completed]);
     }
     const before = projectCanvas(store.snapshot.canvas);
     fail = false;
     const args = { step: "asset_prompts", episodes: [1] } as const;
     for (const [index, count] of [9, 1].entries()) {
       const quote = await estimateDramaJob(
-        dramaDocument(store.snapshot)!,
+        requireTestValue(dramaDocument(store.snapshot)),
         args,
         registry,
         store.snapshot,
@@ -111,9 +114,9 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
         estimate: quote.estimate,
       });
       await runDramaAssetJob(store, registry, job.id, signal);
-      expect(dramaDocument(store.snapshot)!.jobs!.at(-1)?.status).toBe(
-        index === 0 ? "failed" : "succeeded",
-      );
+      expect(
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs).at(-1)?.status,
+      ).toBe(index === 0 ? "failed" : "succeeded");
       const directory = store.directory;
       await store.close();
       store = await ProjectStore.open(directory);
@@ -122,14 +125,19 @@ test("已锁定集仅补缺失提示词，中断重开保留人工修改与节�
     expect(after.nodes.map((node) => node.id)).toEqual(before.nodes.map((node) => node.id));
     expect(after.edges).toEqual(before.edges);
     expect(batches.map((batch) => batch.length)).toEqual([8, 1, 1]);
-    for (const id of [...batches[0]!, ...batches[2]!]) {
-      const node = after.nodes.find((node) => node.id === id)!;
+    for (const id of [...requireTestValue(batches[0]), ...requireTestValue(batches[2])]) {
+      const node = requireTestValue(after.nodes.find((node) => node.id === id));
       expect(node.type === "creative" && node.data.text).toBe(
-        id === batches[0]![0] ? "手工提示词" : `补写 ${id}`,
+        id === requireTestValue(batches[0])[0] ? "手工提示词" : `补写 ${id}`,
       );
     }
     await expect(
-      estimateDramaJob(dramaDocument(store.snapshot)!, args, registry, store.snapshot),
+      estimateDramaJob(
+        requireTestValue(dramaDocument(store.snapshot)),
+        args,
+        registry,
+        store.snapshot,
+      ),
     ).rejects.toThrow("没有待补写");
   } finally {
     await store?.close();
@@ -182,7 +190,7 @@ test("截断只缩小受影响范围，单卡补词失败不阻断其他集；�
       if (stage === "asset_prompts") {
         missing ??= scope.nodes[0];
         promptCalls.push(scope.nodes);
-        if (scope.nodes.includes(missing!)) throw new DramaOutputTruncatedError();
+        if (scope.nodes.includes(requireTestValue(missing))) throw new DramaOutputTruncatedError();
         return "草稿";
       }
       return { prompts: scope.nodes.map((node_id) => ({ node_id, prompt: "铜铃" })) };
@@ -199,7 +207,9 @@ test("截断只缩小受影响范围，单卡补词失败不阻断其他集；�
       estimate: 2,
     });
     await runDramaAssetJob(store, registry, job.id, controller.signal);
-    const checkpoint = dramaDocument(store.snapshot)!.jobs![0]!;
+    const checkpoint = requireTestValue(
+      requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs)[0],
+    );
     expect(checkpoint).toMatchObject({
       status: "running",
       done_episodes: [1, 2],
@@ -211,11 +221,11 @@ test("截断只缩小受影响范围，单卡补词失败不阻断其他集；�
     await runDramaAssetJob(store, registry, job.id, new AbortController().signal);
     expect(episodeCalls).toEqual([episodes, [1, 2], [3, 4], [3, 4]]);
     expect(promptCalls.map((group) => group.length)).toEqual([2, 1, 1, 2]);
-    const result = dramaDocument(store.snapshot)!;
+    const result = requireTestValue(dramaDocument(store.snapshot));
     expect(result.jobs).toMatchObject([
       { status: "succeeded", done_episodes: episodes, deferred_nodes: [missing], progress: 100 },
     ]);
-    expect(result.jobs![0]!.prompted_nodes).toHaveLength(3);
+    expect(requireTestValue(requireTestValue(result.jobs)[0]).prompted_nodes).toHaveLength(3);
     expect(result.episodes.every((ep) => ep.locked)).toBe(true);
     expect(
       await estimateDramaJob(result, { step: "asset_prompts", episodes }, registry, store.snapshot),
@@ -263,11 +273,15 @@ test.each([
       });
       await runDramaAssetJob(store, registry, job.id, new AbortController().signal);
       expect(calls).toEqual(expected);
-      expect(dramaDocument(store.snapshot)!.jobs![0]).toMatchObject({
+      expect(
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs)[0],
+      ).toMatchObject({
         status: "failed",
         error_message: expect.stringContaining(truncated ? "长度上限" : "鉴权失败"),
       });
-      expect(dramaDocument(store.snapshot)!.episodes.some((ep) => ep.locked)).toBe(false);
+      expect(requireTestValue(dramaDocument(store.snapshot)).episodes.some((ep) => ep.locked)).toBe(
+        false,
+      );
     } finally {
       await store.close();
       await rm(root, { recursive: true, force: true });

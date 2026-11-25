@@ -8,6 +8,7 @@ import {
   detachExternalNodes,
   mapFragmentMedia,
 } from "../../src/renderer/workspace/selection-actions";
+import { requireTestValue } from "../require-test-value";
 
 it("跨工程重新绑定历史版本、角色声音、附图和分镜素材，不改写节点、模型或输出编号", () => {
   const source: CanvasFragment = {
@@ -95,12 +96,14 @@ it("复制导演台不复用对象标识或旧缩略图，机位引用跟随新�
         },
       ],
     };
-  const clone = cloneSelection(captureSelection(graph, new Set(["dir"]))!, graph, () =>
-    crypto.randomUUID(),
+  const clone = cloneSelection(
+    requireTestValue(captureSelection(graph, new Set(["dir"]))),
+    graph,
+    () => crypto.randomUUID(),
   ).nodes[0];
   expect(clone?.type).toBe("creative");
   if (clone?.type !== "creative") throw Error("缺少副本");
-  const scene = clone.data.director!;
+  const scene = requireTestValue(clone.data.director);
   expect(scene.characters[0]?.id).not.toBe(director.characters[0]?.id);
   expect(scene.cameras[0]?.lookAt).toBe(scene.characters[0]?.id);
   expect(scene.activeCameraId).toBe(scene.cameras[0]?.id);

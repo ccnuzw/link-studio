@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runEndBubble } from "../../src/renderer/workspace/pet/assistant-notice";
 import { initialNoticeState, noticeState } from "../../src/renderer/workspace/pet/notice-state";
+import { requireTestValue } from "../require-test-value";
 
 describe("助手结束后的桌宠提醒", () => {
   it.each([
@@ -28,7 +29,7 @@ describe("助手结束后的桌宠提醒", () => {
   });
 
   it("审批在前时，延迟到结果气泡显示时才庆祝", () => {
-    const success = runEndBubble({ runId: "run", status: "succeeded" })!;
+    const success = requireTestValue(runEndBubble({ runId: "run", status: "succeeded" }));
     const first = noticeState(initialNoticeState(), {
       type: "push",
       now: 100,

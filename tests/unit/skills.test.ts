@@ -8,6 +8,7 @@ import { Value } from "@sinclair/typebox/value";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { readSkillPackage } from "../../src/main/skills/intake";
 import { SkillLibrary } from "../../src/main/skills/library";
+import { requireTestValue } from "../require-test-value";
 
 let directory: string;
 let library: SkillLibrary | undefined;
@@ -194,11 +195,11 @@ it("导出指定历史版本可原样回导，预检提示随版本保留", asyn
   const pkg = await readSkillPackage(folder);
   library = new SkillLibrary(join(directory, "db"));
   const imported = library.confirm(1, {
-    id: library.stage(1, pkg).id!,
+    id: requireTestValue(library.stage(1, pkg).id),
     enabled: false,
     scopes: [],
   });
-  const warnings = imported.versions[0]!.warnings?.join("\n");
+  const warnings = requireTestValue(imported.versions[0]).warnings?.join("\n");
   for (const text of ["allowed-tools", "references/missing.md", "脚本"])
     expect(warnings).toContain(text);
   await writeFile(path, skill("下一版"));
@@ -215,7 +216,11 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
   library = new SkillLibrary(db);
   await writeFile(file, skill("第一版方法"));
   const pkg = await readSkillPackage(file);
-  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  library.confirm(1, {
+    id: requireTestValue(library.stage(1, pkg).id),
+    enabled: true,
+    scopes: ["agent"],
+  });
   const candidate = { source: "skill" as const, name: pkg.name, version: 1 },
     step = "marketing.create" as const;
   const details = {
@@ -236,18 +241,18 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
     { ...bind, candidate: { source: "builtin" as const } },
     { ...bind, step: "marketing.follow" as const },
   ])
-    expect(() => library!.bind(invalid)).toThrow("试跑");
+    expect(() => requireTestValue(library).bind(invalid)).toThrow("试跑");
   try {
     vi.useFakeTimers();
     vi.setSystemTime(good.finished + 86400001);
-    expect(() => library!.bind(bind)).toThrow("24 小时");
+    expect(() => requireTestValue(library).bind(bind)).toThrow("24 小时");
   } finally {
     vi.useRealTimers();
   }
   library.bind(bind);
   await writeFile(file, skill("第二版方法"));
   const next = library.stage(1, await readSkillPackage(file));
-  library.confirm(1, { id: next.id!, enabled: false, scopes: [] });
+  library.confirm(1, { id: requireTestValue(next.id), enabled: false, scopes: [] });
   library.activate({ name: pkg.name, version: 2 });
   library.close();
   library = new SkillLibrary(db);
@@ -262,10 +267,14 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
     fallback: true,
     method: { Source: "builtin" },
   });
-  expect(() => library!.bind(bind)).toThrow("试跑");
+  expect(() => requireTestValue(library).bind(bind)).toThrow("试跑");
   library.update({ name: pkg.name, title: pkg.title, enabled: false, scopes: [] });
   library.remove({ name: pkg.name });
-  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  library.confirm(1, {
+    id: requireTestValue(library.stage(1, pkg).id),
+    enabled: true,
+    scopes: ["agent"],
+  });
   expect(library.resolveMethod(step).fallback).toBe(true);
-  expect(() => library!.bind(bind)).toThrow("试跑");
+  expect(() => requireTestValue(library).bind(bind)).toThrow("试跑");
 });

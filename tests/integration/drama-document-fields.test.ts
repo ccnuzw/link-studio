@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { createDrama, dramaDocument, editDramaField } from "../../src/main/project/drama";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 test("文稿与分集元数据独立保存，重开可读，旧稿与锁定的分集不能覆盖", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-field-"));
@@ -15,7 +16,7 @@ test("文稿与分集元数据独立保存，重开可读，旧稿与锁定的�
     const doc =
       dramaDocument(store.snapshot) ??
       (await createDrama(store, { title: "来信", script: "来信。" }));
-    const episode = doc.episodes.find((item) => !item.locked)!;
+    const episode = requireTestValue(doc.episodes.find((item) => !item.locked));
     const rename = { field: "title", previous: doc.title, value: "渡口" };
     await editDramaField(store, rename);
     await expect(editDramaField(store, rename)).rejects.toMatchObject({
@@ -48,7 +49,7 @@ test("文稿与分集元数据独立保存，重开可读，旧稿与锁定的�
     const actual = store.directory;
     await store.close();
     store = await ProjectStore.open(actual);
-    const restored = dramaDocument(store.snapshot)!;
+    const restored = requireTestValue(dramaDocument(store.snapshot));
     expect(restored.title).toBe("渡口");
     expect(restored.outline_md).toBe(outline.value);
     expect(restored.characters_md).toBe("## 信使");
@@ -56,9 +57,11 @@ test("文稿与分集元数据独立保存，重开可读，旧稿与锁定的�
       hook.value,
     );
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes.find(
-        (item) => item.episode_no === episode.episode_no,
-      )!.locked = true;
+      requireTestValue(
+        requireTestValue(dramaDocument(state)).episodes.find(
+          (item) => item.episode_no === episode.episode_no,
+        ),
+      ).locked = true;
       return { changed: true, result: null };
     });
     await expect(

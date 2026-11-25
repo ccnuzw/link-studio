@@ -8,6 +8,7 @@ import { ProjectCoordinator } from "../../src/main/project/coordinator";
 import { createDrama, dramaDocument } from "../../src/main/project/drama";
 import { submitApprovedDramaJob } from "../../src/main/project/drama-job";
 import type { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 
 test("两个短剧并行，切回不重复提交，取消与释放不影响另一个项目", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-background-"));
@@ -44,8 +45,8 @@ test("两个短剧并行，切回不重复提交，取消与释放不影响另�
       model,
     );
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
-      Object.assign(doc.planning!, { phase: "done", cursor: 1, summary: "相遇" });
+      const doc = requireTestValue(dramaDocument(state));
+      Object.assign(requireTestValue(doc.planning), { phase: "done", cursor: 1, summary: "相遇" });
       doc.episodes = [
         {
           episode_no: 1,
@@ -82,16 +83,23 @@ test("两个短剧并行，切回不重复提交，取消与释放不影响另�
     expect(coordinator.getStore(1, first.handle)).toBe(first.store);
     await service.cancelStudioJob(second.store, second.id);
     await coordinator.releaseIdle(
-      (store) => dramaDocument(store.snapshot)!.jobs!.some((job) => job.status === "running"),
+      (store) =>
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs).some(
+          (job) => job.status === "running",
+        ),
       async (handle) => service.detach(coordinator.getStore(1, handle)),
     );
     expect(() => coordinator.getStore(1, second.handle)).toThrow();
-    pending.get("短剧甲")!();
+    requireTestValue(pending.get("短剧甲"))();
     await vi.waitFor(() =>
-      expect(dramaDocument(first.store.snapshot)!.jobs?.[0]?.status).toBe("succeeded"),
+      expect(requireTestValue(dramaDocument(first.store.snapshot)).jobs?.[0]?.status).toBe(
+        "succeeded",
+      ),
     );
     expect(generate).toHaveBeenCalledTimes(2);
-    expect(dramaDocument(first.store.snapshot)!.episodes[0]?.script_md).toBe("短剧甲的剧本");
+    expect(requireTestValue(dramaDocument(first.store.snapshot)).episodes[0]?.script_md).toBe(
+      "短剧甲的剧本",
+    );
     service.detach(first.store);
   } finally {
     for (const finish of pending.values()) finish();

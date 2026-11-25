@@ -1,6 +1,7 @@
 import type { ProjectAsset } from "@link-studio/core";
 import { expect, test, vi } from "vitest";
 import { type PickerUpload, pickerUploads } from "../../src/renderer/workspace/picker-uploads";
+import { requireTestValue } from "../require-test-value";
 
 function fixture() {
   const attempts: {
@@ -21,43 +22,43 @@ test("并发槽等待 IPC 收尾；已取消任务的迟到进度和结果不回
   const { attempts, done, queue, files } = fixture();
   queue.add(files);
   expect(attempts.map((task) => task.args[0])).toEqual(files.slice(0, 3));
-  const { id } = queue.snapshot()[0]!;
+  const { id } = requireTestValue(queue.snapshot()[0]);
   const [original, second] = attempts;
-  const decision = original!.args[3]();
+  const decision = requireTestValue(original).args[3]();
   queue.cancel(id);
   expect(await decision).toBe("cancel");
-  expect(original!.args[1].aborted).toBe(true);
+  expect(requireTestValue(original).args[1].aborted).toBe(true);
   expect(attempts).toHaveLength(3);
-  original!.args[2]({ status: "uploading", percent: 79 });
+  requireTestValue(original).args[2]({ status: "uploading", percent: 79 });
   expect(queue.snapshot().some((task) => task.id === id)).toBe(false);
-  original!.resolve({ assetId: "迟到" } as ProjectAsset);
+  requireTestValue(original).resolve({ assetId: "迟到" } as ProjectAsset);
   await Promise.resolve();
-  expect(attempts[3]!.args[0]).toBe(files[3]);
+  expect(requireTestValue(attempts[3]).args[0]).toBe(files[3]);
   expect(done).not.toHaveBeenCalled();
   for (const index of [3, 1, 4, 2]) {
-    attempts[index]!.resolve({ assetId: String(index) } as ProjectAsset);
+    requireTestValue(attempts[index]).resolve({ assetId: String(index) } as ProjectAsset);
     await Promise.resolve();
   }
   expect(done.mock.calls.map(([asset]) => asset.assetId)).toEqual(["3", "1", "4", "2"]);
   expect(queue.snapshot()).toEqual([]);
-  expect(second!.args[1].aborted).toBe(false);
+  expect(requireTestValue(second).args[1].aborted).toBe(false);
 });
 
 test("同一文件的多个任务独立重试；关闭后清除排队、拒绝和迟到成功", async () => {
   const { attempts, queue, files, done } = fixture();
-  const file = files[0]!;
+  const file = requireTestValue(files[0]);
   queue.add([file, file]);
-  attempts[0]!.reject(new Error("读取失败"));
+  requireTestValue(attempts[0]).reject(new Error("读取失败"));
   await Promise.resolve();
   const [first, second] = queue.snapshot();
   expect(first).toMatchObject({ status: "failed", error: "读取失败" });
   expect(second?.status).toBe("uploading");
-  queue.retry(first!.id);
-  queue.retry(first!.id);
+  queue.retry(requireTestValue(first).id);
+  queue.retry(requireTestValue(first).id);
   expect(attempts).toHaveLength(3);
-  expect(attempts[2]!.args[0]).toBe(file);
+  expect(requireTestValue(attempts[2]).args[0]).toBe(file);
   expect(queue.snapshot()[0]).toMatchObject({
-    id: first!.id,
+    id: requireTestValue(first).id,
     status: "uploading",
     percent: 0,
     error: undefined,

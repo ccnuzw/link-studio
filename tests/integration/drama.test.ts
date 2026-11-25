@@ -34,6 +34,7 @@ import {
 import { runDramaAssetJob } from "../../src/main/project/drama-worker";
 import { ProjectStore } from "../../src/main/project/store";
 import type { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 
 test("片段转写保留启动时原稿指纹，两种格式重开后由小灵读回", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-adapt-"));
@@ -47,7 +48,7 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
       prompt: source,
       seconds: 5,
     });
-    const segment = added.segments![0]!;
+    const segment = requireTestValue(requireTestValue(added.segments)[0]);
     const base = { segmentId: segment.id, episodeNo: 1, episodeOrder: 0 };
     const signal = new AbortController().signal;
     let release!: () => void;
@@ -72,7 +73,7 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
       prompt: updatedSource,
     });
     release();
-    const adapted = (await adapting).segments![0]!;
+    const adapted = requireTestValue(requireTestValue((await adapting).segments)[0]);
     expect(adapted.prompt).toBe(updatedSource);
     expect(adapted.adaptations?.h3).toMatchObject({
       source_hash: createHash("sha256").update(source).digest("hex"),
@@ -97,7 +98,7 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
         ...registry,
         dramaAssetStage: () => rewriteGate.then(() => ({ prompt: "不应覆盖手改" })),
       } as unknown as SettingsRegistry,
-      { ...request, revision: both.segments![0]!.revision },
+      { ...request, revision: requireTestValue(requireTestValue(both.segments)[0]).revision },
       signal,
     );
     const rejectedRewrite = expect(rewriting).rejects.toMatchObject({
@@ -105,14 +106,14 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
     });
     const edited = await setDramaSegmentPrompt(store, {
       ...base,
-      revision: both.segments![0]!.revision,
+      revision: requireTestValue(requireTestValue(both.segments)[0]).revision,
       format: "h3",
       prompt: "手改的镜头",
     });
     releaseRewrite();
     await rejectedRewrite;
-    expect(edited.segments![0]!.adaptations?.generic).toEqual(
-      both.segments![0]!.adaptations?.generic,
+    expect(requireTestValue(requireTestValue(edited.segments)[0]).adaptations?.generic).toEqual(
+      requireTestValue(requireTestValue(both.segments)[0]).adaptations?.generic,
     );
     const path = store.directory;
     await store.close();
@@ -128,7 +129,7 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
           h3: {
             prompt: "手改的镜头",
             edited: true,
-            source_hash: adapted.adaptations!.h3!.source_hash,
+            source_hash: requireTestValue(requireTestValue(adapted.adaptations).h3).source_hash,
           },
           generic: {
             prompt: "adapt_generic @[信使](n1)",
@@ -162,14 +163,16 @@ test("片段时长按版本和分集保存，同值不重写，保留采用的�
       seconds: 20,
     });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.segments![1]!.chosen_task_id = "selected";
+      requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(state)).segments)[1],
+      ).chosen_task_id = "selected";
       return { changed: true, result: null };
     });
-    const before = dramaDocument(store.snapshot)!;
-    const [neighbor, selected] = before.segments!;
+    const before = requireTestValue(dramaDocument(store.snapshot));
+    const [neighbor, selected] = requireTestValue(before.segments);
     const input = {
-      segmentId: selected!.id,
-      revision: selected!.revision,
+      segmentId: requireTestValue(selected).id,
+      revision: requireTestValue(selected).revision,
       seconds: 8,
       episodeNo: 1,
       episodeOrder: 0,
@@ -192,7 +195,7 @@ test("片段时长按版本和分集保存，同值不重写，保留采用的�
     const empty = await setDramaSegmentPrompt(store, { ...base, prompt: "" });
     expect(empty.segments).toEqual([
       neighbor,
-      { ...after.segments![1], prompt: "", revision: base.revision + 1 },
+      { ...requireTestValue(after.segments)[1], prompt: "", revision: base.revision + 1 },
     ]);
     await expect(setDramaSegmentPrompt(store, { ...base, prompt: "旧稿" })).rejects.toMatchObject({
       code: "AGENT_APPROVAL_STALE",
@@ -218,15 +221,17 @@ test("片场新增空白片段写在本集末尾，重开可编辑，旧请求�
       seconds: 5,
       prompt: "楼梯",
     });
-    const original = doc.segments![0]!;
-    const neighbor = doc.episodes[0]!;
+    const original = requireTestValue(requireTestValue(doc.segments)[0]);
+    const neighbor = requireTestValue(doc.episodes[0]);
     const request = { episode_no: 2, revision: doc.revision, seconds: 8 };
     const saved = await addDramaSegment(store, request);
-    const blank = saved.segments![1]!;
+    const blank = requireTestValue(requireTestValue(saved.segments)[1]);
     expect(blank).toMatchObject({ seq: 1, episode_no: 2, prompt: "", revision: 1, seconds: 8 });
-    expect(saved.segments![0]).toEqual(original);
+    expect(requireTestValue(saved.segments)[0]).toEqual(original);
     expect(saved.episodes[0]).toEqual(neighbor);
-    expect(saved.episodes[1]!.segment_version).toBe(doc.episodes[1]!.segment_version! + 1);
+    expect(requireTestValue(saved.episodes[1]).segment_version).toBe(
+      requireTestValue(requireTestValue(doc.episodes[1]).segment_version) + 1,
+    );
     await expect(addDramaSegment(store, request)).rejects.toMatchObject({
       code: "AGENT_APPROVAL_STALE",
     });
@@ -241,7 +246,11 @@ test("片场新增空白片段写在本集末尾，重开可编辑，旧请求�
       revision: 1,
       prompt: "开门。",
     });
-    expect(edited.segments![1]).toEqual({ ...blank, revision: 2, prompt: "开门。" });
+    expect(requireTestValue(edited.segments)[1]).toEqual({
+      ...blank,
+      revision: 2,
+      prompt: "开门。",
+    });
   } finally {
     await store.close();
     await rm(root, { recursive: true, force: true });
@@ -264,25 +273,31 @@ test("排序只接受本集完整排列，换位片段分别递增版本", async
         prompt: "镜头",
       });
     }
-    const [first, other, last] = doc.segments!;
-    const previous = [first!.id, last!.id];
+    const [first, other, last] = requireTestValue(doc.segments);
+    const previous = [requireTestValue(first).id, requireTestValue(last).id];
     const input = {
       episodeNo: 1,
       episodeOrder: doc.episode_order ?? 0,
       previous,
       ids: [...previous].reverse(),
     };
-    for (const ids of [[other!.id, first!.id], [first!.id], [first!.id, first!.id]]) {
+    for (const ids of [
+      [requireTestValue(other).id, requireTestValue(first).id],
+      [requireTestValue(first).id],
+      [requireTestValue(first).id, requireTestValue(first).id],
+    ]) {
       await expect(reorderDramaSegments(store, { ...input, ids })).rejects.toThrow();
       expect(dramaDocument(store.snapshot)).toEqual(doc);
     }
     const ordered = await reorderDramaSegments(store, input);
     expect(ordered.segments).toEqual([
-      { ...last, seq: 0, revision: last!.revision + 1 },
+      { ...last, seq: 0, revision: requireTestValue(last).revision + 1 },
       other,
-      { ...first, seq: 1, revision: first!.revision + 1 },
+      { ...first, seq: 1, revision: requireTestValue(first).revision + 1 },
     ]);
-    expect(ordered.episodes[0]!.segment_version).toBe(doc.episodes[0]!.segment_version! + 2);
+    expect(requireTestValue(ordered.episodes[0]).segment_version).toBe(
+      requireTestValue(requireTestValue(doc.episodes[0]).segment_version) + 2,
+    );
     expect(ordered.episodes[1]).toEqual(doc.episodes[1]);
   } finally {
     await store.close();
@@ -310,8 +325,8 @@ test("删集与画布引用一次提交，全集、未分类、已有素材和�
       script: "第一集 初见\n敲门。\n第二集 再遇\n递信。\n第三集 离开\n出门。",
     });
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
-      doc.episodes[1]!.revision = 2;
+      const doc = requireTestValue(dramaDocument(state));
+      requireTestValue(doc.episodes[1]).revision = 2;
       doc.segments = [2, 3].map((no) => ({
         id: String(no).repeat(32),
         episode_no: no,
@@ -357,7 +372,7 @@ test("删集与画布引用一次提交，全集、未分类、已有素材和�
         availability: "ready",
         metadata: {},
       };
-      doc.episodes[1]!.final_asset_id = assetId;
+      requireTestValue(doc.episodes[1]).final_asset_id = assetId;
       doc.jobs = [
         {
           id: "f".repeat(32),
@@ -382,11 +397,11 @@ test("删集与画布引用一次提交，全集、未分类、已有素材和�
     await store.close();
     store = await ProjectStore.open(dir);
     const after = store.snapshot,
-      doc = dramaDocument(after)!;
+      doc = requireTestValue(dramaDocument(after));
     expect(after.revision).toBe(before.revision + 1);
     expect(after.canvas.revision).toBe(before.canvas.revision + 1);
     expect(after.assets).toEqual(before.assets);
-    expect(doc.jobs).toEqual(dramaDocument(before)!.jobs);
+    expect(doc.jobs).toEqual(requireTestValue(dramaDocument(before)).jobs);
     expect(doc.episodes.map((item) => [item.episode_no, item.script_md])).toEqual([
       [1, "第一集 初见\n敲门。"],
       [2, "第三集 离开\n出门。"],
@@ -430,10 +445,12 @@ test("删集与画布引用一次提交，全集、未分类、已有素材和�
     await read();
     const fresh = await command("drama-preview", { episode_no: 2, script_md: "我是原第3集" });
     await command("drama-apply", fresh, "new");
-    expect(dramaDocument(store.snapshot)!.episodes[1]?.script_md).toBe("我是原第3集");
+    expect(requireTestValue(dramaDocument(store.snapshot)).episodes[1]?.script_md).toBe(
+      "我是原第3集",
+    );
     await deleteDramaEpisode(store, { episode_no: 2, episodeOrder: 1 });
     await deleteDramaEpisode(store, { episode_no: 1, episodeOrder: 2 });
-    expect(dramaDocument(store.snapshot)!.episodes).toHaveLength(0);
+    expect(requireTestValue(dramaDocument(store.snapshot)).episodes).toHaveLength(0);
   } finally {
     await store.close();
     await rm(root, { recursive: true, force: true });
@@ -454,7 +471,7 @@ test("删集在事务内重新检查规划和任务，拒绝时不改画布和�
       { id: "764da0df-7117-448b-8dd8-f25ba29e09e6", revision: 1 },
     );
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes.push({
+      requireTestValue(dramaDocument(state)).episodes.push({
         episode_no: 1,
         title: "来信",
         synopsis: "",
@@ -472,8 +489,8 @@ test("删集在事务内重新检查规划和任务，拒绝时不改画布和�
     await blocked("正在规划，完成或暂停后再操作");
     for (const status of ["queued", "running"] as const) {
       await store.updateGeneration((state) => {
-        const doc = dramaDocument(state)!;
-        doc.planning!.phase = "paused";
+        const doc = requireTestValue(dramaDocument(state));
+        requireTestValue(doc.planning).phase = "paused";
         doc.jobs = [
           {
             id: "d".repeat(32),
@@ -519,14 +536,13 @@ test("手写剧本以单集版本保存，其他集不冲突，旧稿与锁集�
       script_md: "",
     });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[1]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[1]).locked = true;
       return { changed: true, result: null };
     });
     await expect(save(3, "绕过锁定")).rejects.toMatchObject({ code: "DRAMA_EPISODE_LOCKED" });
-    expect(dramaDocument(store.snapshot)!.episodes.map((item) => item.script_md)).toEqual([
-      "第一集修改",
-      "",
-    ]);
+    expect(
+      requireTestValue(dramaDocument(store.snapshot)).episodes.map((item) => item.script_md),
+    ).toEqual(["第一集修改", ""]);
   } finally {
     await store.close();
     await rm(root, { recursive: true, force: true });
@@ -678,8 +694,12 @@ test("逐集写剧本：已提交集不重跑；后一集失败保留旧稿并�
       model,
     );
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
-      Object.assign(doc.planning!, { phase: "done", cursor: 2, summary: "雨夜来信" });
+      const doc = requireTestValue(dramaDocument(state));
+      Object.assign(requireTestValue(doc.planning), {
+        phase: "done",
+        cursor: 2,
+        summary: "雨夜来信",
+      });
       doc.episodes = [1, 2].map((number) => ({
         episode_no: number,
         title: `第${number}集`,
@@ -705,7 +725,9 @@ test("逐集写剧本：已提交集不重跑；后一集失败保留旧稿并�
     const request = { args: { step: "scripts" as const, episodes: [2, 1] }, estimate: 6 };
     const job = await submitApprovedDramaJob(store, registry, "run", "approval", request);
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.prompt_snapshots!.scripts!.body = "新写法";
+      requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(state)).prompt_snapshots).scripts,
+      ).body = "新写法";
       return { changed: true, result: null };
     });
     await runDramaAssetJob(store, registry, job.id, controller.signal);
@@ -725,20 +747,24 @@ test("逐集写剧本：已提交集不重跑；后一集失败保留旧稿并�
     ).resolves.toMatchObject({
       active_jobs: [{ id: job.id, step: "scripts", status: "running", progress: 40 }],
     });
-    const [finished, pending] = dramaDocument(store.snapshot)!.episodes;
+    const [finished, pending] = requireTestValue(dramaDocument(store.snapshot)).episodes;
     await expect(
       saveDramaScript(store, {
         episode_no: 1,
-        revision: finished!.revision,
+        revision: requireTestValue(finished).revision,
         script_md: firstScript,
       }),
     ).resolves.toMatchObject({ status: "scripting" });
     await expect(
-      saveDramaScript(store, { episode_no: 2, revision: pending!.revision, script_md: "覆写" }),
+      saveDramaScript(store, {
+        episode_no: 2,
+        revision: requireTestValue(pending).revision,
+        script_md: "覆写",
+      }),
     ).rejects.toThrow("正在生成这一集的剧本");
     mode = "fail";
     await runDramaAssetJob(store, registry, job.id, new AbortController().signal);
-    const doc = dramaDocument(store.snapshot)!;
+    const doc = requireTestValue(dramaDocument(store.snapshot));
     expect(doc).toMatchObject({
       status: "failed",
       jobs: [{ status: "failed", progress: 40, done_episodes: [1] }],
@@ -927,7 +953,7 @@ test("主动取消拆解只保留已提交批次，重开不继续被取消的�
     agent.attach(store);
     await expect.poll(() => secondSignal?.aborted).toBe(false);
     await agent.cancelStudioJob(store, job.id, "breakdown");
-    expect(secondSignal!.aborted).toBe(true);
+    expect(requireTestValue(secondSignal).aborted).toBe(true);
     const hash = store.snapshot.commitHash;
     await agent.cancelStudioJob(store, job.id, "breakdown");
     expect(store.snapshot.commitHash).toBe(hash);
@@ -937,7 +963,7 @@ test("主动取消拆解只保留已提交批次，重开不继续被取消的�
     store = await ProjectStore.open(directory);
     agent.attach(store);
     await runDramaAssetJob(store, registry, job.id, new AbortController().signal);
-    const doc = dramaDocument(store.snapshot)!;
+    const doc = requireTestValue(dramaDocument(store.snapshot));
     expect(doc.jobs?.[0]).toMatchObject({
       status: "canceled",
       done_episodes: episodes.slice(0, 12),
@@ -1039,7 +1065,7 @@ test("小说第二批中断后重开只恢复冻结批次，失败保持第一�
     );
     expect(dramaDocument(store.snapshot)?.episodes).toEqual([]);
     await runDramaPlanning(store, runtime, controller.signal);
-    const saved = dramaDocument(store.snapshot)!;
+    const saved = requireTestValue(dramaDocument(store.snapshot));
     expect(saved.planning).toMatchObject({
       summary: "十四封信",
       cursor: 12,
@@ -1063,7 +1089,7 @@ test("小说第二批中断后重开只恢复冻结批次，失败保持第一�
       active_jobs: [{ step: "plan", lane: "pipeline", batch_from: 13, batch_to: 13 }],
     });
     await store.updateGeneration((state) => {
-      const first = dramaDocument(state)!.episodes[0]!;
+      const first = requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]);
       first.title = "手改来信";
       return { changed: true, result: null };
     });
@@ -1109,7 +1135,7 @@ test("小说第二批中断后重开只恢复冻结批次，失败保持第一�
         { no: 2, unit_from: 13, unit_to: 13, script_status: "empty" },
       ],
     });
-    const before = dramaDocument(store.snapshot)!;
+    const before = requireTestValue(dramaDocument(store.snapshot));
     const registry = Object.assign(runtime, {
       withDramaTextModel: async <Result>(
         preferred: string,
@@ -1251,7 +1277,7 @@ test("切换任务模型时按原稿单元和标题计算容量，失败保留�
     const script = `第一集\n门开了。\n${title}\n${"🌙".repeat(300)}`;
     await createDrama(store, { title: "月下", script });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[1]!.script_md = "精简版";
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[1]).script_md = "精简版";
       return { changed: true, result: null };
     });
     const textModel = "764da0df-7117-448b-8dd8-f25ba29e09e6";
@@ -1440,7 +1466,7 @@ test("小灵按集读到分镜排队、失败和就绪状态", async () => {
     );
     await addDramaEpisode(store, { revision: 1, title: "第二集", script_md: "见面" });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     await expect(read(1)).resolves.toMatchObject({ storyboard_status: "empty" });
@@ -1452,7 +1478,7 @@ test("小灵按集读到分镜排队、失败和就绪状态", async () => {
       });
       if (fail)
         await store.updateGeneration((state) => {
-          delete dramaDocument(state)!.prompt_snapshots!.video;
+          delete requireTestValue(requireTestValue(dramaDocument(state)).prompt_snapshots).video;
           return { changed: true, result: null };
         });
       await expect(read(1)).resolves.toMatchObject({ storyboard_status: "generating" });
@@ -1507,7 +1533,7 @@ test("覆盖已有视频的分镜：确认绑定片段版本和报价，失败�
   try {
     await createDrama(store, { title: "重做", script: "第一集 进站\n下雨。\n第二集 出站\n天晴。" });
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
+      const doc = requireTestValue(dramaDocument(state));
       for (const episode of doc.episodes) {
         episode.locked = true;
         episode.storyboard_status = "ready";
@@ -1538,19 +1564,21 @@ test("覆盖已有视频的分镜：确认绑定片段版本和报价，失败�
       };
       return { changed: true, result: null };
     });
-    const stale = storyboardClearHash(dramaDocument(store.snapshot)!, 1);
+    const stale = storyboardClearHash(requireTestValue(dramaDocument(store.snapshot)), 1);
     await store.updateGeneration((state) => {
-      const segment = dramaDocument(state)!.segments![0]!;
+      const segment = requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(state)).segments)[0],
+      );
       segment.prompt = "雨中的站台";
       segment.revision++;
       return { changed: true, result: null };
     });
     const before = store.snapshot,
-      hash = storyboardClearHash(dramaDocument(before)!, 1);
+      hash = storyboardClearHash(requireTestValue(dramaDocument(before)), 1);
     await expect(submit()).rejects.toMatchObject({ code: "DRAMA_STORYBOARD_HAS_TAKES" });
     await expect(submit(stale)).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
     await expect(submit(hash, 13)).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
-    const preview = { ...dramaDocument(before)!, segments: [] };
+    const preview = { ...requireTestValue(dramaDocument(before)), segments: [] };
     await expect(estimateDramaJob(preview, args, registry)).resolves.toMatchObject({
       storyboardLimits: { max_audios: 2 },
     });
@@ -1563,7 +1591,9 @@ test("覆盖已有视频的分镜：确认绑定片段版本和报价，失败�
       after = store.snapshot;
     expect(job.request).toMatchObject({ video_model: videoModel, max_seconds: 15, max_audios: 2 });
     expect(after.assets).toEqual(before.assets);
-    expect(dramaDocument(after)!.segments).toEqual(dramaDocument(before)!.segments!.slice(1));
+    expect(requireTestValue(dramaDocument(after)).segments).toEqual(
+      requireTestValue(requireTestValue(dramaDocument(before)).segments).slice(1),
+    );
     expect(projectCanvas(after.canvas).nodes).toEqual(
       projectCanvas(before.canvas).nodes.filter(
         (node) => node.type === "creative" && node.data.drama?.episodes?.includes(2),
@@ -1820,7 +1850,7 @@ test("旧项目的大纲审批跨分集与片段变更仍可提交，同一版�
   try {
     await createDrama(store, { title: "回声", script: "第一集\n进门\n第二集\n关门" });
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
+      const doc = requireTestValue(dramaDocument(state));
       delete doc.overview_revision;
       doc.revision = 7;
       return { changed: true, result: null };

@@ -15,6 +15,7 @@ import {
 } from "../../packages/provider-runtime/src/host";
 import { inspectPlugin, validateResult } from "../../packages/provider-runtime/src/plugin";
 import { PluginRunner, sourceHash } from "../../packages/provider-runtime/src/runner";
+import { requireTestValue } from "../require-test-value";
 
 const runner = new PluginRunner(
   process.env.LINK_STUDIO_PROVIDER_RUNNER ?? join(process.cwd(), "out/provider-runtime/runner"),
@@ -528,7 +529,7 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
     "%s 将 %s 的 %s 清晰度与 %s 画幅写入请求",
     async (adapter, model, resolution, aspectRatio, expected) => {
       const input = providerInput("video", adapter, { resolution, aspectRatio });
-      const request = await runner.call(plugins[adapter]!, "buildSubmitRequest", [
+      const request = await runner.call(requireTestValue(plugins[adapter]), "buildSubmitRequest", [
         {
           ...context(input),
           model: { upstreamModel: model },

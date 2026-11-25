@@ -7,6 +7,7 @@ import {
   replaceImageAsset,
 } from "../../src/renderer/workspace/asset-node-batch";
 import { mediaNodeFrame } from "../../src/renderer/workspace/media-node-model";
+import { requireTestValue } from "../require-test-value";
 
 function asset(
   assetId: string,
@@ -92,12 +93,14 @@ test("画布排布和节点框均按视频的显示尺寸，旧记录仍能使�
   const first = asset("1", "video", {
     width: 64,
     height: 48,
-    displayAspect: videoDisplayAspect({ ...stream, sample_aspect_ratio: "2:3" })!,
+    displayAspect: requireTestValue(videoDisplayAspect({ ...stream, sample_aspect_ratio: "2:3" })),
   });
   const second = asset("2", "video", {
     width: 64,
     height: 48,
-    displayAspect: videoDisplayAspect({ ...stream, side_data_list: [{ rotation: -90 }] })!,
+    displayAspect: requireTestValue(
+      videoDisplayAspect({ ...stream, side_data_list: [{ rotation: -90 }] }),
+    ),
   });
   const third = asset("3", "video", { width: 64, height: 48 });
   const nodes = planAssetNodes([first, second, third], { x: 0, y: 0 }, []);
@@ -105,7 +108,7 @@ test("画布排布和节点框均按视频的显示尺寸，旧记录仍能使�
   expect(nodes.map((node) => node.position.x)).toEqual([0, 364, 728]);
   expect(
     [first, second, third].map((asset, index) =>
-      mediaNodeFrame(nodes[index]!.data, [], asset.metadata),
+      mediaNodeFrame(requireTestValue(nodes[index]).data, [], asset.metadata),
     ),
   ).toEqual([
     { width: 324, height: 365 },

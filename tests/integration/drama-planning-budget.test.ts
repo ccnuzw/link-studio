@@ -7,6 +7,7 @@ import { createDrama, dramaDocument } from "../../src/main/project/drama";
 import { controlDramaPlanning, runDramaPlanning } from "../../src/main/project/drama-planning";
 import { ProjectStore } from "../../src/main/project/store";
 import type { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 
 test("旧项目恢复时按实际渲染长度抽样，逐批提交完整分集并持久化", async () => {
   const root = await mkdtemp(join(tmpdir(), "drama-fit-"));
@@ -37,7 +38,7 @@ test("旧项目恢复时按实际渲染长度抽样，逐批提交完整分集�
         { id: "764da0df-7117-448b-8dd8-f25ba29e09e6", revision: 1 },
       );
       await store.updateGeneration((state) => {
-        const plan = dramaDocument(state)!.planning!;
+        const plan = requireTestValue(requireTestValue(dramaDocument(state)).planning);
         Object.assign(plan, {
           phase: "paused",
           pause_code: "context",
@@ -63,7 +64,7 @@ test("旧项目恢复时按实际渲染长度抽样，逐批提交完整分集�
       ) {
         stages.push(step);
         sizes.push(Array.from(await render(step, input)).length);
-        if (sizes.at(-1)! > 12000) throw Error("超出完整输入预算");
+        if (requireTestValue(sizes.at(-1)) > 12000) throw Error("超出完整输入预算");
         const output =
           step === "analyze"
             ? JSON.stringify({
@@ -90,7 +91,7 @@ test("旧项目恢复时按实际渲染长度抽样，逐批提交完整分集�
     } as unknown as SettingsRegistry;
     await controlDramaPlanning(store, "resume");
     await runDramaPlanning(store, runtime, signal);
-    const finished = dramaDocument(store.snapshot)!;
+    const finished = requireTestValue(dramaDocument(store.snapshot));
     expect(finished.planning).toMatchObject({ phase: "done", cursor: 30, end: 30 });
     expect(finished).toMatchObject({ characters_md: "信使", outline_md: "## 雨夜" });
     expect(stages.filter((step) => step === "analyze")).toHaveLength(1);
@@ -98,8 +99,8 @@ test("旧项目恢复时按实际渲染长度抽样，逐批提交完整分集�
     expect(
       finished.episodes.flatMap((ep) =>
         Array.from(
-          { length: ep.unit_to! - ep.unit_from! + 1 },
-          (_, index) => ep.unit_from! + index,
+          { length: requireTestValue(ep.unit_to) - requireTestValue(ep.unit_from) + 1 },
+          (_, index) => requireTestValue(ep.unit_from) + index,
         ),
       ),
     ).toEqual(Array.from({ length: 30 }, (_, index) => index + 1));

@@ -4,6 +4,7 @@ import {
   canvasModelGroups,
   defaultNodeGeneration,
 } from "../../src/renderer/workspace/media-node-model";
+import { requireTestValue } from "../require-test-value";
 
 const adapters = ["text", "image", "video", "audio"].map((kind) => ({
   key: kind,
@@ -46,7 +47,7 @@ it("按文本、图片、视频、音频显示可用种类，只有被显式选�
   const groups = canvasModelGroups(settings);
   expect(groups.map((group) => group.kind)).toEqual(["script", "image", "video", "audio"]);
   for (const group of groups) {
-    const selected = group.models[0]!.id;
+    const selected = requireTestValue(group.models[0]).id;
     expect(defaultNodeGeneration(group.kind, { [group.kind]: selected }, groups)).toEqual({
       generation: { providerId: selected },
     });

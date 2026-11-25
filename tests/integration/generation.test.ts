@@ -41,6 +41,7 @@ import { uploadTrialReference } from "../../src/main/settings/trial-reference-up
 import { applyKindTemplate } from "../../src/renderer/settings/model-kind-template";
 import { batchVideoTargets } from "../../src/renderer/workspace/drama-segment-status";
 import { CanvasResultObserver } from "../../src/renderer/workspace/pet/result-observer";
+import { requireTestValue } from "../require-test-value";
 
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=";
@@ -212,9 +213,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       prompt: "推开门。",
       seconds: 5,
     });
-    const segment = segments![0]!;
+    const segment = requireTestValue(requireTestValue(segments)[0]);
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     const tools = new DramaTools();
@@ -255,7 +256,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(board()).toMatchObject({ activeOutputId: outputId, assetId: asset.assetId });
     await expect(summary()).resolves.toMatchObject({ done_board_count: 1 });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.segments![0]!.prompt += "回头。";
+      requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(state)).segments)[0],
+      ).prompt += "回头。";
       return { changed: true, result: null };
     });
     await expect(summary()).resolves.toMatchObject({ done_board_count: 0 });
@@ -276,7 +279,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("文本任务按提交快照和产物用量计价；缺报按报价、超报封顶，重开不重新计价", async () => {
     const channel = generationChannel(1),
-      plugin = registry.list().plugins.find((item) => item.key === "openai")!;
+      plugin = requireTestValue(registry.list().plugins.find((item) => item.key === "openai"));
     const model = registry.modelSave({
       channelId: channel.id,
       channelRevision: channel.revision,
@@ -336,7 +339,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("停用 OpenAI 后 Gemini 分镜经宿主流式网关提交，持久化分镜且重开不重复请求", async () => {
     const channel = generationChannel(1, [{ name: "x-fixture-channel", value: "split" }]);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai")!;
+    const plugin = requireTestValue(registry.list().plugins.find((item) => item.key === "openai"));
     registry.pluginToggle({ hash: plugin.hash, enabled: false });
     const model = registry.modelSave({
       expectedRevision: 0,
@@ -526,7 +529,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(saved()).toMatchObject({ text: "", outputs: [{ text: "新一版对白" }] });
     expect(saved()).not.toHaveProperty("activeOutputId");
     await putNode("人工改稿");
-    fail(pending!);
+    fail(requireTestValue(pending));
     await wait(late, "failed");
     expect(saved()).toMatchObject({ text: "人工改稿" });
     expect(saved()).not.toHaveProperty("textError");
@@ -577,7 +580,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       audio: { max: 4, mb: 15, on: false },
       video: { max: 1, mb: 100 },
     };
-    const plugin = registry.list().plugins.find((entry) => entry.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -639,7 +644,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         { type: "video_url", video_url: { url: assetURL }, role: "reference_video" },
       ]),
     };
-    expect(JSON.parse(preview.request!.body!)).toMatchObject(expected);
+    expect(JSON.parse(requireTestValue(requireTestValue(preview.request).body))).toMatchObject(
+      expected,
+    );
     expect(calls).toEqual(["POST /assets"]);
     const clip = join(root, "trial.mp4");
     await runMediaProcess(ffmpeg, [
@@ -677,7 +684,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       status: "succeeded",
       outputs: [{ mediaType: "video", previewUrl: "link-media://trial/fixture" }],
     });
-    expect(Buffer.from(await received[0]!.arrayBuffer())).toEqual(video);
+    expect(Buffer.from(await requireTestValue(received[0]).arrayBuffer())).toEqual(video);
     expect(sent).toMatchObject(expected);
     expect(calls).toEqual([
       "POST /assets",
@@ -701,7 +708,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       audio: { max: 4, mb: 15 },
       video: { max: 1, mb: 100 },
     };
-    const plugin = registry.list().plugins.find((entry) => entry.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -735,9 +744,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     };
     const preview = await runModelTrial(registry, mixed, grant);
     expect(preview.status).toBe("preview");
-    const media = JSON.parse(preview.request!.body!).content.filter(
-      (item: { type: string }) => item.type !== "text",
-    );
+    const media = JSON.parse(
+      requireTestValue(requireTestValue(preview.request).body),
+    ).content.filter((item: { type: string }) => item.type !== "text");
     expect(media).toHaveLength(references.length);
     for (const { kind, url } of references)
       expect(media).toContainEqual({
@@ -760,7 +769,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("OpenAI 生图预设经保存和真实适配器换算为尺寸，Auto 不发送 size", async () => {
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find(({ key }) => key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find(({ key }) => key === "openai-image"),
+    );
     const upstreamModel = "gpt-image-2";
     const config = applyKindTemplate(
       { kind: "image", name: upstreamModel, description: "", sort: 0 },
@@ -799,7 +810,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         () => "",
       );
       expect(preview.status).toBe("preview");
-      const body = JSON.parse(preview.request!.body!);
+      const body = JSON.parse(requireTestValue(requireTestValue(preview.request).body));
       if (size === undefined) expect(body).not.toHaveProperty("size");
       else expect(body.size).toBe(size);
       expect(body).not.toHaveProperty("quality");
@@ -911,14 +922,18 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ],
     });
     expect(calls).toEqual(["POST /v1/images/edits"]);
-    expect(Buffer.from(await received[0]!.arrayBuffer()).toString("base64")).toBe(png);
+    expect(Buffer.from(await requireTestValue(received[0]).arrayBuffer()).toString("base64")).toBe(
+      png,
+    );
     expect(Buffer.concat(bodies).toString()).toContain("1024x1024");
     expect(Object.keys(store.snapshot.assets)).toHaveLength(0);
   });
 
   it("画布自定义生成数量绑定同一节点，部分失败不丢结果，重提交复用整批回执", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -977,7 +992,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("队列只剩两个位置时接纳前两份，同一请求重开后只补建第三份", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1017,7 +1034,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(completed).toHaveLength(3);
     expect(completed.slice(0, 2).map((job) => job.id)).toEqual(accepted.map((job) => job.id));
     expect(completed[0]).not.toHaveProperty("unsubmittedCount");
-    await wait(completed[2]!.id, "succeeded");
+    await wait(requireTestValue(completed[2]).id, "succeeded");
     expect((await service.submit(store, [entry])).map((job) => job.id)).toEqual(
       completed.map((job) => job.id),
     );
@@ -1041,7 +1058,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(registry.acquireGeneration(first.id, "project-0", "job-0")).toBeTypeOf("function");
     releases[2]!();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeUndefined();
-    trial!();
+    requireTestValue(trial)();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeTypeOf("function");
     releases[1]!();
     expect(registry.acquireGeneration(undefined, "legacy", "direct")).toBeTypeOf("function");
@@ -1051,8 +1068,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     const channel = generationChannel(2),
       now = Date.now(),
       until = now + 30000;
-    const first = registry.acquireGeneration(channel.id, "active", "one")!,
-      second = registry.acquireGeneration(channel.id, "active", "two")!;
+    const first = requireTestValue(registry.acquireGeneration(channel.id, "active", "one")),
+      second = requireTestValue(registry.acquireGeneration(channel.id, "active", "two"));
     const enter = (index: number) =>
       registry.acquireGeneration(channel.id, `pending-${index}`, `job-${index}`, until, {
         created: now + index - 30,
@@ -1064,9 +1081,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     registry.reconcileJobPins("pending-0", []);
     registry.clearGenerationWaiters("pending-1");
     expect(enter(4)).toBeUndefined();
-    const third = enter(3)!;
+    const third = requireTestValue(enter(3));
     expect(enter(4)).toBeUndefined();
-    const next = enter(2)!;
+    const next = requireTestValue(enter(2));
     expect(registry.acquireGeneration(channel.id, "model-trial", "trial")).toBeUndefined();
     next();
     third();
@@ -1074,12 +1091,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       if (index + 2 < 12) expect(enter(index + 2)).toBeUndefined();
       const release = enter(index);
       expect(release).toBeTypeOf("function");
-      release!();
+      requireTestValue(release)();
     }
     const future = vi.spyOn(Date, "now").mockReturnValue(now + 40000);
     try {
-      const held = registry.acquireGeneration(channel.id, "active", "a")!,
-        other = registry.acquireGeneration(channel.id, "active", "b")!;
+      const held = requireTestValue(registry.acquireGeneration(channel.id, "active", "a")),
+        other = requireTestValue(registry.acquireGeneration(channel.id, "active", "b"));
       expect(
         registry.acquireGeneration(channel.id, "stale", "expired", now + 41000, {
           created: now,
@@ -1101,7 +1118,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       until = created + 30000;
     const enter = (project: string) =>
       registry.acquireGeneration(channel.id, project, "job", until, { created, until });
-    const holder = () => registry.acquireGeneration(channel.id, "holder", "active")!;
+    const holder = () =>
+      requireTestValue(registry.acquireGeneration(channel.id, "holder", "active"));
     expect(holder()).toBeTypeOf("function");
     for (const name of ["sleeping", "cancelled", "first", "second"])
       expect(enter(name)).toBeUndefined();
@@ -1114,11 +1132,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(enter("cancelled")).toBeUndefined();
     const release = enter("first");
     expect(release).toBeTypeOf("function");
-    release!();
+    requireTestValue(release)();
     registry.clearGenerationWaiters("second");
     const next = enter("cancelled");
     expect(next).toBeTypeOf("function");
-    next!();
+    requireTestValue(next)();
     expect(calls).toEqual([]);
   });
 
@@ -1145,7 +1163,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("两个打开的项目共用渠道生成名额，等待期间不重复提交", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1189,10 +1209,10 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       expect(service.list(second).jobs[0]?.status).toBe("queued");
       expect(pending).toHaveLength(1);
       const body = JSON.stringify({ data: [{ b64_json: png }] });
-      pending[0]!.setHeader("content-type", "application/json").end(body);
+      requireTestValue(pending[0]).setHeader("content-type", "application/json").end(body);
       await wait(firstJob.id, "succeeded");
       await expect.poll(() => pending.length).toBe(2);
-      pending[1]!.setHeader("content-type", "application/json").end(body);
+      requireTestValue(pending[1]).setHeader("content-type", "application/json").end(body);
       await expect.poll(() => service.list(second).jobs[0]?.status).toBe("succeeded");
       expect(Object.keys(store.snapshot.assets)).toHaveLength(1);
       expect(Object.keys(second.snapshot.assets)).toHaveLength(1);
@@ -1206,7 +1226,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("四个项目共用一个上游名额，关掉最早的等待项目后按顺序提交", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1263,14 +1285,16 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
             )
             .toBeGreaterThan(0);
       }
-      await service.stop(others[0]!);
-      ready(pending[0]!);
+      await service.stop(requireTestValue(others[0]));
+      ready(requireTestValue(pending[0]));
       await expect.poll(() => sent).toEqual(["在生成", "先排队"]);
-      ready(pending[1]!);
+      ready(requireTestValue(pending[1]));
       await expect.poll(() => sent).toEqual(["在生成", "先排队", "后排队"]);
-      ready(pending[2]!);
-      await expect.poll(() => service.list(others[2]!).jobs[0]?.status).toBe("succeeded");
-      expect(service.list(others[0]!).jobs[0]?.status).toBe("queued");
+      ready(requireTestValue(pending[2]));
+      await expect
+        .poll(() => service.list(requireTestValue(others[2])).jobs[0]?.status)
+        .toBe("succeeded");
+      expect(service.list(requireTestValue(others[0])).jobs[0]?.status).toBe("queued");
     } finally {
       for (const response of pending) response.destroy();
       for (const target of others) {
@@ -1283,7 +1307,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("等待渠道名额的任务超过模型时限后停止排队", async () => {
     await edit(node("sample"));
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1473,7 +1499,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       await handle.close();
     }
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1619,7 +1647,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         if (scenario !== "不收参考图")
           return configure("doubao-audio", undefined, "seed-audio", { as: "base64" });
         const channel = generationChannel();
-        const plugin = registry.list().plugins.find((item) => item.key === "doubao-audio")!;
+        const plugin = requireTestValue(
+          registry.list().plugins.find((item) => item.key === "doubao-audio"),
+        );
         const model = registry.modelSave({
           expectedRevision: 0,
           channelId: channel.id,
@@ -1725,7 +1755,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           await expect.poll(() => !!imageResponse).toBe(true);
           expect(service.list(store).jobs.find((job) => job.id === voiceId)?.status).toBe("queued");
           expect(voiceRequest).toBeUndefined();
-          imageResponse!.end(JSON.stringify({ data: [{ b64_json: png }] }));
+          requireTestValue(imageResponse).end(JSON.stringify({ data: [{ b64_json: png }] }));
         }
         const completed = await wait(voiceId, "succeeded");
         expect(completed).toMatchObject({ afterImageJobId: imageId, bound: true });
@@ -1775,7 +1805,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       clip,
     ]);
     const video = await readFile(clip);
-    const builtin = registry.list().plugins.find((entry) => entry.key === "doubao-video")!;
+    const builtin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
     const plugin = await draftVideo(
       String(builtin.source).replace(
         "firstDelay: 15, interval: 10",
@@ -1815,7 +1847,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       });
     }
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     const files = new AssetFiles(join(root, "locators"));
@@ -1831,7 +1863,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           })),
       );
       return batchVideoTargets(
-        dramaDocument(store.snapshot)!.segments!,
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).segments),
         1,
         service.list(store).jobs,
         available,
@@ -1849,12 +1881,15 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     const first = await entries();
     expect(first.map((entry) => entry.input.prompt)).toEqual(["开门。", "关门。"]);
     await Promise.all(first.map((entry) => service.submit(store, [entry])));
-    await Promise.all([wait(first[0]!.id, "succeeded"), wait(first[1]!.id, "failed")]);
+    await Promise.all([
+      wait(requireTestValue(first[0]).id, "succeeded"),
+      wait(requireTestValue(first[1]).id, "failed"),
+    ]);
     await reopen();
     const retry = await entries();
     expect(retry.map((entry) => entry.input.prompt)).toEqual(["关门。"]);
     await service.submit(store, retry);
-    await wait(retry[0]!.id, "succeeded");
+    await wait(requireTestValue(retry[0]).id, "succeeded");
     await reopen();
     expect(await pending()).toEqual([]);
     expect(submitted.sort()).toEqual(["开门。", "关门。", "关门。"].sort());
@@ -1864,19 +1899,23 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     });
     expect(read).toMatchObject([
       {
-        chosen_task_id: first[0]!.id,
-        takes: [{ task_id: first[0]!.id, status: "succeeded", asset: { kind: "video" } }],
+        chosen_task_id: requireTestValue(first[0]).id,
+        takes: [
+          { task_id: requireTestValue(first[0]).id, status: "succeeded", asset: { kind: "video" } },
+        ],
       },
       {
-        chosen_task_id: retry[0]!.id,
+        chosen_task_id: requireTestValue(retry[0]).id,
         takes: [
-          { task_id: first[1]!.id, status: "failed", asset: null },
-          { task_id: retry[0]!.id, status: "succeeded", asset: { kind: "video" } },
+          { task_id: requireTestValue(first[1]).id, status: "failed", asset: null },
+          { task_id: requireTestValue(retry[0]).id, status: "succeeded", asset: { kind: "video" } },
         ],
       },
       { takes: [] },
     ]);
-    const asset = Object.values(store.snapshot.assets).find((item) => item.mediaType === "video")!;
+    const asset = requireTestValue(
+      Object.values(store.snapshot.assets).find((item) => item.mediaType === "video"),
+    );
     await rm(join(store.directory, "assets", "sha256", asset.sha256.slice(0, 2), asset.sha256));
     expect((await pending()).map((segment) => segment.prompt)).toEqual(["开门。", "关门。"]);
   });
@@ -1895,7 +1934,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       clip,
     ]);
     let video = await readFile(clip);
-    const plugin = registry.list().plugins.find((entry) => entry.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       String(plugin.source).replace(
         "firstDelay: 15, interval: 10",
@@ -1910,7 +1951,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       seconds: 5,
       prompt: "门打开",
     });
-    const segment = document.segments![0]!;
+    const segment = requireTestValue(requireTestValue(document.segments)[0]);
     const request = {
       ...input(model, `seg:${segment.id}`),
       purpose: "drama-segment" as const,
@@ -1921,7 +1962,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       code: "DRAMA_STEP_NOT_READY",
     });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     let success = true;
@@ -1947,7 +1988,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     await service.submit(store, [first]);
     await expect(
       estimateDramaJob(
-        dramaDocument(store.snapshot)!,
+        requireTestValue(dramaDocument(store.snapshot)),
         { step: "storyboard", episodes: [1] },
         registry,
       ),
@@ -1981,8 +2022,10 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
             status: "failed",
             asset: null,
             error_message:
-              service.list(store).jobs.find((entry) => entry.id === failed.id)!.errorMessage ||
-              service.list(store).jobs.find((entry) => entry.id === failed.id)!.error,
+              requireTestValue(service.list(store).jobs.find((entry) => entry.id === failed.id))
+                .errorMessage ||
+              requireTestValue(service.list(store).jobs.find((entry) => entry.id === failed.id))
+                .error,
           },
         ],
       },
@@ -1998,13 +2041,13 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(store.getCanvas().canvasRevision).toBe(request.expectedCanvasRevision);
     await addDramaSegment(store, {
       episode_no: 1,
-      revision: dramaDocument(store.snapshot)!.revision,
+      revision: requireTestValue(dramaDocument(store.snapshot)).revision,
       seconds: 5,
       prompt: "尚未拍摄",
     });
     const last = await addDramaSegment(store, {
       episode_no: 1,
-      revision: dramaDocument(store.snapshot)!.revision,
+      revision: requireTestValue(dramaDocument(store.snapshot)).revision,
       seconds: 5,
       prompt: "白色信纸",
     });
@@ -2030,10 +2073,16 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     success = true;
     const lastId = randomUUID();
     await service.submit(store, [
-      { id: lastId, input: { ...request, nodeId: `seg:${last.segments!.at(-1)!.id}` } },
+      {
+        id: lastId,
+        input: {
+          ...request,
+          nodeId: `seg:${requireTestValue(requireTestValue(last.segments).at(-1)).id}`,
+        },
+      },
     ]);
     const lastJob = await wait(lastId, "succeeded");
-    const previous = last.segments!.map((item) => item.id);
+    const previous = requireTestValue(last.segments).map((item) => item.id);
     const ids = [...previous].reverse();
     const order = { episodeNo: 1, episodeOrder: last.episode_order ?? 0, previous, ids };
     const ordered = await reorderDramaSegments(store, order);
@@ -2044,15 +2093,22 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ordered.revision,
     );
     await reopen();
-    expect(dramaDocument(store.snapshot)!.segments!.map((item) => item.id)).toEqual(ids);
+    expect(
+      requireTestValue(requireTestValue(dramaDocument(store.snapshot)).segments).map(
+        (item) => item.id,
+      ),
+    ).toEqual(ids);
     const payload = { args: { step: "compose" as const, episodes: [1] }, estimate: 0 };
     const task = await submitApprovedDramaJob(store, registry, "run", "compose-approval", payload);
     expect(task).not.toHaveProperty("model");
     const assetIdFor = (jobId: string) =>
-      (service.list(store).jobs.find((job) => job.id === jobId)!.outputs[0] as { assetId: string })
-        .assetId;
+      (
+        requireTestValue(service.list(store).jobs.find((job) => job.id === jobId)).outputs[0] as {
+          assetId: string;
+        }
+      ).assetId;
     expect(task.compose_input).toMatchObject({
-      asset_ids: [assetIdFor(lastJob!.id), assetIdFor(second.id)],
+      asset_ids: [assetIdFor(requireTestValue(lastJob).id), assetIdFor(second.id)],
       skipped_seqs: [1],
     });
     await chooseDramaTake(store, { segmentId: segment.id, taskId: first.id, revision: 4 });
@@ -2067,7 +2123,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       interrupted.abort();
     });
     await runDramaAssetJob(store, registry, task.id, interrupted.signal, media);
-    expect(dramaDocument(store.snapshot)!.jobs!.find((job) => job.id === task.id)).toMatchObject({
+    expect(
+      requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs).find(
+        (job) => job.id === task.id,
+      ),
+    ).toMatchObject({
       status: "running",
       compose_input: task.compose_input,
     });
@@ -2076,12 +2136,14 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     await expect
       .poll(() => composeJob()?.status, { timeout: 15_000 })
       .toMatch(/^(succeeded|failed|canceled)$/);
-    const finished = composeJob()!;
+    const finished = requireTestValue(composeJob());
     expect(finished, finished.error_message).toMatchObject({
       status: "succeeded",
       frozen_credits: 0,
     });
-    const final = store.snapshot.assets[finished.final_asset_id!]!;
+    const final = requireTestValue(
+      store.snapshot.assets[requireTestValue(finished.final_asset_id)],
+    );
     expect(final).toMatchObject({
       mediaType: "video",
       origin: "derived",
@@ -2099,27 +2161,29 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ]),
     );
     const centerPixel = async (seconds: number) =>
-      (
-        await runMediaProcess(ffmpeg, [
-          "-v",
-          "error",
-          "-ss",
-          String(seconds),
-          "-i",
-          output,
-          "-map",
-          "0:v:0",
-          "-frames:v",
-          "1",
-          "-vf",
-          "crop=2:2",
-          "-pix_fmt",
-          "rgb24",
-          "-f",
-          "rawvideo",
-          "pipe:1",
-        ])
-      )[0]!;
+      requireTestValue(
+        (
+          await runMediaProcess(ffmpeg, [
+            "-v",
+            "error",
+            "-ss",
+            String(seconds),
+            "-i",
+            output,
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-vf",
+            "crop=2:2",
+            "-pix_fmt",
+            "rgb24",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+          ])
+        )[0],
+      );
     expect(await centerPixel(0.5)).toBeGreaterThan(240);
     expect(await centerPixel(1.5)).toBeLessThan(10);
     await expect(
@@ -2134,8 +2198,10 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     ).toBe(task.id);
     await render();
     expect(store.snapshot.revision).toBe(revision);
-    const previousSegments = dramaDocument(store.snapshot)!.segments!;
-    const removed = previousSegments[0]!;
+    const previousSegments = requireTestValue(
+      requireTestValue(dramaDocument(store.snapshot)).segments,
+    );
+    const removed = requireTestValue(previousSegments[0]);
     const deletion = { segmentId: removed.id, episodeNo: 1, episodeOrder: order.episodeOrder };
     const beforeDelete = store.snapshot;
     for (const mismatch of [{ episodeOrder: order.episodeOrder + 1 }, { episodeNo: 2 }]) {
@@ -2155,7 +2221,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(store.snapshot.jobs).toEqual(beforeDelete.jobs);
     expect(dramaDocument(store.snapshot)).toEqual(afterDelete);
     const original = join(root, "removed-segment.mp4");
-    await files.materialize(store, store.snapshot.assets[assetIdFor(lastJob!.id)]!, original);
+    await files.materialize(
+      store,
+      requireTestValue(store.snapshot.assets[assetIdFor(requireTestValue(lastJob).id)]),
+      original,
+    );
     expect(await readFile(original)).toEqual(video);
   });
 
@@ -2284,7 +2354,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("C6 停用渠道拒绝新任务，已取得回执的视频按原渠道完成", async () => {
     await edit(node("sample", "video"), node("later", "video"));
     const channel = generationChannel();
-    const builtin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+    const builtin = requireTestValue(
+      registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       builtin.source.replace("firstDelay: 15, interval: 10", "firstDelay: 0.05, interval: 0.05"),
     );
@@ -2360,7 +2432,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("C6 停用渠道不为退避中的无回执任务重提", async () => {
     await edit(node("sample", "video"));
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       channelId: channel.id,
       channelRevision: channel.revision,
@@ -2397,7 +2471,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("已获任务号的渠道任务在项目和设置库重开后继续占用原名额", async () => {
     await edit(node("sample", "video"));
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       plugin.source.replace(
         "firstDelay: 15, interval: 10",
@@ -2459,7 +2535,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       expectedRevision: destination.revision,
       secret: "destination-key",
     });
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       plugin.source.replace(
         "firstDelay: 15, interval: 10",
@@ -2555,7 +2633,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ...Array(3).fill("Bearer rotated-source-key"),
     ]);
     expect(routes).toEqual(Array(4).fill("original"));
-    expect(times[1]! - times[0]!).toBeGreaterThanOrEqual(1590);
+    expect(requireTestValue(times[1]) - requireTestValue(times[0])).toBeGreaterThanOrEqual(1590);
     await service.stop(store);
     registry.close();
     registry = await openRegistry();
@@ -2587,7 +2665,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           .toMatchObject({ status: "queued", submitRetries: attempt });
         const job = store.snapshot.jobs[entry.id] as { pollAfter: number };
         const base = 2000 * 2 ** (attempt - 1);
-        const waitMs = job.pollAfter - timestamps[attempt - 1]!;
+        const waitMs = job.pollAfter - requireTestValue(timestamps[attempt - 1]);
         expect(waitMs).toBeGreaterThanOrEqual(base * 0.8);
         expect(waitMs).toBeLessThan(base * 1.2 + 1000);
         offset += Math.max(0, job.pollAfter - Date.now()) + 1;
@@ -2894,7 +2972,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       await edit(node("sample", "video"));
       const source = generationChannel();
       const destination = generationChannel();
-      const builtin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+      const builtin = requireTestValue(
+        registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+      );
       const uploaded = await draftVideo(builtin.source);
       const fields = {
         upstreamModel: "fixture",
@@ -3636,7 +3716,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       pendingMediaVersion: { batchId: failed.id, outputId: original.id },
     });
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -3662,12 +3744,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       const retry = { id: randomUUID(), input: { ...input(model), customParams: { copies: 2 } } };
       const accepted = await service.submit(store, [retry]);
       expect(accepted).toHaveLength(2);
-      await service.cancel(store, accepted[0]!.id);
+      await service.cancel(store, requireTestValue(accepted[0]).id);
       expect(data()).not.toHaveProperty("assetId");
       expect(data()).toMatchObject({
         pendingMediaVersion: { batchId: retry.id, outputId: original.id },
       });
-      await service.cancel(store, accepted[1]!.id);
+      await service.cancel(store, requireTestValue(accepted[1]).id);
       expect(data()).toMatchObject(withHistory.data);
       expect(data()).not.toHaveProperty("pendingMediaVersion");
       expect(calls).toHaveLength(2);
@@ -3807,8 +3889,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         ],
       },
     })) as { created: Record<string, string> };
-    const variant = result.created.variant!;
-    const story = result.created.story!;
+    const variant = requireTestValue(result.created.variant);
+    const story = requireTestValue(result.created.story);
     await expect(preview(variant)).rejects.toMatchObject({ code: "JOB_MODEL_UNAVAILABLE" });
     await agent.command("apply-ops", {
       ...args,
@@ -3849,7 +3931,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ],
     });
     expect(calls).toHaveLength(1);
-    const source = store.getCanvas().canvas.nodes.find((entry) => entry.id === "source")!;
+    const source = requireTestValue(
+      store.getCanvas().canvas.nodes.find((entry) => entry.id === "source"),
+    );
     if (source.type !== "creative") throw Error("缺少已连接的原图节点");
     await store.applyCanvasOperations({
       operationId: randomUUID(),
@@ -3862,7 +3946,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       request.on("end", () => response.end(JSON.stringify({ data: [{ b64_json: png }] })));
     };
     const receipt = (await apply(proposal)) as { tasks: { task_id: string }[] };
-    await wait(receipt.tasks[0]!.task_id, "succeeded");
+    await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded");
     expect(await apply(proposal)).toEqual(receipt);
     expect(calls.at(-1)).toMatch(/\/images\/edits$/);
     expect(calls).toHaveLength(2);
@@ -3878,7 +3962,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("生成方式与参数按绑定模型读写，非法批次不落盘，重开后仍只申请一个结果", async () => {
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((entry) => entry.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "openai-image"),
+    );
     const image = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -3921,8 +4007,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         params: { duration: 5, aspect_ratio: "16:9" },
       },
     ])) as { created: Record<string, string> };
-    const poster = result.created.poster!;
-    const shot = result.created.shot!;
+    const poster = requireTestValue(result.created.poster);
+    const shot = requireTestValue(result.created.shot);
     const read = (nodeId: string) =>
       agent.command("read", { ...args, input: { nodeIds: [nodeId] } });
     const preview = (nodeId: string) =>
@@ -3981,7 +4067,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       selected: [0],
     })) as { tasks: { task_id: string }[] };
     expect(receipt.tasks).toHaveLength(1);
-    expect((await wait(receipt.tasks[0]!.task_id, "succeeded"))?.outputs).toHaveLength(1);
+    expect(
+      (await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded"))?.outputs,
+    ).toHaveLength(1);
     expect(calls).toHaveLength(1);
     await read(shot);
     await change([{ op: "update_node", id: shot, model: "" }]);
@@ -4050,7 +4138,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         input: proposal,
       }) as Promise<{ tasks: { task_id: string }[] }>;
     const receipt = await apply();
-    await wait(receipt.tasks[0]!.task_id, "succeeded");
+    await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded");
     expect((await apply()).tasks).toEqual(receipt.tasks);
     expect(calls).toEqual([
       "POST /v1/images/generations",
@@ -4058,8 +4146,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       "POST /v1/images/edits",
     ]);
     expect(edits).toHaveLength(1);
-    expect(edits[0]!.includes(Buffer.from(retained, "base64"))).toBe(true);
-    expect(edits[0]!.includes(Buffer.from(png, "base64"))).toBe(false);
+    expect(requireTestValue(edits[0]).includes(Buffer.from(retained, "base64"))).toBe(true);
+    expect(requireTestValue(edits[0]).includes(Buffer.from(png, "base64"))).toBe(false);
   });
 
   it.each(["omni", "i2v"] as const)(
@@ -4089,12 +4177,14 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         ...args,
         input: { items: [{ nodeId }] },
       })) as { items: { request: GenerationInput }[] };
-      expect(proposal.items[0]!.request).toMatchObject({
+      expect(requireTestValue(proposal.items[0]).request).toMatchObject({
         op: mode,
         referenceAssetIds: [],
         prompt: "远处的窗亮了",
       });
-      await expect(service.prepare(store, proposal.items[0]!.request)).rejects.toMatchObject({
+      await expect(
+        service.prepare(store, requireTestValue(proposal.items[0]).request),
+      ).rejects.toMatchObject({
         code: "JOB_INPUT_INVALID",
       });
       expect(calls).toHaveLength(0);
@@ -4115,7 +4205,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           input: proposal,
         }) as Promise<{ tasks: { task_id: string }[] }>;
       const result = await approve();
-      await wait(result.tasks[0]!.task_id, "failed");
+      await wait(requireTestValue(result.tasks[0]).task_id, "failed");
       expect(await approve()).toEqual(result);
       expect(requests).toEqual([
         expect.objectContaining({ content: [{ type: "text", text: "远处的窗亮了" }] }),
@@ -4288,7 +4378,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           const update = database.prepare(
             "UPDATE agent_approvals SET decided_at = ? WHERE id = ? AND status = 'approved'",
           );
-          expect(update.run(Date.now() - 8 * 24 * 3600000, approval!.id).changes).toBe(1);
+          expect(
+            update.run(Date.now() - 8 * 24 * 3600000, requireTestValue(approval).id).changes,
+          ).toBe(1);
         } finally {
           database.close();
         }
@@ -4305,7 +4397,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           runId: run.id,
         });
         expect(decisions).toMatchObject([
-          { id: approval!.id, status: "executed", result: { tasks: [{ node_id: "sample" }] } },
+          {
+            id: requireTestValue(approval).id,
+            status: "executed",
+            result: { tasks: [{ node_id: "sample" }] },
+          },
         ]);
         const { events } = await recovered.request<{
           events: { type: string; approvalId?: string }[];
@@ -4313,7 +4409,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         for (const type of ["approval.created", "approval.decided"])
           expect(
             events.filter((event) => event.type === type).map((event) => event.approvalId),
-          ).toEqual([approval!.id]);
+          ).toEqual([requireTestValue(approval).id]);
         expect(
           events.some((event) => event.type === "watch.updated" || event.type === "tasks.settled"),
         ).toBe(false);
@@ -4621,7 +4717,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     try {
       const profile = registry.save({
         expectedRevision: 0,
-        pluginHash: registry.list().plugins.find(({ key }) => key === "openai")!.hash,
+        pluginHash: requireTestValue(registry.list().plugins.find(({ key }) => key === "openai"))
+          .hash,
         approve: true,
         secret: "sk-fixture-only",
         fields: {

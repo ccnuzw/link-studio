@@ -2,6 +2,7 @@ import type { CreativeData, ProjectAsset, ProjectCanvasView } from "@link-studio
 import { expect, test } from "vitest";
 import { mentionSources } from "../../src/renderer/workspace/mention-sources";
 import { referenceUsed } from "../../src/renderer/workspace/video-modes";
+import { requireTestValue } from "../require-test-value";
 
 test("候选按连线和节点顺序分组，排除下游、空文本、运行中、缺失及不兼容素材", () => {
   const node = (id: string, kind: CreativeData["kind"], data: Partial<CreativeData> = {}) => ({
@@ -32,7 +33,11 @@ test("候选按连线和节点顺序分组，排除下游、空文本、运行�
       ["c", "target"],
       ["target", "child"],
       ["child", "grandchild"],
-    ].map(([source, target], index) => ({ id: `edge-${index}`, source: source!, target: target! })),
+    ].map(([source, target], index) => ({
+      id: `edge-${index}`,
+      source: requireTestValue(source),
+      target: requireTestValue(target),
+    })),
     viewport: { x: 0, y: 0, zoom: 1 },
   };
   const assets = ["a", "audio", "board"].map(
