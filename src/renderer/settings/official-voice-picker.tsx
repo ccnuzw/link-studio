@@ -22,8 +22,8 @@ export function OfficialVoicePicker({
       const top = popup.getBoundingClientRect().top + popup.clientTop;
       const bottom = top + popup.clientHeight;
       const bounds = item.getBoundingClientRect();
-      if (bounds.top < top) popup.scrollTop -= top - bounds.top;
-      else if (bounds.bottom > bottom) popup.scrollTop += bounds.bottom - bottom;
+      if (bounds.top < top || bounds.bottom > bottom)
+        item.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
     let frame = 0;
     const onFocus = () => {

@@ -70,6 +70,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
       "true",
     );
     const items = trial.getByRole("menuitem");
+    const voiceMenu = trial.getByRole("menu", { name: "音色库" });
     const first = "Young - Male - Zayne 2.0",
       last = "Middle-aged - Female - Anna";
     await picker.press("Enter");
@@ -78,7 +79,34 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     await expect(items.last()).toHaveText(last);
     await items.first().press("End");
     await expect(items.last()).toBeFocused();
-    await expect(items.last()).toBeInViewport();
+    try {
+      await expect.poll(() => voiceMenu.evaluate((menu) => menu.scrollTop)).toBeGreaterThan(0);
+      await expect(items.last()).toBeInViewport();
+    } catch (error) {
+      const geometry = await items.last().evaluate((item) => {
+        const ancestors = [];
+        for (let element: Element | null = item; element; element = element.parentElement) {
+          ancestors.push({
+            tag: element.tagName,
+            className: element.className,
+            bounds: element.getBoundingClientRect().toJSON(),
+            overflow: getComputedStyle(element).overflow,
+            scrollTop: element.scrollTop,
+            clientHeight: element.clientHeight,
+            scrollHeight: element.scrollHeight,
+          });
+        }
+        return { width: innerWidth, height: innerHeight, devicePixelRatio, ancestors };
+      });
+      await test.info().attach("voice-menu-geometry", {
+        body: JSON.stringify(geometry, null, 2),
+        contentType: "application/json",
+      });
+      await test
+        .info()
+        .attach("voice-menu", { body: await page.screenshot(), contentType: "image/png" });
+      throw error;
+    }
     await items.last().press("Home");
     await expect(items.first()).toBeFocused();
     await expect(items.first()).toBeInViewport();
