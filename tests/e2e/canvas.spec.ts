@@ -1260,8 +1260,13 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     await expect(
       page.getByRole("dialog", { name: "全屏查看" }).locator(".version-failed"),
     ).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "全屏查看" })
+      .getByRole("button", { name: "关闭" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "全屏查看" })).toHaveCount(0);
+    await history.getByRole("button", { name: "关闭" }).click();
+    await expect(history).toHaveCount(0);
     await expect(start).toBeEnabled();
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: /^连线批量/ }).click();

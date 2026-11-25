@@ -59,8 +59,16 @@ export async function chooseCanvasZoom(
 export async function projectAction(page: Page, name: string) {
   await page.getByRole("button", { name: "画布菜单", exact: true }).click();
   const label = name === "关闭项目" ? "返回项目列表" : name;
-  if (!["返回项目列表", "新建画布项目", "导出画布"].includes(label))
+  if (!["返回项目列表", "新建画布项目", "导出画布"].includes(label)) {
     await page.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
+    const item = page
+      .getByRole("menu", { name: "桌面项目操作", exact: true })
+      .getByRole("menuitem", { name: label, exact: true });
+    await expect(item).toBeVisible();
+    await expect(item).toBeEnabled();
+    await item.press("Enter");
+    return;
+  }
   await page.getByRole("menuitem", { name: label, exact: true }).click();
 }
 

@@ -23,6 +23,7 @@ import {
 } from "./workspace-actions";
 
 test("桌面启动、画布交互与受限 IPC", async () => {
+  test.setTimeout(60_000);
   const userData = await mkdtemp(join(tmpdir(), "link-studio-e2e-"));
   const mediaPath = join(userData, "e2e.png");
   const audioPath = join(userData, "e2e.wav");

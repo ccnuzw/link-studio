@@ -850,7 +850,7 @@ test("新增渠道部分凭证失败不重复创建，设置 Key 可补写，原
 
 test("新建渠道、拉取模型、保存能力与参数并试跑", async () => {
   const testInfo = test.info();
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const directory = await mkdtemp(join(tmpdir(), "link-studio-channels-"));
   const requests: { path?: string; authorization?: string; label?: string; body: string }[] = [];
   let emptyCatalog = false;

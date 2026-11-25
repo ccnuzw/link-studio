@@ -298,8 +298,12 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
       rail = page.getByRole("navigation", { name: "分集" });
     const episode = (no: number) =>
       rail.getByRole("button", { name: new RegExp(`^第 ${no} 集 ·`) });
-    const assetType = (name: string) => list.getByRole("tab", { name: new RegExp(`^${name}`) });
-    await assets.click();
+    const selectAssetType = async (name: string) => {
+      const tab = list.getByRole("tab", { name: new RegExp(`^${name}`) });
+      await tab.press("Enter");
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+    };
+    await assets.press("Enter");
     await episode(2).click();
     const session = await page.context().newCDPSession(page);
     const drag = async (
@@ -363,7 +367,7 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     const detail = page.getByRole("dialog", { name: "角色卡" });
     await expect(detail.getByLabel("主图", { exact: true })).toHaveText("icon-16.png");
     await detail.getByRole("button", { name: "关闭角色卡" }).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await list.getByRole("button", { name: "新建道具 出现在第 2 集" }).click();
     const emptyId = await cards.getAttribute("data-asset-id"),
       empty = list.locator(`[data-asset-id="${emptyId}"]`);
@@ -375,7 +379,7 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await expect(empty.locator("img")).toBeVisible();
     await expect(cards).toHaveCount(3);
     await expect(cards.locator(".drama-asset-badges i")).toHaveText(["2", "2", "2"]);
-    await assetType("文本").click();
+    await selectAssetType("文本");
     await drag(list.getByRole("button", { name: /新建文本/ }), [icon(16)], false);
     await expect(cards).toHaveCount(0);
     const ffmpeg = join(
@@ -410,13 +414,13 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
         ...encoding,
         source,
       ]);
-      await assetType(tab).click();
+      await selectAssetType(tab);
       await drag(list.locator(".drama-asset-drop-zone"), [source], true, false, true);
       await expect(cards).toHaveAttribute("data-status", "done");
       await expect(cards.locator(".drama-asset-badges i")).toHaveText("2");
     }
     await rail.getByRole("button", { name: "全集" }).click();
-    await assetType("场景").click();
+    await selectAssetType("场景");
     await drag(list.locator(".drama-asset-drop-zone"), [icon(256)], true, false, true);
     await expect(cards.locator("img")).toBeVisible();
     await expect(cards.locator(".drama-asset-badges")).toHaveText("全集");
@@ -425,14 +429,14 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: /^拖入资产/ }).click();
     await projectAction(page, "短剧工作室");
-    await assets.click();
+    await assets.press("Enter");
     await episode(1).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await expect(cards).toHaveCount(0);
-    await assetType("场景").click();
+    await selectAssetType("场景");
     await expect(cards.locator("img")).toBeVisible();
     await episode(2).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await expect(cards.locator("img")).toHaveCount(3);
     await expect(empty.locator("img")).toBeVisible();
     await page.getByRole("button", { name: "返回画布" }).click();

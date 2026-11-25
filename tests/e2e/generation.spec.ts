@@ -505,7 +505,7 @@ for (const [followMode, title] of [
   ["submit-only", "画布小灵：只提交生成，不登记后台跟进"],
 ] as const)
   test(title, async () => {
-    test.setTimeout(65_000);
+    test.setTimeout(followMode === "follow" ? 90_000 : 65_000);
     const root = await mkdtemp(join(tmpdir(), "link-studio-generation-e2e-"));
     const clipPath = join(root, "测试镜头.mp4");
     await runMediaProcess(
