@@ -31,6 +31,16 @@ pnpm check:package
 
 日常开发按 [项目开发规范](AGENTS.md) 选择覆盖本轮改动及受影响路径的定向检查。需要完整验收时选用上表对应入口，合并前核对目标提交的 CI。
 
+排查间歇性失败时，记录 `git rev-parse HEAD` 和 `git status --short`，复用与当前代码匹配的 `out/`。例如，获准占用本机前台后，可用以下命令对高频失败场景各做五次独立回放，失败 trace 写入独立目录：
+
+```sh
+pnpm exec playwright test tests/e2e/canvas.spec.ts tests/e2e/model-trial-media.spec.ts \
+  --grep '图片节点宫格拆图|全能参考按原顺序|默认视频模型决定音频拉线' \
+  --repeat-each=5 --workers=1 --retries=0 --output=test-results/stability-replay
+```
+
+出现失败先按 trace 定位。若单跑通过、整组失败，加上原顺序相邻的用例检查焦点、项目数据及进程清理。短剧合成恢复可单独运行 `pnpm exec vitest run --project integration tests/integration/generation.test.ts -t '短剧片段采用首次成功视频'`。修复集中后，在候选提交运行 `pnpm check` 和 `pnpm check:desktop`，再推送一次进行远端验收。
+
 依赖画布坐标和宽屏布局的 Electron 用例通过 `tests/e2e/desktop-window.ts` 固定 1440×888 CSS 视口。窄窗场景显式设置 1024×672，覆盖生成面板、图片标注和设置交互。
 
 涉及真实进程、媒体和崩溃恢复的集成测试及其生命周期钩子使用 30 秒上限，单元测试保留默认上限；不通过重试掩盖失败。行为变化应覆盖用户可观察结果、边界和失败路径；修复问题时添加能复现问题的回归测试。纯文档、格式等变更无需编造测试。
@@ -61,6 +71,10 @@ docs: 补充本地开发说明
 1. `PR Title` 工作流：检查 Conventional Commits 标题，标题修改时只重跑这项轻量检查。
 2. `CI` 工作流的 `Quality`：Ubuntu 快速检查。
 3. `CI` 工作流的 `Desktop macOS ARM64`：快速检查通过后，在 `macos-26` runner 上验证构建、集成、Agent 回归和桌面 E2E；先校验实际架构，云端沙箱、VideoToolbox 与 GUI 能力以该镜像的 Actions 实测为准。
+
+桌面 job 在同一台 runner 上分步调用本地桌面检查脚本，复用同一次构建。构建成功后，即使集成或上游回归失败，仍会依次收集其余独立套件的结果，任一失败都会使整次验收失败。本地完整入口采用相同规则。Actions 摘要列出提交、各阶段状态与耗时、失败用例和断言摘要，以及证据下载入口。`skipped` 表示该阶段未执行。手动开启 `package_smoke` 时，包内回放依赖成功的打包，源码和包内 E2E 的 trace 分目录保存。
+
+复盘时以「运行号、attempt、用例名、失败断言」对照。PR #3 的 CI #14 与 #17 都报音频拉线错误，分别停在候选禁用断言和菜单出现断言。#21、#22、#24 都涉及音色菜单。#25 则在集成测试读到尚处于 `running` 的合成任务，旧流程到这里就终止了。若 GitHub 没有测试报告，先查看 job 的 Annotations，确认 runner 是否实际取得任务。
 
 `PR Title` 在 PR 创建、标题编辑和更新提交时校验标题。标题只作为环境变量传入 shell，不会被当作命令执行；该任务无需检出仓库、安装项目依赖或额外配置 Node。
 

@@ -42,7 +42,7 @@ jobs:
     name: Desktop macOS ARM64
     needs: quality
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.package_smoke && 120 || 60 }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
@@ -70,16 +70,30 @@ jobs:
           path: .cache/media
           key: media-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('resources/media/build.json', 'scripts/build-media.mjs') }}
       - run: pnpm install --frozen-lockfile
-      - name: Build, integration, upstream regression and desktop E2E
-        env:
-          PACKAGE_SMOKE: ${{ inputs.package_smoke }}
-        run: |
-          if [ "$PACKAGE_SMOKE" = true ]; then
-            pnpm check:package
-          else
-            pnpm check:desktop
-          fi
+      - name: Build desktop app
+        id: build
+        run: node scripts/check.mjs desktop build
+      - name: Integration tests
+        id: integration
+        run: node scripts/check.mjs desktop integration
+      - name: Agent upstream regression
+        id: upstream
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/check.mjs desktop upstream
+      - name: Electron E2E
+        id: e2e
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/check.mjs desktop e2e
+      - name: Build unsigned macOS package
+        id: package
+        if: ${{ !cancelled() && inputs.package_smoke && steps.build.outcome == 'success' }}
+        run: node scripts/check.mjs desktop package
+      - name: Packaged Electron E2E
+        id: packaged_e2e
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        run: node scripts/check.mjs desktop packaged-e2e
       - name: Upload test evidence
+        id: evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -89,3 +103,11 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Desktop verification summary
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CHECK_STEPS: ${{ toJSON(steps) }}
+          PACKAGE_SMOKE: ${{ inputs.package_smoke }}
+          EVIDENCE_URL: ${{ steps.evidence.outputs.artifact-url }}
+        run: node scripts/desktop-summary.mjs
