@@ -39,11 +39,15 @@ export function OfficialVoicePicker({
             className="trial-ref-menu trial-voice-menu"
             onFocus={({ currentTarget: menu, target: item }) => {
               if (item.getAttribute("role") !== "menuitem") return;
-              const viewport = menu.getBoundingClientRect();
-              const bounds = item.getBoundingClientRect();
-              if (bounds.top < viewport.top) menu.scrollTop += bounds.top - viewport.top;
-              else if (bounds.bottom > viewport.bottom)
-                menu.scrollTop += bounds.bottom - viewport.bottom;
+              requestAnimationFrame(() => {
+                if (document.activeElement !== item || !menu.contains(item)) return;
+                const top = menu.getBoundingClientRect().top + menu.clientTop;
+                const bottom = top + menu.clientHeight;
+                const bounds = item.getBoundingClientRect();
+                if (bounds.top < top) menu.scrollTop -= Math.ceil(top - bounds.top);
+                else if (bounds.bottom > bottom)
+                  menu.scrollTop += Math.ceil(bounds.bottom - bottom);
+              });
             }}
           >
             <Menu.Group>
