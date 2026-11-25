@@ -832,6 +832,7 @@ test("导入画布仅按本机模型键恢复配置", async () => {
       }),
     );
     await page
+      .getByRole("main", { name: "创作画布" })
       .locator('input[type="file"][accept=".json,application/json"]')
       .setInputFiles(exchange);
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
