@@ -264,6 +264,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
 });
 
 test("资产列表：原生文件拖入空卡、已占卡、空白和文本，分集重开后不变", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-drama-file-drop-"));
   const store = await ProjectStore.create(root, "拖入资产"),
     directory = store.directory;

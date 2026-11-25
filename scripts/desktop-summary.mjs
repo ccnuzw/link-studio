@@ -33,6 +33,7 @@ function playwrightFailures(suites) {
 const lines = [
   "### Desktop macOS ARM64",
   `PR / push \`${process.env.HEAD_SHA}\` · checkout \`${process.env.GITHUB_SHA}\``,
+  `模式：${process.env.FULL_E2E === "true" ? "完整 E2E 回归" : "快速合并检查（未运行 Electron E2E）"}`,
   "",
   "| Stage | Result | Duration |",
   "| --- | --- | --- |",

@@ -5,14 +5,16 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const [mode = "quality", option, ...extra] = process.argv.slice(2);
 const desktopStages = ["build", "integration", "upstream", "e2e"];
+const fastDesktopStages = ["build", "integration", "upstream"];
 const packageStages = ["package", "packaged-e2e"];
 if (
   extra.length ||
   !["quality", "desktop"].includes(mode) ||
   (option !== undefined &&
-    (mode !== "desktop" || ![...desktopStages, ...packageStages, "--package"].includes(option)))
+    (mode !== "desktop" ||
+      ![...desktopStages, ...packageStages, "fast", "--package"].includes(option)))
 ) {
-  throw new Error("用法：node scripts/check.mjs quality | desktop [--package | 阶段名]");
+  throw new Error("用法：node scripts/check.mjs quality | desktop [fast | --package | 阶段名]");
 }
 
 function run(command, args, environment = {}) {
@@ -123,9 +125,11 @@ if (mode === "quality") {
   const selected =
     option === "--package"
       ? [...desktopStages, ...packageStages]
-      : option
-        ? [option]
-        : desktopStages;
+      : option === "fast"
+        ? fastDesktopStages
+        : option
+          ? [option]
+          : desktopStages;
   const failed = [];
   for (const stage of selected) {
     if (stage === "packaged-e2e" && failed.includes("package")) continue;

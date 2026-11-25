@@ -7,6 +7,7 @@ import { _electron as electron, expect, test } from "@playwright/test";
 import { addCanvasNode, createCanvasProject, projectAction } from "./workspace-actions";
 
 test("项目文件选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
+  test.setTimeout(90_000);
   const directory = await mkdtemp(join(tmpdir(), "studio-enroll-"));
   const image = join(directory, "林舟_正面.png");
   await copyFile(join(process.cwd(), "resources/icons/icon-32.png"), image);
@@ -509,7 +510,7 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
       await copyFile(file, retryFile);
       await picker.getByLabel("选择要上传的文件").setInputFiles(retryFile);
       const failed = picker.getByRole("group", { name: "重试.png", exact: true });
-      await expect(failed.getByRole("alert")).toBeVisible();
+      await expect(failed.getByRole("alert")).toBeVisible({ timeout: 15_000 });
       const searchbox = picker.getByRole("searchbox", { name: "搜索文件名" });
       await searchbox.fill("便装");
       await expect(

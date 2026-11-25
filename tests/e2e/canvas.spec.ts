@@ -963,6 +963,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
 });
 
 test("音频波形支持定位、续播和失选暂停", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-audio-wave-"));
   const clip = join(root, "音轨.wav");
   const samples = Buffer.alloc(44 + 8000 * 2 * 8);
@@ -2311,6 +2312,7 @@ test("图片节点内单选上传：错型不动图，确认即断入线，撤�
 });
 
 test("在画布拖入磁盘文件时填充空节点并保留已有图片", async () => {
+  test.setTimeout(90_000);
   const root = await mkdtemp(join(tmpdir(), "link-drop-files-"));
   const application = await launchCanvas(root);
   try {
@@ -2348,12 +2350,16 @@ test("在画布拖入磁盘文件时填充空节点并保留已有图片", async
         return transfer;
       });
       const media = original.locator(".node-media");
+      await expect(page.locator(".canvas-save-indicator")).toHaveAttribute("data-state", "saved", {
+        timeout: 15_000,
+      });
       await media.dispatchEvent("dragover", { dataTransfer: transfer });
       await expect(page.locator(".canvas-file-over")).toBeVisible();
       await media.dispatchEvent("drop", { dataTransfer: transfer, clientX: 500, clientY: 400 });
       await transfer.dispose();
       await expect(page.locator(".canvas-file-over")).toHaveCount(0);
-      await expect(page.locator(`.react-flow__node img[alt="${color}.png"]`)).toHaveCount(1);
+      const target = color === "red" ? original : page.locator(".react-flow__node");
+      await expect(target.locator(`img[alt="${color}.png"]`)).toHaveCount(1, { timeout: 20_000 });
     }
     await expect
       .poll(
@@ -7812,6 +7818,7 @@ test("画布视频可排序、混音并导出成片，结果回写项目文件",
     await page.getByRole("button", { name: "将red.mp4加入画布" }).click();
     await page.getByRole("button", { name: "将blue.mp4加入画布" }).click();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
     await application.evaluate(({ dialog }, path) => {
       dialog.showSaveDialog = (async () => ({

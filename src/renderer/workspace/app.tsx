@@ -1232,7 +1232,11 @@ export function App() {
       origin: rect && { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
     });
   };
-  const [compositionOpen, setCompositionOpen] = useState(false);
+  const [compositionSeed, setCompositionSeed] = useState<{
+    projectHandle: string;
+    assets: ProjectAsset[];
+    videoIds: string[];
+  }>();
   const [splitTarget, setSplitTarget] = useState<{
     nodeId: string;
     asset: ProjectAsset;
@@ -4253,8 +4257,32 @@ export function App() {
     setProjectError("");
     setWriting(true);
     try {
-      if (!(await saveCanvas(projectSession))) return;
-      setCompositionOpen(true);
+      const saved = await saveCanvas(projectSession);
+      if (!saved) return;
+      const [canvasResult, assetsResult] = await Promise.all([
+        window.desktop.projects.getCanvas({ projectHandle: saved.projectHandle }),
+        window.desktop.projects.listAssets({ projectHandle: saved.projectHandle }),
+      ]);
+      if (currentProjectHandle.current !== saved.projectHandle) return;
+      if (!canvasResult.ok || !assetsResult.ok) {
+        setProjectError("无法读取最新项目素材，请重试。");
+        return;
+      }
+      const videoIds = canvasResult.value.canvas.nodes
+        .filter(
+          (node): node is CreativeNode =>
+            node.type === "creative" && node.data.kind === "video" && !!node.data.assetId,
+        )
+        .sort(
+          (left, right) => left.position.y - right.position.y || left.position.x - right.position.x,
+        )
+        .map((node) => node.data.assetId)
+        .filter((assetId): assetId is string => !!assetId);
+      setCompositionSeed({
+        projectHandle: saved.projectHandle,
+        assets: assetsResult.value.assets,
+        videoIds,
+      });
     } finally {
       setWriting(false);
     }
@@ -7390,24 +7418,14 @@ export function App() {
               }}
             />
           )}
-          {compositionOpen && projectSession && (
+          {compositionSeed?.projectHandle === projectSession.projectHandle && (
             <CompositionDialog
-              assets={assets}
+              assets={compositionSeed.assets}
               projectHandle={projectSession.projectHandle}
-              initialVideoIds={nodes
-                .filter(
-                  (node): node is CreativeNode =>
-                    node.type === "creative" && node.data.kind === "video" && !!node.data.assetId,
-                )
-                .sort(
-                  (left, right) =>
-                    left.position.y - right.position.y || left.position.x - right.position.x,
-                )
-                .map((node) => node.data.assetId)
-                .filter((assetId): assetId is string => !!assetId)}
-              close={() => setCompositionOpen(false)}
+              initialVideoIds={compositionSeed.videoIds}
+              close={() => setCompositionSeed(undefined)}
               done={async ({ asset }) => {
-                setCompositionOpen(false);
+                setCompositionSeed(undefined);
                 await refreshAssets(projectSession.projectHandle);
                 await openPreview(asset);
               }}
