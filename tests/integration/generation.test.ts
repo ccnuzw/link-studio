@@ -2072,10 +2072,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       compose_input: task.compose_input,
     });
     await reopen();
+    const composeJob = () => dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === task.id);
     await expect
-      .poll(() => dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === task.id)?.status)
-      .toBe("succeeded");
-    const finished = dramaDocument(store.snapshot)!.jobs!.find((job) => job.id === task.id)!;
+      .poll(() => composeJob()?.status, { timeout: 15_000 })
+      .toMatch(/^(succeeded|failed|canceled)$/);
+    const finished = composeJob()!;
     expect(finished, finished.error_message).toMatchObject({
       status: "succeeded",
       frozen_credits: 0,
