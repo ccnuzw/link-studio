@@ -35,7 +35,17 @@ export function OfficialVoicePicker({
           collisionBoundary={document.documentElement}
           collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         >
-          <Menu.Popup className="trial-ref-menu trial-voice-menu">
+          <Menu.Popup
+            className="trial-ref-menu trial-voice-menu"
+            onFocus={({ currentTarget: menu, target: item }) => {
+              if (item.getAttribute("role") !== "menuitem") return;
+              const viewport = menu.getBoundingClientRect();
+              const bounds = item.getBoundingClientRect();
+              if (bounds.top < viewport.top) menu.scrollTop += bounds.top - viewport.top;
+              else if (bounds.bottom > viewport.bottom)
+                menu.scrollTop += bounds.bottom - viewport.bottom;
+            }}
+          >
             <Menu.Group>
               <Menu.GroupLabel>音色库</Menu.GroupLabel>
               {!voices?.length && <p>{voices ? "暂无音色" : "加载中…"}</p>}
