@@ -979,6 +979,7 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     await createCanvasProject(page);
     await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
+    await expect(page.getByRole("button", { name: "将音轨.wav加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
     await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
     await page
@@ -3420,13 +3421,17 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
     await expect(line).toBeHidden();
     await expect(page.locator(".react-flow__node")).toHaveCount(5);
     await expect(page.locator(".react-flow__edge")).toHaveCount(4);
-    const finalIds = await page.locator(".react-flow__node:has(img)").evaluateAll((cards) =>
-      cards
-        .filter((card) => card.querySelector("strong")?.textContent !== "grid")
-        .map((card) => card.getAttribute("data-id"))
-        .sort(),
-    );
-    expect(await waitingIds).toEqual(finalIds);
+    const pendingIds = await waitingIds;
+    await expect
+      .poll(() =>
+        page.locator(".react-flow__node:has(.canvas-image-layers img)").evaluateAll((cards) =>
+          cards
+            .filter((card) => card.querySelector("strong")?.textContent !== "grid")
+            .map((card) => card.getAttribute("data-id"))
+            .sort(),
+        ),
+      )
+      .toEqual(pendingIds);
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);
@@ -3454,6 +3459,7 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
           const card = image.closest("article");
           return {
             name,
+            id: card?.closest(".react-flow__node")?.getAttribute("data-id"),
             label: card?.querySelector("strong")?.textContent,
             width: image.naturalWidth,
             height: image.naturalHeight,
@@ -3463,16 +3469,22 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
       );
     });
     for (const part of positions) {
-      const match = part.name.match(/^grid-([12])-([12])\.png$/);
+      const node = restored.find((item) => item.id === part.id);
+      const asset = node?.data.assetId && saved.assets[node.data.assetId];
+      if (!node || !asset)
+        throw new Error(`切图节点 ${part.id} 缺少持久化素材 ${node?.data.assetId}`);
+      expect(part.name).toBe(asset.displayName);
+      const match = asset.displayName.match(/^grid-([12])-([12])\.png$/);
+      if (node.id === source.id) expect(asset.displayName).toBe("grid.png");
+      else expect(match).not.toBeNull();
       const row = Number(match?.[1] ?? 1) - 1;
       const col = Number(match?.[2] ?? 1) - 1;
       expect([part.width, part.height]).toEqual(match ? [col ? 7 : 13, 6] : [20, 12]);
       if (match) {
         expect(part.label).toBe(`grid ${row + 1}-${col + 1}`);
         expect(part.frame).toEqual([col ? 378 : 702, 324]);
-        const tile = restored.find((node) => node.data.label === part.label);
-        expect(tile?.data.uploaded).toBe(true);
-        expect(tile?.position).toEqual({
+        expect(node.data.uploaded).toBe(true);
+        expect(node.position).toEqual({
           x: source.position.x + 620 + col * 782,
           y: source.position.y - 182 + row * 364,
         });
@@ -3485,8 +3497,6 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
           expected.push(sourceCol * 10, sourceRow * 18, (sourceRow + sourceCol) * 8, 255);
         }
       }
-      const asset = Object.values(saved.assets).find((item) => item.displayName === part.name);
-      if (!asset) throw new Error("缺少持久化图片");
       const pixels = await runMediaProcess(
         join(process.cwd(), "out/media", `${process.platform}-${process.arch}`, "ffmpeg"),
         [
@@ -7139,11 +7149,13 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
       fov = editor.getByLabel("FOV", { exact: true }),
       depth = editor.getByLabel("位置 Z"),
       initialPitch = Number(await pitch.inputValue());
-    await page.mouse.wheel(0, 100);
+    const wheel = (altKey = false) =>
+      preview.dispatchEvent("wheel", { deltaY: 100, deltaMode: 0, altKey, cancelable: true });
+    await wheel();
     await expect
       .poll(async () => Number(await pitch.inputValue()))
       .toBeCloseTo(initialPitch - 2, 6);
-    await page.mouse.wheel(0, 100);
+    await wheel();
     await expect
       .poll(async () => Number(await pitch.inputValue()))
       .toBeCloseTo(initialPitch - 4, 6);
@@ -7152,9 +7164,7 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await expect.poll(async () => Number(await pitch.inputValue())).toBeCloseTo(initialPitch, 6);
     await expect(undo).toBeDisabled();
     await preview.hover({ position });
-    await page.keyboard.down("Alt");
-    await page.mouse.wheel(0, 100);
-    await page.keyboard.up("Alt");
+    await wheel(true);
     await expect
       .poll(async () => Number(await fov.inputValue()))
       .toBe(Math.round(50 * Math.exp(0.1)));
@@ -7358,8 +7368,19 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
     expect(await width()).toBe(272);
     const original = await main.locator("canvas").first().elementHandle(),
       monitor = await main.locator("canvas").last().elementHandle();
-    await divider.press("ArrowRight");
-    await expect.poll(width).toBe(288);
+    await divider.focus();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect.poll(width).toBe(288);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+    } finally {
+      await page.keyboard.up("ArrowRight");
+    }
     await divider.dblclick();
     await expect.poll(width).toBe(272);
     const bounds = (await divider.boundingBox())!;
@@ -7413,6 +7434,7 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
     await editor.getByTitle("撤销（Ctrl+Z）").click();
     await expect(position).toHaveValue("0.00");
     await view.click();
+    await expect(editor.getByRole("menuitemradio", { name: "导演视角" })).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await expect(editor.getByRole("menuitemradio", { name: "机位1" })).toBeFocused();
     await page.keyboard.press("Escape");
