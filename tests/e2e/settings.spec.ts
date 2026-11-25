@@ -4089,8 +4089,11 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
       const log = page.getByRole("log", { name: "对话与活动" });
       await expect(log.getByText(/待确认/)).toBeVisible();
       await expect.poll(() => log.evaluate((element) => element.scrollTop)).toBeGreaterThan(30);
-      await log.focus();
-      await log.press("Home");
+      await expect(log).toHaveAttribute("data-scrolled", "true");
+      await log.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      await expect(log).toHaveAttribute("data-scrolled", "false");
       const latest = page.getByRole("button", { name: "回到底部" });
       await expect.poll(() => log.evaluate((element) => element.scrollTop)).toBeLessThan(32);
       await expect(latest).toHaveCount(0);

@@ -189,6 +189,10 @@ for (const scope of ["设置", "画布", "短剧"] as const)
           panel().getByRole("separator", {
             name: fails ? "较早的对话没能整理" : "已整理较早的对话",
           });
+        const tooltip = () =>
+          page.getByRole("tooltip", {
+            name: fails ? /这一轮不会再自动整理/ : /聊天记录没有变/,
+          });
         await open();
         await expect(panel().getByRole("status")).toHaveText("就绪");
         const composer = panel().getByRole("textbox", {
@@ -226,11 +230,9 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await page.keyboard.press("Shift+Tab");
         await page.keyboard.press("Tab");
         await expect(divider()).toBeFocused();
-        await expect(page.getByRole("tooltip")).toContainText(
-          fails ? "这一轮不会再自动整理" : "聊天记录没有变",
-        );
+        await expect(tooltip()).toBeVisible();
         await page.keyboard.press("Escape");
-        await expect(page.getByRole("tooltip")).toHaveCount(0);
+        await expect(tooltip()).toHaveCount(0);
         await panel().getByRole("button", { name: "新对话", exact: true }).click();
         await expect(divider()).toHaveCount(0);
         await expect(panel().getByRole("button", { name: /^上下文用量 0 \// })).toBeVisible();
