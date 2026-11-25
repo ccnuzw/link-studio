@@ -9,6 +9,7 @@ import {
   CanvasOperations,
   CanvasPosition,
   cameraMoves,
+  groupHue,
   maxStoryboardShots,
   shotSizes,
 } from "./canvas.ts";
@@ -165,7 +166,7 @@ export function isCanvasAgentAnswerValue(
       question.allowCustom ||
       options?.includes(text) ||
       follows.some(
-        ({ label }) => text.startsWith(label + "：") && !!text.slice(label.length + 1).trim(),
+        ({ label }) => text.startsWith(`${label}：`) && !!text.slice(label.length + 1).trim(),
       )
     );
   };
@@ -399,6 +400,10 @@ const nodeFields = {
   prompt: Type.Optional(Type.String({ maxLength: 32768 })),
 };
 const members = Type.Optional(Type.Array(CanvasId, { maxItems: 1000, uniqueItems: true }));
+const groupColors = {
+  color: Type.Optional(Type.Union([groupHue, Type.Literal("")])),
+  labelColor: Type.Optional(Type.Union([groupHue, Type.Literal("")])),
+};
 export const CanvasAgentOps = Type.Object(
   {
     ops: Type.Array(
@@ -406,6 +411,7 @@ export const CanvasAgentOps = Type.Object(
         Type.Object(
           {
             op: Type.Literal("create_node"),
+            parentGroup: Type.Optional(CanvasId),
             kind: Type.Union([
               Type.Literal("script"),
               Type.Literal("image"),
@@ -424,6 +430,7 @@ export const CanvasAgentOps = Type.Object(
         Type.Object(
           {
             op: Type.Literal("create_group"),
+            ...groupColors,
             tempId: Type.Optional(CanvasId),
             label: nodeFields.label,
             position: Type.Optional(CanvasPosition),
@@ -434,6 +441,7 @@ export const CanvasAgentOps = Type.Object(
         Type.Object(
           {
             op: Type.Literal("set_group"),
+            ...groupColors,
             id: CanvasId,
             label: nodeFields.label,
             addMembers: members,
@@ -489,7 +497,7 @@ export const CanvasAgentCapture = Type.Object(
 );
 export const CanvasAgentRead = Type.Object(
   {
-    nodeIds: Type.Optional(Type.Array(CanvasId, { maxItems: 20, uniqueItems: true })),
+    nodeIds: Type.Optional(Type.Array(CanvasId, { minItems: 1, maxItems: 50 })),
     offset: Type.Optional(cursor),
   },
   strict,

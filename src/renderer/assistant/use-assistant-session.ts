@@ -1,4 +1,5 @@
 import type { SettingsEvent, SettingsValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { RunRating } from "../../../packages/link-studio-core/src/agent-feedback";
 
@@ -106,7 +107,7 @@ export function useAssistantSession(sessionId: string, readPage: ReadPage, visib
             const tail = state.events.filter((event) => event.seq > cursor);
             if (tail.length) {
               events = [...events, ...tail];
-              cursor = tail[tail.length - 1]!.seq;
+              cursor = requirePresent(tail[tail.length - 1], "tail[tail.length - 1]").seq;
             }
             error = undefined;
             delay = (!latest || cached) && tail.length === 100 ? 0 : state.activeRun ? 250 : 1000;

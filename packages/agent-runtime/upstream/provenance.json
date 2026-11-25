@@ -81,8 +81,8 @@
       "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
     },
     "src/store/store.ts": {
-      "sha256": "1deb81124afc5050886066f36941788d7205d6b9faa39027bc9b6a6266c17ca0",
-      "reason": "Scope recent generation approval recovery to the local user and canvas."
+      "sha256": "15333086b08306742b41040e2a899c65029e9b3ef180c18440d0941c0d741666",
+      "reason": "Reconcile unfinished generation approvals for the local user and canvas regardless of age; only resume executed watches inside their retention window."
     },
     "test/fake-go.ts": {
       "sha256": "bace906bcf8e8f8c7027524b76aeaa519294d1cc5bdaade8d2ae7b9e731bedc3",

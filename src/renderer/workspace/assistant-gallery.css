@@ -4,7 +4,11 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.canvas-assistant .assistant-message-attachments .attachment-thumb,
+.attachment-dead {
+  background: #f1f1f1;
+  color: #666;
+  font-size: 9.5px;
+}
 .assistant-message-attachments .attachment-dead {
   display: grid;
   place-items: center;
@@ -16,13 +20,19 @@
   overflow: hidden;
   box-shadow: 0 0 0 1px #0002;
 }
-.attachment-dead {
-  background: #f1f1f1;
-  color: #666;
-  font-size: 9.5px;
-}
 .attachment-thumb {
   cursor: zoom-in;
+}
+.canvas-assistant .assistant-message-attachments .attachment-thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #0002;
 }
 .attachment-thumb img,
 .gallery-strip img {
@@ -52,7 +62,6 @@
   background: rgb(0 0 0 / 62%);
   backdrop-filter: blur(8px);
 }
-.canvas-assistant .assistant-gallery button,
 .assistant-gallery header span,
 .assistant-gallery footer span {
   display: inline-grid;
@@ -107,6 +116,17 @@
 .assistant-gallery header button {
   width: 40px;
   height: 40px;
+}
+.canvas-assistant .assistant-gallery button {
+  display: inline-grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: #171717;
+  background: #fafafa;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #0002;
 }
 .assistant-gallery .gallery-prev,
 .assistant-gallery .gallery-next {

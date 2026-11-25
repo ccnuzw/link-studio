@@ -188,14 +188,14 @@ try {
             );
             if (overlap) {
               for (const zoom of [0.65, 1, 2]) {
-                await page.goto(origin + "audit?" + zoom);
+                await page.goto(`${origin}audit?${zoom}`);
                 await overlapPlayback(page, side, theme, zoom);
               }
               continue;
             }
             if (drag) {
               for (const zoom of [0.65, 1, 2]) {
-                await page.goto(origin + "audit?" + zoom);
+                await page.goto(`${origin}audit?${zoom}`);
                 const path = page.locator(".react-flow__edge-path"),
                   node = page.locator(".react-flow__node[data-id=target]"),
                   box = await node.boundingBox({ timeout: 30000 });
@@ -254,7 +254,7 @@ try {
             }
             if (cut) {
               for (const zoom of [0.14, 1, 2]) {
-                await page.goto(origin + "audit?" + zoom);
+                await page.goto(`${origin}audit?${zoom}`);
                 const path = page.locator(".react-flow__edge-path"),
                   hit = page.locator(".react-flow__edge-interaction");
                 await expect(hit).toBeAttached({ timeout: 30000 });
@@ -341,7 +341,7 @@ try {
                   const key = `${theme}-${zoom}-${mode}`;
                   frames.add(key);
                   const bytes = await page.screenshot({ path: join(output, `${side}-${key}.png`) });
-                  assert(bytes.equals(await page.screenshot()), key + " unstable");
+                  assert(bytes.equals(await page.screenshot()), `${key} unstable`);
                 }
                 await page.keyboard.press("Enter");
                 await expect(path).toHaveCount(0);
@@ -350,7 +350,7 @@ try {
               continue;
             }
             for (const state of ["idle", "source", "target", "edge", "running", "edge-running"]) {
-              await page.goto(origin + "audit?" + state);
+              await page.goto(`${origin}audit?${state}`);
               const base = page.locator("#audit");
               await expect(base).toBeAttached({ timeout: 30000 });
               const animated = !reduced && state !== "idle",

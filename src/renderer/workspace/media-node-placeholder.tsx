@@ -70,11 +70,11 @@ export function MediaFillActions({
         type="button"
         className="media-fill-button"
         disabled={disabled}
-        aria-label="从素材库选择素材"
+        aria-label="从资产库选取素材"
         onClick={library}
       >
         <FolderOpen size={14} />
-        素材库
+        资产库
       </button>
     </div>
   );

@@ -34,6 +34,24 @@ func (o StoryboardOutput) ValidateMaxSeconds(limit int) error {
 	return nil
 }
 
+func (o StoryboardOutput) ValidateVoices(limit int, voiced map[string]bool) error {
+	if limit <= 0 {
+		return nil
+	}
+	for i, segment := range o.Segments {
+		seen := map[string]bool{}
+		for _, parts := range storyboardMention.FindAllStringSubmatch(segment.Prompt, -1) {
+			if voiced[parts[2]] {
+				seen[parts[2]] = true
+			}
+		}
+		if len(seen) > limit {
+			return invalidOutput("第" + strconv.Itoa(i+1) + "段引用了" + strconv.Itoa(len(seen)) + "个has_voice为true的角色，超过max_audios=" + strconv.Itoa(limit) + "，须在镜头之间拆段")
+		}
+	}
+	return nil
+}
+
 var storyboardMention = regexp.MustCompile(`@\[([^\]\r\n]+)\]\(([^)\r\n]+)\)`)
 
 func (o *StoryboardOutput) SanitizeReferences(ids map[string]bool) {

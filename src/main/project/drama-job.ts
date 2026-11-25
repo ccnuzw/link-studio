@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import type { DramaDocument } from "../../../packages/link-studio-core/src/drama.ts";
 import {
@@ -133,14 +134,15 @@ export async function submitApprovedDramaJob(
       progress: 0,
       step,
       episodes: quote.episodes,
+      episode_order: doc.episode_order ?? 0,
       created_at: new Date().toISOString(),
-      request: payload.args,
+      request: { ...payload.args, ...("storyboardLimits" in quote && quote.storyboardLimits) },
       ...("model" in quote && { model: quote.model }),
       frozen_credits: quote.estimate,
       approval_id: approvalId,
       approval_hash: contentHash({ runId, payload }),
       ...(quote.compose_input && { compose_input: quote.compose_input }),
-      ...(step === "scripts" && { known_cast: dramaKnownCast(state, doc) }),
+      ...(textSteps.has(step) && { known_cast: dramaKnownCast(state, doc) }),
       ...(stages.length && {
         prompt_snapshots: Object.fromEntries(
           stages.flatMap((key) =>
@@ -157,7 +159,10 @@ export async function submitApprovedDramaJob(
       doc.revision++;
     }
     if (step === "storyboard") {
-      const episode = doc.episodes.find((entry) => entry.episode_no === quote.episodes[0])!;
+      const episode = requirePresent(
+        doc.episodes.find((entry) => entry.episode_no === quote.episodes[0]),
+        "doc.episodes.find((entry) => entry.episode_no === quote.episodes[0])",
+      );
       episode.storyboard_status = "generating";
       episode.revision = (episode.revision ?? 1) + 1;
       doc.overview_revision ??= doc.revision;

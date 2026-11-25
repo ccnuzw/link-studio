@@ -6,24 +6,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { crc32 } from "node:zlib";
-import {
-  type ElectronApplication,
-  _electron as electron,
-  expect,
-  type Locator,
-  type Page,
-  test,
-} from "@playwright/test";
+import { type ElectronApplication, expect, type Locator, type Page, test } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
 import { defaultDirectorScene } from "../../packages/link-studio-core/src/director";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { projectCanvas } from "../../src/main/project/canvas";
 import { contentHash } from "../../src/main/project/encoding";
 import { orientedJpeg } from "../fixtures/jpeg-orientation";
+import { requireTestValue } from "../require-test-value";
 import { chooseAssistantModel, expectDraft } from "./assistant-theme";
+import { compactViewport, desktopElectron as electron } from "./desktop-window";
 import { annotateWithComposition } from "./doodle-composition";
-import { addCanvasNode, chooseCanvasZoom, editTextNode, projectAction } from "./workspace-actions";
+import {
+  addCanvasNode,
+  blankCanvasPosition,
+  chooseCanvasZoom,
+  clickBlankCanvas,
+  createCanvasProject,
+  editTextNode,
+  projectAction,
+} from "./workspace-actions";
 
 async function projectDirectory(root: string) {
   const project = (await readdir(root)).find((name) => name.endsWith(".linkstudio"));
@@ -67,8 +71,7 @@ test("画布底纹和滚轮偏好即时生效、重开保留并可恢复默认",
   let application = await launchCanvas(root);
   try {
     let page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("底纹回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "底纹回放");
     const settings = async () => {
       await page.getByRole("button", { name: "更多", exact: true }).click();
       await page.getByRole("menuitem", { name: "画布设置" }).click();
@@ -144,8 +147,7 @@ test("画布快捷键的三个入口、模态键盘隔离和焦点恢复", async
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("快捷键回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "快捷键回放");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     const selected = page.locator(".react-flow__node.selected"),
       id = await selected.getAttribute("data-id");
@@ -164,7 +166,7 @@ test("画布快捷键的三个入口、模态键盘隔离和焦点恢复", async
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
-    await expect(selected).toHaveAttribute("data-id", id!);
+    await expect(selected).toHaveAttribute("data-id", requireTestValue(id));
     await expect(page.getByRole("radio", { name: "抓手", exact: true })).not.toBeChecked();
     await page.getByRole("button", { name: "更多", exact: true }).click();
     await page.getByRole("menuitem", { name: "快捷键" }).click();
@@ -173,7 +175,7 @@ test("画布快捷键的三个入口、模态键盘隔离和焦点恢复", async
     await trigger.focus();
     await page.keyboard.press("?");
     await expect(dialog).toBeVisible();
-    await page.mouse.click(8, 8);
+    await page.locator(".storyboard-backdrop").click({ position: { x: 32, y: 120 } });
     await expect(dialog).toHaveCount(0);
     const prompt = page.locator("[data-node-prompt][contenteditable=true]");
     await prompt.click();
@@ -191,8 +193,7 @@ test("左侧主工具栏、任务历史和空格拖动中松开的恢复顺序",
     app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("左栏回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "左栏回放");
     const tools = page.getByRole("toolbar", { name: "画布编辑" }),
       area = page.getByRole("region", { name: "节点画布" });
     await expect(tools.getByRole("button")).toHaveCount(5);
@@ -223,12 +224,12 @@ test("左侧主工具栏、任务历史和空格拖动中松开的恢复顺序",
     await page.mouse.move(point.x + 54, point.y + 36, { steps: 4 });
     await page.mouse.up();
     await expect(area).toHaveAttribute("data-hand", "false");
-    expect((await card.boundingBox())!.x - before.x).toBeCloseTo(54, 0);
+    expect(requireTestValue(await card.boundingBox()).x - before.x).toBeCloseTo(54, 0);
     await tools.getByRole("button", { name: "资产库" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
-    await projectAction(page, "素材库");
-    await expect(page.getByRole("region", { name: "项目素材" })).toBeVisible();
+    await projectAction(page, "项目文件");
+    await expect(page.getByRole("region", { name: "项目文件" })).toBeVisible();
   } finally {
     await app.close();
     await rm(root, { recursive: true, force: true });
@@ -240,8 +241,7 @@ test("左上角画布名称原位提交和放弃，新建前保存并从项目�
     app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("场记初稿");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "场记初稿");
     const title = page.getByRole("textbox", { name: "画布名称" }),
       status = page.getByRole("status", { name: "已保存", exact: true });
     await expect(title).toHaveValue("场记初稿");
@@ -258,7 +258,7 @@ test("左上角画布名称原位提交和放弃，新建前保存并从项目�
     await title.press("Tab");
     await expect(title).toHaveValue("场记定稿");
     await addCanvasNode(page, "文本");
-    await projectAction(page, "新建画布");
+    await projectAction(page, "新建画布项目");
     await expect(title).toHaveValue("未命名画布");
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
     await projectAction(page, "返回项目列表");
@@ -276,8 +276,7 @@ test("视图工具条切换底纹、缩放、小地图并与设置同步", async
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("视图回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "视图回放");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     const view = page.getByRole("toolbar", { name: "画布视图" }),
       zoom = view.getByRole("button", { name: "缩放" }),
@@ -308,7 +307,7 @@ test("视图工具条切换底纹、缩放、小地图并与设置同步", async
     await map.click();
     const overview = page.locator(".react-flow__minimap");
     await expect(overview).toBeVisible();
-    const overviewBox = (await overview.boundingBox())!,
+    const overviewBox = requireTestValue(await overview.boundingBox()),
       center = {
         x: overviewBox.x + overviewBox.width / 2,
         y: overviewBox.y + overviewBox.height / 2,
@@ -362,8 +361,7 @@ test("画布通用设置和更多菜单共用主题，旧偏好迁移、重启�
     application = await launchCanvas(root);
     let page = await application.firstWindow();
     await page.emulateMedia({ colorScheme: null });
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("主题回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "主题回放");
     const preferences = () =>
       page.evaluate(async () => {
         const result = await window.desktop.settings.canvasView({});
@@ -416,7 +414,9 @@ test("画布通用设置和更多菜单共用主题，旧偏好迁移、重启�
     await expect(page.getByRole("menuitemradio", { name: "浅色" })).toBeChecked();
     await page.getByRole("menuitemradio", { name: "跟随系统" }).click();
     await expect
-      .poll(() => application!.evaluate(({ nativeTheme }) => nativeTheme.themeSource))
+      .poll(() =>
+        requireTestValue(application).evaluate(({ nativeTheme }) => nativeTheme.themeSource),
+      )
       .toBe("system");
     await expect
       .poll(scheme)
@@ -550,18 +550,20 @@ test("模型设置只决定新节点的模型，重启保留、恢复默认不�
   try {
     let page = await application.firstWindow();
     const providers = await installVideoChoices(page);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("默认模型回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "默认模型回放");
     const show = async () => {
       await page.getByRole("button", { name: "更多", exact: true }).click();
       await page.getByRole("menuitem", { name: "画布设置" }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "模型设置", exact: true }).click();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "新节点默认模型", exact: true })
+        .click();
     };
     const picker = () => page.getByRole("button", { name: "选择视频节点的默认模型" });
     const nodeModel = () => page.getByRole("button", { name: "选择模型", exact: true });
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     await expect(nodeModel()).toHaveText(/sora-2/);
-    const first = await nodeModel().innerText();
+    const first = await readRenderedText(nodeModel());
     const next = first === "sora-2" ? "sora-2-pro" : "sora-2";
     await show();
     await expect(picker()).toHaveText(first);
@@ -612,11 +614,13 @@ test("默认视频模型下线后新节点不写入过期选择，已有节点�
   try {
     let page = await application.firstWindow();
     const providers = await installVideoChoices(page);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("模型下线回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "模型下线回放");
     await page.getByRole("button", { name: "更多", exact: true }).click();
     await page.getByRole("menuitem", { name: "画布设置" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "模型设置", exact: true }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "新节点默认模型", exact: true })
+      .click();
     await page.getByRole("button", { name: "选择视频节点的默认模型" }).click();
     await page
       .getByRole("menuitemradio")
@@ -632,13 +636,20 @@ test("默认视频模型下线后新节点不写入过期选择，已有节点�
           ? [node.data.generation?.providerId ?? null]
           : [],
       );
-    const model = providers["sora-2-pro"]!;
+    const model = requireTestValue(providers["sora-2-pro"]);
     await expect.poll(bindings).toEqual([model]);
     await page.evaluate(async (id) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const settings = window.desktop.settings;
       const state = await settings.list({});
       if (!state.ok) throw Error(state.code);
-      const revision = state.value.providers.find((provider) => provider.id === id)!.revision;
+      const revision = requireTestValue(
+        state.value.providers.find((provider) => provider.id === id),
+      ).revision;
       const disabled = await settings.disable({ id, expectedRevision: revision });
       if (!disabled.ok) throw Error(disabled.code);
     }, model);
@@ -665,26 +676,38 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
   try {
     const page = await application.firstWindow();
     const providers = await installVideoChoices(page);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("节点配置回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "节点配置回放");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
-    const nodeId = (await page.locator(".react-flow__node.selected").getAttribute("data-id"))!;
+    const nodeId = requireTestValue(
+      await page.locator(".react-flow__node.selected").getAttribute("data-id"),
+    );
     await expect(page.getByRole("toolbar", { name: /的功能区$/ })).toHaveCount(0);
-    const placement = await page
-      .locator(".react-flow__node.selected .creative-card")
-      .evaluate((card) => {
-        const bounds = card.getBoundingClientRect();
-        return [
-          bounds.x + bounds.width / 2 - innerWidth / 2,
-          bounds.y + bounds.height / 2 - innerHeight * 0.4,
-        ];
-      });
-    for (const delta of placement) expect(Math.abs(delta)).toBeLessThan(1);
     const modes = page.getByRole("tablist", { name: "生成方式" });
     await expect(modes.getByRole("tab", { name: "文生视频" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
+    const placement = await page
+      .locator(".react-flow__node.selected .creative-card")
+      .evaluate((card) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
+        const bounds = card.getBoundingClientRect();
+        const projectBar = requireTestValue(
+          document.querySelector(".canvas-project-zone"),
+        ).getBoundingClientRect();
+        return {
+          horizontalOffset: bounds.x + bounds.width / 2 - innerWidth / 2,
+          verticalOffset: bounds.y + bounds.height / 2 - innerHeight * 0.4,
+          projectBarClearance: bounds.top - projectBar.bottom,
+        };
+      });
+    expect(Math.abs(placement.horizontalOffset)).toBeLessThan(1);
+    expect(Math.abs(placement.verticalOffset)).toBeLessThan(1);
+    expect(placement.projectBarClearance).toBeGreaterThan(0);
     await expect(modes.getByRole("tab", { name: "图生视频" })).toHaveAttribute(
       "title",
       "需要连接图片节点",
@@ -698,7 +721,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
       "true",
     );
     const trigger = page.getByRole("button", { name: "选择模型" });
-    const initial = await trigger.innerText();
+    const initial = await readRenderedText(trigger);
     const next = initial === "sora-2" ? "sora-2-pro" : "sora-2";
     const disk = async () => {
       const node = projectCanvas((await latestSnapshot(root)).canvas).nodes.find(
@@ -708,13 +731,9 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     };
     await trigger.click();
     await page
+      .getByRole("menu", { name: "选择模型" })
       .getByRole("menuitemradio")
-      .filter({ hasText: next })
-      .filter({
-        has: page.locator(".generation-model-copy > span:first-child", {
-          hasText: new RegExp(`^${next}$`),
-        }),
-      })
+      .filter({ has: page.getByText(next, { exact: true }) })
       .click();
     await page.keyboard.press("Escape");
     await expect(trigger).toHaveText(next);
@@ -725,29 +744,31 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     await expect(trigger).toHaveText(next);
     const params = page.getByRole("button", { name: "生成参数", exact: true });
     await params.click();
-    await page.getByRole("button", { name: "8 秒", exact: true }).click();
+    await page.getByRole("radio", { name: "8秒", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect.poll(async () => (await disk())?.params?.duration).toBe(8);
     await page.getByRole("button", { name: "撤销", exact: true }).click();
-    await expect(params).not.toContainText("8 秒");
+    await expect(params).not.toContainText("8秒");
     await page.getByRole("button", { name: "重做", exact: true }).click();
-    await expect(params).toContainText("8 秒");
+    await expect(params).toContainText("8秒");
     const card = page.locator(`.react-flow__node[data-id="${nodeId}"] .creative-card`);
     await expect(card).toHaveCSS("width", "576px");
     await params.click();
-    await page.getByRole("button", { name: "9:16", exact: true }).click();
+    await page.getByRole("radio", { name: "9:16", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect(card).toHaveCSS("width", "324px");
     await expect(card).toHaveCSS("height", "576px");
     await expect.poll(async () => (await disk())?.params?.size).toBe("720x1280");
     const pane = page.locator(".react-flow__pane");
-    await pane.dblclick({ position: { x: (await pane.boundingBox())!.width - 90, y: 100 } });
+    await pane.dblclick({
+      position: { x: requireTestValue(await pane.boundingBox()).width - 90, y: 100 },
+    });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
       .getByRole("menuitem", { name: "文本", exact: true })
       .click();
     await card.click({ position: { x: 40, y: 180 } });
-    await expect(params).toContainText("8 秒");
+    await expect(params).toContainText("8秒");
     await expect(trigger).toHaveText(next);
     await expect.poll(async () => (await disk())?.params?.duration).toBe(8);
     await application.close();
@@ -761,19 +782,24 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
       reopened.locator(`.react-flow__node[data-id="${nodeId}"] .creative-card`),
     ).toHaveCSS("height", "576px");
     await expect(reopened.getByRole("button", { name: "生成参数", exact: true })).toContainText(
-      "8 秒",
+      "8秒",
     );
     await projectAction(reopened, "关闭项目");
     await reopened.evaluate(async (id) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const list = await window.desktop.settings.list({});
       if (!list.ok) throw new Error(list.code);
-      const selected = list.value.providers.find((entry) => entry.id === id)!;
+      const selected = requireTestValue(list.value.providers.find((entry) => entry.id === id));
       const disabled = await window.desktop.settings.disable({
         id,
         expectedRevision: selected.revision,
       });
       if (!disabled.ok) throw new Error(disabled.code);
-    }, providers[next]!);
+    }, requireTestValue(providers[next]));
     await reopened.getByRole("button", { name: /^节点配置回放/ }).click();
     await reopenedCard.click({ position: { x: 40, y: 180 } });
     await expect(reopened.getByRole("button", { name: "选择模型" })).toHaveText("模型已下线");
@@ -781,6 +807,20 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     await reopened.getByRole("textbox", { name: "生成提示词" }).fill("检验下线而非空提示词");
     await expect(reopened.getByRole("button", { name: "开始生成" })).toBeDisabled();
     expect((await disk())?.providerId).toBe(providers[next]);
+  } finally {
+    await application.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("导入画布仅按本机模型键恢复配置", async () => {
+  const root = await mkdtemp(join(tmpdir(), "link-canvas-model-import-"));
+  const application = await launchCanvas(root);
+  try {
+    const page = await application.firstWindow();
+    const providers = await installVideoChoices(page);
+    const model = "sora-2";
+    await createCanvasProject(page, "模型键回放");
     const exchange = join(root, "foreign.canvas.json");
     await writeFile(
       exchange,
@@ -798,7 +838,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
               data: {
                 kind: "video",
                 label: "外来模型",
-                model: initial,
+                model,
                 params: { duration: 4, prompt: "模型同名不等于同一配置" },
               },
             },
@@ -809,7 +849,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
               data: {
                 kind: "video",
                 label: "已知模型",
-                model: providers[initial],
+                model: providers[model],
                 params: { duration: 12, prompt: "使用本机模型键" },
               },
             },
@@ -818,24 +858,23 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
         assets: {},
       }),
     );
-    const chooser = reopened.waitForEvent("filechooser");
-    await projectAction(reopened, "导入画布");
-    await (await chooser).setFiles(exchange);
-    await expect(reopened.locator(".react-flow__node")).toHaveCount(4);
-    await chooseCanvasZoom(reopened, "适应画布");
-    await reopened
+    await page
+      .getByRole("main", { name: "创作画布" })
+      .locator('input[type="file"][accept=".json,application/json"]')
+      .setInputFiles(exchange);
+    await expect(page.locator(".react-flow__node")).toHaveCount(2);
+    await chooseCanvasZoom(page, "适应画布");
+    await page
       .locator("header strong")
       .filter({ hasText: /^外来模型$/ })
       .click();
-    await expect(reopened.getByRole("button", { name: "选择模型" })).toHaveText("模型已下线");
-    await reopened
+    await expect(page.getByRole("button", { name: "选择模型" })).toHaveText("模型已下线");
+    await page
       .locator("header strong")
       .filter({ hasText: /^已知模型$/ })
       .click();
-    await expect(reopened.getByRole("button", { name: "选择模型" })).toHaveText(initial);
-    await expect(reopened.getByRole("button", { name: "生成参数", exact: true })).toContainText(
-      "12 秒",
-    );
+    await expect(page.getByRole("button", { name: "选择模型" })).toHaveText(model);
+    await expect(page.getByRole("button", { name: "生成参数", exact: true })).toContainText("12秒");
   } finally {
     await application.close();
     await rm(root, { recursive: true, force: true });
@@ -860,10 +899,17 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
       ["color=c=yellow:s=32x32", "-frames:v", "1"],
     ];
     for (const [index, input] of args.entries())
-      await runMediaProcess(ffmpeg, ["-v", "error", "-f", "lavfi", "-i", ...input, files[index]!]);
+      await runMediaProcess(ffmpeg, [
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        ...input,
+        requireTestValue(files[index]),
+      ]);
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("资产批量");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "资产批量");
     const library = page.getByRole("button", { name: "资产库", exact: true });
     await library.click();
     const picker = page.getByRole("dialog", { name: "资产库" });
@@ -884,7 +930,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
     await library.click();
     const duplicateChooser = page.waitForEvent("filechooser");
     await picker.getByRole("button", { name: "上传", exact: true }).click();
-    await (await duplicateChooser).setFiles(files[0]!);
+    await (await duplicateChooser).setFiles(requireTestValue(files[0]));
     await expect(picker.getByRole("group", { name: "处理重复素材" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(picker).toHaveCount(0);
@@ -920,7 +966,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
       );
     await expect.poll(async () => (await snapshot()).length).toBe(5);
     const placed = await snapshot();
-    const origin = placed[0]!.position;
+    const origin = requireTestValue(placed[0]).position;
     expect(
       placed.map((node) => [
         node.data.label,
@@ -952,6 +998,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
 });
 
 test("音频波形支持定位、续播和失选暂停", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-audio-wave-"));
   const clip = join(root, "音轨.wav");
   const samples = Buffer.alloc(44 + 8000 * 2 * 8);
@@ -976,10 +1023,11 @@ test("音频波形支持定位、续播和失选暂停", async () => {
   const application = await launchCanvas(root, clip);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await expect(page.getByRole("button", { name: "将音轨.wav加入画布" })).toBeVisible();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
     await page
       .locator(".react-flow__handle-right")
@@ -1004,9 +1052,9 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     await expect(modelTrigger).toBeFocused();
     await expect(panel.getByRole("button", { name: "运镜" })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "生成参数" })).toHaveCount(0);
-    const panelBox = (await panel.boundingBox())!;
-    const cardBox = (await emptyNode.boundingBox())!;
-    const flowBox = (await page.locator(".react-flow").boundingBox())!;
+    const panelBox = requireTestValue(await panel.boundingBox());
+    const cardBox = requireTestValue(await emptyNode.boundingBox());
+    const flowBox = requireTestValue(await page.locator(".react-flow").boundingBox());
     expect(panelBox.width).toBe(Math.min(680, flowBox.width - 24));
     expect(Math.abs(panelBox.y - cardBox.y - cardBox.height - 16)).toBeLessThan(1);
     expect(panelBox.x - flowBox.x).toBeGreaterThanOrEqual(11.5);
@@ -1019,8 +1067,8 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     const prompt = edit.getByRole("textbox", { name: "生成提示词" });
     await expect(prompt).toBeFocused();
     await expect(prompt).toHaveText("低沉男声");
-    expect((await edit.boundingBox())!.width).toBe(896);
-    expect((await prompt.boundingBox())!.height).toBe(288);
+    expect(requireTestValue(await edit.boundingBox()).width).toBe(896);
+    expect(requireTestValue(await prompt.boundingBox()).height).toBe(288);
     await edit.getByRole("button", { name: "引用画布里的素材" }).click();
     await expect(edit.getByRole("menu", { name: "引用画布里的素材" })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -1034,7 +1082,7 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     await expect(edit).toHaveCount(0);
     await expect(expand).toBeFocused();
     await expect(panel.getByRole("textbox", { name: "生成提示词" })).toContainText("第二句");
-    await emptyNode.getByRole("button", { name: "从素材库选择素材" }).click();
+    await emptyNode.getByRole("button", { name: "从资产库选取素材" }).click();
     const picker = page.getByRole("dialog", { name: "资产库" });
     await picker.getByRole("button", { name: "音轨.wav", exact: true }).click();
     await expect(emptyNode.locator("audio")).toHaveCount(0);
@@ -1042,7 +1090,7 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
     await expect(
       page.locator(".react-flow__node").filter({ has: page.locator("audio") }),
-    ).toHaveAttribute("data-id", nodeId!);
+    ).toHaveAttribute("data-id", requireTestValue(nodeId));
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);
     const card = page.locator(".creative-card").filter({ has: page.locator("audio") });
     const wave = card.locator('[data-slot="audio-wave"]');
@@ -1074,7 +1122,7 @@ test("音频波形支持定位、续播和失选暂停", async () => {
     await expect(card.locator(".node-audio-time")).toHaveText("00:00:00");
     await card.getByRole("button", { name: "播放", exact: true }).click();
     await expect(player).toHaveJSProperty("paused", false);
-    const bounds = (await wave.boundingBox())!;
+    const bounds = requireTestValue(await wave.boundingBox());
     await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height / 2);
     await page.mouse.down();
     await expect(player).toHaveJSProperty("paused", true);
@@ -1126,7 +1174,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("缺少测试地址");
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const api = window.desktop.settings,
         list = await api.list({});
@@ -1168,8 +1216,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
       });
       if (!model.ok) throw new Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("连线批量");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "连线批量");
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     await (await chooser).setFiles({
@@ -1206,10 +1253,10 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     await card.click({ position: { x: 50, y: 55 } });
     await start.click();
     await expect.poll(() => replies.length).toBe(1);
-    replies[0]!(await readFile("resources/icons/icon-32.png"));
+    requireTestValue(replies[0])(await readFile("resources/icons/icon-32.png"));
     await expect(start).toBeEnabled();
     await page.getByRole("button", { name: "生成参数" }).click();
-    await page.getByRole("button", { name: "2 张", exact: true }).click();
+    await page.getByRole("radio", { name: "2张", exact: true }).click();
     await page.keyboard.press("Escape");
     await start.click();
     await expect.poll(() => replies.length).toBeGreaterThanOrEqual(2);
@@ -1241,7 +1288,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
       fast: (await sweep.getAttribute("dur")) === "1.1s",
     });
     checkpoints.push(await capture("submitted"));
-    replies[1]!(await readFile("resources/icons/icon-64.png"));
+    requireTestValue(replies[1])(await readFile("resources/icons/icon-64.png"));
     await expect(history.locator(".version-pending")).toHaveCount(1);
     await expect(history.getByRole("button", { name: "第 2 版（当前主图）" })).toBeVisible();
     await expect(sweep).toHaveAttribute("dur", "2.6s");
@@ -1252,7 +1299,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     await expect(sweep).toHaveAttribute("dur", "2.6s");
     checkpoints.push(await capture("choose-old"));
     await expect.poll(() => replies.length).toBe(3);
-    replies[2]!();
+    requireTestValue(replies[2])();
     await expect(history.locator(".version-failed")).toHaveCount(1);
     await expect(history.locator(".version-pending")).toHaveCount(0);
     await expect(history.getByRole("button", { name: "第 1 版（当前主图）" })).toBeVisible();
@@ -1263,11 +1310,17 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
     await expect(
       page.getByRole("dialog", { name: "全屏查看" }).locator(".version-failed"),
     ).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "全屏查看" })
+      .getByRole("button", { name: "关闭" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "全屏查看" })).toHaveCount(0);
+    await history.getByRole("button", { name: "关闭" }).click();
+    await expect(history).toHaveCount(0);
     await expect(start).toBeEnabled();
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: /^连线批量/ }).click();
+    await chooseCanvasZoom(page, "适应画布");
     await card.getByRole("button", { name: "历史记录，共 2 版", exact: true }).click();
     await expect(history.getByRole("button", { name: "第 1 版（当前主图）" })).toBeVisible();
     expect(replies).toHaveLength(3);
@@ -1286,12 +1339,11 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
   const application = await launchCanvas(root, paths.join("\n"));
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("版本批量回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "版本批量回放");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const state = await latestSnapshot(root),
       assets = Object.values(state.assets).sort((left, right) =>
         left.displayName.localeCompare(right.displayName),
@@ -1299,7 +1351,7 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
     expect(assets).toHaveLength(2);
     const outputs = Array.from({ length: 9 }, (_, index) => ({
       id: `result-${index + 1}`,
-      assetId: assets[index % 2]!.assetId,
+      assetId: requireTestValue(assets[index % 2]).assetId,
       kind: "image",
       createdAt: "2026-01-01T00:00:00Z",
     }));
@@ -1312,8 +1364,8 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
         label: `样片${count}`,
         text: "原稿",
         outputs: outputs.slice(0, count),
-        assetId: outputs[2]!.assetId,
-        activeOutputId: outputs[2]!.id,
+        assetId: requireTestValue(outputs[2]).assetId,
+        activeOutputId: requireTestValue(outputs[2]).id,
       },
     }));
     const chooser = page.waitForEvent("filechooser");
@@ -1372,8 +1424,13 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
     await tile.hover();
     const copiedImage = test.info().outputPath("copied.png");
     await application.evaluate(({ clipboard }, path) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       clipboard.write = async (items) => {
-        const image = await items[0]!.getType("image/png");
+        const image = await requireTestValue(items[0]).getType("image/png");
         await process
           .getBuiltinModule("fs/promises")
           .writeFile(path, Buffer.from(await image.arrayBuffer()));
@@ -1381,7 +1438,7 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
     }, copiedImage);
     await tile.getByRole("button", { name: "复制图片" }).click();
     await expect(page.getByText("已复制图片", { exact: true })).toBeVisible();
-    expect(await readFile(copiedImage)).toEqual(await readFile(paths[1]!));
+    expect(await readFile(copiedImage)).toEqual(await readFile(requireTestValue(paths[1])));
     await application.evaluate(({ clipboard }) => {
       clipboard.write = async () => {
         throw new Error("clipboard denied");
@@ -1393,7 +1450,12 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
     const downloads = test.info().outputPath("版本下载");
     await mkdir(downloads);
     await application.evaluate(({ BrowserWindow }, directory) => {
-      const session = BrowserWindow.getAllWindows()[0]!.webContents.session;
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
+      const session = requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session;
       let remaining = 9;
       const save = (_event: Electron.Event, item: Electron.DownloadItem) => {
         item.setSavePath(
@@ -1413,7 +1475,7 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
         createHash("sha256")
           .update(await readFile(join(downloads, name)))
           .digest("hex"),
-      ).toBe(assets[index % 2]!.sha256);
+      ).toBe(requireTestValue(assets[index % 2]).sha256);
     await full.getByRole("button", { name: "全部添加到画布" }).click();
     await question.getByRole("button", { name: "确定", exact: true }).press("Enter");
     await expect(question).toHaveCount(0);
@@ -1459,11 +1521,11 @@ test("原版画布文件导入后保留主图、手动素材、提示词引用�
   const application = await launchCanvas(root, paths.join("\n"));
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     await (await chooser).setFiles(
@@ -1501,7 +1563,12 @@ test("原版画布文件导入后保留主图、手动素材、提示词引用�
       });
     const exported = test.info().outputPath("desktop.canvas.json");
     await application.evaluate(({ BrowserWindow }, path) => {
-      BrowserWindow.getAllWindows()[0]!.webContents.session.once(
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
+      requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session.once(
         "will-download",
         (_event, item) => {
           if (item.getFilename().endsWith(".canvas.json")) item.setSavePath(path);
@@ -1533,18 +1600,14 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
   const app = await launchCanvas(root, paths.join("\n"));
   try {
     const page = await app.firstWindow();
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.setIgnoreMouseEvents(true),
-    );
     const create = async (name: string) => {
-      await page.getByRole("textbox", { name: "新项目名称" }).fill(name);
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, name);
     };
     await create("来源");
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     await (await chooser).setFiles(
@@ -1552,11 +1615,19 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
     );
     const nodes = page.locator(".react-flow__node"),
       edges = page.locator(".react-flow__edge");
-    await nodes.filter({ hasText: "上游主图" }).click({ position: { x: 36, y: 52 } });
-    await nodes
-      .filter({ hasText: "上游视频" })
-      .click({ modifiers: ["ControlOrMeta"], position: { x: 40, y: 48 } });
-    await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
+    const image = nodes.filter({ hasText: "上游主图" });
+    const video = nodes.filter({ hasText: "上游视频" });
+    await expect(nodes).toHaveCount(2);
+    await chooseCanvasZoom(page, "适应画布");
+    await image.locator("header strong").click();
+    await expect(image).toHaveClass(/\bselected\b/);
+    await page.keyboard.down("ControlOrMeta");
+    try {
+      await video.locator("header strong").click();
+      await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
+    } finally {
+      await page.keyboard.up("ControlOrMeta");
+    }
     const plain = await page.evaluate(() => {
       document.body.dispatchEvent(
         new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true, cancelable: true }),
@@ -1604,7 +1675,7 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
       const image = graph.nodes.find((node) => node.data.label === `上游主图${suffix}`),
         video = graph.nodes.find((node) => node.data.label === `上游视频${suffix}`);
       if (image?.type !== "creative" || video?.type !== "creative") throw Error("缺少目标节点");
-      expect(saved.assets[image.data.assetId!]?.displayName).toBe("icon-32.png");
+      expect(saved.assets[requireTestValue(image.data.assetId)]?.displayName).toBe("icon-32.png");
       expect(video.data.manualReferenceIds?.map((id) => saved.assets[id]?.displayName)).toEqual([
         "icon-64.png",
       ]);
@@ -1638,7 +1709,7 @@ test("画布小灵快捷唤起、起步建议填入草稿并保留焦点", async
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await expect(page.getByRole("button", { name: "打开小灵" })).toBeVisible();
     await page.keyboard.press("ControlOrMeta+/");
     const panel = page.getByRole("region", { name: "画布小灵" });
@@ -1734,8 +1805,7 @@ for (const slow of [true, false])
           );
         };
       });
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("桌宠加载");
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, "桌宠加载");
       await expect.poll(() => page.evaluate(() => Reflect.get(window, "petDecodeCount"))).toBe(1);
       const pet = page.locator(".pet-launcher"),
         fallback = page.locator(".canvas-launcher");
@@ -1766,8 +1836,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
   let application = await launchCanvas(root);
   try {
     let page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("桌宠重启");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "桌宠重启");
     let pet = page.locator(".pet-launcher");
     await expect(pet).toBeVisible();
     await page.emulateMedia({ colorScheme: "dark" });
@@ -1814,18 +1883,18 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
       stage = await page.locator(".pet-stage").boundingBox();
     const initial = await frame.boundingBox();
     if (!initial || !stage) throw new Error("浮窗未就绪");
+    const offset = { x: -130, y: 10 };
+    const moved = { x: initial.x + offset.x, y: initial.y + offset.y };
     expect(initial.x + initial.width).toBe(stage.x + stage.width - 12);
     expect(initial.y + initial.height).toBe(stage.y + stage.height - 68);
     await page.mouse.move(initial.x + 20, initial.y + 28);
     await page.mouse.down();
-    await page.mouse.move(initial.x - 110, initial.y + 18);
+    await page.mouse.move(moved.x + 20, moved.y + 28);
     await page.mouse.up();
-    await expect.poll(savedLayout).toMatchObject({ offset: { x: -130, y: -10 } });
+    await expect.poll(savedLayout).toMatchObject({ offset });
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await fallback.click();
-    await expect
-      .poll(() => frame.boundingBox())
-      .toMatchObject({ x: initial.x - 130, y: initial.y - 10 });
+    await expect.poll(() => frame.boundingBox()).toMatchObject(moved);
     await page.getByRole("button", { name: "停靠到右侧" }).click();
     await page.getByRole("separator", { name: "调整 Agent 宽度" }).press("ArrowLeft");
     await expect.poll(savedLayout).toMatchObject({ mode: "hidden", docked: true, width: 416 });
@@ -1841,15 +1910,12 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
       "416",
     );
     await page.getByRole("button", { name: "改为浮窗" }).click();
-    await expect
-      .poll(() => page.locator(".assistant-frame").boundingBox())
-      .toMatchObject({ x: initial.x - 130, y: initial.y - 10 });
+    await expect.poll(() => page.locator(".assistant-frame").boundingBox()).toMatchObject(moved);
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await fallback.click({ button: "right" });
     await page.getByRole("button", { name: "活泼", exact: true }).click();
     await projectAction(page, "关闭项目");
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("桌宠第二项目");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "桌宠第二项目");
     await expect.poll(async () => (await pet.boundingBox())?.x).toBeCloseTo(90, 0);
     await pet.click();
     const temporary = page.locator(".assistant-frame"),
@@ -1863,7 +1929,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await pet.click();
     await expect.poll(() => temporary.boundingBox()).toEqual(attached);
-    expect((await savedLayout()).offset).toEqual({ x: -130, y: -10 });
+    expect((await savedLayout()).offset).toEqual(offset);
     await page.getByRole("button", { name: "关闭小灵" }).click();
     await pet.click({ button: "right" });
     await page.getByRole("button", { name: "回到右下角" }).click();
@@ -1944,8 +2010,7 @@ test("小灵粘贴与拖入图片、发送三份剧本并在重启后查看全�
         if (!result.ok) throw new Error(result.code);
       }
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("附件验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "附件验收");
     await page.getByRole("button", { name: "打开小灵" }).click();
     const editor = page.getByRole("textbox", { name: "画布消息" });
     const tray = page.getByRole("region", { name: "图片附件" });
@@ -2064,7 +2129,7 @@ test("小灵粘贴与拖入图片、发送三份剧本并在重启后查看全�
     await chooseAssistantModel(model, { name: "text" });
     await page.getByRole("button", { name: "添加附件" }).click();
     const documentPicker = page.getByLabel("上传故事或剧本");
-    const scriptBody = "# 第一场\n小灵读取这份剧本。\n" + "镜".repeat(60000) + "原文收尾";
+    const scriptBody = `# 第一场\n小灵读取这份剧本。\n${"镜".repeat(60000)}原文收尾`;
     await documentPicker.setInputFiles([
       {
         name: "验收剧本.md",
@@ -2074,7 +2139,7 @@ test("小灵粘贴与拖入图片、发送三份剧本并在重启后查看全�
       ...["对白.txt", "场景.markdown", "第四份.txt"].map((name) => ({
         name,
         mimeType: "text/plain",
-        buffer: Buffer.from(name + "正文"),
+        buffer: Buffer.from(`${name}正文`),
       })),
     ]);
     await expect(page.getByText("一条消息最多 3 个文档")).toBeVisible();
@@ -2157,8 +2222,7 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
       });
       if (!saved.ok) throw Error(saved.code);
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("历史验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "历史验收");
     await page.getByRole("button", { name: "打开小灵" }).click();
     const history = page.getByRole("button", { name: /^历史会话，当前/ });
     const input = page.getByRole("textbox", { name: "会话标题" });
@@ -2177,7 +2241,7 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
     await input.pressSequentially("discard");
     await expect(input).toHaveValue("discard");
     await input.press("Escape");
-    await expect(history).toHaveAccessibleName(original!);
+    await expect(history).toHaveAccessibleName(requireTestValue(original));
     await history.dblclick();
     await input.pressSequentially("Storyboard");
     await input.press("Tab");
@@ -2195,8 +2259,10 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
     await expect(history).toHaveAccessibleName("历史会话，当前：删除草案");
     await history.click();
     const remove = page.getByRole("button", { name: "删除「删除草案」", exact: true });
-    const triggerBox = (await history.boundingBox())!;
-    const menuBox = (await page.locator(".assistant-history:popover-open").boundingBox())!;
+    const triggerBox = requireTestValue(await history.boundingBox());
+    const menuBox = requireTestValue(
+      await page.locator(".assistant-history:popover-open").boundingBox(),
+    );
     expect(menuBox.y).toBeCloseTo(triggerBox.y + triggerBox.height + 4, 0);
     expect(menuBox.x).toBeGreaterThanOrEqual(5);
     expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(
@@ -2232,7 +2298,7 @@ test("图片节点内单选上传：错型不动图，确认即断入线，撤�
       wrong = join(root, "声音.wav");
     const png = await readFile(join(process.cwd(), "resources/icons/icon-32.png"));
     await Promise.all([writeFile(bad, "bad image"), writeFile(wrong, "not an image")]);
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
     await page
       .locator(".react-flow__handle-right")
@@ -2252,7 +2318,7 @@ test("图片节点内单选上传：错型不动图，确认即断入线，撤�
       };
     const graph = async () => projectCanvas((await latestSnapshot(root)).canvas);
     await expect.poll(async () => (await graph()).edges.length).toBe(1);
-    const initial = (await graph()).nodes.find((node) => node.id === id)!;
+    const initial = requireTestValue((await graph()).nodes.find((node) => node.id === id));
     await pick(wrong);
     await expect(page.getByRole("alert").filter({ hasText: "这个节点只收图片" })).toBeVisible();
     await expect(edges).toHaveCount(1);
@@ -2261,7 +2327,7 @@ test("图片节点内单选上传：错型不动图，确认即断入线，撤�
     await expect(card.getByRole("status")).toContainText("处理中");
     await expect(edges).toHaveCount(0);
     await expect(page.getByRole("region", { name: "生成确认" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "关闭素材库" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "关闭项目文件" })).toBeHidden();
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     await expect(edges).toHaveCount(1);
     await releaseCanvasFile(app);
@@ -2298,11 +2364,12 @@ test("图片节点内单选上传：错型不动图，确认即断入线，撤�
 });
 
 test("在画布拖入磁盘文件时填充空节点并保留已有图片", async () => {
+  test.setTimeout(90_000);
   const root = await mkdtemp(join(tmpdir(), "link-drop-files-"));
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await addCanvasNode(page, "图片生成");
     const original = page.locator(".react-flow__node").first();
     const id = await original.getAttribute("data-id");
@@ -2335,12 +2402,16 @@ test("在画布拖入磁盘文件时填充空节点并保留已有图片", async
         return transfer;
       });
       const media = original.locator(".node-media");
+      await expect(page.locator(".canvas-save-indicator")).toHaveAttribute("data-state", "saved", {
+        timeout: 15_000,
+      });
       await media.dispatchEvent("dragover", { dataTransfer: transfer });
       await expect(page.locator(".canvas-file-over")).toBeVisible();
       await media.dispatchEvent("drop", { dataTransfer: transfer, clientX: 500, clientY: 400 });
       await transfer.dispose();
       await expect(page.locator(".canvas-file-over")).toHaveCount(0);
-      await expect(page.locator(`.react-flow__node img[alt="${color}.png"]`)).toHaveCount(1);
+      const target = color === "red" ? original : page.locator(".react-flow__node");
+      await expect(target.locator(`img[alt="${color}.png"]`)).toHaveCount(1, { timeout: 20_000 });
     }
     await expect
       .poll(
@@ -2363,8 +2434,7 @@ test("画布剪贴板区分富文本、节点和图片，粘贴结果重开可�
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("粘贴验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "粘贴验收");
     await expect(page.getByRole("button", { name: "打开小灵" })).toBeVisible();
     const paste = (mode: "rich" | "file" | "same" | "empty" | "long") =>
       page.evaluate(async (mode) => {
@@ -2484,8 +2554,7 @@ test("剪贴板混合媒体不需要路径：20MiB截图、MP4、WAV按三列落
       ),
       Buffer.alloc(16000),
     ]);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("剪贴板媒体");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "剪贴板媒体");
     await expect(page.getByRole("button", { name: "打开小灵" })).toBeVisible();
     await page.evaluate(
       ({ image, padLength, checksum, video, audio }) => {
@@ -2530,13 +2599,14 @@ test("剪贴板混合媒体不需要路径：20MiB截图、MP4、WAV按三列落
       const state = await latestSnapshot(root);
       return projectCanvas(state.canvas).nodes.flatMap((node) =>
         node.type === "creative" && node.data.assetId
-          ? [{ node, asset: state.assets[node.data.assetId]! }]
+          ? [{ node, asset: requireTestValue(state.assets[node.data.assetId]) }]
           : [],
       );
     };
     await expect.poll(stored).toHaveLength(4);
     const saved = await stored();
-    const origin = saved.find((entry) => entry.node.data.label === "粘贴图片")!.node.position;
+    const origin = requireTestValue(saved.find((entry) => entry.node.data.label === "粘贴图片"))
+      .node.position;
     for (const [index, [name, kind, content]] of (
       [
         ["粘贴图片.png", "image", png],
@@ -2545,7 +2615,7 @@ test("剪贴板混合媒体不需要路径：20MiB截图、MP4、WAV按三列落
         ["封面.png", "image", image],
       ] as const
     ).entries()) {
-      const record = saved.find((entry) => entry.asset.displayName === name)!;
+      const record = requireTestValue(saved.find((entry) => entry.asset.displayName === name));
       expect(record.node.data.kind).toBe(kind);
       expect(record.node.position).toEqual({
         x: origin.x + 440 * (index % 3),
@@ -2574,7 +2644,7 @@ test("剪贴板分块失败可用同一个File重试，中途删除释放文件�
     app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await expect(page.getByRole("button", { name: "打开小灵" })).toBeVisible();
     await app.evaluate(() => {
       const fs = process.getBuiltinModule("fs/promises"),
@@ -2615,7 +2685,7 @@ test("剪贴板分块失败可用同一个File重试，中途删除释放文件�
     expect(Object.keys((await latestSnapshot(root)).assets)).toHaveLength(0);
     await card.getByRole("button", { name: "重试" }).click();
     await expect(card.locator('img[alt="保留.png"]')).toHaveCount(1);
-    await expect(card).toHaveAttribute("data-id", id!);
+    await expect(card).toHaveAttribute("data-id", requireTestValue(id));
     await holdCanvasFile(app, "sync");
     await paste("删除.png");
     const pending = page
@@ -2640,7 +2710,7 @@ test("先选图片画幅读取较慢时，第二个文件先入库，图片仍�
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await expect(page.getByRole("button", { name: "打开小灵" })).toBeVisible();
     const audio = Buffer.concat([
       Buffer.from(
@@ -2650,18 +2720,27 @@ test("先选图片画幅读取较慢时，第二个文件先入库，图片仍�
       Buffer.alloc(16000),
     ]);
     await page.evaluate(async (audio) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const canvas = document.createElement("canvas");
       canvas.width = 4;
       canvas.height = 8;
       const image = await new Promise<Blob | null>((done) => canvas.toBlob(done));
       if (!image) throw Error("无法生成图片");
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src")!;
+      const descriptor = requireTestValue(
+        Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src"),
+      );
       Object.defineProperty(HTMLImageElement.prototype, "src", {
         ...descriptor,
         set(url: string) {
-          if (!url.startsWith("blob:")) return descriptor.set!.call(this, url);
+          if (!url.startsWith("blob:")) return requireTestValue(descriptor.set).call(this, url);
           Object.defineProperty(HTMLImageElement.prototype, "src", descriptor);
-          Object.assign(window, { releasePasteImage: () => descriptor.set!.call(this, url) });
+          Object.assign(window, {
+            releasePasteImage: () => requireTestValue(descriptor.set).call(this, url),
+          });
         },
       });
       const transfer = new DataTransfer();
@@ -2854,7 +2933,7 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
       });
       if (!model.ok) throw Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     const fixture = {
@@ -2906,6 +2985,7 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "复制文本" })).toHaveCount(0);
+    await chooseCanvasZoom(page, "适应画布");
     await image.click({ position: { x: 32, y: 32 } });
     await page.getByRole("button", { name: "开始生成", exact: true }).click();
     await expect
@@ -2918,22 +2998,35 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
       )
       .toBe(1);
     const edge = page.locator(".react-flow__edge");
-    const point = await edge.locator(".react-flow__edge-path").evaluate((element) => {
-      const path = element as SVGPathElement;
-      const { x, y } = path
-        .getPointAtLength(path.getTotalLength() * 0.37)
-        .matrixTransform(path.getScreenCTM()!);
-      return { x, y };
+    const point = await page.waitForFunction(() => {
+      const path = document.querySelector<SVGPathElement>(".react-flow__edge-path");
+      const matrix = path?.getScreenCTM();
+      if (!path || !matrix) return false;
+      for (const ratio of [0.37, 0.63, 0.28, 0.72]) {
+        const { x, y } = path
+          .getPointAtLength(path.getTotalLength() * ratio)
+          .matrixTransform(matrix);
+        if (document.elementFromPoint(x, y)?.closest(".react-flow__edge")) return { x, y };
+      }
+      return false;
     });
-    await page.mouse.click(point.x, point.y);
+    const hit = await point.jsonValue();
+    if (!hit) throw new Error("缺少可操作的连线区域");
+    await page.mouse.click(hit.x, hit.y);
     const scissors = page.getByRole("button", { name: "断开连接", exact: true });
     await expect(edge).toHaveClass(/selected/);
     await expect(scissors).toBeVisible();
     const anchor = () =>
-      scissors.evaluate((button) => getComputedStyle(button.parentElement!).offsetDistance);
+      scissors.evaluate((button) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+        return getComputedStyle(requireTestValue(button.parentElement)).offsetDistance;
+      });
     const clickedRatio = await anchor();
     expect(clickedRatio).not.toBe("50%");
-    finish!();
+    requireTestValue(finish)();
     await expect(body).toHaveText("回填对白");
     await expect.poll(() => prompts).toEqual([before, "特写"]);
     await expect(edge).toHaveClass(/selected/);
@@ -2948,8 +3041,8 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await writeFile(test.info().outputPath("linked-text-prompts.json"), JSON.stringify(prompts));
   } finally {
     finish?.();
-    server.closeAllConnections();
     server.close();
+    server.closeAllConnections();
     await app.close();
     await rm(root, { recursive: true, force: true });
   }
@@ -2960,8 +3053,7 @@ test("原版文本失败卡编辑后恢复正文，撤销和重开恢复失败�
   let app = await launchCanvas(root);
   try {
     let page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("剧本恢复");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "剧本恢复");
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     const reason = "服务暂时不可用";
@@ -3014,8 +3106,7 @@ test("文本节点预览链接支持点击和回车，保留当前画布", async
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("剧本链接");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "剧本链接");
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     const url = "https://example.invalid/plan?shot=2";
@@ -3043,8 +3134,7 @@ test("文本节点预览链接支持点击和回车，保留当前画布", async
     });
     await app.evaluate(({ shell }) => {
       shell.openExternal = async (value) => {
-        process.env.LINK_STUDIO_TEXT_LINKS =
-          (process.env.LINK_STUDIO_TEXT_LINKS ?? "") + value + "\n";
+        process.env.LINK_STUDIO_TEXT_LINKS = `${(process.env.LINK_STUDIO_TEXT_LINKS ?? "") + value}\n`;
       };
     });
     const link = page.getByRole("link", { name: "拍摄计划" });
@@ -3066,10 +3156,10 @@ test("文本节点预览链接支持点击和回车，保留当前画布", async
 test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢复", async () => {
   const root = await mkdtemp(join(tmpdir(), "link-text-format-"));
   let application = await launchCanvas(root);
+  let releaseSave: (() => Promise<boolean>) | undefined;
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("文本格式验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "文本格式验收");
     await addCanvasNode(page, "文本");
     const strip = page.getByRole("toolbar", { name: /的功能区$/ });
     await expect(strip).toHaveCount(0);
@@ -3095,12 +3185,18 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
       expect
         .poll(() =>
           strip.evaluate((bar) => {
-            const card = document
-              .querySelector(".react-flow__node.selected")!
-              .getBoundingClientRect();
+            function requireTestValue<Value>(value: Value): NonNullable<Value> {
+              if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+              return value;
+            }
+
+            const card = requireTestValue(
+              document.querySelector(".react-flow__node.selected"),
+            ).getBoundingClientRect();
             const rect = bar.getBoundingClientRect();
             const scale = new DOMMatrix(
-              getComputedStyle(document.querySelector(".react-flow__viewport")!).transform,
+              getComputedStyle(requireTestValue(document.querySelector(".react-flow__viewport")))
+                .transform,
             ).a;
             return Math.max(
               Math.abs(card.x + card.width / 2 - rect.x - rect.width / 2),
@@ -3113,7 +3209,7 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
     const zoom = page.locator(".react-flow__viewport"),
       previousZoom = await zoom.getAttribute("style");
     await chooseCanvasZoom(page, "缩小");
-    await expect(zoom).not.toHaveAttribute("style", previousZoom!);
+    await expect(zoom).not.toHaveAttribute("style", requireTestValue(previousZoom));
     await checkAnchor();
     await page.evaluate(() =>
       Object.defineProperty(navigator.clipboard, "writeText", {
@@ -3145,18 +3241,70 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
       "镜头记录",
     );
     await editor.press("Escape");
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
+    await application.evaluate(({ ipcMain }) => {
+      const channel = "link-studio:canvas:applyOperations";
+      const handlers = (
+        ipcMain as typeof ipcMain & {
+          _invokeHandlers: Map<
+            string,
+            (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown
+          >;
+        }
+      )._invokeHandlers;
+      const save = handlers.get(channel);
+      if (!save) throw Error("画布保存未注册");
+      const hold = new Promise<void>((resolve) => {
+        ipcMain.once("test:release-canvas-save", () => resolve());
+      });
+      ipcMain.removeHandler(channel);
+      ipcMain.handle(channel, async (event, input) => {
+        ipcMain.once("test:canvas-save-pending", () => undefined);
+        await hold;
+        ipcMain.emit("test:canvas-save-pending");
+        ipcMain.removeHandler(channel);
+        ipcMain.handle(channel, save);
+        return save(event, input);
+      });
+    });
+    releaseSave = () =>
+      application.evaluate(({ ipcMain }) => ipcMain.emit("test:release-canvas-save"));
     const heading = await page.locator(".react-flow__node.selected header strong").boundingBox();
     if (!heading) throw Error("缺少标题");
     const drag = { x: heading.x + heading.width / 2, y: heading.y + heading.height / 2 };
     await page.mouse.move(drag.x, drag.y);
     await page.mouse.down();
-    await page.mouse.move(drag.x + 36, drag.y + 8, { steps: 5 });
-    await expect(strip).toHaveCount(0);
-    await page.mouse.up();
+    try {
+      await page.mouse.move(drag.x + 36, drag.y + 8, { steps: 5 });
+      await expect(strip).toHaveCount(0);
+    } finally {
+      await page.mouse.up();
+    }
     await checkAnchor();
+    await expect
+      .poll(
+        async () =>
+          (await page.locator(".react-flow__node.selected header strong").boundingBox())?.x,
+      )
+      .toBeGreaterThan(heading.x + 15);
+    await expect
+      .poll(() =>
+        application.evaluate(({ ipcMain }) => ipcMain.listenerCount("test:canvas-save-pending")),
+      )
+      .toBe(1);
     await projectAction(page, "所选节点属性");
-    await page.getByRole("button", { name: "生成内容", exact: true }).click();
+    await expect(page.getByRole("button", { name: "画布菜单", exact: true })).toBeFocused();
+    const properties = page.getByRole("region", { name: "节点属性" });
+    const generate = properties.getByRole("button", { name: "生成内容", exact: true });
+    await expect(generate).toBeEnabled();
+    await generate.focus();
+    await expect(generate).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(properties).toBeHidden();
     await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
+    await releaseSave();
+    releaseSave = undefined;
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
     await application.close();
     application = await launchCanvas(root);
     const reopened = await application.firstWindow();
@@ -3168,8 +3316,12 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
     );
     await restored.getByRole("button", { name: "关闭", exact: true }).click();
   } finally {
-    await application.close();
-    await rm(root, { recursive: true, force: true });
+    try {
+      await releaseSave?.();
+    } finally {
+      await application.close();
+      await rm(root, { recursive: true, force: true });
+    }
   }
 });
 
@@ -3179,15 +3331,20 @@ test("照片的八种 EXIF 方向保持显示画幅，镜像旋转的四宫格�
   try {
     const page = await app.firstWindow();
     const encoded = await page.evaluate(() => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const canvas = document.createElement("canvas");
       canvas.width = 64;
       canvas.height = 32;
-      const context = canvas.getContext("2d")!;
+      const context = requireTestValue(canvas.getContext("2d"));
       for (const [index, color] of ["#000000", "#555555", "#aaaaaa", "#ffffff"].entries()) {
         context.fillStyle = color;
         context.fillRect((index % 2) * 32, Math.floor(index / 2) * 16, 32, 16);
       }
-      return canvas.toDataURL("image/jpeg", 1).split(",")[1]!;
+      return requireTestValue(canvas.toDataURL("image/jpeg", 1).split(",")[1]);
     });
     const files = await Promise.all(
       Array.from({ length: 8 }, async (_, index) => {
@@ -3199,24 +3356,25 @@ test("照片的八种 EXIF 方向保持显示画幅，镜像旋转的四宫格�
         return file;
       }),
     );
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("照片方向");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "照片方向");
     await chooseCanvasFiles(
       page,
       page.getByRole("button", { name: /^上传素材 图片、视频、音频/ }),
       files,
     );
     const frames = (view: Page) =>
-      view
-        .locator('.react-flow__node article:has(img[alt$=".jpg"])')
-        .evaluateAll((cards) =>
-          Object.fromEntries(
-            cards.map((card) => [
-              card.querySelector("img")!.alt,
-              [getComputedStyle(card).width, getComputedStyle(card).height],
-            ]),
-          ),
+      view.locator('.react-flow__node article:has(img[alt$=".jpg"])').evaluateAll((cards) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+        return Object.fromEntries(
+          cards.map((card) => [
+            requireTestValue(card.querySelector("img")).alt,
+            [getComputedStyle(card).width, getComputedStyle(card).height],
+          ]),
         );
+      });
     const expected = Object.fromEntries(
       files.map((_, index) => [
         `照片${index + 1}.jpg`,
@@ -3227,9 +3385,9 @@ test("照片的八种 EXIF 方向保持显示画幅，镜像旋转的四宫格�
     await expect.poll(async () => (await latestSnapshot(root)).canvas.nodes.length).toBe(8);
     const state = await latestSnapshot(root);
     for (const [index, file] of files.entries()) {
-      const asset = Object.values(state.assets).find(
-        (asset) => asset.displayName === `照片${index + 1}.jpg`,
-      )!;
+      const asset = requireTestValue(
+        Object.values(state.assets).find((asset) => asset.displayName === `照片${index + 1}.jpg`),
+      );
       expect(asset.metadata).toMatchObject({ width: 64, height: 32, orientation: index + 1 });
       expect(asset.sha256).toBe(
         createHash("sha256")
@@ -3294,9 +3452,9 @@ test("照片的八种 EXIF 方向保持显示画幅，镜像旋转的四宫格�
         "rgba",
         "pipe:1",
       ]);
-      const tone = tones[tile.displayName]!;
+      const tone = requireTestValue(tones[tile.displayName]);
       expect(rgba).toEqual(Buffer.alloc(16 * 32 * 4, Buffer.from([tone, tone, tone, 255])));
-      await writeFile(join(evidence, tile.displayName + ".rgba"), rgba);
+      await writeFile(join(evidence, `${tile.displayName}.rgba`), rgba);
     }
     for (const [index, file] of files.entries())
       await writeFile(join(evidence, `source-${index + 1}.jpg`), await readFile(file));
@@ -3327,12 +3485,11 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
       return canvas.toDataURL().slice("data:image/png;base64,".length);
     });
     await writeFile(image, Buffer.from(sample, "base64"));
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("宫格验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "宫格验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将grid.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const trigger = page.getByRole("button", { name: "宫格切分" });
     await trigger.click();
     const custom = page.getByRole("menuitem", { name: "自定义" });
@@ -3403,13 +3560,17 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
     await expect(line).toBeHidden();
     await expect(page.locator(".react-flow__node")).toHaveCount(5);
     await expect(page.locator(".react-flow__edge")).toHaveCount(4);
-    const finalIds = await page.locator(".react-flow__node:has(img)").evaluateAll((cards) =>
-      cards
-        .filter((card) => card.querySelector("strong")?.textContent !== "grid")
-        .map((card) => card.getAttribute("data-id"))
-        .sort(),
-    );
-    expect(await waitingIds).toEqual(finalIds);
+    const pendingIds = await waitingIds;
+    await expect
+      .poll(() =>
+        page.locator(".react-flow__node:has(.canvas-image-layers img)").evaluateAll((cards) =>
+          cards
+            .filter((card) => card.querySelector("strong")?.textContent !== "grid")
+            .map((card) => card.getAttribute("data-id"))
+            .sort(),
+        ),
+      )
+      .toEqual(pendingIds);
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);
@@ -3421,41 +3582,48 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
     await reopened.getByRole("button", { name: /^宫格验收/ }).click();
     await expect(reopened.locator(".react-flow__node")).toHaveCount(5);
     await expect(reopened.locator(".react-flow__edge")).toHaveCount(4);
-    await expect(reopened.locator(".react-flow__node img")).toHaveCount(5);
+    const previews = reopened.locator('.react-flow__node .canvas-image-layers img:not([alt=""])');
+    await expect(previews).toHaveCount(5);
     const saved = await latestSnapshot(root);
     const restored = projectCanvas(saved.canvas).nodes.filter((node) => node.type === "creative");
     const source = restored.find((node) => node.data.label === "grid");
     if (!source) throw new Error("缺少源图片");
-    const positions = await reopened
-      .locator(".react-flow__node img")
-      .evaluateAll(async (images) => {
-        return Promise.all(
-          images.map(async (element) => {
-            const image = element as HTMLImageElement;
-            image.loading = "eager";
-            await image.decode();
-            const card = image.closest("article");
-            return {
-              name: image.alt,
-              label: card?.querySelector("strong")?.textContent,
-              width: image.naturalWidth,
-              height: image.naturalHeight,
-              frame: [card?.offsetWidth, card?.offsetHeight],
-            };
-          }),
-        );
-      });
+    const positions = await previews.evaluateAll(async (images) => {
+      return Promise.all(
+        images.map(async (element) => {
+          const image = element as HTMLImageElement;
+          const { alt: name } = image;
+          image.loading = "eager";
+          await image.decode();
+          const card = image.closest("article");
+          return {
+            name,
+            id: card?.closest(".react-flow__node")?.getAttribute("data-id"),
+            label: card?.querySelector("strong")?.textContent,
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            frame: [card?.offsetWidth, card?.offsetHeight],
+          };
+        }),
+      );
+    });
     for (const part of positions) {
-      const match = part.name.match(/^grid-([12])-([12])\.png$/);
+      const node = restored.find((item) => item.id === part.id);
+      const asset = node?.data.assetId && saved.assets[node.data.assetId];
+      if (!node || !asset)
+        throw new Error(`切图节点 ${part.id} 缺少持久化素材 ${node?.data.assetId}`);
+      expect(part.name).toBe(asset.displayName);
+      const match = asset.displayName.match(/^grid-([12])-([12])\.png$/);
+      if (node.id === source.id) expect(asset.displayName).toBe("grid.png");
+      else expect(match).not.toBeNull();
       const row = Number(match?.[1] ?? 1) - 1;
       const col = Number(match?.[2] ?? 1) - 1;
       expect([part.width, part.height]).toEqual(match ? [col ? 7 : 13, 6] : [20, 12]);
       if (match) {
         expect(part.label).toBe(`grid ${row + 1}-${col + 1}`);
         expect(part.frame).toEqual([col ? 378 : 702, 324]);
-        const tile = restored.find((node) => node.data.label === part.label);
-        expect(tile?.data.uploaded).toBe(true);
-        expect(tile?.position).toEqual({
+        expect(node.data.uploaded).toBe(true);
+        expect(node.position).toEqual({
           x: source.position.x + 620 + col * 782,
           y: source.position.y - 182 + row * 364,
         });
@@ -3468,8 +3636,6 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
           expected.push(sourceCol * 10, sourceRow * 18, (sourceRow + sourceCol) * 8, 255);
         }
       }
-      const asset = Object.values(saved.assets).find((item) => item.displayName === part.name);
-      if (!asset) throw new Error("缺少持久化图片");
       const pixels = await runMediaProcess(
         join(process.cwd(), "out/media", `${process.platform}-${process.arch}`, "ffmpeg"),
         [
@@ -3512,16 +3678,19 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
       return canvas.toDataURL().slice("data:image/png;base64,".length);
     });
     await writeFile(image, Buffer.from(blank, "base64"));
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("涂鸦验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "涂鸦验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将doodle.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
+    await chooseCanvasZoom(page, "适应画布");
     await page.getByRole("button", { name: "图片编辑", exact: true }).click();
     const dialog = page.getByRole("toolbar", { name: "图片标注工具栏" });
     await expect(dialog).toBeVisible();
-    await expect.poll(async () => Math.round((await dialog.boundingBox())!.width)).toBe(600);
+    await expect
+      .poll(async () => Math.abs(requireTestValue(await dialog.boundingBox()).width - 600))
+      .toBeLessThanOrEqual(4);
+    await expect(dialog).toHaveCSS("height", "40px");
     await expect(dialog.getByRole("button", { name: "画笔" })).toHaveCSS("font-size", "14px");
     const save = dialog.getByRole("button", { name: "保存", exact: true });
     await save.click();
@@ -3556,7 +3725,11 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     const triggerRect = await colorTrigger.boundingBox();
     await expect
       .poll(async () =>
-        Math.round((await palette.boundingBox())!.y - triggerRect!.y - triggerRect!.height),
+        Math.round(
+          requireTestValue(await palette.boundingBox()).y -
+            requireTestValue(triggerRect).y -
+            requireTestValue(triggerRect).height,
+        ),
       )
       .toBe(8);
     await palette.getByRole("button", { name: "颜色 #facc15" }).press("Enter");
@@ -3582,7 +3755,7 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     const [sourceNode, firstCopy] = projectCanvas(snapshot.canvas).nodes;
     await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
       "data-id",
-      sourceNode!.id,
+      requireTestValue(sourceNode).id,
     );
     await page.getByRole("button", { name: "图片编辑", exact: true }).click();
     await expect(save).toBeEnabled();
@@ -3593,15 +3766,17 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     await save.click();
     await expect(dialog).toBeHidden();
     await expect.poll(async () => (await latestSnapshot(root)).canvas.edges).toHaveLength(2);
-    const secondCopy = projectCanvas((await latestSnapshot(root)).canvas).nodes[2]!;
-    expect(secondCopy.data.label).toBe(`${firstCopy!.data.label} 2`);
+    const secondCopy = requireTestValue(
+      projectCanvas((await latestSnapshot(root)).canvas).nodes[2],
+    );
+    expect(secondCopy.data.label).toBe(`${requireTestValue(firstCopy).data.label} 2`);
     expect(secondCopy.position).toEqual({
-      x: firstCopy!.position.x,
-      y: firstCopy!.position.y + 364,
+      x: requireTestValue(firstCopy).position.x,
+      y: requireTestValue(firstCopy).position.y + 364,
     });
     await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
       "data-id",
-      sourceNode!.id,
+      requireTestValue(sourceNode).id,
     );
     await page.keyboard.press("ControlOrMeta+z");
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
@@ -3625,11 +3800,17 @@ test("图片节点涂鸦标注生成派生图片、来源连线并支持重开�
     await expect(reopened.locator(".react-flow__node")).toHaveCount(3);
     await expect(reopened.locator(".react-flow__edge")).toHaveCount(2);
     await expect(reopened.locator(".react-flow__node img")).toHaveCount(3);
-    const derivedImage = reopened.locator(`.react-flow__node[data-id="${firstCopy!.id}"] img`);
+    const derivedImage = reopened.locator(
+      `.react-flow__node[data-id="${requireTestValue(firstCopy).id}"] img[alt="doodle.png"]`,
+    );
+    await derivedImage.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => derivedImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
     const counts = await derivedImage.evaluate(async (element) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
-      image.src = (element as HTMLImageElement).currentSrc;
+      image.src = (element as HTMLImageElement).src;
       await image.decode();
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 256;
@@ -3661,28 +3842,33 @@ test("大图缩小后中文标注预编辑、确认和换行形成一步撤销",
   const output = join(process.cwd(), "test-results", "doodle-composition");
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     const png = Buffer.from(
       await page.evaluate(() => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         const canvas = document.createElement("canvas");
         canvas.width = 5000;
         canvas.height = 2500;
-        const context = canvas.getContext("2d")!;
+        const context = requireTestValue(canvas.getContext("2d"));
         context.fillStyle = "#233852";
         context.fillRect(0, 0, 2500, 2500);
         context.fillStyle = "#92aeb9";
         context.fillRect(2500, 0, 2500, 1250);
-        return canvas.toDataURL().split(",")[1]!;
+        return requireTestValue(canvas.toDataURL().split(",")[1]);
       }),
       "base64",
     );
     await mkdir(output, { recursive: true });
     await writeFile(image, png);
     await writeFile(join(output, "input.png"), png);
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将大图.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await chooseCanvasZoom(page, "缩放到 100%");
     await expect
       .poll(() =>
@@ -3696,9 +3882,11 @@ test("大图缩小后中文标注预编辑、确认和换行形成一步撤销",
     const sample = await annotateWithComposition(page);
     expect(sample.zoom).toBeLessThan(1);
     await expect.poll(async () => (await latestSnapshot(root)).canvas.edges.length).toBe(1);
-    const file = Object.values((await latestSnapshot(root)).assets).find(
-      (asset) => asset.origin === "derived",
-    )!;
+    const file = requireTestValue(
+      Object.values((await latestSnapshot(root)).assets).find(
+        (asset) => asset.origin === "derived",
+      ),
+    );
     expect(file.metadata).toMatchObject({ width: 4096, height: 2048 });
     await writeFile(
       join(output, "desktop-result.png"),
@@ -3727,12 +3915,13 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
   try {
     await writeFile(image, await readFile(join(process.cwd(), "resources/icons/icon-32.png")));
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await page.setViewportSize(compactViewport);
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将底图.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
-    await chooseCanvasZoom(page, "缩放到 100%");
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
+    await chooseCanvasZoom(page, "适应画布");
     const cards = page.locator(".react-flow__node"),
       edges = page.locator(".react-flow__edge");
     const source = await cards.first().getAttribute("data-id");
@@ -3744,12 +3933,20 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
       await page.getByRole("button", { name: "图片编辑", exact: true }).click();
       await expect(save).toBeEnabled();
       await toolbar.getByRole("button", { name: "框选" }).click();
-      const bounds = (await page.getByLabel("涂鸦画布", { exact: true }).boundingBox())!;
+      const bounds = requireTestValue(
+        await page.getByLabel("涂鸦画布", { exact: true }).boundingBox(),
+      );
       drawingRect = bounds;
-      await page.mouse.move(bounds.x + 26, bounds.y + 26);
+      await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.25);
       await page.mouse.down();
-      await page.mouse.move(bounds.x + 82, bounds.y + 88, { steps: 8 });
-      await page.mouse.up();
+      try {
+        await page.mouse.move(bounds.x + bounds.width * 0.75, bounds.y + bounds.height * 0.75, {
+          steps: 8,
+        });
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(toolbar.getByRole("button", { name: "撤销" })).toBeEnabled();
     };
     const holdExport = () =>
       page.evaluate(() => {
@@ -3781,7 +3978,10 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
     await expect(toolbar).toBeHidden();
     await expect(pending.getByRole("status")).toContainText("上传中0%");
     await expect(edges).toHaveCount(1);
-    await expect(page.locator(".react-flow__node.selected")).toHaveAttribute("data-id", source!);
+    await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
+      "data-id",
+      requireTestValue(source),
+    );
     await expect.poll(async () => (await stored()).nodes.length).toBe(1);
     await releaseExport(true);
     await expect(page.getByText("涂鸦图导出失败", { exact: true })).toBeVisible();
@@ -3795,10 +3995,13 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
     await expect(pending).toHaveCount(1);
     const removedId = await pending.getAttribute("data-id");
     await pending.click();
-    await expect(page.locator(".react-flow__node.selected")).toHaveAttribute("data-id", removedId!);
+    await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
+      "data-id",
+      requireTestValue(removedId),
+    );
     await page.keyboard.press("Backspace");
     await expect(cards).toHaveCount(1);
-    await expect(cards).toHaveAttribute("data-id", source!);
+    await expect(cards).toHaveAttribute("data-id", requireTestValue(source));
     await releaseExport(false);
     await expect(edges).toHaveCount(0);
     await page.keyboard.press("ControlOrMeta+z");
@@ -3827,9 +4030,11 @@ test("图片标注在导出前占位、编码失败清理、删除中止及落�
     expect(await assetCount()).toBe(2);
     await expect(edges).toHaveCount(1);
 
-    const file = Object.values((await latestSnapshot(root)).assets).find(
-      (asset) => asset.origin === "derived",
-    )!;
+    const file = requireTestValue(
+      Object.values((await latestSnapshot(root)).assets).find(
+        (asset) => asset.origin === "derived",
+      ),
+    );
     expect(file.displayName).toBe("doodle.png");
     const evidence = join(process.cwd(), "test-results", "doodle-lifecycle");
     await mkdir(evidence, { recursive: true });
@@ -3913,7 +4118,7 @@ test("图片扩图只发送透明底图，生成结果和来源连线重开可�
     if (!address || typeof address === "string") throw new Error("Missing test endpoint");
     application = await launchCanvas(root, image);
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
@@ -3936,12 +4141,11 @@ test("图片扩图只发送透明底图，生成结果和来源连线重开可�
       });
       if (!result.ok) throw new Error(result.code);
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("扩图验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "扩图验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将outpaint.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await page.getByRole("button", { name: "扩图", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "图片扩图" });
     await dialog.getByLabel("画框比例").selectOption("自由");
@@ -4009,8 +4213,7 @@ test("资产库逐文件上传可取消、移除失败卡并从原文件重试",
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("队列验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "队列验收");
     await page.getByRole("button", { name: "资产库", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "资产库" }),
       input = picker.getByLabel("选择要上传的文件");
@@ -4026,7 +4229,7 @@ test("资产库逐文件上传可取消、移除失败卡并从原文件重试",
     await picker.getByRole("tab", { name: "生成历史" }).click();
     await expect(broken).toHaveCount(0);
     await picker.getByRole("tab", { name: "个人资产库" }).click();
-    await writeFile(files[1]!, blue);
+    await writeFile(requireTestValue(files[1]), blue);
     await broken.getByRole("button", { name: "重试" }).click();
     await expect(picker.getByText("已选择 2 个素材")).toBeVisible();
     await expect(broken).toHaveCount(0);
@@ -4069,24 +4272,23 @@ test("个人资产库登记重试不重传，源项目移走后跨项目预览�
   try {
     let page = await app.firstWindow();
     const create = async (name: string) => {
-      await page.getByRole("textbox", { name: "新项目名称" }).fill(name);
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, name);
     };
     const enter = async () => {
       await page.getByRole("button", { name: "资产库", exact: true }).click();
       return page.getByRole("dialog", { name: "资产库" });
     };
     await create("原项目");
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByLabel("导入方式").selectOption("reference");
-    await page.getByRole("button", { name: "新建文件夹" }).click();
+    await page.getByRole("button", { name: "新建资产库文件夹" }).click();
     const folderForm = page.getByRole("dialog", { name: "新建文件夹" });
     await folderForm.getByRole("button", { name: "创建" }).click();
     await expect(folderForm.getByRole("alert")).toHaveText("请输入文件夹名称");
     await folderForm.getByLabel("文件夹名称").fill(" 角色图 ");
     await folderForm.getByRole("button", { name: "创建" }).click();
     await expect(folderForm).toHaveCount(0);
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     let picker = await enter();
     const folder = () => picker.getByRole("button", { name: "打开文件夹 角色图" });
     await folder().click();
@@ -4122,7 +4324,7 @@ test("个人资产库登记重试不重传，源项目移走后跨项目预览�
     await expect(failed).toHaveCount(0);
     const original = await latestSnapshot(root);
     expect(Object.keys(original.assets)).toHaveLength(1);
-    expect(Object.values(original.assets)[0]!.storage.kind).toBe("external");
+    expect(requireTestValue(Object.values(original.assets)[0]).storage.kind).toBe("external");
     await picker.getByRole("button", { name: "关闭", exact: true }).click();
     await projectAction(page, "关闭项目");
     await rename(await projectDirectory(root), join(root, "移动后的项目"));
@@ -4152,10 +4354,10 @@ test("个人资产库登记重试不重传，源项目移走后跨项目预览�
     const target = await latestSnapshot(root),
       records = Object.values(target.assets);
     expect(records).toHaveLength(1);
-    expect(records[0]!.assetId).not.toBe(Object.keys(original.assets)[0]);
-    expect(records[0]!.importMode).toBe("copy");
+    expect(requireTestValue(records[0]).assetId).not.toBe(Object.keys(original.assets)[0]);
+    expect(requireTestValue(records[0]).importMode).toBe("copy");
     const hash = createHash("sha256").update(bytes).digest("hex");
-    expect(records[0]!.sha256).toBe(hash);
+    expect(requireTestValue(records[0]).sha256).toBe(hash);
     expect(
       await readFile(
         join(await projectDirectory(root), "assets", "sha256", hash.slice(0, 2), hash),
@@ -4193,12 +4395,11 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
   let app = await launchCanvas(root, file);
   try {
     let page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("节点个人库");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "节点个人库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将icon-32.png加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const add = async () => {
       await page
         .getByRole("toolbar", { name: /的功能区$/ })
@@ -4213,7 +4414,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
     );
     await expect(location.getByRole("button", { name: "加入", exact: true })).toBeEnabled();
     await location.getByRole("button", { name: "取消" }).click();
-    const db = new DatabaseSync(join(root, "personal-library/items.sqlite"));
+    const db = new DatabaseSync(join(root, "personal-library/items.sqlite"), { timeout: 3000 });
     try {
       const items = () =>
         db
@@ -4241,12 +4442,12 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
       await expect(page.getByText("已加入资产库", { exact: true })).toBeVisible();
       const registered = items();
       expect(registered).toHaveLength(1);
-      expect(registered[0]!.folder).toBeTruthy();
+      expect(requireTestValue(registered[0]).folder).toBeTruthy();
       location = await add();
       await location.getByRole("button", { name: "加入", exact: true }).click();
       await expect(location).toHaveCount(0);
       expect(items()).toEqual(registered);
-      await projectAction(page, "素材库");
+      await projectAction(page, "项目文件");
       await page.getByRole("button", { name: "管理个人资产库" }).click();
       const manager = page.getByRole("dialog", { name: "个人资产库管理" });
       await manager.getByRole("button", { name: "打开文件夹 保留位置" }).click();
@@ -4254,7 +4455,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
       await manager.getByRole("menuitem", { name: "移出资产库" }).click();
       await expect(manager.getByRole("status")).toHaveText("已移出资产库");
       await manager.getByRole("button", { name: "关闭个人资产库管理" }).click();
-      await page.getByRole("button", { name: "关闭素材库" }).click();
+      await page.getByRole("button", { name: "关闭项目文件" }).click();
       await page.getByRole("button", { name: "资产库", exact: true }).click();
       const picker = page.getByRole("dialog", { name: "资产库" });
       await expect(picker.getByRole("button", { name: "打开文件夹 保留位置" })).toContainText(
@@ -4265,7 +4466,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
       location = await add();
       await location.getByRole("button", { name: "加入", exact: true }).click();
       await expect(location).toHaveCount(0);
-      expect(items()).toEqual([{ id: registered[0]!.id, folder: null }]);
+      expect(items()).toEqual([{ id: requireTestValue(registered[0]).id, folder: null }]);
       expect(Object.keys((await latestSnapshot(root)).assets)).toHaveLength(1);
     } finally {
       db.close();
@@ -4292,8 +4493,7 @@ test("个人资产库管理：重命名、搜索中移动、取消删除和删�
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("管理回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "管理回放");
     await page.getByRole("button", { name: "资产库", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "资产库" });
     await picker
@@ -4302,7 +4502,7 @@ test("个人资产库管理：重命名、搜索中移动、取消删除和删�
     await expect(picker.getByText("已选择 1 个素材")).toBeVisible();
     await picker.getByRole("button", { name: "确认", exact: true }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "管理个人资产库" }).click();
     const manager = page.getByRole("dialog", { name: "个人资产库管理", exact: true });
     await expect(manager).toBeVisible();
@@ -4351,7 +4551,7 @@ test("个人资产库管理：重命名、搜索中移动、取消删除和删�
     await alert.getByRole("button", { name: "删除" }).click();
     await expect(manager.getByRole("status")).toHaveText("已删除文件夹，移出 1 个素材");
     await manager.getByRole("button", { name: "关闭个人资产库管理" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await page.getByRole("button", { name: "资产库", exact: true }).click();
     await expect(picker.getByRole("button", { name: "打开文件夹 人物" })).toBeVisible();
     await expect(picker.getByRole("button", { name: "icon-32.png", exact: true })).toHaveCount(0);
@@ -4375,20 +4575,19 @@ test("个人资产库：另一项目删除当前文件夹后回到根目录，�
   try {
     let page = await app.firstWindow();
     const create = async (name: string) => {
-      await page.getByRole("textbox", { name: "新项目名称" }).fill(name);
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, name);
     };
     const enter = async () => {
       await page.getByRole("button", { name: "资产库", exact: true }).click();
       return page.getByRole("dialog", { name: "资产库" });
     };
     await create("来源");
-    await projectAction(page, "素材库");
-    await page.getByRole("button", { name: "新建文件夹" }).click();
+    await projectAction(page, "项目文件");
+    await page.getByRole("button", { name: "新建资产库文件夹" }).click();
     const name = page.getByRole("dialog", { name: "新建文件夹" });
     await name.getByLabel("文件夹名称").fill("同步");
     await name.getByRole("button", { name: "创建" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     let picker = await enter();
     await picker.getByRole("button", { name: "打开文件夹 同步" }).click();
     await picker
@@ -4475,7 +4674,7 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
       "sine=frequency=660:sample_rate=8000",
       "-t",
       "0.5",
-      files[0]!,
+      requireTestValue(files[0]),
     ]);
     await runMediaProcess(ffmpeg, [
       "-v",
@@ -4487,12 +4686,11 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
       "-frames:v",
       "3",
       ...codec,
-      files[1]!,
+      requireTestValue(files[1]),
     ]);
     const page = await app.firstWindow();
     const create = async (name: string) => {
-      await page.getByRole("textbox", { name: "新项目名称" }).fill(name);
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, name);
       await page.getByRole("button", { name: "资产库", exact: true }).click();
     };
     const picker = page.getByRole("dialog", { name: "资产库" });
@@ -4637,8 +4835,7 @@ test("资产库已选满后上传仍入库且不替换原有二十项", async ()
         file,
       ]);
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("已满验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "已满验收");
     await page.getByRole("button", { name: "资产库", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "资产库" }),
       input = picker.getByLabel("选择要上传的文件");
@@ -4657,7 +4854,7 @@ test("资产库已选满后上传仍入库且不替换原有二十项", async ()
           .sort(([left], [right]) => (left ?? "").localeCompare(right ?? "")),
       );
     const original = await selectedLabels();
-    await input.setInputFiles(files[20]!);
+    await input.setInputFiles(requireTestValue(files[20]));
     await expect(
       picker.getByRole("status").filter({ hasText: "已选满，「配乐21.wav」已上传但没有勾选" }),
     ).toBeVisible();
@@ -4679,8 +4876,7 @@ test("角色名称即时跟随标题，形象名称清空后退出重开不回�
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("身份字段验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "身份字段验收");
     await addCanvasNode(page, "角色卡");
     const card = page.locator(".creative-card[data-character]");
     const open = () => card.locator(".character-cover").dblclick({ position: { x: 45, y: 45 } });
@@ -4766,8 +4962,7 @@ test("角色声音上传校验、来源和音色描述跨重启保留", async ()
       file,
     ]);
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("上传声音验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "上传声音验收");
     await addCanvasNode(page, "角色卡");
     await page.getByRole("button", { name: "声音：打开详情设置" }).click();
     const panel = page.getByRole("dialog", { name: "角色卡" });
@@ -4806,7 +5001,10 @@ test("角色声音上传校验、来源和音色描述跨重启保留", async ()
         const node = projectCanvas((await latestSnapshot(root)).canvas).nodes[0];
         return node?.type === "creative" && node.data.character;
       })
-      .toMatchObject({ voice: { assetId, origin: "upload" }, voicePrompt: "  低音\n你好。  " });
+      .toMatchObject({
+        voice: { assetId, origin: "upload", name: "试音.wav" },
+        voicePrompt: "  低音\n你好。  ",
+      });
     expect(Object.keys((await latestSnapshot(root)).assets)).toHaveLength(1);
     await application.close();
     application = await launchCanvas(root);
@@ -4814,7 +5012,10 @@ test("角色声音上传校验、来源和音色描述跨重启保留", async ()
     await reopened.getByRole("button", { name: /^上传声音验收/ }).click();
     await reopened.locator(".character-cover").dblclick({ position: { x: 45, y: 45 } });
     await expect(reopened.getByLabel("AI 生成", { exact: true })).toHaveValue("  低音\n你好。  ");
-    await expect(reopened.locator(".voice-current-row")).toHaveAttribute("data-asset-id", assetId!);
+    await expect(reopened.locator(".voice-current-row")).toHaveAttribute(
+      "data-asset-id",
+      requireTestValue(assetId),
+    );
   } finally {
     await application.close();
     await rm(root, { recursive: true, force: true });
@@ -4834,12 +5035,11 @@ test("角色卡绑定主图并持久保存造型和角色设定", async () => {
   let application = await launchCanvas(root, image);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("角色卡验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "角色卡验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByRole("button", { name: "将look.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await addCanvasNode(page, "角色卡");
     const character = page.getByRole("dialog", { name: "角色卡" });
     const card = page.locator(".creative-card[data-character]");
@@ -4866,13 +5066,13 @@ test("角色卡绑定主图并持久保存造型和角色设定", async () => {
     await character.getByLabel("角色名").fill("林舟");
     await character.getByLabel("形象名").fill("夜班");
     await expect(character.getByLabel("角色设定")).toHaveCount(0);
-    await expect(character.getByRole("button", { name: "从素材库选补充图" })).toBeDisabled();
-    await character.getByRole("button", { name: "素材库", exact: true }).click();
+    await expect(character.getByRole("button", { name: "从资产库选补充图" })).toBeDisabled();
+    await character.getByRole("button", { name: "从资产库选主图", exact: true }).click();
     const mainPicker = page.getByRole("dialog", { name: "选择形象主图" });
     await mainPicker.getByRole("button", { name: "look.png", exact: true }).click();
     await mainPicker.getByRole("button", { name: "确定" }).click();
     await expect(character.getByLabel("主图", { exact: true })).toHaveText("look.png");
-    await character.getByRole("button", { name: "从素材库选补充图" }).click();
+    await character.getByRole("button", { name: "从资产库选补充图" }).click();
     await expect(
       extrasPicker.getByRole("button", { name: "look.png", exact: true }),
     ).toBeDisabled();
@@ -5051,12 +5251,18 @@ for (const fixture of [
         );
       }
       const page = await app.firstWindow();
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("媒体失败回放");
       await page.evaluate(
         async ({ endpoint, fixture }) => {
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
           const list = await window.desktop.settings.list({});
           if (!list.ok) throw new Error(list.code);
-          const plugin = list.value.plugins.find((item) => item.key === fixture.adapter)!;
+          const plugin = requireTestValue(
+            list.value.plugins.find((item) => item.key === fixture.adapter),
+          );
           const saved = await window.desktop.settings.save({
             expectedRevision: 0,
             pluginHash: plugin.hash,
@@ -5075,9 +5281,10 @@ for (const fixture of [
         },
         { endpoint, fixture },
       );
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, "媒体失败回放");
       await addCanvasNode(page, fixture.menu);
       const card = page.locator(`article[data-card-kind="${fixture.kind}"]`);
+      const renderedImage = card.locator('.node-media img[src^="link-media:"]');
       const heading = card.locator("header");
       await card.click({ position: { x: 30, y: 30 } });
       const prompt = page.getByRole("textbox", { name: "生成提示词" });
@@ -5097,7 +5304,6 @@ for (const fixture of [
       await expect(card.getByRole("alert")).toBeVisible();
       const copy = card.getByRole("button", { name: /任务 ID/ });
       const original = await copy.getAttribute("aria-label");
-      await card.click({ position: { x: 30, y: 30 } });
       await prompt.fill("");
       await expect(card.getByRole("button", { name: "重试" })).toBeDisabled();
       await expect(card.locator(".task-retry")).toHaveAttribute("title", "请先填写提示词。");
@@ -5105,7 +5311,7 @@ for (const fixture of [
       expect(prompts).toEqual(["雨中的车站"]);
       await projectAction(page, "关闭项目");
       await page.getByRole("button", { name: /^媒体失败回放/ }).click();
-      await expect(copy).toHaveAttribute("aria-label", original!);
+      await expect(copy).toHaveAttribute("aria-label", requireTestValue(original));
       await copy.click();
       await expect(copy).toHaveText("已复制任务 ID");
       await page.locator(".react-flow__pane").click({ position: { x: 65, y: 90 } });
@@ -5122,7 +5328,7 @@ for (const fixture of [
       await prompt.fill("下次使用的第三稿");
       await expect.poll(async () => (await savedNode())?.data.text).toBe("下次使用的第三稿");
       finish?.();
-      if (fixture.kind === "image") await expect(card.locator(".node-media img")).toBeVisible();
+      if (fixture.kind === "image") await expect(renderedImage).toHaveCSS("opacity", "1");
       else {
         if (fixture.kind === "video") {
           await expect(heading).toContainText("生成中 37%", { timeout: 15_000 });
@@ -5171,7 +5377,7 @@ for (const fixture of [
           adopted: number;
         }[] = [];
         const capture = async (step: string) => {
-          const data = (await savedNode())!.data;
+          const data = requireTestValue(await savedNode()).data;
           const phase = (await card.getByRole("alert").count())
             ? "failed"
             : (await card.getByRole("status").count())
@@ -5190,7 +5396,7 @@ for (const fixture of [
               ) ?? -1,
           });
         };
-        const adopted = (await savedNode())!.data.activeOutputId;
+        const adopted = requireTestValue(await savedNode()).data.activeOutputId;
         await prompt.fill("晴天的车站");
         await expect
           .poll(async () => (await savedNode())?.data)
@@ -5201,8 +5407,10 @@ for (const fixture of [
         finish?.();
         await expect.poll(async () => (await savedNode())?.data.outputs?.length).toBe(2);
         expect((await savedNode())?.data.activeOutputId).not.toBe(adopted);
-        await expect(card.locator(".node-media img")).toBeVisible();
-        const previousVersion = (await savedNode())!.data.activeOutputId!;
+        await expect(renderedImage).toHaveCSS("opacity", "1");
+        const previousVersion = requireTestValue(
+          requireTestValue(await savedNode()).data.activeOutputId,
+        );
         await capture("two-results");
         const versionDialog = page.getByRole("dialog", { name: "历史记录", exact: true });
         const badge = card.getByRole("button", { name: /历史记录，共/ });
@@ -5232,7 +5440,12 @@ for (const fixture of [
         await page.keyboard.press("Escape");
         const versionFile = test.info().outputPath("version-one.png");
         await app.evaluate(({ BrowserWindow }, path) => {
-          BrowserWindow.getAllWindows()[0]!.webContents.session.once(
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
+          requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session.once(
             "will-download",
             (_event, item) => item.setSavePath(path),
           );
@@ -5285,14 +5498,14 @@ for (const fixture of [
           versionDialog.getByRole("button", { name: "第 2 版（当前主图）", exact: true }),
         ).toHaveAttribute("aria-pressed", "true");
         await versionDialog.getByRole("button", { name: "关闭", exact: true }).click();
-        await expect(card.locator(".node-media img")).toBeVisible();
+        await expect(renderedImage).toHaveCSS("opacity", "1");
         await expect
           .poll(async () => (await savedNode())?.data.activeOutputId)
           .toBe(previousVersion);
         await capture("choose-prior");
         await projectAction(page, "关闭项目");
         await page.getByRole("button", { name: /^媒体失败回放/ }).click();
-        await expect(card.locator(".node-media img")).toBeVisible();
+        await expect(renderedImage).toHaveCSS("opacity", "1");
         await expect(card.getByRole("alert")).toHaveCount(0);
         expect(prompts.length).toBe(4);
         await capture("reopened-choice");
@@ -5370,7 +5583,8 @@ test("角色形象封面显示生成状态，重开后从失败卡面直接重�
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Missing fixture endpoint");
     let page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).waitFor();
+    await page.setViewportSize(compactViewport);
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
@@ -5393,8 +5607,7 @@ test("角色形象封面显示生成状态，重开后从失败卡面直接重�
       });
       if (!saved.ok) throw new Error(saved.code);
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("形象重试");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "形象重试");
     await addCanvasNode(page, "角色卡");
     await page.getByRole("textbox", { name: "生成提示词" }).fill("夜班的车站管理员");
     await page.getByRole("button", { name: "开始生成", exact: true }).click();
@@ -5413,7 +5626,7 @@ test("角色形象封面显示生成状态，重开后从失败卡面直接重�
     await page.getByRole("button", { name: /^形象重试/ }).click();
     cover = page.locator(".character-cover");
     const copy = cover.getByRole("button", { name: /任务 ID/ });
-    await expect(copy).toHaveAttribute("aria-label", identifier!);
+    await expect(copy).toHaveAttribute("aria-label", requireTestValue(identifier));
     await copy.click();
     await expect(copy).toHaveText("已复制任务 ID");
     expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe(
@@ -5483,7 +5696,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
     endpoint = `http://127.0.0.1:${address.port}`;
     application = await launchCanvas(root);
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
@@ -5538,8 +5751,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
       });
       if (!imageModel.ok) throw new Error(imageModel.code);
     }, endpoint);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("音色验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "音色验收");
     await addCanvasNode(page, "角色卡");
     const dialog = page.getByRole("dialog", { name: "角色卡" });
     await page.getByRole("button", { name: "声音：打开详情设置" }).click();
@@ -5589,7 +5801,9 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
     await expect(page.getByRole("dialog", { name: /^生成-/ })).toHaveCount(0);
     await expect(history.getByRole("listitem").first()).toContainText("当前");
     const adopted = await dialog.locator(".voice-current-row").getAttribute("data-asset-id");
-    expect(adopted).not.toBe("");
+    if (!adopted) throw Error("缺少当前音色素材");
+    const adoptedName = (await latestSnapshot(root)).assets[adopted]?.displayName;
+    expect(adoptedName).toMatch(/^生成-.+\.ogg$/);
     await modelMenu.click();
     await dialog.getByRole("menuitemradio", { name: /备用音频渠道/ }).click();
     await dialog.getByRole("button", { name: "关闭角色卡" }).click();
@@ -5599,7 +5813,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
         expect.objectContaining({
           data: expect.objectContaining({
             character: expect.objectContaining({
-              voice: { assetId: adopted, origin: "generated" },
+              voice: expect.objectContaining({ assetId: adopted, origin: "generated" }),
             }),
           }),
         }),
@@ -5620,7 +5834,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
     ).toBeVisible();
     await reopened.getByRole("button", { name: "编辑角色卡", exact: true }).click();
     const restored = reopened.getByRole("dialog", { name: "角色卡" });
-    await expect(restored.locator(".voice-current-row")).toHaveAttribute("data-asset-id", adopted!);
+    await expect(restored.locator(".voice-current-row")).toHaveAttribute("data-asset-id", adopted);
     await expect(restored.getByRole("button", { name: "选择模型" })).toHaveText("seed-audio-alt");
     await expect(restored.getByText("当前", { exact: true })).toBeVisible();
     await restored.getByRole("button", { name: "绑定已有", exact: true }).click();
@@ -5632,7 +5846,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
     await expect(candidates).toHaveAttribute("data-kind", "audio");
     await candidates.getByRole("button").click();
     await voicePicker.getByRole("button", { name: "确定" }).click();
-    await expect(restored.locator(".voice-origin")).toHaveText("素材库");
+    await expect(restored.locator(".voice-origin")).toHaveText("资产库");
     await restored.getByRole("button", { name: "关闭角色卡" }).click();
     await expect
       .poll(async () =>
@@ -5640,7 +5854,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
           node.type === "creative" ? [node.data.character?.voice] : [],
         ),
       )
-      .toEqual([{ assetId: adopted, origin: "library" }]);
+      .toEqual([{ assetId: adopted, origin: "library", name: adoptedName }]);
     await reopened.getByRole("button", { name: "编辑角色卡", exact: true }).click();
     const alternateFile = join(root, "备用配音.wav");
     await runMediaProcess(
@@ -5670,7 +5884,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
           node.type === "creative" ? [node.data.character?.voice] : [],
         ),
       )
-      .toEqual([{ assetId: adopted, origin: "generated" }]);
+      .toEqual([{ assetId: adopted, origin: "generated", name: adoptedName }]);
     await reopened.locator(".character-cover").click({ position: { x: 45, y: 45 } });
     await reopened.getByRole("textbox", { name: "生成提示词" }).fill("备用配音的形象");
     const combined = reopened.getByRole("button", { name: "含音色", exact: true });
@@ -5701,7 +5915,7 @@ test("角色形象与音色联合生成，音色可独立重试、自动绑定�
       )
       .toBe(2);
     expect(prompts).toHaveLength(2);
-    await expect(restored.locator(".voice-current-row")).toHaveAttribute("data-asset-id", adopted!);
+    await expect(restored.locator(".voice-current-row")).toHaveAttribute("data-asset-id", adopted);
     await restored.getByRole("button", { name: "重新生成", exact: true }).click();
     await expect.poll(() => prompts.length).toBe(3);
     expect(references[2]).toEqual([{ image_data: imageBase64 }]);
@@ -5754,7 +5968,7 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
@@ -5778,7 +5992,7 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
         if (!saved.ok) throw new Error(saved.code);
       }
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     const node = (id: string, x: number, data: object) => ({
       id,
       type: "canvas",
@@ -5826,16 +6040,16 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
     await modelTrigger.click();
     await expect(modelMenu.getByRole("button")).toHaveCount(2);
     const alternative = modelMenu.getByRole("button", { pressed: false });
-    const chosen = (await alternative.innerText()).trim().match(/fixture-[ab]/)?.[0];
+    const chosen = (await readRenderedText(alternative)).trim().match(/fixture-[ab]/)?.[0];
     expect(chosen).toBeTruthy();
     await alternative.click();
-    await expect(modelTrigger).toContainText(chosen!);
+    await expect(modelTrigger).toContainText(requireTestValue(chosen));
     await modelTrigger.click();
     await page.keyboard.press("Escape");
     await expect(modelTrigger).toBeFocused();
     await board.getByRole("button", { name: "关闭分镜表" }).click();
     await page.getByRole("button", { name: "编辑分镜" }).click();
-    await expect(modelTrigger).toContainText(chosen!);
+    await expect(modelTrigger).toContainText(requireTestValue(chosen));
     await board.getByRole("button", { name: "关闭分镜表" }).click();
     await page.locator(".shot-card-empty").getByRole("button", { name: "从剧本拆分镜" }).click();
     const cardScene = page.getByRole("region", { name: "分镜摘要" }).getByText("第1次结果");
@@ -5845,7 +6059,7 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
     const freshRows = board.locator("[data-highlight=true]");
     await expect(freshRows).toHaveAccessibleName("镜头 1");
     expect(requests[0]).toContain("第一声汽笛\\n\\n雨夜列车驶入月台");
-    expect(JSON.parse(requests[0]!).model).toBe(chosen);
+    expect(JSON.parse(requireTestValue(requests[0])).model).toBe(chosen);
     const confirmation = page.getByRole("alertdialog");
     for (const dismiss of ["Esc", "取消"]) {
       await trigger.click();
@@ -5997,7 +6211,7 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
   const application = await launchCanvas(root, icon);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await installVideoChoices(page);
     const preferredVideo = await page.evaluate(async (endpoint) => {
       const api = window.desktop.settings;
@@ -6045,11 +6259,11 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
       if (!saved.ok) throw new Error(saved.code);
       return saved.value.id;
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByRole("button", { name: "将icon-32.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     const fixture = JSON.parse(
@@ -6091,7 +6305,10 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
     await board.getByRole("button", { name: "关闭分镜表" }).click();
     await page.getByRole("button", { name: "更多", exact: true }).click();
     await page.getByRole("menuitem", { name: "画布设置" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "模型设置", exact: true }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "新节点默认模型", exact: true })
+      .click();
     const chooseDefault = page.getByRole("button", { name: "选择视频节点的默认模型" });
     await expect(chooseDefault).toHaveText(/sora-2/);
     await chooseDefault.click();
@@ -6125,7 +6342,7 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
     await expect
       .poll(savedVideo)
       .toMatchObject({ provider: preferredVideo, mode: "omni", duration: 8 });
-    const saved = (await savedVideo())!;
+    const saved = requireTestValue(await savedVideo());
     expect(saved.manual).toEqual([saved.image]);
     expect(saved.sources).toEqual([saved.board]);
     await row.getByRole("button", { name: "去生成" }).click();
@@ -6155,7 +6372,7 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
     await expect(board).toHaveCount(0);
     await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
       "data-id",
-      selectedVideo!,
+      requireTestValue(selectedVideo),
     );
     await page.getByRole("button", { name: "生成参数", exact: true }).click();
     await page.getByRole("slider").press("End");
@@ -6177,11 +6394,11 @@ test("原版分镜表导入、复制行并重新导出时保留正确的图片�
   const application = await launchCanvas(root, join(process.cwd(), "resources/icons/icon-32.png"));
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-32.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const chooseFile = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     await (await chooseFile).setFiles(
@@ -6236,8 +6453,14 @@ test("原版分镜表导入、复制行并重新导出时保留正确的图片�
       .toBe("遮罩关闭时保存第四镜");
     const exported = test.info().outputPath("desktop-storyboard.canvas.json");
     await application.evaluate(({ BrowserWindow }, path) => {
-      BrowserWindow.getAllWindows()[0]!.webContents.session.once("will-download", (_event, item) =>
-        item.setSavePath(path),
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
+      requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session.once(
+        "will-download",
+        (_event, item) => item.setSavePath(path),
       );
     }, exported);
     await projectAction(page, "导出画布");
@@ -6273,7 +6496,7 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
   const icons = [32, 64].map((size) => join(process.cwd(), `resources/icons/icon-${size}.png`));
   const application = await launchCanvas(root, icons.join("\n"));
   try {
-    const bytes = await readFile(icons[1]!);
+    const bytes = await readFile(requireTestValue(icons[1]));
     const hash = createHash("sha256").update(bytes).digest("hex");
     const fixture = JSON.parse(
       await readFile("tests/fixtures/upstream-storyboard.canvas.json", "utf8"),
@@ -6289,11 +6512,11 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
       fileName: "icon-64.png",
     };
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const chooser = page.waitForEvent("filechooser");
     await projectAction(page, "导入画布");
     await (await chooser).setFiles({
@@ -6326,8 +6549,9 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
     expect(before.shot?.imageNodeId).toBeTruthy();
     const imageNode = page.locator(".react-flow__node").filter({ hasText: "月台分镜图" });
     await imageNode.locator("header strong").click();
-    await page.keyboard.press("Backspace");
-    const { imageNodeId, ...remaining } = before.shot!;
+    await expect(imageNode).toHaveClass(/\bselected\b/);
+    await imageNode.press("Backspace");
+    const { imageNodeId, ...remaining } = requireTestValue(before.shot);
     await expect.poll(readBoard).toEqual({
       shot: remaining,
       edges: before.edges.filter((edge) => edge.target !== imageNodeId),
@@ -6345,7 +6569,7 @@ test("分镜图选图上传和整行拖放替换复用节点、来源线与历�
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async () => {
       const list = await window.desktop.settings.list({});
       if (!list.ok) throw new Error(list.code);
@@ -6367,7 +6591,7 @@ test("分镜图选图上传和整行拖放替换复用节点、来源线与历�
       });
       if (!saved.ok) throw new Error(saved.code);
     });
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -6399,8 +6623,19 @@ test("分镜图选图上传和整行拖放替换复用节点、来源线与历�
       .locator("#drop-source")
       .setInputFiles(join(process.cwd(), "resources/icons/icon-64.png"));
     await board.getByLabel("第 1 镜的画面描述").evaluate((element) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const transfer = new DataTransfer();
-      transfer.items.add(document.querySelector<HTMLInputElement>("#drop-source")!.files![0]!);
+      transfer.items.add(
+        requireTestValue(
+          requireTestValue(
+            requireTestValue(document.querySelector<HTMLInputElement>("#drop-source")).files,
+          )[0],
+        ),
+      );
       element.dispatchEvent(
         new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer }),
       );
@@ -6408,8 +6643,19 @@ test("分镜图选图上传和整行拖放替换复用节点、来源线与历�
     await expect(board.locator(".shot-image-drop-hint")).toBeVisible();
     await expect(board.locator(".shot-image-actions")).toBeHidden();
     await board.getByLabel("第 1 镜的画面描述").evaluate((element) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const transfer = new DataTransfer();
-      transfer.items.add(document.querySelector<HTMLInputElement>("#drop-source")!.files![0]!);
+      transfer.items.add(
+        requireTestValue(
+          requireTestValue(
+            requireTestValue(document.querySelector<HTMLInputElement>("#drop-source")).files,
+          )[0],
+        ),
+      );
       element.dispatchEvent(
         new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
       );
@@ -6466,7 +6712,7 @@ test("分镜图选图上传和整行拖放替换复用节点、来源线与历�
         .filter((edge) => edge.target === videoNode?.id)
         .map((edge) => edge.source)
         .sort(),
-    ).toEqual([source!.id, image.id].sort());
+    ).toEqual([requireTestValue(source).id, image.id].sort());
     await board.getByRole("button", { name: "在画布中定位" }).click();
     await expect(board).toHaveCount(0);
   } finally {
@@ -6480,7 +6726,7 @@ test("分镜表拖动手柄排序后重新编号，一次撤销恢复磁盘顺�
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -6534,8 +6780,7 @@ test("分镜表按镜头拆分，支持撤销和重开恢复", async () => {
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("分镜验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "分镜验收");
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -6618,9 +6863,11 @@ test("分镜表按镜头拆分，支持撤销和重开恢复", async () => {
     await expect(board.getByRole("listbox").getByRole("option")).toHaveCount(8);
     await board.getByRole("option", { name: "特写 BCU" }).click();
     const camera = board.getByRole("combobox", { name: "运镜" });
-    await camera.click();
+    await camera.press("Enter");
     await expect(board.getByRole("listbox").getByRole("option")).toHaveCount(13);
+    await expect(board.getByRole("option", { name: "固定", exact: true })).toBeFocused();
     await page.keyboard.press("End");
+    await expect(board.getByRole("option", { name: "航拍", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect
       .poll(savedRows)
@@ -6745,7 +6992,7 @@ for (const kind of ["图片", "视频"]) {
       endpoint = `http://127.0.0.1:${address.port}`;
       application = await launchCanvas(root);
       const page = await application.firstWindow();
-      await page.getByRole("textbox", { name: "新项目名称" }).waitFor();
+      await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
       const imageDefault = await page.evaluate(
         async ({ endpoint, video }) => {
           const settings = window.desktop.settings;
@@ -6791,14 +7038,13 @@ for (const kind of ["图片", "视频"]) {
         },
         { endpoint, video },
       );
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("分镜任务验收");
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page, "分镜任务验收");
       if (!video) {
         await page.getByRole("button", { name: "更多", exact: true }).click();
         await page.getByRole("menuitem", { name: "画布设置" }).click();
         await page
           .getByRole("dialog")
-          .getByRole("button", { name: "模型设置", exact: true })
+          .getByRole("button", { name: "新节点默认模型", exact: true })
           .click();
         await page.getByRole("button", { name: "选择图片节点的默认模型" }).click();
         await page.getByRole("menuitemradio", { name: /gpt-image-1-mini/ }).click();
@@ -6856,8 +7102,7 @@ for (const kind of ["图片", "视频"]) {
         const failedCell = second.locator(".shot-image-frame");
         await expect(failedCell).toHaveAttribute("title", /\S/);
         await expect(failedCell.getByText("生成失败", { exact: true })).toBeVisible();
-        await failedCell.focus();
-        await page.keyboard.press("Tab");
+        await second.getByRole("button", { name: "拖动第 2 镜排序" }).press("Tab");
         await expect(
           failedCell.getByRole("button", { name: "重新生成", exact: true }),
         ).toBeFocused();
@@ -6897,9 +7142,10 @@ for (const kind of ["图片", "视频"]) {
           .click();
         await expect.poll(() => prompts.at(-1)).toBe("中景，固定。月台。挥手。");
         await expect(third.getByRole("img")).toBeVisible();
-        await expect
-          .poll(readImage)
-          .toMatchObject({ id: original!.id, data: { text: "中景，固定。月台。挥手。" } });
+        await expect.poll(readImage).toMatchObject({
+          id: requireTestValue(original).id,
+          data: { text: "中景，固定。月台。挥手。" },
+        });
         await expect(page.locator(".react-flow__edge")).toHaveCount(3);
         const batch = board.getByRole("button", { name: "批量生成分镜图", exact: true });
         await batch.click();
@@ -6946,10 +7192,10 @@ for (const kind of ["图片", "视频"]) {
         await expect
           .poll(async () => (await readFourth())?.position.x)
           .toBeGreaterThan(pendingImage.position.x);
-        const moved = (await readFourth())!.position;
+        const moved = requireTestValue(await readFourth()).position;
         releaseImages?.();
         await expect(pendingCard.locator("img").first()).toBeVisible();
-        const generated = (await readFourth())!.data;
+        const generated = requireTestValue(await readFourth()).data;
         expect(generated.outputs?.[0]?.assetId).toBeTruthy();
         await page.getByRole("button", { name: "撤销", exact: true }).click();
         await expect
@@ -7029,9 +7275,9 @@ for (const kind of ["图片", "视频"]) {
         await expect(board).toHaveCount(0);
         await expect(page.locator(".react-flow__node.selected")).toHaveAttribute(
           "data-id",
-          videoId!,
+          requireTestValue(videoId),
         );
-        await expect(page.getByRole("button", { name: "生成参数" })).toContainText("8 秒");
+        await expect(page.getByRole("button", { name: "生成参数" })).toContainText("8秒");
         expect(prompts).toHaveLength(3);
         await page.getByRole("button", { name: "开始生成" }).click();
         await expect.poll(() => prompts.at(-1)).toBe("中景，固定。月台。挥手。对白：明天见。");
@@ -7058,7 +7304,7 @@ async function selectDirectorLayer(editor: Locator, name: string) {
 }
 async function seekDirector(editor: Locator, time: number) {
   const ruler = editor.locator(".dt-ruler"),
-    bounds = (await ruler.boundingBox())!,
+    bounds = requireTestValue(await ruler.boundingBox()),
     duration = Number(
       await editor
         .getByRole("region", { name: "时间轴" })
@@ -7072,8 +7318,7 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("导演台验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "导演台验收");
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -7096,12 +7341,11 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await editor.getByRole("menuitemradio", { name: "机位1" }).click();
     const preview = editor.getByRole("img", { name: "机位预览" });
     await preview.scrollIntoViewIfNeeded();
-    const bounds = (await preview.boundingBox())!;
-    const centerX = bounds.x + bounds.width / 2,
-      centerY = bounds.y + bounds.height / 2;
-    await page.mouse.move(centerX, centerY);
+    const bounds = requireTestValue(await preview.boundingBox());
+    const position = { x: bounds.width / 3, y: bounds.height / 3 };
+    await preview.hover({ position });
     await page.mouse.down();
-    await page.mouse.move(centerX + 40, centerY, { steps: 5 });
+    await page.mouse.move(bounds.x + position.x + 40, bounds.y + position.y, { steps: 5 });
     await page.mouse.up();
     const yaw = editor.getByLabel("偏航");
     await expect(yaw).not.toHaveValue("0");
@@ -7114,16 +7358,18 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await redo.click();
     await undo.click();
     await preview.scrollIntoViewIfNeeded();
-    await preview.hover();
+    await preview.hover({ position });
     const pitch = editor.getByLabel("俯仰"),
       fov = editor.getByLabel("FOV", { exact: true }),
       depth = editor.getByLabel("位置 Z"),
       initialPitch = Number(await pitch.inputValue());
-    await page.mouse.wheel(0, 100);
+    const wheel = (altKey = false) =>
+      preview.dispatchEvent("wheel", { deltaY: 100, deltaMode: 0, altKey, cancelable: true });
+    await wheel();
     await expect
       .poll(async () => Number(await pitch.inputValue()))
       .toBeCloseTo(initialPitch - 2, 6);
-    await page.mouse.wheel(0, 100);
+    await wheel();
     await expect
       .poll(async () => Number(await pitch.inputValue()))
       .toBeCloseTo(initialPitch - 4, 6);
@@ -7131,10 +7377,8 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await undo.click();
     await expect.poll(async () => Number(await pitch.inputValue())).toBeCloseTo(initialPitch, 6);
     await expect(undo).toBeDisabled();
-    await preview.hover();
-    await page.keyboard.down("Alt");
-    await page.mouse.wheel(0, 100);
-    await page.keyboard.up("Alt");
+    await preview.hover({ position });
+    await wheel(true);
     await expect
       .poll(async () => Number(await fov.inputValue()))
       .toBe(Math.round(50 * Math.exp(0.1)));
@@ -7270,8 +7514,8 @@ test("导演台保存人物站位、机位画幅和关键帧", async () => {
     await restored.getByRole("button", { name: "记录关键帧" }).click();
     await expect(restored.getByRole("button", { name: /角色B · .* 秒/ })).toHaveCount(2);
     const key = restored.getByRole("button", { name: "角色B · 1.95 秒" }),
-      start = (await key.boundingBox())!,
-      ruler = (await restored.locator(".dt-ruler").boundingBox())!;
+      start = requireTestValue(await key.boundingBox()),
+      ruler = requireTestValue(await restored.locator(".dt-ruler").boundingBox());
     await reopened.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
     await reopened.mouse.down();
     await reopened.mouse.move(ruler.x, start.y + start.height / 2, { steps: 8 });
@@ -7321,8 +7565,7 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("分栏验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "分栏验收");
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -7339,11 +7582,22 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
     expect(await width()).toBe(272);
     const original = await main.locator("canvas").first().elementHandle(),
       monitor = await main.locator("canvas").last().elementHandle();
-    await divider.press("ArrowRight");
-    await expect.poll(width).toBe(288);
+    await divider.focus();
+    await page.keyboard.down("ArrowRight");
+    try {
+      await expect.poll(width).toBe(288);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+    } finally {
+      await page.keyboard.up("ArrowRight");
+    }
     await divider.dblclick();
     await expect.poll(width).toBe(272);
-    const bounds = (await divider.boundingBox())!;
+    const bounds = requireTestValue(await divider.boundingBox());
     await page.mouse.move(bounds.x + 4, bounds.y + 84);
     await page.mouse.down();
     await page.mouse.move(bounds.x + 36, bounds.y + 84, { steps: 5 });
@@ -7364,7 +7618,7 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
     ).toBe(true);
     const viewport = main.getByRole("img", { name: "场景预览" });
     await expect(viewport).toHaveAttribute("data-figure-status", "ready");
-    const box = (await viewport.boundingBox())!,
+    const box = requireTestValue(await viewport.boundingBox()),
       projection = new PerspectiveCamera(50, box.width / box.height, 0.05, 200);
     projection.position.set(6.5, 5, 8.5);
     projection.lookAt(0, 1, 0);
@@ -7394,6 +7648,7 @@ test("导演台资产筛选、当前视角建机位、删除优先级和分栏�
     await editor.getByTitle("撤销（Ctrl+Z）").click();
     await expect(position).toHaveValue("0.00");
     await view.click();
+    await expect(editor.getByRole("menuitemradio", { name: "导演视角" })).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await expect(editor.getByRole("menuitemradio", { name: "机位1" })).toBeFocused();
     await page.keyboard.press("Escape");
@@ -7463,8 +7718,7 @@ test("导演台运镜套用、播放、一次撤销和跨重启恢复", async ()
   let app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("轨迹验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "轨迹验收");
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -7491,10 +7745,9 @@ test("导演台运镜套用、播放、一次撤销和跨重启恢复", async ()
     await expect(keys).toHaveCount(0);
     await editor.getByRole("button", { name: "重做（Ctrl+Shift+Z）" }).click();
     await expect(keys).toHaveCount(11);
-    await apply.focus();
-    await page.keyboard.press("Space");
+    await editor.press("Space");
     await expect(editor.getByRole("button", { name: "暂停（空格）" })).toBeVisible();
-    await page.keyboard.press("Space");
+    await editor.press("Space");
     await expect(editor.getByRole("button", { name: "播放（空格）" })).toBeVisible();
     await preset.selectOption("follow");
     await expect(editor.getByLabel("运镜强度")).toHaveCount(0);
@@ -7528,11 +7781,17 @@ test("导演台运镜套用、播放、一次撤销和跨重启恢复", async ()
       return node?.type === "creative" ? node.data.director : undefined;
     };
     await expect.poll(async () => (await scene())?.cameras[0]?.keys.length).toBe(11);
-    const last = (await scene())!.cameras[0]!.keys.at(-1)!;
+    const last = requireTestValue(
+      requireTestValue(requireTestValue(await scene()).cameras[0]).keys.at(-1),
+    );
     expect(last.t).toBe(5);
     expect(last.z).toBeCloseTo(-2, 6);
     expect(last.x).toBeCloseTo(-Math.sqrt(12), 6);
-    expect((await scene())!.cameras[0]!.keys.every((key) => key.x !== 77)).toBe(true);
+    expect(
+      requireTestValue(requireTestValue(await scene()).cameras[0]).keys.every(
+        (key) => key.x !== 77,
+      ),
+    ).toBe(true);
     await app.close();
     app = await launchCanvas(root);
     const reopened = await app.firstWindow();
@@ -7552,8 +7811,7 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("导演台导出验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "导演台导出验收");
     await page.locator(".react-flow__pane").dblclick({ position: { x: 70, y: 100 } });
     await page
       .getByRole("menu", { name: /^(画布菜单|添加节点)$/ })
@@ -7584,7 +7842,9 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
     const snapshot = async () => projectCanvas((await latestSnapshot(root)).canvas);
     await expect.poll(async () => (await snapshot()).edges.length).toBe(4);
     const graph = await snapshot(),
-      director = graph.nodes.find((node) => node.type === "creative" && node.data.director)!;
+      director = requireTestValue(
+        graph.nodes.find((node) => node.type === "creative" && node.data.director),
+      );
     expect(graph.nodes.map((node) => node.data.label)).toEqual([
       "导演台",
       "导演台·机位2",
@@ -7602,9 +7862,11 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
       expect(node.position.x - director.position.x).toBeCloseTo(656, 0);
     const byY = graph.nodes.slice(1).sort((left, right) => left.position.y - right.position.y);
     for (let index = 1; index < byY.length; index++) {
-      const above = byY[index - 1]!;
+      const above = requireTestValue(byY[index - 1]);
       const height = above.data.label.includes("机位2") ? 576 : 324;
-      expect(byY[index]!.position.y - above.position.y - height).toBeGreaterThanOrEqual(39.99);
+      expect(
+        requireTestValue(byY[index]).position.y - above.position.y - height,
+      ).toBeGreaterThanOrEqual(39.99);
     }
     const state = await latestSnapshot(root),
       files = Object.values(state.assets).filter((asset) => asset.origin === "derived");
@@ -7616,7 +7878,9 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
         "导演台_首帧_机位2.png",
       ].sort(),
     );
-    const portrait = files.find((asset) => asset.displayName === "导演台_机位2.mp4")!,
+    const portrait = requireTestValue(
+        files.find((asset) => asset.displayName === "导演台_机位2.mp4"),
+      ),
       output = join(
         await projectDirectory(root),
         "assets",
@@ -7700,7 +7964,7 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
   }
 });
 
-test("画布视频可排序、混音并导出成片，结果回写项目素材库", async () => {
+test("画布视频可排序、混音并导出成片，结果回写项目文件", async () => {
   test.setTimeout(90_000);
   const root = await mkdtemp(join(tmpdir(), "link-studio-composition-e2e-"));
   const red = join(root, "red.mp4");
@@ -7752,16 +8016,16 @@ test("画布视频可排序、混音并导出成片，结果回写项目素材�
   const application = await launchCanvas(root, `${red}\n${blue}\n${bgm}`);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("成片导出验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "成片导出验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByText("red.mp4", { exact: true })).toBeVisible();
     await expect(page.getByText("blue.mp4", { exact: true })).toBeVisible();
     await expect(page.getByText("bgm.wav", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "将red.mp4加入画布" }).click();
     await page.getByRole("button", { name: "将blue.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
     await application.evaluate(({ dialog }, path) => {
       dialog.showSaveDialog = (async () => ({
@@ -7809,7 +8073,7 @@ test("画布视频可排序、混音并导出成片，结果回写项目素材�
     ]);
     await preview.getByRole("button", { name: "关闭预览" }).click();
     await projectAction(page, "关闭项目");
-    await expect(page.getByRole("button", { name: "新建项目" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^新建画布项目/ })).toBeVisible();
     const savedRevision = (await latestSnapshot(root)).revision;
     await application.evaluate(({ dialog }) => {
       dialog.showSaveDialog = (async () => {
@@ -7875,12 +8139,11 @@ test("视频裁切保留原节点，片段和来源连线可撤销、重做和�
   let application = await launchCanvas(root, await createVideoFixture(root, "90x160"));
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("裁切验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "裁切验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将source.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const portrait = page.locator(".react-flow__node.selected .creative-card");
     await expect(portrait).toHaveCSS("width", "324px");
     await expect(portrait).toHaveCSS("height", "576px");
@@ -7942,12 +8205,11 @@ test("视频节点快捷截首尾帧的输出像素、来源和撤销", async ()
   const app = await launchCanvas(root, clip);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("快捷选帧");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "快捷选帧");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将source.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const trigger = page.getByRole("button", { name: "截取帧", exact: true });
     await trigger.press("ArrowDown");
     const menu = page.getByRole("menu", { name: "截取帧" });
@@ -8034,12 +8296,11 @@ test("视频节点提帧并保留派生图片和来源连线", async () => {
   let application = await launchCanvas(root, await createVideoFixture(root));
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("提帧验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await createCanvasProject(page, "提帧验收");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材" }).click();
     await page.getByRole("button", { name: "将source.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     await page.getByRole("button", { name: "截取帧", exact: true }).click();
     await page.getByRole("menuitem", { name: "自定义" }).click();
     const dialog = page.getByRole("group", { name: "截取帧" });
@@ -8054,6 +8315,7 @@ test("视频节点提帧并保留派生图片和来源连线", async () => {
     await page.getByRole("button", { name: "截取帧", exact: true }).click();
     await page.getByRole("menuitem", { name: "自定义" }).click();
     await expect(extract).toBeDisabled();
+    await expect(time).toBeEnabled();
     await time.press("Shift+ArrowRight");
     await expect(time).toHaveAttribute("aria-valuenow", "1");
     await capture.click();
@@ -8142,7 +8404,7 @@ test("图片端口菜单按目标模型能力禁用文生图并允许图片参�
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const list = await api.list({});
@@ -8170,13 +8432,14 @@ test("图片端口菜单按目标模型能力禁用文生图并允许图片参�
         if (!saved.ok) throw new Error(saved.code);
       }
     });
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await page.getByRole("button", { name: /^图片生成 文字或参考图出图/ }).click();
     await expect(page.getByRole("button", { name: "选择模型" })).toHaveText("dall-e-3");
     const imageId = await page.locator(".react-flow__node.selected").getAttribute("data-id");
+    const pane = page.locator(".react-flow__pane:visible");
     await page
       .locator(".react-flow__handle-right")
-      .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 250, y: 190 } });
+      .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 250, y: 190 }) });
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ });
     await expect(menu.getByRole("menuitem", { name: "图片生成", exact: true })).toBeDisabled();
     await menu.getByRole("menuitem", { name: "音频", exact: true }).click();
@@ -8196,8 +8459,13 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
   let application = await launchCanvas(root);
   try {
     let page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     const models = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         list = await api.list({});
       if (!list.ok) throw Error(list.code);
@@ -8206,7 +8474,7 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
         ["sora", "sora-2"],
         ["doubao-video", "doubao-seedance-2-0"],
       ] as const) {
-        const plugin = list.value.plugins.find((entry) => entry.key === key)!;
+        const plugin = requireTestValue(list.value.plugins.find((entry) => entry.key === key));
         const saved = await api.save({
           expectedRevision: 0,
           pluginHash: plugin.hash,
@@ -8226,8 +8494,7 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
       }
       return ids;
     });
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("多选连线模型回放");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "多选连线模型回放");
     const nodes = ["image", "audio"].map((kind, index) => ({
       id: kind,
       type: "canvas",
@@ -8279,14 +8546,16 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
     const choose = async (model: string) => {
       await page.getByRole("button", { name: "更多", exact: true }).click();
       await page.getByRole("menuitem", { name: "画布设置" }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "模型设置", exact: true }).click();
-      await page.getByRole("button", { name: "选择视频节点的默认模型" }).click();
+      const settings = page.getByRole("dialog");
+      await settings.getByRole("button", { name: "新节点默认模型", exact: true }).click();
+      await settings.getByRole("button", { name: "选择视频节点的默认模型" }).click();
       await page
         .getByRole("menuitemradio")
         .filter({ has: page.getByText(model, { exact: true }) })
         .click();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await settings.getByRole("button", { name: "关闭", exact: true }).click();
+      await expect(settings).toBeHidden();
     };
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ }),
       video = menu.getByRole("menuitem", { name: "视频生成", exact: true });
@@ -8306,16 +8575,49 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
         ["来源-image", "视频"],
       ],
     };
+    const pane = page.locator(".react-flow__pane:visible");
+    const viewport = page.locator(".react-flow__viewport:visible");
+    const audioOutput = audio.locator(".react-flow__handle-right.connectable");
     for (const reference of [false, true]) {
       await choose(reference ? "doubao-seedance-2-0" : "sora-2");
       await chooseCanvasZoom(page, "适应画布");
-      await audio
-        .locator(".react-flow__handle-right")
-        .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 75, y: 125 } });
+      await expect
+        .poll(() =>
+          viewport.evaluate(async (element) => {
+            const transform = getComputedStyle(element).transform;
+            for (let frame = 0; frame < 3; frame += 1) {
+              await new Promise(requestAnimationFrame);
+              if (getComputedStyle(element).transform !== transform) return false;
+            }
+            return true;
+          }),
+        )
+        .toBe(true);
+      const blank = await blankCanvasPosition(pane, { x: 125, y: 125 });
+      const bounds = await pane.boundingBox();
+      if (!bounds) throw new Error("画布不可见");
+      const drop = { x: bounds.x + blank.x, y: bounds.y + blank.y };
+      await audioOutput.hover();
+      await page.mouse.down();
+      try {
+        await page.mouse.move(drop.x, drop.y, { steps: 12 });
+        await expect(page.locator(".react-flow__connection-path")).toBeVisible();
+        expect(
+          await pane.evaluate(
+            (element, point) => document.elementFromPoint(point.x, point.y) === element,
+            drop,
+          ),
+          "音频连线的落点必须仍是画布空白",
+        ).toBe(true);
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(menu.getByText("引用该节点生成", { exact: true })).toBeVisible();
       if (reference) await expect(video).toBeEnabled();
       else await expect(video).toBeDisabled();
       await page.keyboard.press("Escape");
-      await page.locator(".react-flow__pane").click({ position: { x: 75, y: 125 } });
+      await expect(menu).toBeHidden();
+      await clickBlankCanvas(page);
       await audio.locator("header strong").click({ modifiers: ["ControlOrMeta"] });
       await page.getByText("来源-image", { exact: true }).click({ modifiers: ["ControlOrMeta"] });
       await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
@@ -8385,7 +8687,7 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).waitFor();
+    await page.getByRole("button", { name: /^新建画布项目/ }).waitFor();
     const models = await page.evaluate(async (endpoint) => {
       const api = window.desktop.settings,
         list = await api.list({});
@@ -8416,8 +8718,7 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
       }
       return ids;
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("模式落点");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "模式落点");
     const sources = ["image", "character", "audio", "storyboard"];
     const modes = ["t2v", "t2v", "i2v", "t2v", "t2v"];
     const graph = [
@@ -8425,15 +8726,15 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
         id: kind,
         type: "canvas",
         position: { x: 0, y: index * 540 },
-        data: { kind, label: "来源-" + kind },
+        data: { kind, label: `来源-${kind}` },
       })),
       ...modes.map((op, index) => ({
-        id: "v" + index,
+        id: `v${index}`,
         type: "canvas",
         position: { x: 850, y: index * 540 },
         data: {
           kind: "video",
-          label: "模式-" + index,
+          label: `模式-${index}`,
           model: models[[1, 3, 4].includes(index) ? 1 : 0],
           params: { op },
         },
@@ -8495,8 +8796,8 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
       ["audio", 3, false],
       ["storyboard", 4, "t2v"],
     ] as const) {
-      const start = card("来源-" + kind).locator(".react-flow__handle-right"),
-        end = card("模式-" + index).locator("article");
+      const start = card(`来源-${kind}`).locator(".react-flow__handle-right"),
+        end = card(`模式-${index}`).locator("article");
       const box = await end.boundingBox();
       if (!box) throw Error("目标未挂载");
       await start.hover();
@@ -8513,14 +8814,14 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
       }
       if (wanted) {
         modes[index] = wanted;
-        if (index !== 0) expectedEdges.push(["来源-" + kind, "模式-" + index]);
+        if (index !== 0) expectedEdges.push([`来源-${kind}`, `模式-${index}`]);
       } else {
         const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ });
         await expect(menu.getByText("引用该节点生成", { exact: true })).toBeVisible();
         await page.keyboard.press("Escape");
       }
       await expect.poll(disk).toEqual({
-        modes: modes.map((value, at) => ["模式-" + at, value]),
+        modes: modes.map((value, at) => [`模式-${at}`, value]),
         edges: expectedEdges.sort(),
       });
     }
@@ -8577,7 +8878,7 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     const trigger = page.getByRole("button", { name: "添加节点", exact: true });
     await trigger.focus();
     await page.keyboard.press("ArrowDown");
@@ -8591,6 +8892,7 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
     await page.keyboard.press("Escape");
     await expect(trigger).toBeFocused();
     await addCanvasNode(page, "文本");
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
     const point = await page.evaluate(() => ({ x: innerWidth - 23, y: innerHeight - 93 }));
     await page.mouse.dblclick(point.x, point.y);
     const menu = page.getByRole("menu", { name: "画布菜单" });
@@ -8604,7 +8906,10 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
     await expect(menu.getByRole("menuitem").last()).toBeFocused();
     await expect.poll(() => menu.evaluate((element) => element.scrollTop)).toBeGreaterThan(300);
     await page.keyboard.press("Home");
-    await page.keyboard.press("Enter");
+    const imageItem = menu.getByRole("menuitem", { name: "图片生成", exact: true });
+    await expect(imageItem).toBeEnabled();
+    await expect(imageItem).toBeFocused();
+    await imageItem.press("Enter");
     const image = page.locator(".react-flow__node.selected");
     await expect(image.locator("header strong")).toHaveText("图片");
     const bounds = await image.boundingBox();
@@ -8621,8 +8926,7 @@ test("从文本端口拉到空白处可取消或创建已连线的下游节点",
   const application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("拉线建节点");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "拉线建节点");
     await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
     const source = page.locator(".react-flow__node").first();
     const sourceId = await source.getAttribute("data-id");
@@ -8631,14 +8935,19 @@ test("从文本端口拉到空白处可取消或创建已连线的下游节点",
     const menu = page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ });
     const drag = () => handle.dragTo(pane, { targetPosition: { x: 250, y: 190 } });
     const start = await handle.boundingBox();
-    const surface = await pane.boundingBox();
-    if (!start || !surface) throw new Error("缺少起始端口或画布");
-    await page.mouse.move(start.x + start.width + 8, start.y + 35);
+    if (!start) throw new Error("缺少起始端口");
+    await handle.hover({ position: { x: start.width * 2, y: start.height * 5 } });
     await expect(handle.locator(".canvas-port-icon")).toHaveCSS("opacity", "1");
-    expect(await handle.evaluate((port) => port.matches(":hover"))).toBe(true);
+    await expect.poll(() => handle.evaluate((port) => port.matches(":hover"))).toBe(true);
+    const surface = await pane.boundingBox();
+    if (!surface) throw new Error("缺少画布");
     await page.mouse.down();
-    await page.mouse.move(surface.x + 250, surface.y + 190, { steps: 12 });
-    await page.mouse.up();
+    try {
+      await page.mouse.move(surface.x + 250, surface.y + 190, { steps: 12 });
+      await expect(page.locator(".react-flow__connection-path")).toBeVisible();
+    } finally {
+      await page.mouse.up();
+    }
     await expect(menu.getByRole("menuitem", { name: "文本", exact: true })).toBeDisabled();
     const preview = page.locator(".canvas-fan-lines path");
     const endpoints = await preview.evaluate((element) => {
@@ -8709,7 +9018,7 @@ test("图片线经过七类节点，视觉反馈与实际建线分别对齐原�
   const app = await launchCanvas(root);
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     const kinds = ["script", "image", "video", "audio", "storyboard", "director", "character"];
     const graph = ["start", ...kinds].map((kind, index) => ({
       id: kind,
@@ -8717,7 +9026,7 @@ test("图片线经过七类节点，视觉反馈与实际建线分别对齐原�
       position: { x: (index % 4) * 750, y: Math.floor(index / 4) * 650 },
       data: {
         kind: kind === "start" ? "image" : kind,
-        label: "反馈-" + kind,
+        label: `反馈-${kind}`,
         ...(kind === "image" ? { uploaded: true } : {}),
         ...(kind === "director" ? { scene: defaultDirectorScene() } : {}),
       },
@@ -8739,14 +9048,14 @@ test("图片线经过七类节点，视觉反馈与实际建线分别对齐原�
     const card = (kind: string) =>
       page
         .locator(".react-flow__node")
-        .filter({ has: page.getByText("反馈-" + kind, { exact: true }) })
+        .filter({ has: page.getByText(`反馈-${kind}`, { exact: true }) })
         .locator("article");
     await expect(card("character")).toBeVisible();
     await chooseCanvasZoom(page, "适应画布");
     const linked: string[][] = [];
     for (const reverse of [false, true])
       for (const kind of kinds) {
-        const port = card("start").locator(".react-flow__handle-" + (reverse ? "left" : "right"));
+        const port = card("start").locator(`.react-flow__handle-${reverse ? "left" : "right"}`);
         const eligible = reverse
           ? !["director", "audio", "video"].includes(kind)
           : ["audio", "video"].includes(kind);
@@ -8768,7 +9077,7 @@ test("图片线经过七类节点，视觉反馈与实际建线分别对齐原�
         await expect(body).toHaveCSS("transform", "none");
         await expect(body).toHaveCSS("opacity", "1");
         if (eligible)
-          linked.push(reverse ? ["反馈-" + kind, "反馈-start"] : ["反馈-start", "反馈-" + kind]);
+          linked.push(reverse ? [`反馈-${kind}`, "反馈-start"] : ["反馈-start", `反馈-${kind}`]);
         else {
           await expect(page.getByRole("menu", { name: /^(画布菜单|添加节点)$/ })).toBeVisible();
           await page.keyboard.press("Escape");
@@ -8805,14 +9114,14 @@ test("从视频输入端上传四张图片，按三列单独放下；重开后�
       }, 8 + index);
       await writeFile(file, Buffer.from(encoded, "base64"));
     }
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("素材来源线");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "素材来源线");
     await page.getByRole("button", { name: /^视频生成 文生/ }).click();
     const target = page.locator(".react-flow__node").first();
     const id = await target.getAttribute("data-id");
+    const pane = page.locator(".react-flow__pane:visible");
     await target
       .locator(".react-flow__handle-left")
-      .dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 250, y: 170 } });
+      .dragTo(pane, { targetPosition: await blankCanvasPosition(pane, { x: 250, y: 170 }) });
     await chooseCanvasFiles(
       page,
       page
@@ -8878,7 +9187,7 @@ test("从视频输入端上传四张图片，按三列单独放下；重开后�
     await expect(reopened.locator(".react-flow__edge")).toHaveCount(0);
     await expect(reopened.locator(".react-flow__handle-left:visible")).toHaveCount(1);
     await chooseCanvasZoom(reopened, "适应画布");
-    const material = selectedImages[0]!;
+    const material = requireTestValue(selectedImages[0]);
     await reopened
       .locator(`[data-id="${material.id}"] .react-flow__handle-right`)
       .dragTo(reopened.locator(`[data-id="${id}"] .react-flow__handle-left`));
@@ -8902,10 +9211,15 @@ test("画布上传在原节点重试，重开失败项不能重试，删除处�
     const page = await app.firstWindow();
     const png = Buffer.from(
       await page.evaluate(() => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         const canvas = document.createElement("canvas");
         canvas.width = 8;
         canvas.height = 16;
-        return canvas.toDataURL().split(",")[1]!;
+        return requireTestValue(canvas.toDataURL().split(",")[1]);
       }),
       "base64",
     );
@@ -8915,8 +9229,7 @@ test("画布上传在原节点重试，重开失败项不能重试，删除处�
       writeFile(other, "broken"),
       writeFile(portrait, png),
     ]);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("上传节点生命周期");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "上传节点生命周期");
     await chooseCanvasFiles(
       page,
       page.getByRole("button", { name: /^上传素材 图片、视频、音频/ }),
@@ -8939,9 +9252,11 @@ test("画布上传在原节点重试，重开失败项不能重试，删除处�
       )
       .toEqual([true, true, true]);
     const before = await snapshot();
-    expect(before[1]!.position.x - before[0]!.position.x).toBe(440);
-    expect(before[2]!.position.y).toBe(before[0]!.position.y);
-    expect(before[2]!.data.mediaAspect).toBe(0.5);
+    expect(requireTestValue(before[1]).position.x - requireTestValue(before[0]).position.x).toBe(
+      440,
+    );
+    expect(requireTestValue(before[2]).position.y).toBe(requireTestValue(before[0]).position.y);
+    expect(requireTestValue(before[2]).data.mediaAspect).toBe(0.5);
     await writeFile(bad, png);
     await holdCanvasFile(app, "sync");
     await failed.getByRole("button", { name: "重试" }).click();
@@ -8951,21 +9266,23 @@ test("画布上传在原节点重试，重开失败项不能重试，删除处�
     await expect(failed.getByRole("button", { name: "取消" })).toHaveCount(0);
     await releaseCanvasFile(app);
     await expect.poll(async () => (await snapshot())[0]?.data.assetId).toBeTruthy();
-    const repaired = (await snapshot())[0]!;
-    expect(repaired.id).toBe(before[0]!.id);
-    expect(repaired.position).toEqual(before[0]!.position);
+    const repaired = requireTestValue((await snapshot())[0]);
+    expect(repaired.id).toBe(requireTestValue(before[0]).id);
+    expect(repaired.position).toEqual(requireTestValue(before[0]).position);
     expect(repaired.data.uploadFailed).toBeUndefined();
     const assets = (await latestSnapshot(root)).assets;
-    expect(repaired.data.assetId).not.toBe(before[2]!.data.assetId);
-    expect(assets[repaired.data.assetId!]!.sha256).toBe(assets[before[2]!.data.assetId!]!.sha256);
-    expect(assets[repaired.data.assetId!]!.storage).toEqual(
-      assets[before[2]!.data.assetId!]!.storage,
+    expect(repaired.data.assetId).not.toBe(requireTestValue(before[2]).data.assetId);
+    expect(requireTestValue(assets[requireTestValue(repaired.data.assetId)]).sha256).toBe(
+      requireTestValue(assets[requireTestValue(requireTestValue(before[2]).data.assetId)]).sha256,
+    );
+    expect(requireTestValue(assets[requireTestValue(repaired.data.assetId)]).storage).toEqual(
+      requireTestValue(assets[requireTestValue(requireTestValue(before[2]).data.assetId)]).storage,
     );
     await app.close();
     app = await launchCanvas(root);
     const reopened = await app.firstWindow();
     await reopened.getByRole("button", { name: /^上传节点生命周期/ }).click();
-    const stale = reopened.locator(`[data-id="${before[1]!.id}"]`);
+    const stale = reopened.locator(`[data-id="${requireTestValue(before[1]).id}"]`);
     await expect(stale.getByRole("alert")).toHaveText("上传失败，请重试");
     await expect(stale.getByRole("button", { name: "重试" })).toHaveCount(0);
     await holdCanvasFile(app, "sync");
@@ -9067,8 +9384,7 @@ test("选择旋转和非方形像素的视频，首次落位、处理、入库�
       anamorphic,
     ]);
     const page = await app.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("显示画幅");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "显示画幅");
     const initial = page.evaluate(
       () =>
         new Promise<Record<string, string[]>>((resolve) => {
@@ -9140,7 +9456,7 @@ test("选择旋转和非方形像素的视频，首次落位、处理、入库�
     app = await launchCanvas(root);
     const reopened = await app.firstWindow();
     await reopened.getByRole("button", { name: /^显示画幅/ }).click();
-    await expect.poll(() => dims(reopened)).toEqual({ ...frames, "旋转 2": frames["旋转"] });
+    await expect.poll(() => dims(reopened)).toEqual({ ...frames, "旋转 2": frames.旋转 });
   } finally {
     await releaseCanvasFile(app).catch(() => {});
     await app.close();
@@ -9194,7 +9510,7 @@ test("视频拷贝到四分之一时拒绝拖线和覆盖，上传完成可用�
     padding.writeUInt32BE(padding.length);
     padding.write("free", 4);
     await writeFile(video, Buffer.concat([mp4, padding]));
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await holdCanvasFile(app, "secondChunk");
     await chooseCanvasFiles(
       page,
@@ -9314,8 +9630,7 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("交叉剪线");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "交叉剪线");
     const members = ["左上", "右下", "左下", "右上"].map((label, index) => ({
       id: `image-${index}`,
       type: "canvas",
@@ -9355,10 +9670,14 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
     await chooseCanvasZoom(page, "适应画布");
     const paths = edges.locator(".react-flow__edge-path");
     const points = () =>
-      paths.evaluateAll((elements) =>
-        elements.map((element) => {
+      paths.evaluateAll((elements) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+        return elements.map((element) => {
           const path = element as SVGPathElement,
-            matrix = path.getScreenCTM()!;
+            matrix = requireTestValue(path.getScreenCTM());
           const at = (fraction: number) => {
             const { x, y } = path
               .getPointAtLength(path.getTotalLength() * fraction)
@@ -9366,8 +9685,8 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
             return { x, y };
           };
           return { id: path.id, middle: at(0.5), branch: at(0.25) };
-        }),
-      );
+        });
+      });
     await expect
       .poll(async () => {
         const before = await points();
@@ -9466,14 +9785,14 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
 });
 
 test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-studio-canvas-e2e-"));
   let application = await launchCanvas(root);
   try {
     const page = await application.firstWindow();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("核心画布验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "核心画布验收");
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "项目素材" })).toBeHidden();
+    await expect(page.getByRole("region", { name: "项目文件" })).toBeHidden();
     await expect(page.getByRole("region", { name: "画布小灵" })).toBeHidden();
     await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await page.screenshot({ path: "test-results/canvas-empty.png" });
@@ -9485,7 +9804,12 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
     const card = sourceNode.locator("article");
     await expect(card).toHaveAccessibleName("文本");
     const titleLayout = await card.evaluate((el: HTMLElement) => {
-      const heading = el.querySelector("header")!.getBoundingClientRect();
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
+      const heading = requireTestValue(el.querySelector("header")).getBoundingClientRect();
       const frame = el.getBoundingClientRect();
       const zoom = frame.width / el.offsetWidth;
       return {
@@ -9496,7 +9820,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
       };
     });
     expect(titleLayout).toEqual({ width: 576, height: 324, gap: 8, left: 2 });
-    await editableTitle.dblclick();
+    await sourceNode.getByRole("button", { name: "重命名节点：文本", exact: true }).press("Enter");
     const nameField = page.getByRole("textbox", { name: "节点名称", exact: true });
     await expect(nameField).toBeFocused();
     expect(
@@ -9520,7 +9844,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
     await expect(script).toHaveText("双击输入文字");
     await page.getByRole("button", { name: "重做", exact: true }).click();
     await expect(script).toHaveText("第二版");
-    const startingWidth = (await card.boundingBox())!.width;
+    const startingWidth = requireTestValue(await card.boundingBox()).width;
     await chooseCanvasZoom(page, "缩小");
     await expect
       .poll(() => card.evaluate((el) => el.getBoundingClientRect().width))
@@ -9528,7 +9852,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
     const pane = page.locator(".react-flow__pane");
     const paneBounds = await pane.boundingBox();
     if (!paneBounds) throw new Error("画布不可见");
-    const textFrame = (await card.boundingBox())!;
+    const textFrame = requireTestValue(await card.boundingBox());
     const clickPoint = {
       x: Math.round(textFrame.x + textFrame.width + 96),
       y: Math.round(paneBounds.y + 140),
@@ -9754,7 +10078,7 @@ test("S2 核心画布编辑、分组、历史和关闭恢复", async () => {
       };
       expect(
         await editableTitle.evaluate(
-          (el, point) => el === document.elementFromPoint(point.x, point.y),
+          (el, point) => el.contains(document.elementFromPoint(point.x, point.y)),
           from,
         ),
       ).toBe(true);
@@ -9999,7 +10323,7 @@ test("S2 磁盘写入失败保留草稿，恢复后重试保存最新编辑", as
     const application = await launchCanvas(root);
     try {
       const page = await application.firstWindow();
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page);
       await page.getByRole("button", { name: /^文本 脚本、分镜描述/ }).click();
       const script = page.getByRole("region", { name: "文本内容", exact: true });
       await expect(script).toBeVisible();

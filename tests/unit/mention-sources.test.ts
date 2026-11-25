@@ -2,6 +2,7 @@ import type { CreativeData, ProjectAsset, ProjectCanvasView } from "@link-studio
 import { expect, test } from "vitest";
 import { mentionSources } from "../../src/renderer/workspace/mention-sources";
 import { referenceUsed } from "../../src/renderer/workspace/video-modes";
+import { requireTestValue } from "../require-test-value";
 
 test("候选按连线和节点顺序分组，排除下游、空文本、运行中、缺失及不兼容素材", () => {
   const node = (id: string, kind: CreativeData["kind"], data: Partial<CreativeData> = {}) => ({
@@ -13,6 +14,7 @@ test("候选按连线和节点顺序分组，排除下游、空文本、运行�
   const graph: ProjectCanvasView = {
     nodes: [
       node("target", "video"),
+      node("board", "script", { storyboard: [] }),
       node("a", "image"),
       node("b", "script"),
       node("c", "script"),
@@ -25,15 +27,20 @@ test("候选按连线和节点顺序分组，排除下游、空文本、运行�
       node("grandchild", "script"),
     ],
     edges: [
+      ["board", "target"],
       ["c", "target"],
       ["a", "target"],
       ["c", "target"],
       ["target", "child"],
       ["child", "grandchild"],
-    ].map(([source, target], index) => ({ id: `edge-${index}`, source: source!, target: target! })),
+    ].map(([source, target], index) => ({
+      id: `edge-${index}`,
+      source: requireTestValue(source),
+      target: requireTestValue(target),
+    })),
     viewport: { x: 0, y: 0, zoom: 1 },
   };
-  const assets = ["a", "audio"].map(
+  const assets = ["a", "audio", "board"].map(
     (assetId) => ({ assetId, availability: "ready" }) as ProjectAsset,
   );
   const result = mentionSources(
@@ -45,6 +52,7 @@ test("候选按连线和节点顺序分组，排除下游、空文本、运行�
   );
   expect(result.byId.get("empty")?.text).toBe("  ");
   expect(result.byId.get("b")?.text).toBe("正文");
+  expect([...result.linked]).toEqual(["c", "a"]);
   expect(result.entries.map(({ source, linked }) => [source.id, linked])).toEqual([
     ["c", true],
     ["a", true],

@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { EASTER_LINES, type EasterKind } from "./lines";
 
 export type StampStorage = Pick<Storage, "getItem" | "setItem">;
@@ -56,5 +57,8 @@ export function claimNightEgg(
 
 export function pickEasterLine(kind: EasterKind, rand: () => number = Math.random): string {
   const lines = EASTER_LINES[kind];
-  return lines[Math.min(lines.length - 1, Math.floor(rand() * lines.length))]!;
+  return requirePresent(
+    lines[Math.min(lines.length - 1, Math.floor(rand() * lines.length))],
+    "lines[Math.min(lines.length - 1, Math.floor(rand() * lines.length))]",
+  );
 }

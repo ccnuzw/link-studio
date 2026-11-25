@@ -39,7 +39,7 @@ import { AssistantEditor, type AssistantEditorHandle } from "../workspace/assist
 import { CanvasAssistantEmpty } from "../workspace/assistant-empty";
 import { AssistantHistory } from "../workspace/assistant-history";
 import { AssistantQuestionnaire, QuestionRecord } from "../workspace/assistant-questionnaire";
-import { RejectedChange, SettingsActionResult } from "./settings-action-result";
+import { ChangeDisposition, SettingsActionResult } from "./settings-action-result";
 import { ApprovalCard } from "./settings-change-card";
 import { isChangeReceipt, SettingsChangeResult } from "./settings-change-result";
 import { SettingsContextChips } from "./settings-context-chips";
@@ -170,9 +170,20 @@ export function Activity({
       return (
         <SettingsChangeResult receipt={result} resolveJump={resolveJump} rollback={rollback} />
       );
-    if (data.kind === "admin_change" && data.status === "rejected") {
-      const answer = details(data.decision).answer;
-      return <RejectedChange answer={typeof answer === "string" ? answer : undefined} />;
+    if (
+      data.kind === "admin_change" &&
+      (data.status === "rejected" || data.status === "failed" || data.status === "expired")
+    ) {
+      return (
+        <ChangeDisposition
+          status={data.status}
+          answer={details(data.decision).answer}
+          revertOf={
+            details(data.payload).revertOf ?? details(details(request?.payload).payload).revertOf
+          }
+          error={typeof result.code === "string" ? settingsError(result.code) : undefined}
+        />
+      );
     }
     if (data.kind === "admin_secret" || data.kind === "admin_test_run") {
       const label = details(data.payload ?? details(request?.payload).payload).label;
@@ -262,7 +273,7 @@ export function SettingsAssistant({
   loadingModels: boolean;
   resolveJump: CardJump;
   close: () => void;
-  route: SettingsPage;
+  route?: SettingsPage;
   resource?: { id: string; key?: string };
   providers: ProviderView[];
   plugins: SettingsValues["list"]["plugins"];
@@ -271,12 +282,14 @@ export function SettingsAssistant({
 }) {
   const [sessions, setSessions] = useState<SettingsValues["agentList"]>([]);
   const editor = useRef<AssistantEditorHandle>(null);
-  const [removed, setRemoved] = useState<{ route: SettingsPage; ids: Set<SettingsRefId> }>();
-  const refs = settingsRefs({
-    route: settingsPaths[route],
-    model_key: context?.modelKey ?? context?.id,
-    ...(route === "adapters" ? { plugin_key: resource?.key } : { channel_key: resource?.id }),
-  }).filter((ref) => removed?.route !== route || !removed.ids.has(ref.id));
+  const [removed, setRemoved] = useState<{ route?: SettingsPage; ids: Set<SettingsRefId> }>();
+  const refs = route
+    ? settingsRefs({
+        route: settingsPaths[route],
+        model_key: context?.modelKey ?? context?.id,
+        ...(route === "adapters" ? { plugin_key: resource?.key } : { channel_key: resource?.id }),
+      }).filter((ref) => removed?.route !== route || !removed.ids.has(ref.id))
+    : [];
   const hasRef = (id: SettingsRefId) => refs.some((ref) => ref.id === id);
   const [session, setSession] = useState("");
   const [model, setModel] = useAssistantModelPreference();
@@ -490,15 +503,18 @@ export function SettingsAssistant({
       onKeyDown={(event) => {
         if (
           event.key !== "Escape" ||
-          !stop ||
-          blocked ||
-          state?.approvals.length ||
           event.defaultPrevented ||
           event.nativeEvent.isComposing ||
+          event.currentTarget.querySelector(":popover-open,select:open") ||
           (event.target instanceof Element &&
             event.target.closest("[popover],dialog,[role=dialog],[role=menu]"))
         )
           return;
+        if (state?.approvals.length) {
+          event.preventDefault();
+          return;
+        }
+        if (!stop || blocked) return;
         event.preventDefault();
         stop();
       }}
@@ -664,6 +680,14 @@ export function SettingsAssistant({
               if (pending) return renderPending(pending);
               const data = details(event.payload);
               const kind = data.kind;
+              if (approvals.closedRuns.has(event.runId) && kind === "admin_change")
+                return (
+                  <ChangeDisposition
+                    key={event.seq}
+                    status="expired"
+                    revertOf={details(data.payload).revertOf}
+                  />
+                );
               if (
                 approvals.closedRuns.has(event.runId) &&
                 (kind === "admin_secret" || kind === "admin_test_run")
@@ -751,7 +775,7 @@ export function SettingsAssistant({
           remove={(id) =>
             setRemoved((previous) => ({
               route,
-              ids: new Set(previous?.route === route ? previous.ids : []).add(id),
+              ids: new Set(previous && previous.route === route ? previous.ids : []).add(id),
             }))
           }
         />

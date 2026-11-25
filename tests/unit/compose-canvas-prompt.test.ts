@@ -12,6 +12,7 @@ import {
 } from "../../src/renderer/workspace/compose-canvas-prompt";
 import { linkedMediaSources, mediaReferences } from "../../src/renderer/workspace/media-references";
 import fixture from "../fixtures/canvas-prompt-compose.json";
+import { requireTestValue } from "../require-test-value";
 
 type Source = {
   id: string;
@@ -92,7 +93,9 @@ test.each(fixture.cases)("固定版共用样例 · $name", (example) => {
     ["t2v", "i2v", "omni"],
     true,
   );
-  expect(composeLinkedPrompt(target.text, sources, true, result.refs)).toBe(example.expect);
+  expect(composeLinkedPrompt(target.text, sources, true, result.refs, "agent")).toBe(
+    example.expect,
+  );
 });
 
 test("Agent 根据实际模式保留必要参考，并只在名额不足时裁掉角色补充图", () => {
@@ -127,7 +130,9 @@ test("Agent 根据实际模式保留必要参考，并只在名额不足时裁�
     agentReferenceInput(
       agentSources(graph, "target"),
       { kind: "video", text: "", label: "镜头", videoMode: mode, manualReferenceIds: ["11"] },
-      missing ? { ...assets, "11": { ...assets["11"]!, availability: "missing" } } : assets,
+      missing
+        ? { ...assets, "11": { ...requireTestValue(assets["11"]), availability: "missing" } }
+        : assets,
       [],
       { frameLimit: 2, referenceLimit: 4, references: { image, audio: 1 } },
       ["t2v", "i2v", "omni"],

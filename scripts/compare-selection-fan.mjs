@@ -12,7 +12,7 @@ const whole = process.argv.includes("--whole"),
   notice = process.argv.includes("--notice");
 const scratch = await mkdtemp(join(tmpdir(), "fan-compare-")),
   output = resolve(
-    "test-results/selection-fan-parity" + (dark ? "-dark" : "") + (retina ? "-retina" : ""),
+    `test-results/selection-fan-parity${dark ? "-dark" : ""}${retina ? "-retina" : ""}`,
   );
 const browser = await chromium.launch({ channel: "chrome" }),
   entry = "/src/__fan_compare.tsx",
@@ -58,14 +58,14 @@ try {
         deviceScaleFactor: retina ? 2 : 1,
         colorScheme: dark ? "dark" : "light",
       });
-      await page.route(origin + "assets/**", (route) =>
+      await page.route(`${origin}assets/**`, (route) =>
         basename(new URL(route.request().url()).pathname) === css
           ? route.fulfill({ contentType: "text/css", body: stylesheet })
           : route.fulfill({
               path: join(assets, basename(new URL(route.request().url()).pathname)),
             }),
       );
-      await page.route(origin + "audit*", (route) =>
+      await page.route(`${origin}audit*`, (route) =>
         route.fulfill({
           contentType: "text/html",
           body: `<!doctype html><html lang="zh-CN" class="${dark ? "dark" : "light"}"><link rel="stylesheet" href="/assets/${css}"><style>main{position:fixed;inset:0;${original && notice ? "background:var(--canvas-bg)" : ""}}.react-flow{background:oklch(${dark ? ".13" : ".975"} 0 0)}</style><main class="${original ? "" : "canvas-workspace"}"></main><script type="module" src="${entry}"></script></html>`,
@@ -76,7 +76,7 @@ try {
           ["skip", "1 个节点接不到视频上，已跳过"],
           ["loose", "4 个节点接不到刚才那根线上，已单独放下"],
         ]) {
-          await page.goto(origin + "audit");
+          await page.goto(`${origin}audit`);
           await page.locator("section[aria-live=polite]").waitFor({ state: "attached" });
           await page.evaluate((text) => window.notify(text), text);
           const item = page.locator("[data-sonner-toast][data-type=info]");
@@ -89,7 +89,7 @@ try {
               !item.getAnimations().some((animation) => animation.playState === "running")
             );
           });
-          results[side + "-" + phase] = await item.boundingBox();
+          results[`${side}-${phase}`] = await item.boundingBox();
           let last,
             stable = 0;
           for (let attempt = 0; attempt < 15 && stable < 3; attempt++) {
@@ -98,11 +98,11 @@ try {
             last = next;
           }
           assert.equal(stable, 3);
-          await writeFile(join(output, side + "-" + phase + ".png"), last);
+          await writeFile(join(output, `${side}-${phase}.png`), last);
         }
       } else
         for (const zoom of [0.65, 1, 1.5]) {
-          await page.goto(origin + "audit?" + zoom);
+          await page.goto(`${origin}audit?${zoom}`);
           const button = page.getByRole("button", { name: "引用选中的节点生成" });
           await expect(button).toHaveCSS("opacity", "1");
           await expect(button).toHaveCSS("transform", "none");
@@ -112,7 +112,7 @@ try {
             y = Math.round(box.y + box.height / 2);
           const lines = page.locator('body > svg[aria-hidden="true"] > path');
           async function record(stage) {
-            const key = side + "-" + zoom + "-" + stage;
+            const key = `${side}-${zoom}-${stage}`;
             const bounds = await button.boundingBox();
             results[key] = {
               bounds,
@@ -125,7 +125,7 @@ try {
                 width: 38,
                 height: 38,
               };
-              await page.screenshot({ clip, path: join(output, key + ".png") });
+              await page.screenshot({ clip, path: join(output, `${key}.png`) });
             }
             if (whole) {
               let last,
@@ -135,8 +135,8 @@ try {
                 stable = last?.equals(next) ? stable + 1 : 1;
                 last = next;
               }
-              assert.equal(stable, 3, "Unstable " + key);
-              await writeFile(join(output, key + "-whole.png"), last);
+              assert.equal(stable, 3, `Unstable ${key}`);
+              await writeFile(join(output, `${key}-whole.png`), last);
             }
           }
           await record("idle");
@@ -156,7 +156,7 @@ try {
           if (zoom === 1)
             await page.screenshot({
               clip: { x: 226, y: 105, width: 134, height: 163 },
-              path: join(output, side + "-1-guides.png"),
+              path: join(output, `${side}-1-guides.png`),
             });
           await page.mouse.up();
           await expect(lines).toHaveCount(0);
@@ -169,7 +169,7 @@ try {
           await expect(lines).toHaveCount(0);
           const drops = await page.evaluate(() => window.drops);
           assert.equal(drops.length, 2);
-          results[side + "-" + zoom + "-drops"] = drops;
+          results[`${side}-${zoom}-drops`] = drops;
         }
       await page.close();
     } finally {
@@ -177,7 +177,7 @@ try {
     }
   }
   for (const key of Object.keys(results).filter((key) => key.startsWith("original-")))
-    assert.deepEqual(results["desktop-" + key.slice(9)], results[key], key);
+    assert.deepEqual(results[`desktop-${key.slice(9)}`], results[key], key);
   const decode = await browser.newPage();
   const differences = {},
     frames = {};
@@ -191,7 +191,7 @@ try {
       const buffers = await Promise.all(
         pair.map(async (src) => {
           const image = new Image();
-          image.src = "data:image/png;base64," + src;
+          image.src = `data:image/png;base64,${src}`;
           await image.decode();
           const canvas = document.createElement("canvas");
           canvas.width = image.width;

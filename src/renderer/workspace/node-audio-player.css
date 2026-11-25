@@ -76,15 +76,15 @@
 .node-audio-head:focus-visible span {
   box-shadow: 0 0 0 2px var(--audio-node-ring);
 }
-.node-audio-head:focus-visible .node-audio-line {
-  box-shadow:
-    0 0 0 2px white,
-    0 0 0 4px var(--audio-node-ring);
-}
 .node-audio-line {
   top: 8px;
   bottom: 0;
   width: 2px;
+}
+.node-audio-head:focus-visible .node-audio-line {
+  box-shadow:
+    0 0 0 2px white,
+    0 0 0 4px var(--audio-node-ring);
 }
 .node-audio-dot {
   top: 6px;
@@ -156,7 +156,15 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .node-audio-bar[data-pending="true"] {
-    animation: audio-peak-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: audio-peak-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .audio-wait {
+    animation: audio-wait-spin 1s linear infinite;
+  }
+  @keyframes audio-wait-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   @keyframes audio-peak-pulse {
     50% {

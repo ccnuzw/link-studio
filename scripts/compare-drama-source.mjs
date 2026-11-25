@@ -167,7 +167,7 @@ for (const [index, sample] of checks.entries()) {
   deepStrictEqual(actual, baseline[index], `原文识别与规划批次 ${index + 1}`);
 }
 console.log(`${checks.length} 组原文识别、完整单元及规划批次与 Go 基线一致`);
-const readings = [chapters, "第一章\n" + "🌙".repeat(12001) + "\n第二章\n回家"].flatMap((raw) =>
+const readings = [chapters, `第一章\n${"🌙".repeat(12001)}\n第二章\n回家`].flatMap((raw) =>
   [0, 1, 13, 200, 3808, 12000, 80000].map((budget) => ({
     raw,
     kind: "novel",

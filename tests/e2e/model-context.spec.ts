@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { requireTestValue } from "../require-test-value";
 
 test("上下文识别不覆盖手填值，媒体能力只在确认时应用", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-model-limits-"));
@@ -70,7 +71,7 @@ test("上下文识别不覆盖手填值，媒体能力只在确认时应用", as
       if (!model.ok) throw Error(model.code);
       return model.value.id;
     }, address.port);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = () => page.getByRole("button", { name: "规格模型", exact: true }).click();
     await open();
     const dialog = page.getByRole("dialog", { name: "编辑模型" }),
@@ -84,7 +85,7 @@ test("上下文识别不覆盖手填值，媒体能力只在确认时应用", as
     await expect(dialog.getByText("正在识别上下文规格…")).toBeVisible();
     await expect.poll(() => requests.length).toBe(1);
     await windowField.fill("88000");
-    finish!();
+    requireTestValue(finish)();
     await expect(dialog.getByText(/渠道上游返回：上下文 320,000 · 最大输出 40,000/)).toBeVisible();
     await expect(windowField).toHaveValue("88000");
     await expect(output).toHaveValue("0");

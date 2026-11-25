@@ -53,13 +53,13 @@ try {
       await server.listen();
       const page = await browser.newPage();
       const origin = server.resolvedUrls.local[0];
-      await page.route(origin + "fixture", (route) =>
+      await page.route(`${origin}fixture`, (route) =>
         route.fulfill({
           contentType: "text/html",
           body: `<input type="file" multiple><script type="module">import {${original ? "probeFileAspect" : "canvasFileAspect"} as probe} from '/src/${original ? "utils/canvas/media-aspect" : "renderer/workspace/canvas-file-aspect"}.ts';window.measure=probe</script>`,
         }),
       );
-      await page.goto(origin + "fixture");
+      await page.goto(`${origin}fixture`);
       await page.waitForFunction(() => typeof window.measure === "function");
       await page
         .locator("input")

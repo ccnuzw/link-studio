@@ -1,4 +1,5 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Link2Off, Loader2, Lock, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
@@ -56,10 +57,10 @@ export function DramaScriptsDialog({
     .map((item) => item.no);
   const [selected, setSelected] = useState(() => {
     const usable = initial.filter((no) => availableNos.has(no));
-    return breakdown
-      ? available.slice(0, 1).map((item) => item.no)
-      : usable.length
-        ? usable
+    return usable.length
+      ? usable
+      : breakdown
+        ? available.slice(0, 1).map((item) => item.no)
         : unscripted;
   });
   const selection = selected
@@ -119,14 +120,18 @@ export function DramaScriptsDialog({
   const gaps = selection.filter((no) => no > 1 && !chosen.has(no - 1) && !ready.has(no - 1));
   const overwrite = available.filter((item) => item.ready && chosen.has(item.no)).length;
   async function submit() {
-    if (busy || tooMany || !selection.length || (!breakdown && estimate?.estimate === undefined))
-      return;
+    if (busy || tooMany || !selection.length || !estimate) return;
     setBusy(true);
     setError("");
     const operationId = operation.current;
     try {
-      if (estimate?.error) pendingQuote.current = null;
-      const price = estimate?.estimate ?? (await loadQuote());
+      if (estimate.estimate === undefined) {
+        pendingQuote.current = null;
+        setQuote({ key, estimate: await loadQuote() });
+        setBusy(false);
+        return;
+      }
+      const price = estimate.estimate;
       if (!dialog.current?.open || operation.current !== operationId)
         throw Error("分集已变更，请重新选择并确认");
       setQuote({ key, estimate: price });
@@ -182,7 +187,7 @@ export function DramaScriptsDialog({
         <div role="note">
           <Link2Off size={16} />
           {gaps.length === 1
-            ? `第 ${gaps[0]! - 1} 集还没有剧本，第 ${gaps[0]} 集会按它的梗概和结尾悬念衔接`
+            ? `第 ${requirePresent(gaps[0], "gaps[0]") - 1} 集还没有剧本，第 ${gaps[0]} 集会按它的梗概和结尾悬念衔接`
             : `第 ${gaps.slice(0, 6).join("、")}${gaps.length > 6 ? " 等" : ""} 集的上一集还没有剧本，会按上一集的梗概和结尾悬念衔接`}
         </div>
       )}
@@ -215,6 +220,11 @@ export function DramaScriptsDialog({
           ) : null}
         </small>
       </div>
+      {breakdown && estimate?.estimate !== undefined && (
+        <div role="note">
+          模型输出过长时会分批重试，实际用量可能变化。未写成的提示词可另行估价补写。
+        </div>
+      )}
       {error && <p role="alert">{error}</p>}
       <footer>
         <button type="button" disabled={busy} onClick={close}>
@@ -222,18 +232,18 @@ export function DramaScriptsDialog({
         </button>
         <button
           type="button"
-          disabled={
-            busy || tooMany || !selection.length || (!breakdown && estimate?.estimate === undefined)
-          }
+          disabled={busy || tooMany || !selection.length || !estimate}
           onClick={() => void submit()}
         >
           {breakdown && busy && <Loader2 size={16} />}
           {tooMany
             ? "一次最多 200 集"
             : selection.length
-              ? breakdown
-                ? "开始拆解"
-                : `生成 ${selection.length} 集剧本`
+              ? estimate?.error
+                ? "重新估价"
+                : breakdown
+                  ? "开始拆解"
+                  : `生成 ${selection.length} 集剧本`
               : "至少选一集"}
         </button>
       </footer>

@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 export const SILENT_PEAK = 0.03;
 
 export function computePeaks(samples: Float32Array, bars: number): number[] {
@@ -7,7 +8,7 @@ export function computePeaks(samples: Float32Array, bars: number): number[] {
     const to = Math.max(from + 1, Math.floor(((index + 1) * samples.length) / bars));
     let peak = 0;
     for (let sampleIndex = from; sampleIndex < to && sampleIndex < samples.length; sampleIndex++) {
-      peak = Math.max(peak, Math.abs(samples[sampleIndex]!));
+      peak = Math.max(peak, Math.abs(requirePresent(samples[sampleIndex], "samples[sampleIndex]")));
     }
     return peak;
   });

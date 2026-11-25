@@ -2,14 +2,20 @@ import { type Static, Type } from "@sinclair/typebox";
 import { CanvasOperations, type ProjectCanvasView } from "./canvas.ts";
 import { CanvasAgentAction, type CanvasAgentValues } from "./canvas-agent.ts";
 import {
+  AdaptDramaSegment,
   AddDramaEpisode,
   AddDramaSegment,
   DeleteDramaEpisode,
+  DeleteDramaSegment,
   type DramaDocument,
   DramaSource,
   DramaSourceFields,
   type DramaSourcePreview,
+  EditDramaField,
+  ReorderDramaSegments,
   SaveDramaScript,
+  SetDramaSegmentPrompt,
+  SetDramaSegmentSeconds,
   UpdateDramaBoardSettings,
 } from "./drama.ts";
 import { GenerationInput, type GenerationJob } from "./generation.ts";
@@ -37,9 +43,23 @@ const workspaceTextJob = Type.Object(
 const storyboardInput = {
   episodeNo: Type.Integer({ minimum: 1, maximum: 100000 }),
   maxSeconds: Type.Integer({ minimum: 4, maximum: 60 }),
+  maxAudios: Type.Optional(Type.Integer({ minimum: 0 })),
+  videoModel: Type.Optional(Identifier),
 };
 const recentEntry = { ...request, recentEntryId: Identifier };
+const libraryScope = { ...request, projectHandle: Type.Optional(Identifier) };
 const assetSession = { ...request, projectHandle: Identifier };
+const mediaAssetRequest = Type.Union([
+  Type.Object({ ...assetSession, assetId: Identifier }, { additionalProperties: false }),
+  Type.Object(
+    {
+      ...request,
+      library: Type.Union([Type.Literal("history"), Type.Literal("personal")]),
+      assetId: Identifier,
+    },
+    { additionalProperties: false },
+  ),
+]);
 const importSession = { ...assetSession, importSessionId: Identifier };
 const filingLibraryScope = { ...request, channelId: Identifier, channelRevision: Revision };
 const filingHistoryFilter = Type.Object(
@@ -52,6 +72,44 @@ const filingHistoryFilter = Type.Object(
 );
 
 export const ProjectRequests = {
+  dropGlobalAsset: Type.Object(
+    {
+      ...request,
+      operationId: Identifier,
+      folder: Type.Optional(Identifier),
+      path: Type.String({ minLength: 1, maxLength: 4096 }),
+    },
+    { additionalProperties: false },
+  ),
+  cancelGlobalImport: Type.Object(
+    { ...request, operationId: Identifier },
+    { additionalProperties: false },
+  ),
+  importGlobalAsset: Type.Object(
+    { ...request, folder: Type.Optional(Identifier) },
+    { additionalProperties: false },
+  ),
+  globalHistory: Type.Object(
+    {
+      ...request,
+      filter: filingHistoryFilter,
+      search: Type.String({ maxLength: 255 }),
+      media: Type.Union([Type.Literal("image"), Type.Literal("video"), Type.Literal("audio")]),
+      oldest: Type.Boolean(),
+      before: Type.Optional(
+        Type.Object({ created: Type.Integer(), id: Identifier }, { additionalProperties: false }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  collectHistory: Type.Object(
+    { ...request, id: Identifier, folderId: Type.Optional(Identifier) },
+    { additionalProperties: false },
+  ),
+  globalLibrary: Type.Object(
+    { ...request, before: Type.Optional(Revision) },
+    { additionalProperties: false },
+  ),
   estimateDramaStoryboard: Type.Object(
     { ...session, ...storyboardInput, previewClear: Type.Optional(Type.Literal(true)) },
     { additionalProperties: false },
@@ -61,7 +119,7 @@ export const ProjectRequests = {
     { additionalProperties: false },
   ),
   estimateDramaBreakdown: Type.Object(
-    { ...session, episodes: scriptEpisodes },
+    { ...session, episodes: scriptEpisodes, promptsOnly: Type.Optional(Type.Boolean()) },
     { additionalProperties: false },
   ),
   estimateDramaContinuation: Type.Object(
@@ -71,6 +129,7 @@ export const ProjectRequests = {
   filingLibraryPage: Type.Object(
     {
       ...filingLibraryScope,
+      initialItem: Type.Optional(Identifier),
       session: Type.Optional(Identifier),
       carry: Type.Optional(
         Type.Object({ page: Identifier, choice: Identifier }, { additionalProperties: false }),
@@ -132,8 +191,21 @@ export const ProjectRequests = {
       addSegment: Type.Optional(AddDramaSegment),
       addEpisode: Type.Optional(AddDramaEpisode),
       saveScript: Type.Optional(SaveDramaScript),
+      editField: Type.Optional(EditDramaField),
+      compose: Type.Optional(
+        Type.Object(
+          {
+            episodeNo: Type.Integer({ minimum: 1, maximum: 100000 }),
+            episodeOrder: Type.Integer({ minimum: 0 }),
+            operationId: Identifier,
+          },
+          { additionalProperties: false },
+        ),
+      ),
       boardSettings: Type.Optional(UpdateDramaBoardSettings),
       deleteEpisode: Type.Optional(DeleteDramaEpisode),
+      adaptSegment: Type.Optional(AdaptDramaSegment),
+      deleteSegment: Type.Optional(DeleteDramaSegment),
       storyboard: Type.Optional(
         Type.Object(
           {
@@ -147,6 +219,7 @@ export const ProjectRequests = {
           { additionalProperties: false },
         ),
       ),
+      cancelJob: Type.Optional(Type.String({ pattern: "^[a-f0-9]{32}$" })),
       cancelStoryboard: Type.Optional(Type.String({ pattern: "^[a-f0-9]{32}$" })),
       planningAction: Type.Optional(
         Type.Union([Type.Literal("pause"), Type.Literal("resume"), Type.Literal("retry-builtin")]),
@@ -162,6 +235,7 @@ export const ProjectRequests = {
       ),
       writeScripts: Type.Optional(workspaceTextJob),
       breakdown: Type.Optional(workspaceTextJob),
+      repairPrompts: Type.Optional(workspaceTextJob),
       cancelBreakdown: Type.Optional(Type.String({ pattern: "^[a-f0-9]{32}$" })),
       chooseTake: Type.Optional(
         Type.Object(
@@ -173,6 +247,9 @@ export const ProjectRequests = {
           { additionalProperties: false },
         ),
       ),
+      setSegmentSeconds: Type.Optional(SetDramaSegmentSeconds),
+      setSegmentPrompt: Type.Optional(SetDramaSegmentPrompt),
+      reorderSegments: Type.Optional(ReorderDramaSegments),
     },
     { additionalProperties: false },
   ),
@@ -231,14 +308,38 @@ export const ProjectRequests = {
     {
       ...request,
       directoryToken: Identifier,
+      canvasSeed: Type.Optional(
+        Type.Object(
+          {
+            operations: CanvasOperations,
+            media: Type.Optional(
+              Type.Object(
+                {
+                  projectHandle: Type.Optional(Identifier),
+                  assetIds: Type.Array(Identifier, { uniqueItems: true, maxItems: 10000 }),
+                },
+                { additionalProperties: false },
+              ),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+      ),
       operationId: Identifier,
       name: Type.String({ minLength: 1, maxLength: 200 }),
+      projectKind: Type.Optional(Type.Union([Type.Literal("canvas"), Type.Literal("drama")])),
     },
     { additionalProperties: false },
   ),
-  open: Type.Object({ ...request, directoryToken: Identifier }, { additionalProperties: false }),
+  open: Type.Object(
+    { ...request, directoryToken: Identifier, allowReadOnly: Type.Optional(Type.Boolean()) },
+    { additionalProperties: false },
+  ),
   listRecent: Type.Object(request, { additionalProperties: false }),
-  openRecent: Type.Object(recentEntry, { additionalProperties: false }),
+  openRecent: Type.Object(
+    { ...recentEntry, allowReadOnly: Type.Optional(Type.Boolean()) },
+    { additionalProperties: false },
+  ),
   removeRecent: Type.Object(recentEntry, { additionalProperties: false }),
   getState: Type.Object(session, { additionalProperties: false }),
   getCanvas: Type.Object(session, { additionalProperties: false }),
@@ -252,7 +353,10 @@ export const ProjectRequests = {
     { additionalProperties: false },
   ),
   flush: Type.Object(session, { additionalProperties: false }),
-  close: Type.Object(session, { additionalProperties: false }),
+  close: Type.Object(
+    { ...session, keepWorking: Type.Optional(Type.Boolean()) },
+    { additionalProperties: false },
+  ),
   selectMedia: Type.Object(
     {
       ...assetSession,
@@ -370,29 +474,37 @@ export const ProjectRequests = {
     },
     { additionalProperties: false },
   ),
-  listLibraryFolders: Type.Object(assetSession, { additionalProperties: false }),
+  listLibraryFolders: Type.Object(libraryScope, { additionalProperties: false }),
   createLibraryFolder: Type.Object(
-    { ...assetSession, name: Type.String({ minLength: 1, maxLength: 120 }) },
+    { ...libraryScope, name: Type.String({ minLength: 1, maxLength: 120 }) },
     { additionalProperties: false },
   ),
   renameLibraryFolder: Type.Object(
-    { ...assetSession, folderId: Identifier, name: Type.String({ minLength: 1, maxLength: 120 }) },
+    { ...libraryScope, folderId: Identifier, name: Type.String({ minLength: 1, maxLength: 120 }) },
     { additionalProperties: false },
   ),
   deleteLibraryFolder: Type.Object(
-    { ...assetSession, folderId: Identifier },
+    { ...libraryScope, folderId: Identifier },
     { additionalProperties: false },
   ),
   moveLibraryItem: Type.Object(
-    { ...assetSession, itemId: Identifier, folderId: Type.Union([Identifier, Type.Null()]) },
+    { ...libraryScope, itemId: Identifier, folderId: Type.Union([Identifier, Type.Null()]) },
     { additionalProperties: false },
   ),
   removeLibraryItem: Type.Object(
-    { ...assetSession, itemId: Identifier },
+    { ...libraryScope, itemId: Identifier },
     { additionalProperties: false },
   ),
   registerLibrary: Type.Object(
     { ...assetSession, assetId: Identifier, folderId: Type.Optional(Identifier) },
+    { additionalProperties: false },
+  ),
+  attachOfficialVoice: Type.Object(
+    {
+      ...assetSession,
+      operationId: Identifier,
+      file: Type.String({ pattern: "^fz-asset-[a-zA-Z0-9-]+-audio\\.(wav|mp3)$", maxLength: 150 }),
+    },
     { additionalProperties: false },
   ),
   attachLibrary: Type.Object(
@@ -415,23 +527,17 @@ export const ProjectRequests = {
     {
       ...assetSession,
       assetId: Identifier,
-      variant: Type.Optional(Type.Literal("poster")),
+      variant: Type.Optional(Type.Union([Type.Literal("poster"), Type.Literal("thumb")])),
       library: Type.Optional(Type.Boolean()),
     },
     { additionalProperties: false },
   ),
-  readAudioForWaveform: Type.Object(
-    { ...assetSession, assetId: Identifier },
-    { additionalProperties: false },
-  ),
+  readAudioForWaveform: mediaAssetRequest,
   copyAssetImage: Type.Object(
     { ...assetSession, assetId: Identifier },
     { additionalProperties: false },
   ),
-  saveAssetCopy: Type.Object(
-    { ...assetSession, assetId: Identifier },
-    { additionalProperties: false },
-  ),
+  saveAssetCopy: mediaAssetRequest,
   inspectAsset: Type.Object(
     {
       ...assetSession,
@@ -567,7 +673,14 @@ export const ProjectChannels = {
   discardMedia: "link-studio:assets:discardMedia",
   listAssets: "link-studio:assets:list",
   listLibrary: "link-studio:library:list",
+  globalHistory: "link-studio:library:globalHistory",
+  collectHistory: "link-studio:library:collectHistory",
+  globalLibrary: "link-studio:library:globalList",
+  importGlobalAsset: "link-studio:library:importGlobalAsset",
+  dropGlobalAsset: "link-studio:library:dropGlobalAsset",
+  cancelGlobalImport: "link-studio:library:cancelGlobalImport",
   registerLibrary: "link-studio:library:register",
+  attachOfficialVoice: "link-studio:assets:attachOfficialVoice",
   attachLibrary: "link-studio:library:attach",
   createLibraryFolder: "link-studio:library:createFolder",
   listLibraryFolders: "link-studio:library:listFolders",
@@ -596,7 +709,14 @@ export const ProjectChannels = {
 export type ProjectMethod = keyof typeof ProjectRequests;
 export type ProjectRequest<Method extends ProjectMethod> = Static<(typeof ProjectRequests)[Method]>;
 
+export interface ProjectActivation {
+  projectHandle: string;
+  directoryToken: string;
+  recentEntryId?: string;
+}
+
 export interface ProjectSession {
+  projectKind?: "canvas" | "drama";
   projectHandle: string;
   projectId: string;
   name: string;
@@ -606,6 +726,8 @@ export interface ProjectSession {
 }
 
 export interface RecentProject {
+  activity?: { label: string; count: number; progress?: number };
+  projectKind?: "canvas" | "drama";
   recentEntryId: string;
   projectId: string;
   displayName: string;
@@ -753,7 +875,16 @@ export interface ProjectValues {
     | { cancelled: true }
     | { cancelled: false; directoryToken: string; displayPath: string };
   create: ProjectSession;
-  open: { disposition: "opened"; session: ProjectSession } | { disposition: "focusedExisting" };
+  open:
+    | { disposition: "opened"; session: ProjectSession }
+    | { disposition: "focusedExisting" }
+    | {
+        disposition: "readOnly";
+        name: string;
+        revision: number;
+        canvas: ProjectCanvasView;
+        directoryToken: string;
+      };
   listRecent: { projects: RecentProject[] };
   openRecent: ProjectValues["open"];
   removeRecent: { removed: true };
@@ -814,12 +945,34 @@ export interface ProjectValues {
     next?: number;
   };
   listLibraryFolders: LibraryFolder[];
+  globalLibrary: ProjectValues["listLibrary"];
+  importGlobalAsset: { imported: boolean };
+  dropGlobalAsset: { imported: boolean };
+  cancelGlobalImport: { cancelled: boolean };
+  collectHistory: { saved: true };
+  globalHistory: {
+    canvases: { id: string; name: string }[];
+    items: {
+      id: string;
+      name: string;
+      prompt: string;
+      saved: boolean;
+      model: string;
+      createdAt: string;
+      canvasId: string;
+      bytes: number;
+      durationMs: number;
+      aspect: number;
+    }[];
+    next?: { created: number; id: string };
+  };
   createLibraryFolder: LibraryFolder;
   renameLibraryFolder: { updated: true };
   deleteLibraryFolder: { removed: number };
   moveLibraryItem: { updated: true };
   removeLibraryItem: { updated: true };
   registerLibrary: ProjectAsset;
+  attachOfficialVoice: ProjectValues["attachImage"];
   attachLibrary: ProjectValues["attachImage"];
   removeAsset: { removed: true; revision: number };
   getAssetPreview: { url: string; mimeType: string };
@@ -844,16 +997,26 @@ export interface ProjectValues {
   applyCanvasOperations: { revision: number; canvasRevision: number };
 }
 
+type WithoutRequestId<Input> = Input extends unknown ? Omit<Input, "requestId"> : never;
 export type ProjectsAPI = {
   [Method in Exclude<
     ProjectMethod,
-    "selectProject" | "selectProjectParent" | "selectMedia" | "droppedMedia"
+    "selectProject" | "selectProjectParent" | "selectMedia" | "droppedMedia" | "dropGlobalAsset"
   >]: (
-    input: Omit<ProjectRequest<Method>, "requestId">,
+    input: WithoutRequestId<ProjectRequest<Method>>,
   ) => Promise<ProjectResult<ProjectValues[Method]>>;
 };
 
 export interface ProjectDialogsAPI {
+  dropGlobalAsset(
+    file: File,
+    operationId: string,
+    folder?: string,
+  ): Promise<ProjectResult<ProjectValues["dropGlobalAsset"]>>;
+  uploadTrialReference(
+    file: File,
+    maximum: number,
+  ): Promise<{ ok: true; url?: string } | { ok: false }>;
   droppedMedia(
     projectHandle: string,
     files: File[],

@@ -8,6 +8,7 @@ import {
   jobIsTerminal,
   maxStoryboardShots,
   type ProviderView,
+  requirePresent,
   type SettingsValues,
 } from "@link-studio/core";
 import {
@@ -719,7 +720,7 @@ export function StoryboardDialog({
                                     imageNodeId: _image,
                                     videoNodeId: _video,
                                     ...copy
-                                  } = current[at]!;
+                                  } = requirePresent(current[at], "current[at]");
                                   return [
                                     ...current.slice(0, at + 1),
                                     { ...copy, id },

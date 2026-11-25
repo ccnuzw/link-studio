@@ -1,4 +1,5 @@
 import type { ProjectAsset } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 
 type PreviewNode = {
   id: string;
@@ -65,7 +66,7 @@ export function collectCanvasPreviews(nodes: PreviewNode[], assets: ProjectAsset
       rows.push([]);
       bottom = entry.y + entry.height / 2;
     }
-    rows[rows.length - 1]!.push(entry);
+    requirePresent(rows[rows.length - 1], "rows[rows.length - 1]").push(entry);
   }
   return rows.flatMap((row) =>
     row.sort((first, second) => first.x - second.x).map((entry) => entry.item),

@@ -1,0 +1,616 @@
+.studio-panel-face {
+  position: absolute;
+  inset: 48px 0 0;
+  background: var(--rail-bg);
+  transition: opacity 0.2s ease-out;
+}
+.studio-panel-face[inert] {
+  opacity: 0;
+  pointer-events: none;
+}
+.studio-panel-face [data-group] {
+  width: 100%;
+  height: 100%;
+}
+.studio-panel-face [data-separator] {
+  flex: none;
+  background: var(--rail-line);
+  transition: background-color 0.15s;
+}
+.studio-panel-face [data-separator][aria-orientation="vertical"] {
+  width: 1px;
+}
+.studio-panel-face [data-separator][aria-orientation="horizontal"] {
+  height: 1px;
+}
+.studio-panel-face [data-separator]:hover {
+  background: color-mix(in oklch, var(--rail-primary) 60%, transparent);
+}
+.studio-panel-face [data-separator="active"] {
+  background: var(--rail-primary);
+}
+.studio-panel-face [data-separator]:focus-visible {
+  outline: 1px solid var(--rail-primary);
+}
+.studio-panel-face .studio-lib:not([hidden]) {
+  position: static;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+}
+.studio-panel-scroll {
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 16px;
+}
+.studio-panel-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--paper);
+}
+.studio-panel-preview {
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--rail-ink);
+}
+.studio-panel-preview .drama-preview-switch,
+.drama-board-actions button {
+  flex: none;
+  border: 1px solid var(--rail-line);
+  border-radius: 999px;
+  color: var(--rail-ink);
+  background: var(--desk-card);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--rail-ink) 6%, transparent);
+}
+.drama-preview-switch [data-preview-mark] {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+}
+.drama-preview-switch [data-preview-mark="生成中"] {
+  background: var(--rail-primary);
+  opacity: 1;
+}
+.drama-preview-switch [data-preview-mark="已就绪"] {
+  background: var(--desk-success, seagreen);
+  opacity: 1;
+}
+.drama-preview-switch :is([data-preview-mark="失败"], [data-preview-mark="已过期"]) {
+  background: var(--desk-danger);
+  opacity: 1;
+}
+.studio-panel-preview .drama-preview-switch button[aria-pressed="true"] {
+  color: var(--rail-ink);
+  background: var(--rail-muted);
+}
+.studio-panel-preview > .drama-take-carousel {
+  width: 100%;
+  min-width: 0;
+}
+.studio-panel-preview .drama-board-stage:not([hidden]) {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 8px;
+}
+.drama-board-stage > fieldset {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.drama-board-stage .drama-board-frame {
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 860px, max(160px, calc((100cqh - 168px) * 16 / 9)));
+  min-height: 68px;
+  border: 1.5px dashed var(--rail-line);
+  background: color-mix(in srgb, var(--desk-card) 40%, transparent);
+}
+.drama-board-frame[data-state="ready"],
+.drama-board-frame[data-state="running"] {
+  background: #101010;
+  color: #fafafa;
+  border-style: solid;
+}
+.drama-board-frame[data-state="failed"] {
+  color: var(--desk-danger);
+  border-color: currentColor;
+}
+.drama-board-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  font-size: 15px;
+}
+.drama-board-placeholder svg {
+  box-sizing: content-box;
+  width: 24px;
+  height: 24px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--rail-muted);
+  color: var(--rail-soft);
+}
+.drama-board-stale {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--desk-card);
+  color: var(--desk-text);
+}
+.drama-board-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.drama-board-actions button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.drama-board-actions button:hover:not(:disabled) {
+  background: var(--rail-muted);
+}
+.drama-board-stage :focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 2px;
+}
+.drama-board-stage .drama-board-strip {
+  flex: none;
+  max-width: 100%;
+}
+.drama-board-strip button {
+  flex: none;
+}
+.drama-board-stage > small,
+.drama-board-actions small {
+  color: var(--rail-soft);
+  font-size: 13px;
+}
+.studio-panel-preview:has(> .studio-video-stage) {
+  overflow: clip;
+  background-image: radial-gradient(
+    60% 50% at 50% 45%,
+    color-mix(in oklab, var(--rail-primary) 14%, transparent),
+    transparent 70%
+  );
+}
+.studio-video-stage {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.studio-video-slate {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  width: min(100cqw, calc(min(100cqh, 680px) * var(--video-aspect)));
+  aspect-ratio: var(--video-aspect);
+  overflow: hidden;
+  border-radius: 16px;
+  background: repeating-linear-gradient(135deg, oklch(0.17 0 0) 0 14px, oklch(0.15 0 0) 14px 28px);
+  box-shadow:
+    0 40px 80px -30px rgb(0 0 0 / 0.9),
+    0 0 0 1px rgb(255 255 255 / 0.1);
+  color: rgb(255 255 255 / 0.7);
+  font-size: 12px;
+}
+.studio-video-slate strong {
+  margin-bottom: 4px;
+  color: rgb(255 255 255 / 0.2);
+  font:
+    600 36px / 1.1 ui-monospace,
+    monospace;
+  letter-spacing: -0.025em;
+}
+.studio-video-slate svg {
+  margin-bottom: 6px;
+}
+.drama-board-stage > [role="alert"] {
+  color: var(--desk-danger);
+  font-size: 13px;
+  margin: 0;
+}
+.studio-panel-editor h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.studio-segment-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.studio-segment-heading button {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+}
+.studio-segment-heading h2 {
+  flex: 1;
+}
+.studio-segment-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font:
+    500 11px / 1 "Geist Variable",
+    sans-serif;
+}
+.studio-segment-status[data-state="running"] {
+  color: var(--rail-primary);
+  background: color-mix(in oklab, currentColor 15%, transparent);
+}
+.studio-segment-status[data-state="ready"] {
+  color: var(--status-success);
+  background: color-mix(in oklab, currentColor 15%, transparent);
+}
+.studio-segment-status[data-state="failed"],
+.studio-segment-failure {
+  color: oklch(0.58 0.2 28);
+}
+.studio-segment-status[data-state="failed"] {
+  background: color-mix(in oklab, currentColor 10%, transparent);
+}
+.studio-segment-failure {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, currentColor 8%, transparent);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.studio-segment-failure svg {
+  margin-top: 2px;
+  flex: none;
+}
+@media (prefers-color-scheme: dark) {
+  .studio-segment-status[data-state="failed"],
+  .studio-segment-failure {
+    color: oklch(0.68 0.2 28);
+  }
+}
+.studio-panel-editor .drama-segment-prompt {
+  flex: 1;
+}
+.studio-panel-scroll.studio-panel-editor {
+  min-height: 0;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.studio-panel-editor .studio-segment-heading {
+  align-items: center;
+  flex: none;
+}
+.studio-video-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+}
+.studio-video-editor .drama-ref-bar {
+  color: var(--rail-ink);
+  flex: none;
+  max-height: 25%;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.studio-video-editor .drama-ref-bar header small {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--rail-muted);
+}
+.studio-video-editor .drama-ref-bar > div > :is(span, button) {
+  background: var(--rail-muted);
+  color: var(--rail-ink);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.studio-video-editor .drama-ref-bar .drama-board-chip {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rail-primary) 45%, transparent);
+}
+.studio-board-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin: 0 0 8px;
+  padding: 0 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--rail-line);
+  background: transparent;
+  color: var(--rail-soft);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: start;
+  cursor: pointer;
+}
+.studio-board-line svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 3px;
+}
+.studio-video-editor .canvas-prompt-wrap[data-expanded="true"] .canvas-prompt-content {
+  min-height: 0;
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rail-line) transparent;
+  color: var(--rail-ink);
+  font:
+    400 13.5px / 2.05 "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+}
+.studio-video-editor > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rail-soft);
+}
+.studio-draft-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.studio-video-editor .studio-draft-controls {
+  flex: none;
+  margin: 4px 0 0;
+}
+.studio-video-editor .drama-segment-prompt {
+  display: flex;
+  flex-direction: column;
+  min-height: 68px;
+  margin: 0;
+  box-sizing: border-box;
+  color: var(--rail-ink);
+}
+.studio-board-line:focus-visible {
+  outline: 2px solid var(--desk-focus);
+}
+.studio-video-editor .canvas-prompt-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.studio-video-editor .prompt-ref-chip {
+  background: var(--rail-muted);
+  color: var(--rail-ink);
+}
+.studio-draft-controls [role="tablist"] {
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--rail-bg);
+  box-shadow: 0 0 0 1px var(--rail-line);
+}
+.studio-draft-controls button,
+.studio-adapt-empty button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--rail-soft);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+.studio-draft-controls [aria-selected="true"] {
+  background: var(--rail-muted);
+  color: var(--rail-ink);
+  box-shadow: 0 0 0 1px var(--rail-line);
+}
+.studio-draft-controls i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-success);
+}
+.studio-adapt-empty {
+  min-height: 144px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  border: 1px solid var(--rail-line);
+  border-radius: 14px;
+  color: var(--rail-soft);
+}
+.studio-adapt-stale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--rail-primary);
+}
+.studio-adapt-stale i {
+  background: currentColor;
+}
+.studio-adapt-bar {
+  --tone: var(--rail-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in oklab, var(--tone) 25%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--tone) 10%, transparent);
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 20px;
+}
+.studio-adapt-bar[role="alert"] {
+  --tone: var(--destructive, oklch(0.577 0.245 27.325));
+  background: color-mix(in oklab, var(--tone) 8%, transparent);
+}
+.studio-adapt-bar > svg {
+  flex: none;
+  color: var(--tone);
+}
+.studio-adapt-bar > span {
+  flex: 1;
+  min-width: 0;
+}
+.studio-adapt-bar button {
+  flex: none;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  background-clip: padding-box;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+}
+.studio-panel-preview .drama-preview-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rail-soft);
+  font-family: inherit;
+}
+.drama-board-frame[data-state="failed"] svg {
+  color: var(--desk-danger);
+}
+.drama-board-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.drama-preview-switch button:focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 2px;
+}
+.studio-segment-heading button:hover {
+  background: var(--rail-muted);
+}
+.studio-segment-status[data-state="running"] svg {
+  animation: drama-delete-spin 1s linear infinite;
+}
+.studio-panel-editor .studio-segment-heading h2 {
+  font:
+    600 18px / 1.4 "Songti SC",
+    "Noto Serif CJK SC",
+    serif;
+  letter-spacing: 0.04em;
+}
+.studio-video-editor .drama-ref-bar header {
+  color: var(--rail-soft);
+}
+.studio-video-editor .drama-ref-bar i {
+  background: var(--rail-bg);
+}
+.studio-board-line[aria-expanded="false"] span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-video-editor .canvas-prompt-wrap > div {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.studio-adapt-bar button:hover {
+  background-color: var(--rail-muted);
+}
+@media (prefers-color-scheme: dark) {
+  .studio-adapt-bar button:hover {
+    background-color: color-mix(in oklab, var(--rail-muted) 50%, transparent);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .studio-adapt-spin {
+    animation: studio-adapt-turn 1s linear infinite;
+  }
+}
+@keyframes studio-adapt-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.studio-panel-face .drama-script-area {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px 12px;
+}
+.studio-panel-face [aria-label="当前分集"] {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+.studio-panel-face .drama-clip-scroll {
+  flex: 1;
+  min-height: 0;
+  margin: 2px -4px 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-panel-face {
+    transition: none;
+  }
+}

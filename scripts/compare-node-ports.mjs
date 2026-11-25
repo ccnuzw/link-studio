@@ -143,7 +143,7 @@ try {
                 "data-agent-mark",
                 mode === "touch" ? "touched" : mode,
               );
-            await captureFrame("mark-" + mode);
+            await captureFrame(`mark-${mode}`);
           }
         if (zoom === 1 && process.env.PORT_STYLES)
           console.log(
@@ -227,7 +227,7 @@ try {
           const [original, replica] = await Promise.all(
             encoded.map(async (png) => {
               const image = new Image();
-              image.src = "data:image/png;base64," + png;
+              image.src = `data:image/png;base64,${png}`;
               await image.decode();
               const canvas = document.createElement("canvas");
               canvas.width = image.width;
@@ -244,7 +244,7 @@ try {
         },
         frames.map((frame) => frame.toString("base64")),
       );
-      differences[motion + "-" + phase] = differentPixels;
+      differences[`${motion}-${phase}`] = differentPixels;
       console.log("Held connection frame", motion, phase, "different pixels:", differentPixels);
       if (
         process.argv.includes("--strict") ||

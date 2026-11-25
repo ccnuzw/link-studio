@@ -218,15 +218,11 @@ export class CanvasAgentService {
     const session = this.sessions.get(store)?.signal;
     const workers = this.dramaWorkers.get(store) ?? new Set<string>();
     if (!session || workers.has(id)) return;
-    const step = dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === id)?.step;
-    const controller =
-      step === "breakdown" || step === "storyboard" ? new AbortController() : undefined;
-    if (controller) {
-      const active = this.studioJobControllers.get(store) ?? new Map();
-      active.set(id, controller);
-      this.studioJobControllers.set(store, active);
-    }
-    const signal = controller ? AbortSignal.any([session, controller.signal]) : session;
+    const controller = new AbortController();
+    const active = this.studioJobControllers.get(store) ?? new Map();
+    active.set(id, controller);
+    this.studioJobControllers.set(store, active);
+    const signal = AbortSignal.any([session, controller.signal]);
     workers.add(id);
     this.dramaWorkers.set(store, workers);
     void this.registry()
@@ -244,17 +240,24 @@ export class CanvasAgentService {
       });
   }
 
-  async cancelStudioJob(store: ProjectStore, id: string, step: "storyboard" | "breakdown") {
+  async cancelStudioJob(store: ProjectStore, id: string, step?: "storyboard" | "breakdown") {
     await store.updateGeneration((state) => {
       const doc = dramaDocument(state),
         job = doc?.jobs?.find((entry) => entry.id === id),
-        label = step === "breakdown" ? "拆解" : "分镜";
-      if (!doc || job?.step !== step)
+        label = step === "breakdown" ? "拆解" : step === "storyboard" ? "分镜" : "短剧";
+      if (!doc || !job || (step && job.step !== step))
         throw new ProjectError("DRAMA_STEP_NOT_READY", `${label}任务不存在`);
       if (job.status === "canceled") return { changed: false, result: null };
       if (job.status !== "running" && job.status !== "queued")
         throw new ProjectError("DRAMA_STEP_NOT_READY", `${label}任务已结束`);
-      if (step === "storyboard") {
+      if (job.step === "scripts") {
+        doc.status = doc.episodes.some((episode) => episode.script_md.trim())
+          ? "ready"
+          : "outlined";
+        doc.overview_revision = (doc.overview_revision ?? doc.revision) + 1;
+        doc.revision++;
+      }
+      if (job.step === "storyboard") {
         const ep = doc.episodes.find((entry) => entry.episode_no === job.episodes[0]);
         if (ep) {
           ep.storyboard_status = doc.segments?.some(
@@ -498,7 +501,8 @@ export class CanvasAgentService {
           /@\[([^\]]*)\]\((node|model|skill|asset):([^)\s]+)\)/g,
         )) {
           const [, name, kind, id] = match;
-          references.set(`${kind}:${id}`, { kind: kind!, id: id!, name: name! });
+          if (name === undefined || !kind || !id) continue;
+          references.set(`${kind}:${id}`, { kind, id, name });
           if (references.size > 50)
             throw new ProjectError("AGENT_MESSAGE_REFERENCE_INVALID", "一条消息最多引用 50 个对象");
         }
@@ -684,9 +688,15 @@ export class CanvasAgentService {
         const state = await store.readCanvas();
         this.assertOpen(store);
         const offset = input.offset ?? 0;
-        const selected = input.nodeIds
-          ? state.canvas.nodes.filter(({ id }) => input.nodeIds?.includes(id))
-          : state.canvas.nodes.slice(offset, offset + 30);
+        let selected = state.canvas.nodes.slice(offset, offset + 30);
+        if (input.nodeIds) {
+          const byId = new Map(state.canvas.nodes.map((node) => [node.id, node]));
+          selected = [...new Set(input.nodeIds)].map((id) => {
+            const node = byId.get(id);
+            if (!node) throw new ProjectError("CANVAS_OPERATION_INVALID", `节点 "${id}" 不存在`);
+            return node;
+          });
+        }
         const previous = this.readSets.get(run);
         const ids = previous?.revision === state.canvasRevision ? previous.ids : new Set<string>();
         if (input.nodeIds)
@@ -699,21 +709,41 @@ export class CanvasAgentService {
         const settings = registry.list();
         const { providers, plugins } = settings;
         const related = new Set(selected.map(({ id }) => id));
+        const edges = state.canvas.edges.filter(
+          ({ source, target }) => related.has(source) || related.has(target),
+        );
         return {
           canvasRevision: state.canvasRevision,
           viewport: state.canvas.viewport,
           totalNodes: state.canvas.nodes.length,
-          missingNodeIds: input.nodeIds?.filter((id) => !related.has(id)) ?? [],
           nodes: selected.map((node) => {
+            if (node.type === "group" && input.nodeIds) {
+              return {
+                ...node,
+                size: { x: node.width, y: node.height },
+                data: { ...node.data, label: clean(node.data.label) },
+              };
+            }
             if (node.type !== "creative")
               return { ...node, data: { label: clean(node.data.label) } };
-            const { director, ...data } = node.data;
+            const {
+              director,
+              assetId,
+              outputs,
+              activeOutputId: _activeOutputId,
+              ...data
+            } = node.data;
             const detail = input.nodeIds && generationDetail(data, settings);
+            const text = clean(node.data.text);
+            const characters = input.nodeIds ? Array.from(text) : undefined;
             return {
               ...node,
+              ...(input.nodeIds && node.parentId && { parent: node.parentId }),
               ...(detail?.mode && { mode: detail.mode }),
               data: {
                 ...data,
+                outputCount: outputs?.length ?? 0,
+                hasOutput: Boolean(assetId || outputs?.length),
                 ...(detail?.model && { model: clean(detail.model) }),
                 ...(detail &&
                   Object.keys(detail.params).length && {
@@ -725,14 +755,19 @@ export class CanvasAgentService {
                     ),
                   }),
                 label: clean(node.data.label),
-                text: clean(node.data.text).slice(0, input.nodeIds ? 5000 : 200),
+                text: characters
+                  ? characters.length > 4000
+                    ? `${characters.slice(0, 4000).join("")}…`
+                    : text
+                  : text.slice(0, 200),
                 ...(director ? directorContext(director, !!input.nodeIds, clean) : {}),
                 ...(node.data.storyboard
                   ? {
                       storyboard: node.data.storyboard
                         .slice(0, input.nodeIds ? node.data.storyboard.length : 0)
-                        .map((shot, index) => ({
+                        .map(({ imageAssetId, ...shot }, index) => ({
                           ...shot,
+                          ...(imageAssetId && { hasImage: true }),
                           no: index + 1,
                           scene: clean(shot.scene),
                           action: clean(shot.action),
@@ -757,9 +792,7 @@ export class CanvasAgentService {
               },
             };
           }),
-          edges: state.canvas.edges
-            .filter(({ source, target }) => related.has(source) || related.has(target))
-            .slice(0, 100),
+          edges: input.nodeIds ? edges : edges.slice(0, 100),
           nextOffset:
             !input.nodeIds && offset + 30 < state.canvas.nodes.length ? offset + 30 : undefined,
           assets: Object.values(store.snapshot.assets)

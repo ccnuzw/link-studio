@@ -33,7 +33,7 @@ Result 不返回 stack、明文密钥、任意文件系统路径或供应商原�
 | `dialogs.selectProjectParent` | 无 | `{ cancelled }` 或 `{ directoryToken, displayPath }` |
 | `dialogs.selectProject` | 无 | 选定项目的 directoryToken |
 | `projects.create` | operationId、directoryToken、name | ProjectSession；独占创建，不覆盖已有目录。原会话关闭后重放返回 `PROJECT_NOT_OPEN`，用打开项目入口恢复 |
-| `projects.open` | directoryToken | `{ disposition: opened, session }` 或 `{ disposition: focusedExisting }`；别实例占用返回错误 |
+| `projects.open` | directoryToken | 同窗新开或恢复已有会话返回 `{ disposition: opened, session }`；同实例跨窗激活持有窗口并定位项目，调用方收到 `{ disposition: focusedExisting }`，不视为错误；跨实例写锁冲突返回 `PROJECT_IN_USE` |
 | `projects.listRecent` | 无 | displayName、displayPath、recentEntryId、lastOpenedAt；无目录读写权限 |
 | `projects.openRecent` | recentEntryId | 由 Main 已知目录重新校验后 open；路径丢失提示重新选择 |
 | `projects.getState` | projectHandle | 当前安全快照/恢复摘要；不含 locator、task handle 和凭证 |

@@ -7,6 +7,7 @@ import { AssetFiles } from "../../src/main/project/asset-files";
 import { AssetService } from "../../src/main/project/assets";
 import { CanvasClipboardMedia } from "../../src/main/project/canvas-clipboard";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 test.skipIf(process.platform !== "darwin")(
   "节点剪贴板绑定窗口和最新选区，后一个素材损坏不会登记前一个",
@@ -42,7 +43,7 @@ test.skipIf(process.platform !== "darwin")(
       await expect(media.paste(1, old.token, target)).rejects.toMatchObject({
         code: "TOKEN_INVALID_OR_EXPIRED",
       });
-      const bad = records[1]!;
+      const bad = requireTestValue(records[1]);
       await writeFile(
         join(source.directory, "assets", "sha256", bad.sha256.slice(0, 2), bad.sha256),
         Buffer.alloc(bad.sizeBytes),
@@ -50,7 +51,7 @@ test.skipIf(process.platform !== "darwin")(
       const before = target.snapshot;
       await expect(media.paste(1, next.token, target)).rejects.toThrow();
       expect(target.snapshot).toEqual(before);
-      const good = records[0]!;
+      const good = requireTestValue(records[0]);
       await expect(
         access(join(target.directory, "assets", "sha256", good.sha256.slice(0, 2), good.sha256)),
       ).rejects.toMatchObject({ code: "ENOENT" });

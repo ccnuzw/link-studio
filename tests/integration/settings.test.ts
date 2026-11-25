@@ -7,17 +7,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
+import { AgentWorkerClient } from "../../packages/agent-runtime/src/client";
 import { LocalAgentRuntime } from "../../packages/agent-runtime/src/runtime";
 import { SpikeTargets } from "../../packages/agent-runtime/src/targets";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
+import type { Approval, Run } from "../../packages/agent-runtime/upstream/src/store/types";
+import { fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
 import type { SettingsInput } from "../../packages/link-studio-core/src/settings-api";
 import { PluginRunner, ProviderError } from "../../packages/provider-runtime/src/runner";
 import {
+  addDramaSegment,
   createDrama,
   DramaTools,
   dramaDocument,
   updateDramaBoardSettings,
 } from "../../src/main/project/drama";
+import { adaptDramaSegment } from "../../src/main/project/drama-adaptation";
 import { commitBreakdownBatch } from "../../src/main/project/drama-assets";
 import {
   estimateDramaJob,
@@ -41,6 +46,7 @@ import { cleanModelStream } from "../../src/main/settings/stream";
 import { SkillLibrary } from "../../src/main/skills/library";
 import { channelModelHealth } from "../../src/renderer/settings/channel-model-list";
 import { quoteVideoModel } from "../fixtures/agent-quote";
+import { requireTestValue } from "../require-test-value";
 
 const scope = { kind: "settings" } as const;
 
@@ -112,6 +118,245 @@ async function withRegistry(
 }
 
 describe("S3 设置持久化", () => {
+  it("批准改名后拒绝回滚：Worker 重开保留原单号和拒绝说明，不重放写入", async () => {
+    await withRegistry(async ({ registry, input, directory }) => {
+      const original = registry.save(input);
+      const label = "保留的新名称";
+      const answer = "保留现有名称，不要回滚。";
+      const change = {
+        providerId: original.id,
+        expectedRevision: original.revision,
+        changes: [{ field: "label", value: label }],
+      };
+      const reverse = { revert_of: "" };
+      const server = await fakeGo({
+        turns: [
+          { tools: [{ id: "rename", name: "admin_propose_changes", args: { value: change } }] },
+          { text: "已改名。" },
+          { tools: [{ id: "rollback", name: "admin_propose_changes", args: reverse }] },
+          { text: "保留现有配置。" },
+        ],
+      });
+      const applied: string[] = [];
+      const open = () =>
+        AgentWorkerClient.open({
+          directory,
+          workerPath: join(process.cwd(), "out/agent-runtime/worker.mjs"),
+          modelBridgeUrl: server.url,
+          settings: async (command, raw) => {
+            const args = raw as {
+              proposal: unknown;
+              order: string;
+              sessionId: string;
+              approvalId: string;
+              selected: number[];
+              payload: Awaited<ReturnType<SettingsRegistry["preview"]>>;
+            };
+            if (command === "model")
+              return { name: "fixture", context_window: 32768, max_tokens: 1024 };
+            if (command === "forgetPluginChecks") return null;
+            if (command === "preview") return registry.preview(args.proposal);
+            if (command === "reversePreview")
+              return registry.reverseProposal(args.order, args.sessionId);
+            if (command === "apply") {
+              applied.push(args.approvalId);
+              return registry.applyProposal(
+                args.approvalId,
+                args.payload,
+                args.selected,
+                args.sessionId,
+              );
+            }
+            throw Error(`意外的设置桥接调用：${command}`);
+          },
+        });
+      let worker: AgentWorkerClient | undefined;
+      try {
+        const client = await open();
+        worker = client;
+        const { sessionId } = await client.request<{ sessionId: string }>("create", { scope });
+        const context = { scope, sessionId };
+        const pending = async (message: string) => {
+          const run = await client.request<Run>("start", { ...context, message });
+          await client.request("idle");
+          const approvals = await client.request<Approval[]>("approvals", {
+            ...context,
+            runId: run.id,
+          });
+          expect(approvals).toMatchObject([{ kind: "admin_change", status: "pending" }]);
+          return requireTestValue(approvals[0]);
+        };
+        const forward = await pending("请更改模型名称");
+        reverse.revert_of = (forward.payload as { orderNo: string }).orderNo;
+        await client.request("decide", {
+          ...context,
+          approvalId: forward.id,
+          decision: { decision: "approve", items: [{ index: 0, approve: true }] },
+        });
+        await client.request("idle");
+        expect(registry.provider(original.id)).toMatchObject({
+          label,
+          revision: original.revision + 1,
+        });
+        const rollback = await pending(`请回滚 ${reverse.revert_of}`);
+        expect(rollback.payload).toMatchObject({
+          revertOf: reverse.revert_of,
+          items: [{ before: label, after: original.label }],
+        });
+        expect((rollback.payload as { orderNo: string }).orderNo).not.toBe(reverse.revert_of);
+        await client.request("decide", {
+          ...context,
+          approvalId: rollback.id,
+          decision: { decision: "reject", answer },
+        });
+        await client.request("idle");
+        expect(server.modelRequests).toHaveLength(4);
+        expect(JSON.stringify(server.modelRequests[3]?.body.messages)).toContain(answer);
+        await client.close();
+        worker = await open();
+        const page = await worker.request<Awaited<ReturnType<LocalAgentRuntime["page"]>>>("page", {
+          ...context,
+          after: 0,
+        });
+        expect(page.approvals).toEqual([]);
+        expect(page.events.filter((event) => event.approvalId === rollback.id)).toMatchObject([
+          { type: "approval.created", payload: { payload: { revertOf: reverse.revert_of } } },
+          {
+            type: "approval.decided",
+            payload: {
+              status: "rejected",
+              payload: { revertOf: reverse.revert_of },
+              decision: { answer },
+            },
+          },
+        ]);
+        expect(registry.provider(original.id)).toMatchObject({
+          label,
+          revision: original.revision + 1,
+        });
+        expect(applied).toEqual([forward.id]);
+        expect(server.modelRequests).toHaveLength(4);
+      } finally {
+        await worker?.close();
+        await server.close();
+      }
+    });
+  });
+
+  it("已批准试跑的成功和失败均保存实测耗时，恢复返回原收据且不重复出站", async () => {
+    await withRegistry(async ({ registry, input, directory }) => {
+      let requests = 0;
+      const server = createServer((_request, response) => {
+        const success = ++requests === 1;
+        setTimeout(
+          () =>
+            response
+              .writeHead(success ? 200 : 400, { "content-type": "application/json" })
+              .end(
+                JSON.stringify(
+                  success
+                    ? { choices: [{ message: { content: "OK" } }] }
+                    : { error: { message: "trial failed" } },
+                ),
+              ),
+          35,
+        );
+      });
+      server.listen(0, "127.0.0.1");
+      try {
+        await once(server, "listening");
+        const address = server.address();
+        if (!address || typeof address === "string") throw Error("测试模型未监听");
+        const profile = registry.save({
+          ...input,
+          fields: { ...input.fields, endpoint: `http://127.0.0.1:${address.port}` },
+        });
+        const target = registry.actionTarget("admin_test_run", profile.id, profile.revision);
+        const history: {
+          sessionId: string;
+          id: string;
+          result: Awaited<ReturnType<SettingsRegistry["approvedTest"]>>;
+        }[] = [];
+        const store = openStore(join(directory, "agent.sqlite"));
+        const targets = new SpikeTargets(join(directory, "targets.sqlite"));
+        try {
+          targets.scope(scope);
+          for (const success of [true, false]) {
+            const owner = { canvasId: "0", userId: "1", mode: "admin" };
+            const { id: sessionId } = store.createSession({
+              ...owner,
+              title: "模型试跑",
+              modelKey: "fixture",
+            });
+            targets.bindSession(sessionId, scope);
+            const run = store.createRun({ ...owner, sessionId, status: "interrupted" });
+            const { id } = store.createApproval({
+              ...owner,
+              sessionId,
+              runId: run.id,
+              toolCallId: "trial",
+              kind: "admin_test_run",
+              payload: target,
+              status: "pending",
+              quoteCredits: 0,
+              expiresAt: Date.now() + 60000,
+            });
+            store.updateApprovalIf(id, ["pending"], {
+              status: "approved",
+              decision: { decision: "approve" },
+            });
+            const result = await registry.approvedTest(id, target, false);
+            if (success) expect(result.tested).toBe(true);
+            else expect(result.code).toBeTruthy();
+            expect(result.duration_ms).toBeGreaterThanOrEqual(30);
+            history.push({ sessionId, id, result });
+          }
+        } finally {
+          store.close();
+          targets.close();
+        }
+        for (const boot of [1, 2]) {
+          const runtime = await LocalAgentRuntime.open({
+            directory,
+            modelBridgeUrl: "http://127.0.0.1:1",
+            settings: async (command, raw) => {
+              expect(command).toBe("approvedTest");
+              expect(boot).toBe(1);
+              const args = raw as { approvalId: string; recovery: boolean };
+              expect(args.recovery).toBe(true);
+              return registry.approvedTest(args.approvalId, target, true);
+            },
+          });
+          try {
+            for (const { sessionId, id, result } of history) {
+              const page = await runtime.page(scope, sessionId, 0);
+              expect(
+                page.events.filter((event) => event.type === "approval.decided"),
+              ).toMatchObject([
+                {
+                  approvalId: id,
+                  payload: {
+                    status: result.tested ? "executed" : "failed",
+                    payload: { label: profile.label },
+                    result,
+                  },
+                },
+              ]);
+            }
+          } finally {
+            await runtime.close();
+          }
+        }
+        expect(await registry.approvedTest("missing", target, true)).toEqual({
+          code: "PROVIDER_OUTCOME_UNKNOWN",
+        });
+        expect(requests).toBe(2);
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+  });
   it("营销技能试跑发送样例图片并按固定协议重写一次，文本模型不能冒充视觉模型", async () => {
     await withRegistry(async ({ registry, input, directory }) => {
       const valid = await readFile(
@@ -202,7 +447,7 @@ describe("S3 设置持久化", () => {
         name: "蜡印",
         body: "分镜：{{画面}}",
       };
-      const entry = registry.dramaPromptLibrary(save).entries[0]!;
+      const entry = requireTestValue(registry.dramaPromptLibrary(save).entries[0]);
       expect(() => registry.dramaPromptLibrary(save)).toThrow("SETTINGS_PROMPT_DUPLICATE");
       expect(() =>
         registry.dramaPromptLibrary({ ...save, name: "画面", body: "{{未知}}" }),
@@ -230,12 +475,14 @@ describe("S3 设置持久化", () => {
         );
         expect(dramaDocument(later.snapshot)).toBeNull();
         const settings = { sceneModel: "", boardModel: "" };
-        const video = registry.dramaPromptLibrary({
-          ...save,
-          name: "镜头移动",
-          step: "video",
-          body: "保持慢摇",
-        }).saved!;
+        const video = requireTestValue(
+          registry.dramaPromptLibrary({
+            ...save,
+            name: "镜头移动",
+            step: "video",
+            body: "保持慢摇",
+          }).saved,
+        );
         const patch = { settings, revision: 1, prompts: { video } };
         await expect(
           updateDramaBoardSettings(
@@ -340,9 +587,9 @@ describe("S3 设置持久化", () => {
       const db = new DatabaseSync(join(directory, "settings.sqlite"), { readOnly: true });
       try {
         const row = db.prepare("SELECT ciphertext FROM model_document_drafts WHERE id=?");
-        expect(Buffer.from(row.get(model.id)!.ciphertext as Uint8Array).toString()).not.toContain(
-          "private-extension-data",
-        );
+        expect(
+          Buffer.from(requireTestValue(row.get(model.id)).ciphertext as Uint8Array).toString(),
+        ).not.toContain("private-extension-data");
         const fixed = registry.modelSave({
           ...request,
           ...ref,
@@ -437,7 +684,7 @@ describe("S3 设置持久化", () => {
             "\n",
           ),
         });
-        const document = dramaDocument(store.snapshot)!;
+        const document = requireTestValue(dramaDocument(store.snapshot));
         const before = structuredClone(store.snapshot);
         const quote = (step: string, episodes: number[]) =>
           estimateDramaJob(document, { step, episodes }, registry);
@@ -445,7 +692,7 @@ describe("S3 设置持久化", () => {
         await expect(quote("breakdown", [2, 2])).rejects.toThrow("集号须为1至100000且不能重复");
         await expect(quote("breakdown", [14])).rejects.toThrow("所选集不存在");
         await expect(quote("breakdown", [2, 1])).rejects.toThrow("DRAMA_NO_TEXT_MODEL");
-        const script = "第一集\n" + "🌙".repeat(4500) + "\n第二集\n灯亮了。";
+        const script = `第一集\n${"🌙".repeat(4500)}\n第二集\n灯亮了。`;
         await expect(estimateDramaSource({ script }, registry)).rejects.toMatchObject({
           code: "DRAMA_NO_TEXT_MODEL",
         });
@@ -484,25 +731,38 @@ describe("S3 设置持久化", () => {
           settings: { api: "chat_completions" },
           enabled: true,
         });
-        const model = registry.list().providers[0]!;
+        const model = requireTestValue(registry.list().providers[0]);
         const modelQuote = await registry.agentQuote({ key: model.id, input: { prompt: "估" } });
         expect(modelQuote, JSON.stringify(modelQuote)).not.toHaveProperty("error");
-        registry.modelSave({
+        const localAgent = registry.modelSave({
           expectedRevision: 0,
           channelId: channel.id,
           channelRevision: channel.revision,
           upstreamModel: "legacy",
-          config: { name: "旧模型", kind: "agent", description: "", sort: 0 },
-          settings: { api: "chat_completions" },
+          config: { name: "本地 Agent", kind: "agent", description: "", sort: 2 },
+          settings: { api: "responses" },
           enabled: true,
         });
+        await expect(
+          estimateDramaSource(
+            {
+              script: "第一章\n下雨了\n第二章\n天晴了",
+              sourceKind: "novel",
+              textModel: localAgent.id,
+            },
+            registry,
+          ),
+        ).resolves.toMatchObject({ priceUnavailable: true, kind: "chapter", units: 2 });
         const modelRef = { id: model.id, revision: model.revision };
         const sourceEstimate = await estimateDramaSource({ script, textModel: model.id }, registry);
         expect(sourceEstimate.exactEpisodes).toBe(2);
         const numbers = Array.from({ length: 201 }, (_, index) => index + 1);
         const series = {
           ...document,
-          episodes: numbers.map((episode_no) => ({ ...document.episodes[0]!, episode_no })),
+          episodes: numbers.map((episode_no) => ({
+            ...requireTestValue(document.episodes[0]),
+            episode_no,
+          })),
         };
         const batch = (episodes: number[]) =>
           estimateDramaJob(series, { step: "breakdown", episodes }, registry);
@@ -636,7 +896,9 @@ describe("S3 设置持久化", () => {
           submitApprovedDramaJob(store, registry, "run-2", "approval-1", payload),
         ).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
         await store.updateGeneration((state) => {
-          dramaDocument(state)!.jobs![0]!.status = "running";
+          requireTestValue(
+            requireTestValue(requireTestValue(dramaDocument(state)).jobs)[0],
+          ).status = "running";
           return { changed: true, result: null };
         });
         const asset = {
@@ -655,10 +917,10 @@ describe("S3 设置持久化", () => {
         const revision = store.snapshot.revision;
         await expect(commitBreakdownBatch(store, first.id, [1], [asset])).resolves.toEqual([]);
         expect(store.snapshot.revision).toBe(revision);
-        const committed = dramaDocument(store.snapshot)!;
+        const committed = requireTestValue(dramaDocument(store.snapshot));
         expect(committed.jobs?.[0]).toMatchObject({
           done_episodes: [1],
-          new_nodes: [created!.node_id],
+          new_nodes: [requireTestValue(created).node_id],
         });
         expect(committed.episodes[0]?.locked).toBe(true);
         expect(committed.episodes[1]?.locked).not.toBe(true);
@@ -856,7 +1118,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, input }) => {
       await registry.save(input);
       const original = await registry.draft(
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='read-fixture';",
+        `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='read-fixture';`,
       );
       const newer = await registry.draft(
         original.source.replace('name: "OpenAI"', `name: "OpenAI ${input.secret}"`),
@@ -886,7 +1148,9 @@ describe("S3 设置持久化", () => {
   });
   it("插件版本审批只读预估；批准时按实际最高版本重新登记，相同审批重放不再递增", async () => {
     await withRegistry(async ({ registry }) => {
-      const builtin = registry.list().plugins.find((plugin) => plugin.key === "openai")!;
+      const builtin = requireTestValue(
+        registry.list().plugins.find((plugin) => plugin.key === "openai"),
+      );
       const source = `${builtin.source}\nmodule.exports.meta.key='version-preview';module.exports.meta.version='v1.0';`;
       const runId = "draft-review";
       const request = { pluginSource: source };
@@ -899,14 +1163,14 @@ describe("S3 设置持久化", () => {
         ok: true,
       });
       await expect(
-        registry.agentPluginCheck(runId, "initial", { source: source + "\n" }),
+        registry.agentPluginCheck(runId, "initial", { source: `${source}\n` }),
       ).resolves.toMatchObject({
         ok: false,
         attempt: 1,
         issues: ["该检查标识已使用，请重新发起检查"],
       });
       await expect(registry.preview(request, "different-run")).rejects.toMatchObject(unchecked);
-      await expect(registry.preview({ pluginSource: source + "\n" }, runId)).rejects.toMatchObject(
+      await expect(registry.preview({ pluginSource: `${source}\n` }, runId)).rejects.toMatchObject(
         unchecked,
       );
       await expect(
@@ -974,7 +1238,7 @@ describe("S3 设置持久化", () => {
         code: "PLUGIN_VERSION_DUPLICATE",
         issues: [{ path: "meta", message: "代码与 v1.1.1 完全相同，没有产生新版本" }],
       });
-      const upgrade = source + "\n// 第二次审阅\n",
+      const upgrade = `${source}\n// 第二次审阅\n`,
         nextRun = "upgrade-review";
       for (const domain of ["first.invalid", "second.invalid"]) {
         const sample = JSON.stringify({
@@ -1008,7 +1272,7 @@ describe("S3 设置持久化", () => {
       ]);
       expect(JSON.stringify(next.review)).not.toContain("不属于卡片的正文");
       await expect(
-        registry.preview({ pluginSource: upgrade + "// sk-dontpersist123456" }, nextRun),
+        registry.preview({ pluginSource: `${upgrade}// sk-dontpersist123456` }, nextRun),
       ).rejects.toMatchObject({ code: "SETTINGS_PROPOSAL_INVALID" });
       registry.forgetPluginChecks(runId);
       await expect(registry.preview(request, runId)).rejects.toMatchObject(unchecked);
@@ -1018,7 +1282,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry }) => {
       const original = registry.agentPlugin("openai").code;
       for (const origin of ["manual", "agent"] as const)
-        for (const candidate of [original, original + "\n"])
+        for (const candidate of [original, `${original}\n`])
           await expect(registry.draft(candidate, origin)).rejects.toMatchObject({
             code: "PLUGIN_BUILTIN_KEY_RESERVED",
           });
@@ -1028,7 +1292,7 @@ describe("S3 设置持久化", () => {
       const lower = await registry.draft(source("release-fixture", "2.0.0"), "builtin");
       expect([higher.version, lower.version]).toEqual(["3.0.0", "2.0.0"]);
       expect(await registry.draft(lower.source, "builtin")).toEqual(lower);
-      await expect(registry.draft(lower.source + "\n", "builtin")).rejects.toMatchObject({
+      await expect(registry.draft(`${lower.source}\n`, "builtin")).rejects.toMatchObject({
         code: "PLUGIN_BUILTIN_VERSION_CONFLICT",
       });
       await expect(
@@ -1047,7 +1311,7 @@ describe("S3 设置持久化", () => {
   it("兼容旧库的混合来源：保留手动行，按整个内置插件保护删除与报告来源", async () => {
     await withRegistry(async ({ registry, directory }) => {
       const legacy = await registry.inspect(
-        registry.agentPlugin("openai").code + "\n// legacy draft",
+        `${registry.agentPlugin("openai").code}\n// legacy draft`,
       );
       legacy.meta.version = "1.2.2";
       const database = new DatabaseSync(join(directory, "settings.sqlite"));
@@ -1127,7 +1391,7 @@ describe("S3 设置持久化", () => {
       const laterPath = join(bundle, "xai.js");
       await writeFile(
         laterPath,
-        (await readFile(laterPath, "utf8")) + "\nmodule.exports.meta.version='3.0.0';",
+        `${await readFile(laterPath, "utf8")}\nmodule.exports.meta.version='3.0.0';`,
       );
       const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
@@ -1296,9 +1560,9 @@ describe("S3 设置持久化", () => {
         await writeFile(join(bundle, name), source);
         return createHash("sha256").update(source).digest("hex");
       };
-      const good = await write("ok.js", code + "\nmodule.exports.meta.key='from-manifest';");
+      const good = await write("ok.js", `${code}\nmodule.exports.meta.key='from-manifest';`);
       const bad = await write("bad.js", "module.exports = {};");
-      const changed = await write("conflict.js", code + "\n ");
+      const changed = await write("conflict.js", `${code}\n `);
       const open = (release: Record<string, string>) =>
         SettingsRegistry.open(
           directory,
@@ -1446,7 +1710,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, directory, input }) => {
       const key = "retired",
         old = await registry.draft(
-          registry.agentPlugin("openai").code + `\nmodule.exports.meta.key='${key}';`,
+          `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='${key}';`,
           "builtin",
         );
       const channel = registry.channelSave({
@@ -1529,7 +1793,9 @@ describe("S3 设置持久化", () => {
               "UPDATE retired_builtin_sources SET manifest=json_set(manifest,'$.source',?) WHERE hash=?",
             )
             .run(old.source, old.hash);
-          const newChannel = next.channelList().find((item) => item.id === channel.id)!;
+          const newChannel = requireTestValue(
+            next.channelList().find((item) => item.id === channel.id),
+          );
           next.channelSave({
             id: channel.id,
             expectedRevision: newChannel.revision,
@@ -1587,7 +1853,11 @@ describe("S3 设置持久化", () => {
       );
       try {
         await expect(
-          reopened.agentPluginCheck(runId, ["one", "two", "three", "four"][first]!, draft),
+          reopened.agentPluginCheck(
+            runId,
+            requireTestValue(["one", "two", "three", "four"][first]),
+            draft,
+          ),
         ).resolves.toMatchObject({ attempt: 1, attempts_left: 2 });
         await expect(reopened.agentPluginCheck(runId, "five", draft)).resolves.toMatchObject({
           ok: false,
@@ -1859,7 +2129,7 @@ describe("S3 设置持久化", () => {
       expect(first?.humanId).toBeTruthy();
       await expect(create(1)).rejects.toThrow("CHANNEL_FILING_DUPLICATE");
       const results = await Promise.allSettled(
-        [2, 3, 4, 5, 6].map((index) => create(index, first!.humanId)),
+        [2, 3, 4, 5, 6].map((index) => create(index, requireTestValue(first).humanId)),
       );
       expect(results.filter((entry) => entry.status === "fulfilled")).toHaveLength(4);
       expect(results[4]).toMatchObject({
@@ -1873,7 +2143,9 @@ describe("S3 设置持久化", () => {
         action: "list",
       });
       expect(assets).toHaveLength(5);
-      expect(new Set(assets.map((asset) => asset.humanId))).toEqual(new Set([first!.humanId]));
+      expect(new Set(assets.map((asset) => asset.humanId))).toEqual(
+        new Set([requireTestValue(first).humanId]),
+      );
       const identity = { id: channel.id, expectedRevision: channel.revision };
       const url = "https://cdn.example.com/retry.png";
       const [failed] = await registry.filingAssets(
@@ -1891,11 +2163,11 @@ describe("S3 设置持久化", () => {
         registry.filingAssets({
           ...identity,
           action: "cover",
-          humanId: first!.humanId,
-          assetId: failed!.id,
+          humanId: requireTestValue(first).humanId,
+          assetId: requireTestValue(failed).id,
         }),
       ).rejects.toThrow("CHANNEL_FILING_INVALID_MEDIA");
-      const retry = { ...identity, action: "retry" as const, assetId: failed!.id };
+      const retry = { ...identity, action: "retry" as const, assetId: requireTestValue(failed).id };
       const [pending] = await registry.filingAssets(
         retry,
         async (_endpoint, _keys, action, payload) => {
@@ -1905,8 +2177,8 @@ describe("S3 设置持久化", () => {
         },
       );
       expect(pending).toMatchObject({
-        id: failed!.id,
-        humanId: failed!.humanId,
+        id: requireTestValue(failed).id,
+        humanId: requireTestValue(failed).humanId,
         status: "processing",
         canRetry: false,
       });
@@ -2054,7 +2326,7 @@ describe("S3 设置持久化", () => {
         expect(keys.accessKey).toBe("ark-access");
         expect(action).toBe("CreateAsset");
         expect(payload.Name).toBe(asset.displayName);
-        const url = new URL(payload.URL!);
+        const url = new URL(requireTestValue(payload.URL));
         expect(url.searchParams.get("X-Amz-Expires")).toBe("3600");
         expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[a-f0-9]{64}$/);
         expect(url.origin + url.pathname).toBe(requests[0]);
@@ -2129,9 +2401,14 @@ describe("S3 设置持久化", () => {
           registry.enrollProjectImage(input, scene.projectId, asset, png, undefined, create, put),
         ).rejects.toThrow("CHANNEL_FILING_DUPLICATE");
         vi.setSystemTime(new Date("2026-11-22T12:00:00Z"));
-        await registry.filingAssets({ ...input, action: "retry", assetId: failed!.id }, create);
+        await registry.filingAssets(
+          { ...input, action: "retry", assetId: requireTestValue(failed).id },
+          create,
+        );
         expect(requests).toHaveLength(3);
-        expect(new URL(requests[2]!).searchParams.get("X-Amz-Date")).toBe("20261122T120000Z");
+        expect(new URL(requireTestValue(requests[2])).searchParams.get("X-Amz-Date")).toBe(
+          "20261122T120000Z",
+        );
         expect(requests[1]).not.toBe(requests[2]);
         expect(registry.hasLinkedFilingReference(channel.id, asset, scene.projectId)).toBe(true);
         expect(registry.projectFilings(scene.projectId, [asset]).get(assetId)).toEqual({
@@ -2160,7 +2437,9 @@ describe("S3 设置持久化", () => {
           async () => ({ Status: "Processing" }),
         );
         expect(fallback.filedAssetId).toBeUndefined();
-        expect(new URL(fallback.url!).searchParams.get("X-Amz-Date")).toBe("20261122T140000Z");
+        expect(new URL(requireTestValue(fallback.url)).searchParams.get("X-Amz-Date")).toBe(
+          "20261122T140000Z",
+        );
         const abort = AbortSignal.abort();
         await expect(
           registry.projectFilingReference(channel.id, asset, scene.projectId, undefined, abort),
@@ -2184,16 +2463,21 @@ describe("S3 设置持久化", () => {
         expect(registry.linkedFilingReceipt(channel.id, asset, scene.projectId)).toBe(
           "remote-image",
         );
-        const membership = registry.projectFilings(scene.projectId, [asset]).get(assetId)!;
+        const membership = requireTestValue(
+          registry.projectFilings(scene.projectId, [asset]).get(assetId),
+        );
         expect(membership).toMatchObject({
           filingHumanName: "小林",
-          filingImage: failed!.id,
+          filingImage: requireTestValue(failed).id,
           filingChannel: channel.id,
         });
         const copy = {
           ...asset,
           assetId: randomUUID(),
-          metadata: { filingScope: membership.filingScope!, filingImage: failed!.id },
+          metadata: {
+            filingScope: requireTestValue(membership.filingScope),
+            filingImage: requireTestValue(failed).id,
+          },
         };
         expect(registry.projectFilings("另一个项目", [copy]).get(copy.assetId)).toEqual(membership);
         await expect(
@@ -2204,7 +2488,11 @@ describe("S3 设置持久化", () => {
         });
         expect(requests).toHaveLength(3);
         await expect(
-          registry.filingAssets({ ...input, action: "removeHuman", humanId: failed!.humanId }),
+          registry.filingAssets({
+            ...input,
+            action: "removeHuman",
+            humanId: requireTestValue(failed).humanId,
+          }),
         ).rejects.toThrow("CHANNEL_FILING_IMAGE_IN_USE");
       } finally {
         vi.useRealTimers();
@@ -2260,7 +2548,7 @@ describe("S3 设置持久化", () => {
             id: old.id,
             expectedRevision: old.revision,
             action: "removeHuman",
-            humanId: person!.humanId,
+            humanId: requireTestValue(person).humanId,
           },
           request,
         ),
@@ -2293,8 +2581,8 @@ describe("S3 设置持久化", () => {
         { ...filing, action: "create", name: "人物", url: "https://example.org/a.png" },
         async () => ({ Id: "first" }),
       );
-      const humanId = first!.humanId;
-      const preview = { ...filing, assetId: first!.id };
+      const humanId = requireTestValue(first).humanId;
+      const preview = { ...filing, assetId: requireTestValue(first).id };
       const png = Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
         "base64",
@@ -2317,7 +2605,7 @@ describe("S3 设置持久化", () => {
         return imageResponse(png.length);
       });
       expect(blob?.type).toBe("image/png");
-      expect(Buffer.from(await blob!.arrayBuffer())).toEqual(png);
+      expect(Buffer.from(await requireTestValue(blob).arrayBuffer())).toEqual(png);
       expect(
         await registry.filingPreview(preview, async () => imageResponse(11 * 1024 * 1024)),
       ).toBeNull();
@@ -2328,7 +2616,7 @@ describe("S3 设置持久化", () => {
       );
       const deletion = { ...filing, action: "removeHuman" as const, humanId };
       await registry.filingAssets(
-        { ...filing, action: "refresh", assetId: first!.id },
+        { ...filing, action: "refresh", assetId: requireTestValue(first).id },
         async () => ({ Status: "Active" }),
       );
       const identity = registry.filingImageIdentity(preview);
@@ -2353,10 +2641,10 @@ describe("S3 设置持久化", () => {
           availability: "ready",
         };
       const character = { name: "角色甲", look: "默认", description: "", extraAssetIds: [extraId] };
-      const imported = scene.assets[mainId]!;
+      const imported = requireTestValue(scene.assets[mainId]);
       expect(registry.linkedFilingReceipt(channel.id, imported)).toBeUndefined();
       imported.sha256 = createHash("sha256").update(png).digest("hex");
-      expect(registry.linkedFilingReceipt(channel.id, imported)).toBe(first!.id);
+      expect(registry.linkedFilingReceipt(channel.id, imported)).toBe(requireTestValue(first).id);
       expect(registry.linkedFilingReceipt(undefined, imported)).toBeUndefined();
       scene.canvas.nodes = [
         {
@@ -2383,7 +2671,7 @@ describe("S3 设置持久化", () => {
       expect(await check()).toMatchObject([{ title: "第二项目", name: "角色甲" }]);
       await expect(
         registry.filingAssets(
-          { ...filing, action: "remove", assetId: first!.id },
+          { ...filing, action: "remove", assetId: requireTestValue(first).id },
           unexpectedDelete,
         ),
       ).rejects.toThrow("CHANNEL_FILING_IMAGE_IN_USE");
@@ -2514,7 +2802,7 @@ describe("S3 设置持久化", () => {
       expect(unexpectedDelete).not.toHaveBeenCalled();
       const [person] = await registry.filingAssets({ ...filing, action: "list" });
       await registry.filingAssets(
-        { ...filing, action: "removeHuman", humanId: person!.humanId },
+        { ...filing, action: "removeHuman", humanId: requireTestValue(person).humanId },
         signed,
       );
       expect(registry.filedReference(saved.id, image)).toBeUndefined();
@@ -2537,9 +2825,9 @@ describe("S3 设置持久化", () => {
   it("按插件标识预检全部版本，提交时重新统计离线模型与进行中的任务", async () => {
     await withRegistry(async ({ registry, input, directory }) => {
       const key = "delete-fixture";
-      const source = registry.agentPlugin("openai").code + `\nmodule.exports.meta.key='${key}';`;
+      const source = `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='${key}';`;
       const first = await registry.draft(source);
-      const second = await registry.draft(source + "\nmodule.exports.meta.version='2.0.0';");
+      const second = await registry.draft(`${source}\nmodule.exports.meta.version='2.0.0';`);
       const remove = () => registry.pluginRemove({ key, allVersions: true });
       expect(registry.pluginDeleteCheck({ key })).toEqual({ builtin: false, models: [], jobs: 0 });
       const channel = registry.channelSave({
@@ -2804,7 +3092,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, input }) => {
       const current = registry.agentPlugin("openai");
       const release = await registry.draft(
-        current.code + "\nmodule.exports.meta.version='2.0.0';",
+        `${current.code}\nmodule.exports.meta.version='2.0.0';`,
         "builtin",
       );
       const fields = {
@@ -2884,16 +3172,15 @@ describe("S3 设置持久化", () => {
   });
   it("停用按标识提交：预览版本已删除仍能停用剩余版本，整组消失则不创建幽灵状态", async () => {
     await withRegistry(async ({ registry }) => {
-      const source =
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='toggle-live';";
+      const source = `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='toggle-live';`;
       const first = await registry.draft(source);
-      const second = await registry.draft(source + "\n");
+      const second = await registry.draft(`${source}\n`);
       registry.pluginRemove({ hash: second.hash, allVersions: false });
       expect(registry.pluginToggle({ key: first.key, enabled: false })).toMatchObject({
         hash: first.hash,
         disabled: true,
       });
-      expect((await registry.draft(source + "\n\n")).disabled).toBe(true);
+      expect((await registry.draft(`${source}\n\n`)).disabled).toBe(true);
       registry.pluginRemove({ hash: first.hash, allVersions: true });
       expect(() => registry.pluginToggle({ key: first.key, enabled: false })).toThrow(
         "PLUGIN_VERSION_MISSING",
@@ -2984,7 +3271,12 @@ describe("S3 设置持久化", () => {
         const body = registry.agentModel(saved.id).body;
         const documentText = JSON.stringify({
           ...body,
-          channels: [{ ...body.channels[0], protocol: { ...body.channels[0]!.protocol, version } }],
+          channels: [
+            {
+              ...body.channels[0],
+              protocol: { ...requireTestValue(body.channels[0]).protocol, version },
+            },
+          ],
         });
         const change = {
           ...fields,
@@ -3283,7 +3575,9 @@ describe("S3 设置持久化", () => {
         settings: {},
       };
       const live = registry.modelSave(original);
-      const plugin = registry.list().plugins.find((entry) => entry.key === "openai-image")!;
+      const plugin = requireTestValue(
+        registry.list().plugins.find((entry) => entry.key === "openai-image"),
+      );
       const change = {
         ...original,
         id: live.id,
@@ -3549,7 +3843,7 @@ describe("S3 设置持久化", () => {
       await expect(
         fetchModelCatalog(fields, { auth: { type, name } }, "fixture-key", transport),
       ).resolves.toEqual({ models: ["sample"] });
-      const [request] = transport.mock.calls.at(-1)!;
+      const [request] = requireTestValue(transport.mock.calls.at(-1));
       if (type === "header") expect(request.headers[name]).toBe("fixture-key");
       else expect([...new URL(request.url).searchParams]).toEqual([[name, "fixture-key"]]);
     }
@@ -3859,7 +4153,7 @@ describe("S3 设置持久化", () => {
       expect(pull(first, [upstream, "中文", "A".repeat(99)])).toEqual({ added: 3 });
       const models = registry.list().providers;
       expect(models.map((model) => model.modelKey)).toEqual(["acme.X", "model", "A".repeat(80)]);
-      const original = models[0]!;
+      const original = requireTestValue(models[0]);
       const body = registry.agentModel("acme.X").body;
       expect(body).toMatchObject({
         key: "acme.X",
@@ -4198,7 +4492,7 @@ describe("S3 设置持久化", () => {
   it("分配版本号并按共享连接升级模型，拒绝不兼容配置与删除引用", async () => {
     await withRegistry(async ({ registry, input }) => {
       const plugin = await registry.draft(
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='upgrade-fixture';",
+        `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='upgrade-fixture';`,
       );
       const first = await registry.draft(`${plugin.source}\n// First revision`);
       const second = await registry.draft(`${plugin.source}\n// Second revision`);
@@ -4370,7 +4664,7 @@ describe("S3 设置持久化", () => {
         Array.from({ length: 32 }, () => registry.preview(request)),
       );
       expect(new Set(proposals.map((proposal) => proposal.orderNo)).size).toBe(32);
-      const reserved = proposals[0]!.orderNo;
+      const reserved = requireTestValue(proposals[0]).orderNo;
       await expect(registry.reverseProposal(reserved, "owner")).rejects.toMatchObject({
         code: "SETTINGS_PROPOSAL_INVALID",
       });
@@ -4517,6 +4811,10 @@ describe("S3 设置持久化", () => {
           skipped: 0,
           items: [{ field: "label", before: profile.label, after: "已提交", status: "applied" }],
         });
+        const reverse = await registry.reverseProposal(
+          proposal.orderNo,
+          requireTestValue(sessions[0]),
+        );
         await expect(registry.applyProposal("stale-fixture", proposal, [0])).rejects.toMatchObject({
           code: "SETTINGS_REVISION_CONFLICT",
         });
@@ -4527,6 +4825,23 @@ describe("S3 设置持久化", () => {
           "replacement-fixture",
         );
         create("admin_test_run", registry.actionTarget("admin_test_run", profile.id, 3));
+        const forward = store.getApproval("1", changeId);
+        const rollback = store.createApproval({
+          runId: forward.runId,
+          sessionId: forward.sessionId,
+          userId: "1",
+          canvasId: "0",
+          kind: "admin_change",
+          toolCallId: "rollback",
+          payload: reverse,
+          quoteCredits: 0,
+          status: "pending",
+          expiresAt: Date.now() + 60_000,
+        });
+        store.updateApprovalIf(rollback.id, ["pending"], {
+          status: "approved",
+          decision: forward.decision,
+        });
       } finally {
         store.close();
         targets.close();
@@ -4567,12 +4882,37 @@ describe("S3 设置持久化", () => {
             { configured: true },
             { code: "PROVIDER_OUTCOME_UNKNOWN" },
           ]);
-          for (const [index, sessionId] of sessions.entries())
+          for (const [index, sessionId] of sessions.entries()) {
+            const decisions = (await runtime.page(scope, sessionId, 0)).events.filter(
+              (event) => event.type === "approval.decided",
+            );
             expect(
-              (await runtime.page(scope, sessionId, 0)).events.filter(
-                ({ type }) => type === "approval.decided",
-              ),
-            ).toMatchObject([{ approvalId: approvalIds[index] }]);
+              decisions.filter((event) => event.approvalId === approvalIds[index]),
+            ).toHaveLength(1);
+            if (index === 0) {
+              const failed = decisions.filter((event) => event.approvalId !== approvalIds[index]);
+              expect(failed).toMatchObject([
+                { payload: { kind: "admin_change", status: "failed" } },
+              ]);
+              expect((requireTestValue(failed[0]).payload as { payload: unknown }).payload).toEqual(
+                {
+                  revertOf: savedReceipt.order,
+                },
+              );
+            } else expect(decisions).toHaveLength(1);
+          }
+          const trialHistory = await runtime.page(scope, requireTestValue(sessions[2]), 0);
+          const trialDecision = trialHistory.events.find(
+            (event) => event.type === "approval.decided",
+          );
+          expect(trialDecision?.payload).toMatchObject({
+            kind: "admin_test_run",
+            status: "failed",
+            result: { code: "PROVIDER_OUTCOME_UNKNOWN" },
+          });
+          expect((trialDecision?.payload as { payload: unknown } | undefined)?.payload).toEqual({
+            label: "已提交",
+          });
           expect(registry.provider(profile.id)).toMatchObject({
             revision: 3,
             label: "已提交",
@@ -4619,6 +4959,137 @@ it("S3 生产传输拒绝跨源、重定向和未授权的本机端点", async (
   }
 });
 
+it("片场转写经项目文本模型校验重试，失败和取消保留已存稿", async () => {
+  await withRegistry(async ({ registry, input, directory }) => {
+    const source = "@[信使](n1)敲门。@[信使](n1)转身。";
+    const valid =
+      "integrated_multimodal_description: 0-5秒 @[信使](n1)转身。\noverall_soundscape: 雨声\nnon_diegetic_music: 无";
+    const replies = [
+      valid.replace("@[信使](n1)", "信使"),
+      valid,
+      source,
+      valid.replace("0-5秒", "0-7秒"),
+    ];
+    const requests: { model: string; variables: unknown }[] = [];
+    const controller = new AbortController();
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const prompt = body.messages.at(-1).content;
+      requests.push({
+        model: body.model,
+        variables: JSON.parse(prompt.split("```json\n")[1].split("\n```")[0]),
+      });
+      if (requests.length === 5) {
+        controller.abort();
+        return;
+      }
+      const delta = { content: JSON.stringify({ prompt: replies[requests.length - 1] }) };
+      response
+        .writeHead(200, { "content-type": "text/event-stream" })
+        .end(
+          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+        );
+    });
+    let store = await ProjectStore.create(directory, "片场转写");
+    server.listen(0, "127.0.0.1");
+    try {
+      await once(server, "listening");
+      const address = server.address();
+      if (!address || typeof address === "string") throw Error("回环服务缺少端口");
+      const endpoint = `http://127.0.0.1:${address.port}`;
+      registry.save(input);
+      const model = registry.save({
+        ...input,
+        fields: { ...input.fields, endpoint, label: "片场模型", model: "fixture-adapt" },
+      });
+      const style = "纸上水墨";
+      const doc = await createDrama(store, {
+        title: "来信",
+        script: "敲门。",
+        styleKey: "custom",
+        styleCustom: style,
+        ratio: "16:9",
+        textModel: model.id,
+      });
+      const added = await addDramaSegment(store, {
+        episode_no: 1,
+        revision: doc.revision,
+        prompt: source,
+        seconds: 5,
+      });
+      const segment = requireTestValue(requireTestValue(added.segments)[0]);
+      const args = {
+        segmentId: segment.id,
+        episodeNo: 1,
+        episodeOrder: 0,
+        revision: segment.revision,
+        format: "h3",
+      };
+      const saved = await adaptDramaSegment(store, registry, args, controller.signal);
+      const variables = {
+        source_prompt: source,
+        seconds: 5,
+        ratio: "16:9",
+        style,
+        assets: [{ node_id: "n1", name: "信使" }],
+      };
+      expect(requests).toEqual([
+        { model: "fixture-adapt", variables },
+        {
+          model: "fixture-adapt",
+          variables: {
+            ...variables,
+            validation_error: expect.stringContaining("丢了原稿里的引用"),
+          },
+        },
+      ]);
+      const stored = requireTestValue(requireTestValue(saved.segments)[0]);
+      expect(stored).toMatchObject({
+        prompt: source,
+        revision: segment.revision + 1,
+        adaptations: {
+          h3: {
+            prompt: valid,
+            source_hash: createHash("sha256").update(source).digest("hex"),
+            edited: false,
+          },
+        },
+      });
+      const retry = { ...args, revision: stored.revision };
+      await expect(
+        adaptDramaSegment(store, registry, retry, controller.signal),
+      ).rejects.toMatchObject({ code: "模型输出无法解析" });
+      expect(requests.slice(2)).toEqual([
+        { model: "fixture-adapt", variables },
+        {
+          model: "fixture-adapt",
+          variables: {
+            ...variables,
+            validation_error: expect.stringContaining("缺少字段 integrated_multimodal_description"),
+          },
+        },
+      ]);
+      await expect(adaptDramaSegment(store, registry, retry, controller.signal)).rejects.toThrow();
+      expect(requests).toHaveLength(5);
+      const path = store.directory;
+      await store.close();
+      store = await ProjectStore.open(path);
+      expect(dramaDocument(store.snapshot)).toEqual(saved);
+      const read = await new DramaTools().command(store, "drama-read", {
+        runId: "read",
+        input: { scope: "segments", episode_no: 1 },
+      });
+      expect(read).toMatchObject([{ prompt: source, adaptations: stored.adaptations }]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await store.close();
+    }
+  });
+});
+
 it("小说研读与分集规划经回环模型返回，遗漏末章的格式段携带反馈重试", async () => {
   await withRegistry(async ({ registry, input }) => {
     const analysis = {
@@ -4642,15 +5113,19 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
       JSON.stringify({ episodes: [episode] }),
     ];
     const requests: string[] = [];
+    const envelopes: { messages: { role: string }[]; max_tokens?: number }[] = [];
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      requests.push(JSON.parse(Buffer.concat(chunks).toString()).messages.at(-1).content);
-      const delta = { content: replies[requests.length - 1] };
+      const envelope = JSON.parse(Buffer.concat(chunks).toString());
+      envelopes.push(envelope);
+      requests.push(envelope.messages.at(-1).content);
+      const truncated = requests.length > replies.length;
+      const delta = { content: truncated ? "部分输出" : replies[requests.length - 1] };
       response
         .writeHead(200, { "content-type": "text/event-stream" })
         .end(
-          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+          `data: ${JSON.stringify({ choices: [{ delta, finish_reason: truncated ? "length" : "stop" }] })}\n\ndata: [DONE]\n\n`,
         );
     });
     server.listen(0, "127.0.0.1");
@@ -4685,8 +5160,14 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
         ),
       ).resolves.toEqual({ episodes: [episode] });
       const variables = requests.map((prompt) =>
-        JSON.parse(prompt.split("```json\n")[1]!.split("\n```")[0]!),
+        JSON.parse(
+          requireTestValue(requireTestValue(prompt.split("```json\n")[1]).split("\n```")[0]),
+        ),
       );
+      for (const envelope of envelopes) {
+        expect(envelope.messages.map((message) => message.role)).toEqual(["user"]);
+        expect(envelope.max_tokens).toBeUndefined();
+      }
       expect(variables).toEqual([
         { source, source_kind: "novel" },
         { source, source_summary: analysis.summary },
@@ -4698,6 +5179,16 @@ it("小说研读与分集规划经回环模型返回，遗漏末章的格式段�
           validation_error: expect.stringContaining("规划未覆盖批次末尾"),
         },
       ]);
+      await expect(
+        registry.dramaAssetStage(
+          model,
+          "plan",
+          { source, source_summary: analysis.summary },
+          scope,
+          signal,
+        ),
+      ).rejects.toMatchObject({ code: "DRAMA_OUTPUT_TRUNCATED" });
+      expect(requests).toHaveLength(5);
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -4906,7 +5397,7 @@ it("渠道 Agent 流活跃时续期、静默时释放唯一名额，兼容整段
     let first = true;
     const requests: string[] = [];
     const server = createServer((request, response) => {
-      requests.push(request.url!);
+      requests.push(requireTestValue(request.url));
       if (mode === "auth") {
         response.writeHead(401).end("private error detail");
         return;
@@ -5010,7 +5501,10 @@ it("渠道 Agent 流活跃时续期、静默时释放唯一名额，兼容整段
       const saved = registry.agentBinding(model.id, model.revision);
       const binding = {
         ...saved,
-        profile: { ...saved.profile, config: { ...model.config!, timeoutSeconds: 0.25 } },
+        profile: {
+          ...saved.profile,
+          config: { ...requireTestValue(model.config), timeoutSeconds: 0.25 },
+        },
       };
       const probe = (timeout = 3000) =>
         probeAgentStream(binding, registry.redactor(), timeout, { prompt: "hi" });

@@ -95,17 +95,27 @@ export function CardHeading({
             if (next !== label) commit(next);
           }}
         />
+      ) : disabled ? (
+        <strong>{label}</strong>
       ) : (
-        <strong
-          title={disabled ? undefined : "双击重命名"}
-          onDoubleClick={(event) => {
-            if (!disabled) {
+        <strong>
+          <button
+            type="button"
+            className="canvas-card-rename nopan"
+            aria-label={`重命名节点：${label}`}
+            title="双击重命名"
+            onClick={(event) => {
+              if (event.detail !== 0) return;
               event.stopPropagation();
               setDraft(label);
-            }
-          }}
-        >
-          {label}
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              setDraft(label);
+            }}
+          >
+            {label}
+          </button>
         </strong>
       )}
       {(status || ["script", "image", "audio", "video"].includes(kind)) && (

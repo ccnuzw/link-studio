@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { ProjectStore } from "../../src/main/project/store";
 import { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 
 test("插件目录区分首次读取、可重试的故障和无插件，空态可打开上传", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-plugin-loading-"));
@@ -20,7 +21,7 @@ test("插件目录区分首次读取、可重试的故障和无插件，空态�
   });
   try {
     const page = await app.firstWindow();
-    await expect(page.getByRole("button", { name: "模型设置" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "应用设置" })).toBeVisible();
     await app.evaluate(({ ipcMain }) => {
       const name = "link-studio:settings:list";
       ipcMain.removeHandler(name);
@@ -32,7 +33,7 @@ test("插件目录区分首次读取、可重试的故障和无插件，空态�
         return { ok: false, code: "SETTINGS_ACTION_FAILED" };
       });
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     const catalog = page.getByRole("region", { name: "插件目录" });
     await expect(catalog.getByLabel("加载中")).toHaveCount(3);
@@ -41,7 +42,7 @@ test("插件目录区分首次读取、可重试的故障和无插件，空态�
     await expect(catalog.getByRole("alert")).toHaveText("加载失败");
     await catalog.getByRole("button", { name: "重试" }).click();
     await expect(catalog.getByText("还没有插件")).toBeVisible();
-    await catalog.getByRole("button", { name: "上传插件" }).click();
+    await page.getByRole("button", { name: "上传插件", exact: true }).click();
     const upload = page.getByRole("dialog", { name: "上传插件" });
     const field = upload.getByLabel("选择插件文件");
     const submit = upload.getByRole("button", { name: "上传", exact: true });
@@ -143,7 +144,7 @@ test("插件详情读取不锁页签；忽略前一插件迟到的错误，当�
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     const opened = await page.evaluate(() =>
       window.desktop.settings.pluginDetail({ key: "kling" }),
@@ -210,13 +211,20 @@ test("版本详情的计数与历史引用独立读取，列表失败或过期�
       `${source}\nmodule.exports.meta.key='history-pins';`,
     );
     if (!upload.ok) throw Error(upload.code);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     const pins = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         list = await api.list({});
       if (!list.ok) throw Error(list.code);
-      const plugin = list.value.plugins.find((entry) => entry.key === "history-pins")!;
+      const plugin = requireTestValue(
+        list.value.plugins.find((entry) => entry.key === "history-pins"),
+      );
       const channel = await api.channelSave({
         expectedRevision: 0,
         approve: true,
@@ -322,15 +330,21 @@ test("版本详情的计数与历史引用独立读取，列表失败或过期�
     await expect(dialog.getByText("等 10 个")).toBeVisible();
     await expect(dialog.getByText("已过期名单")).toHaveCount(0);
     await page.evaluate(async (id) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         list = await api.list({});
       if (!list.ok) throw Error(list.code);
       const removed = await api.modelRemove({
         id,
-        expectedRevision: list.value.providers.find((item) => item.id === id)!.revision,
+        expectedRevision: requireTestValue(list.value.providers.find((item) => item.id === id))
+          .revision,
       });
       if (!removed.ok) throw Error(removed.code);
-    }, pins[6]!.id);
+    }, requireTestValue(pins[6]).id);
     await dialog.getByRole("link", { name: "历史样例 6" }).click();
     await expect(page.getByRole("region", { name: "插件通知" })).toContainText(
       "未找到可打开的渠道模型",
@@ -354,7 +368,7 @@ test("Agent 插件可登记和编辑，但不提供生成或离线执行能力",
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     await page.getByRole("button", { name: "上传插件", exact: true }).click();
     const upload = page.getByRole("dialog", { name: "上传插件" });
@@ -479,7 +493,7 @@ test("启动清理撤包内置插件，已被任务固定的保留到任务结�
     for (const remaining of [2, 1]) {
       app = await launch();
       const page = await app.firstWindow();
-      await page.getByRole("button", { name: "模型设置" }).click();
+      await page.getByRole("button", { name: "应用设置" }).click();
       await page.getByRole("button", { name: "适配器管理" }).click();
       await page.getByRole("searchbox", { name: "搜索插件" }).fill("removed-");
       const rows = page
@@ -535,7 +549,7 @@ test("删除插件首次预检可重试，写入冲突后保留输入和两类�
     const source = await readFile("resources/provider-plugins/openai.js", "utf8");
     const saved = await page.evaluate(
       (source) => window.desktop.settings.draft({ source }),
-      source + "\nmodule.exports.meta.key='retry-delete';",
+      `${source}\nmodule.exports.meta.key='retry-delete';`,
     );
     if (!saved.ok) throw Error(saved.code);
     await app.evaluate(({ ipcMain }) => {
@@ -551,7 +565,7 @@ test("删除插件首次预检可重试，写入冲突后保留输入和两类�
         return { ok: true, value: { builtin: false, models: [], jobs: reads > 2 ? 1 : 0 } };
       });
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     await page.getByRole("searchbox", { name: "搜索插件" }).fill("retry-delete");
     await page
@@ -670,10 +684,12 @@ test("升级弹窗保留预览，确认与重试各自重新选择版本和全�
       );
     await bind("initial", true);
     const preview = await release("2.0.0");
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     await page.getByRole("searchbox", { name: "搜索插件" }).fill("fixture-live");
     const upgradeButton = page.getByRole("button", { name: "升级模型 实时升级", exact: true });
+    await upgradeButton.hover();
+    await expect(upgradeButton).toHaveCSS("cursor", "pointer");
     const notices = page.getByRole("region", { name: "插件通知" });
     await page.evaluate(async () => {
       const api = window.desktop.settings;
@@ -735,7 +751,7 @@ test("升级弹窗保留预览，确认与重试各自重新选择版本和全�
     });
     const fifth = await release("5.0.0", true);
     await page.reload();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     await page.getByRole("searchbox", { name: "搜索插件" }).fill("fixture-live");
     await upgradeButton.click();
@@ -753,7 +769,7 @@ test("升级弹窗保留预览，确认与重试各自重新选择版本和全�
     await dialog.getByRole("button", { name: "取消" }).click();
     await bind("stale-detail", false, first, restored);
     await page.reload();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     await page.getByRole("searchbox", { name: "搜索插件" }).fill("fixture-live");
     await app.evaluate(({ ipcMain }) => {
@@ -794,7 +810,7 @@ test("渠道模型引用与适配器版本管理", async () => {
     );
     try {
       await seed.draft(
-        seed.agentPlugin("openai").code + "\nmodule.exports.meta.version='1.2.0';",
+        `${seed.agentPlugin("openai").code}\nmodule.exports.meta.version='1.2.0';`,
         "builtin",
       );
     } finally {
@@ -844,7 +860,7 @@ test("渠道模型引用与适配器版本管理", async () => {
       }
       return plugin;
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await expect(page.getByRole("switch", { name: "beta-chat 上线" })).toBeChecked();
 
     const windowHandle = await app.browserWindow(page);
@@ -854,6 +870,10 @@ test("渠道模型引用与适配器版本管理", async () => {
     const catalog = page.getByRole("region", { name: "插件目录" });
     const table = catalog.getByRole("table", { name: "Provider 插件" });
     await expect(table.getByRole("row")).toHaveCount(21);
+    const noUpgrade = table.getByTitle("没有固定在旧版本上的模型", { exact: true }).first();
+    await expect(noUpgrade).toBeDisabled();
+    await noUpgrade.hover();
+    await expect(noUpgrade).toHaveCSS("cursor", "default");
     await catalog.getByRole("button", { name: "最后一页" }).click();
     await expect(catalog.getByRole("button", { name: "下一页" })).toBeDisabled();
     await catalog.getByRole("button", { name: "第 1 页", exact: true }).click();
@@ -905,10 +925,15 @@ test("渠道模型引用与适配器版本管理", async () => {
       await expect(submitUpload).toBeDisabled();
       await expect(upload.getByRole("button", { name: "复制修复信息" })).toHaveCount(0);
       await fileInput.evaluate((input: HTMLInputElement) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         input.addEventListener(
           "change",
           () => {
-            const file = input.files![0]!;
+            const file = requireTestValue(requireTestValue(input.files)[0]);
             const read = file.text.bind(file);
             file.text = async () => {
               await new Promise<void>((resolve) =>
@@ -1018,7 +1043,7 @@ test("渠道模型引用与适配器版本管理", async () => {
     const oldVersion = details.getByText(`v${openai.version}`, { exact: true });
     await expect(details.getByRole("button", { name: /编辑草稿/ })).toHaveCount(0);
     const rejected = await page.evaluate(
-      (source) => window.desktop.settings.draft({ source: source + "\n" }),
+      (source) => window.desktop.settings.draft({ source: `${source}\n` }),
       openai.source,
     );
     expect(rejected).toMatchObject({ ok: false, code: "PLUGIN_BUILTIN_KEY_RESERVED" });
@@ -1168,7 +1193,7 @@ test("渠道模型引用与适配器版本管理", async () => {
     await app.close();
     app = await launch();
     const reopened = await app.firstWindow();
-    await reopened.getByRole("button", { name: "模型设置" }).click();
+    await reopened.getByRole("button", { name: "应用设置" }).click();
     const restored = await reopened.evaluate(() => window.desktop.settings.list({}));
     if (!restored.ok) throw new Error(restored.code);
     expect(latestRelease.registeredAt).toBeTruthy();
@@ -1290,17 +1315,27 @@ test("渠道模型引用与适配器版本管理", async () => {
       reopened.getByRole("table").getByRole("row").filter({ hasText: "fixture-upload" }),
     ).toHaveCount(1);
     const before = await reopened.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const listing = await api.list({});
       if (!listing.ok) throw Error(listing.code);
-      const latest = listing.value.plugins.find(
-        (entry) => entry.key === "fixture-upload" && entry.version === "1.2.2",
-      )!;
-      return api.pluginUpload({ source: latest.source + "\n// transient history test" });
+      const latest = requireTestValue(
+        listing.value.plugins.find(
+          (entry) => entry.key === "fixture-upload" && entry.version === "1.2.2",
+        ),
+      );
+      return api.pluginUpload({ source: `${latest.source}\n// transient history test` });
     });
     if (!before.ok) throw Error(before.code);
-    await reopened.getByRole("button", { name: "返回工作区" }).click();
-    await reopened.getByRole("button", { name: "模型设置" }).click();
+    await reopened
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
+    await reopened.getByRole("button", { name: "应用设置" }).click();
     await reopened.getByRole("button", { name: "适配器管理", exact: true }).click();
     await filter.fill("fixture-upload");
     await expect(more).toHaveCount(1);

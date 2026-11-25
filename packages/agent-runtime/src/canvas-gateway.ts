@@ -86,7 +86,7 @@ const declarations = [
   tool(
     "canvas_apply_ops",
     "修改画布",
-    "原子执行最多 30 项。create_node 新建节点，tempId 供本批引用；update_node 修改标题、提示词、model、mode 或 params。先选模型，再设置其支持的生成方式和参数。自动判断文生图/图生图的模型不要设 mode。move 移动节点，connect 连入参考素材，不用 params 传素材或 op。分镜表用 kind=storyboard，storyboard.shots 整表替换，storyboard.edits 按当时镜号（从 1 起）更新、插入、删除、移动。create_group 用 memberIds 建组，set_group 可改组名和用 addMembers、removeMembers 调整成员。先精读已有目标。",
+    "原子执行最多 30 项。create_node 新建节点，tempId 供本批引用。用 parentGroup 指定已有组或本批新组，在组内创建时 position 相对组左上角，省略则接在成员右侧。update_node 修改标题、提示词、model、mode 或 params。先选模型，再设置其支持的生成方式和参数。自动判断文生图/图生图的模型不要设 mode。move 移动节点，connect 连入参考素材，不用 params 传素材或 op。分镜表用 kind=storyboard，storyboard.shots 整表替换，storyboard.edits 按当时镜号（从 1 起）更新、插入、删除、移动。create_group 用 memberIds 建组，set_group 可改组名和用 addMembers、removeMembers 调整成员。两者均可用 color 和 labelColor 设置组框和标签颜色，空字符串清除对应颜色。先精读已有目标。",
     CanvasAgentOps,
   ),
   tool(

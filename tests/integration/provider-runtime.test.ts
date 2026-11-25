@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { providerInput } from "../../packages/link-studio-core/src/provider-input";
 import { checkDraft } from "../../packages/provider-runtime/src/draft";
 import {
   type Binding,
@@ -14,6 +15,7 @@ import {
 } from "../../packages/provider-runtime/src/host";
 import { inspectPlugin, validateResult } from "../../packages/provider-runtime/src/plugin";
 import { PluginRunner, sourceHash } from "../../packages/provider-runtime/src/runner";
+import { requireTestValue } from "../require-test-value";
 
 const runner = new PluginRunner(
   process.env.LINK_STUDIO_PROVIDER_RUNNER ?? join(process.cwd(), "out/provider-runtime/runner"),
@@ -517,6 +519,25 @@ describe.skipIf(process.platform !== "darwin")("M0-02 Provider Runtime", () => {
       ),
     ).toMatchObject({ providerTaskId: "models/veo-test/operations/fixture" });
   });
+
+  it.each([
+    ["hailuo", "MiniMax-H3", "2K", undefined, { resolution: "2K" }],
+    ["sora", "sora-2-pro", "1080P", "9:16", { size: "1024x1792" }],
+    ["sora", "sora-2-pro", "1080P", undefined, { size: "1792x1024" }],
+    ["sora", "sora-2", "720P", "9:16", { size: "720x1280" }],
+  ] as const)(
+    "%s 将 %s 的 %s 清晰度与 %s 画幅写入请求",
+    async (adapter, model, resolution, aspectRatio, expected) => {
+      const input = providerInput("video", adapter, { resolution, aspectRatio });
+      const request = await runner.call(requireTestValue(plugins[adapter]), "buildSubmitRequest", [
+        {
+          ...context(input),
+          model: { upstreamModel: model },
+        },
+      ]);
+      expect(request).toMatchObject({ json: expected });
+    },
+  );
 
   it("Sora 参考素材直传、任务 ID 和跨调用 state 恢复，不重复 submit", async () => {
     const selected = binding(plugins.sora ?? "");

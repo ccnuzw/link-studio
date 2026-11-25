@@ -41,8 +41,9 @@ export function priceDimensions(
           mediaGenerationOptions(config.kind, adapter, model, settings),
         )
       : []);
-  if (modes.length > 1)
-    dimensions.push({ key: "op", label: "生成方式", values: modes, initial: modes[0]! });
+  const [initialMode, anotherMode] = modes;
+  if (initialMode !== undefined && anotherMode !== undefined)
+    dimensions.push({ key: "op", label: "生成方式", values: modes, initial: initialMode });
   if (caps.refs?.video?.on)
     dimensions.push({
       key: "ref_video",

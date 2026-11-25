@@ -37,7 +37,7 @@ try {
       [512, 512],
       [17, 5],
     ][index % 6];
-    const name = ["相同.png", "相同.mp4", "   ", " .hidden", "🍎".repeat(46) + ".wav"][index % 5];
+    const name = ["相同.png", "相同.mp4", "   ", " .hidden", `${"🍎".repeat(46)}.wav`][index % 5];
     return {
       id: String(index),
       kind: ["image", "video", "audio"][index % 3],

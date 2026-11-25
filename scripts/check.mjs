@@ -1,13 +1,21 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const [mode = "quality", ...options] = process.argv.slice(2);
-if (!["quality", "desktop"].includes(mode) || options.some((option) => option !== "--package")) {
-  throw new Error("用法：node scripts/check.mjs quality|desktop [--package]");
+const [mode = "quality", option, ...extra] = process.argv.slice(2);
+const desktopStages = ["build", "integration", "upstream", "e2e"];
+const fastDesktopStages = ["build", "integration", "upstream"];
+const packageStages = ["package", "packaged-e2e"];
+if (
+  extra.length ||
+  !["quality", "desktop"].includes(mode) ||
+  (option !== undefined &&
+    (mode !== "desktop" ||
+      ![...desktopStages, ...packageStages, "fast", "--package"].includes(option)))
+) {
+  throw new Error("用法：node scripts/check.mjs quality | desktop [fast | --package | 阶段名]");
 }
-if (mode === "quality" && options.length) throw new Error("--package 仅用于 desktop 检查");
 
 function run(command, args, environment = {}) {
   console.log(`\n> ${command} ${args.join(" ")}`);
@@ -18,7 +26,10 @@ function run(command, args, environment = {}) {
     shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  if (result.status !== 0) {
+    process.exitCode = result.status ?? 1;
+    throw new Error(`${command} ${args.join(" ")} 退出：${result.signal ?? result.status}`);
+  }
 }
 
 async function verifyIntegrationReport() {
@@ -48,10 +59,20 @@ async function verifyIntegrationReport() {
 
 async function runE2E(name, environment = {}) {
   const path = `test-results/${name}.json`;
-  run("pnpm", ["exec", "playwright", "test", "--reporter=line,json"], {
-    ...environment,
-    PLAYWRIGHT_JSON_OUTPUT_FILE: path,
-  });
+  run(
+    "pnpm",
+    [
+      "exec",
+      "playwright",
+      "test",
+      "--reporter=line,json",
+      `--output=test-results/playwright-${name}`,
+    ],
+    {
+      ...environment,
+      PLAYWRIGHT_JSON_OUTPUT_FILE: path,
+    },
+  );
   const report = JSON.parse(await readFile(new URL(path, new URL("..", import.meta.url)), "utf8"));
   if (
     report.stats.expected < 1 ||
@@ -63,14 +84,7 @@ async function runE2E(name, environment = {}) {
   }
 }
 
-if (mode === "quality") {
-  for (const script of ["typecheck", "lint", "test"]) run("pnpm", [script]);
-} else {
-  if (process.platform !== "darwin" || process.arch !== "arm64") {
-    throw new Error("完整桌面检查当前要求 macOS arm64，不能用其他平台的跳过结果代替");
-  }
-  await mkdir(new URL("../test-results/", import.meta.url), { recursive: true });
-  run("pnpm", ["build"]);
+async function runIntegration() {
   run("pnpm", [
     "exec",
     "vitest",
@@ -82,16 +96,58 @@ if (mode === "quality") {
     "--outputFile=test-results/integration.json",
   ]);
   await verifyIntegrationReport();
-  run("pnpm", ["test:agent:upstream"]);
-  await runE2E("desktop");
-  if (options.includes("--package")) {
+}
+
+const stages = {
+  build: () => run("pnpm", ["build"]),
+  integration: runIntegration,
+  upstream: () => run("pnpm", ["test:agent:upstream"]),
+  e2e: () => runE2E("desktop"),
+  package: () =>
     run("pnpm", ["exec", "electron-builder", "--mac", "dir", "--arm64", "--publish", "never"], {
       CSC_IDENTITY_AUTO_DISCOVERY: "false",
-    });
-    await runE2E("packaged", {
+    }),
+  "packaged-e2e": () =>
+    runE2E("packaged", {
       LINK_STUDIO_E2E_EXECUTABLE: fileURLToPath(
         new URL("../release/mac-arm64/灵可.app/Contents/MacOS/灵可", import.meta.url),
       ),
-    });
+    }),
+};
+
+if (mode === "quality") {
+  for (const script of ["typecheck", "lint", "test"]) run("pnpm", [script]);
+} else {
+  if (process.platform !== "darwin" || process.arch !== "arm64") {
+    throw new Error("完整桌面检查当前要求 macOS arm64，不能用其他平台的跳过结果代替");
   }
+  await mkdir(new URL("../test-results/", import.meta.url), { recursive: true });
+  const selected =
+    option === "--package"
+      ? [...desktopStages, ...packageStages]
+      : option === "fast"
+        ? fastDesktopStages
+        : option
+          ? [option]
+          : desktopStages;
+  const failed = [];
+  for (const stage of selected) {
+    if (stage === "packaged-e2e" && failed.includes("package")) continue;
+    const started = Date.now();
+    try {
+      await stages[stage]();
+    } catch (error) {
+      if (stage === "build" || selected.length === 1) throw error;
+      console.error(error);
+      failed.push(stage);
+    } finally {
+      if (process.env.GITHUB_OUTPUT) {
+        await appendFile(
+          process.env.GITHUB_OUTPUT,
+          `seconds=${Math.ceil((Date.now() - started) / 1000)}\n`,
+        );
+      }
+    }
+  }
+  if (failed.length) throw new Error(`桌面验收失败：${failed.join(", ")}`);
 }

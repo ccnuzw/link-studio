@@ -1,4 +1,5 @@
 import type { DirectorCamera, DirectorScene } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import type { CameraPose } from "./director-sample";
 
 type CameraKey = DirectorCamera["keys"][number];
@@ -197,7 +198,7 @@ function presetTarget(scene: DirectorScene, camera: DirectorCamera, start: Camer
   ];
   let best: { depth: number; target: NonNullable<ReturnType<typeof chest>> } | undefined;
   for (const character of scene.characters) {
-    const target = chest(character.id)!;
+    const target = requirePresent(chest(character.id), "chest(character.id)");
     const d: Vec3 = [
       target.point[0] - start.x,
       target.point[1] - start.y,

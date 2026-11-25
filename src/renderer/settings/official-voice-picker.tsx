@@ -1,8 +1,10 @@
 import { Menu } from "@base-ui/react/menu";
 import { Music2 } from "lucide-react";
 import { useState } from "react";
+import catalog from "./official-voices.json";
 
 export type OfficialVoice = { name: string; url: string };
+const voices = catalog.slice(0, 100);
 
 export function OfficialVoicePicker({
   disabled,
@@ -12,16 +14,8 @@ export function OfficialVoicePicker({
   onPick: (voice: OfficialVoice) => void;
 }) {
   const [trigger, setTrigger] = useState<HTMLElement | null>(null);
-  const [voices, setVoices] = useState<OfficialVoice[]>();
-  function load(open: boolean) {
-    if (!open || voices) return;
-    void import("./official-voices.json").then(
-      (catalog) => setVoices(catalog.default.slice(0, 100)),
-      () => setVoices([]),
-    );
-  }
   return (
-    <Menu.Root modal={false} onOpenChange={load}>
+    <Menu.Root modal={false} highlightItemOnHover={false}>
       <Menu.Trigger ref={setTrigger} disabled={disabled}>
         <Music2 size={14} />
         音色库
@@ -32,14 +26,23 @@ export function OfficialVoicePicker({
           positionMethod="fixed"
           align="start"
           sideOffset={6}
-          collisionBoundary={document.documentElement}
-          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          collisionBoundary={trigger?.closest("dialog") ?? document.documentElement}
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
         >
-          <Menu.Popup className="trial-ref-menu trial-voice-menu">
+          <Menu.Popup
+            className="trial-ref-menu trial-voice-menu"
+            onFocusCapture={(event) => {
+              if (event.target.getAttribute("role") === "menuitem")
+                event.target.scrollIntoView({
+                  block: "nearest",
+                  inline: "nearest",
+                  behavior: "instant",
+                });
+            }}
+          >
             <Menu.Group>
               <Menu.GroupLabel>音色库</Menu.GroupLabel>
-              {!voices?.length && <p>{voices ? "暂无音色" : "加载中…"}</p>}
-              {voices?.map((voice) => (
+              {voices.map((voice) => (
                 <Menu.Item key={voice.url} onClick={() => onPick(voice)}>
                   <span>{voice.name}</span>
                 </Menu.Item>

@@ -547,23 +547,26 @@ export function ChannelWorkspace({
                   >
                     <Power size={16} /> {channel.enabled ? "停用" : "启用"}
                   </button>
-                  <button
-                    type="button"
-                    className="model-danger"
-                    disabled={busy}
-                    onClick={() => {
-                      setRemovalChannel(channel);
-                      setMigrationTarget(
-                        channels.find((entry) => entry.id !== channel.id)?.id ?? "",
-                      );
-                      setDeleteName("");
-                      setNotice("");
-                      setDialog("remove-channel");
-                      void checkDelete();
-                    }}
-                  >
-                    <Trash2 size={16} /> 删除
-                  </button>
+                  <details className="channel-more">
+                    <summary>更多</summary>
+                    <button
+                      type="button"
+                      className="model-danger"
+                      disabled={busy}
+                      onClick={() => {
+                        setRemovalChannel(channel);
+                        setMigrationTarget(
+                          channels.find((entry) => entry.id !== channel.id)?.id ?? "",
+                        );
+                        setDeleteName("");
+                        setNotice("");
+                        setDialog("remove-channel");
+                        void checkDelete();
+                      }}
+                    >
+                      <Trash2 size={16} /> 删除
+                    </button>
+                  </details>
                 </div>
               </header>
               <code>{channel.endpoint}</code>
@@ -601,14 +604,20 @@ export function ChannelWorkspace({
               <h2>
                 模型管理 <small>{models.length}</small>
               </h2>
-              <div className="settings-actions">
-                <button type="button" disabled={!channel.enabled} onClick={() => setDialog("pull")}>
-                  <RefreshCw size={15} /> 拉取模型
-                </button>
-                <button type="button" className="settings-primary" onClick={newModel}>
-                  <Plus size={16} /> 新增模型
-                </button>
-              </div>
+              {!emptyChannelModels && (
+                <div className="settings-actions">
+                  <button
+                    type="button"
+                    disabled={!channel.enabled}
+                    onClick={() => setDialog("pull")}
+                  >
+                    <RefreshCw size={15} /> 拉取模型
+                  </button>
+                  <button type="button" className="settings-primary" onClick={newModel}>
+                    <Plus size={16} /> 新增模型
+                  </button>
+                </div>
+              )}
             </div>
             {emptyChannelModels ? (
               <section className="channel-models-empty" aria-label="渠道模型空状态">
@@ -620,10 +629,10 @@ export function ChannelWorkspace({
                     type="button"
                     className="settings-primary"
                     disabled={!channel.enabled}
-                    onClick={() => setDialog("pull")}
+                    onClick={() => setDialog(channel.hasSecret ? "pull" : "keys")}
                   >
                     <RefreshCw size={16} />
-                    拉取模型
+                    {channel.hasSecret ? "拉取模型" : "配置 API Key"}
                   </button>
                   <button type="button" onClick={newModel}>
                     <Plus size={16} />

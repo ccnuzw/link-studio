@@ -8,6 +8,7 @@ import {
   liveUploadFields,
   type UploadHistoryData,
 } from "../../src/renderer/workspace/upload-history";
+import { requireTestValue } from "../require-test-value";
 
 it.each([
   ["image", "png", 20],
@@ -62,8 +63,11 @@ it("撤销时保留当前上传的结果，副本不带上传任务或重试权"
       nodes: [{ id: "n", type: "creative" as const, position: { x: 0, y: 0 }, data: state }],
       edges: [],
     };
-    const copy = cloneSelection(captureSelection(graph, new Set(["n"]))!, graph, () => "copy")
-      .nodes[0];
+    const copy = cloneSelection(
+      requireTestValue(captureSelection(graph, new Set(["n"]))),
+      graph,
+      () => "copy",
+    ).nodes[0];
     expect(copy?.data).not.toHaveProperty("uploadPending");
     expect(copy?.data).not.toHaveProperty("uploadFailed");
     if (state === done) expect(copy?.data).toHaveProperty("assetId", "asset");

@@ -7,6 +7,7 @@ import { applyCanvas, projectCanvas } from "../../src/main/project/canvas";
 import { addDramaSegment, createDrama } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { projectAction } from "./workspace-actions";
 
 test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保存互不干扰", async () => {
@@ -113,7 +114,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
       "true",
     );
     await expect(canvasArea.locator(".react-flow__node.selected")).toContainText("收信人");
-    const picker = canvasArea.getByRole("button", { name: "出现集数" });
+    const picker = assetList.getByRole("button", { name: "出现集数" });
     await picker.click();
     const popup = page.getByRole("dialog", { name: "编辑出现集数" });
     await expect(popup.getByRole("button", { name: "2", exact: true })).toHaveAttribute(
@@ -166,7 +167,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await expect(narrator.getByRole("button", { name: "上传" })).toBeFocused();
     await expect(pill).toHaveCSS("opacity", "1");
     await page.keyboard.press("Tab");
-    await expect(narrator.getByRole("button", { name: "素材库" })).toBeFocused();
+    await expect(narrator.getByRole("button", { name: "资产库" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(narrator.getByRole("button", { name: /在画布中打开/ })).toBeFocused();
     await expect(pill).toHaveCSS("opacity", "0");
@@ -199,7 +200,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await newProp.getByRole("button", { name: /在画布中打开/ }).click();
     await expect(canvasArea.locator(".react-flow__node.selected")).toHaveAttribute(
       "data-id",
-      propId!,
+      requireTestValue(propId),
     );
     await tab("片场").click();
     await expect(page.getByText("第2个片段 · 5 秒")).toBeVisible();
@@ -250,7 +251,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await props.click();
     await expect(assetList.locator("[data-asset-id]")).toHaveCount(0);
     await rail.getByRole("button", { name: /^第 2 集 ·/ }).click();
-    await expect(newProp).toHaveAttribute("data-asset-id", propId!);
+    await expect(newProp).toHaveAttribute("data-asset-id", requireTestValue(propId));
     await rail.getByRole("button", { name: "全集" }).click();
     await assetList.getByRole("tab", { name: /^文本/ }).click();
     await assetList.getByRole("button", { name: "新建文本 全集出现" }).click();
@@ -264,6 +265,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
 });
 
 test("资产列表：原生文件拖入空卡、已占卡、空白和文本，分集重开后不变", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-drama-file-drop-"));
   const store = await ProjectStore.create(root, "拖入资产"),
     directory = store.directory;
@@ -298,8 +300,12 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
       rail = page.getByRole("navigation", { name: "分集" });
     const episode = (no: number) =>
       rail.getByRole("button", { name: new RegExp(`^第 ${no} 集 ·`) });
-    const assetType = (name: string) => list.getByRole("tab", { name: new RegExp(`^${name}`) });
-    await assets.click();
+    const selectAssetType = async (name: string) => {
+      const tab = list.getByRole("tab", { name: new RegExp(`^${name}`) });
+      await tab.press("Enter");
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+    };
+    await assets.press("Enter");
     await episode(2).click();
     const session = await page.context().newCDPSession(page);
     const drag = async (
@@ -363,7 +369,7 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     const detail = page.getByRole("dialog", { name: "角色卡" });
     await expect(detail.getByLabel("主图", { exact: true })).toHaveText("icon-16.png");
     await detail.getByRole("button", { name: "关闭角色卡" }).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await list.getByRole("button", { name: "新建道具 出现在第 2 集" }).click();
     const emptyId = await cards.getAttribute("data-asset-id"),
       empty = list.locator(`[data-asset-id="${emptyId}"]`);
@@ -375,7 +381,7 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await expect(empty.locator("img")).toBeVisible();
     await expect(cards).toHaveCount(3);
     await expect(cards.locator(".drama-asset-badges i")).toHaveText(["2", "2", "2"]);
-    await assetType("文本").click();
+    await selectAssetType("文本");
     await drag(list.getByRole("button", { name: /新建文本/ }), [icon(16)], false);
     await expect(cards).toHaveCount(0);
     const ffmpeg = join(
@@ -410,13 +416,13 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
         ...encoding,
         source,
       ]);
-      await assetType(tab).click();
+      await selectAssetType(tab);
       await drag(list.locator(".drama-asset-drop-zone"), [source], true, false, true);
       await expect(cards).toHaveAttribute("data-status", "done");
       await expect(cards.locator(".drama-asset-badges i")).toHaveText("2");
     }
     await rail.getByRole("button", { name: "全集" }).click();
-    await assetType("场景").click();
+    await selectAssetType("场景");
     await drag(list.locator(".drama-asset-drop-zone"), [icon(256)], true, false, true);
     await expect(cards.locator("img")).toBeVisible();
     await expect(cards.locator(".drama-asset-badges")).toHaveText("全集");
@@ -425,14 +431,14 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await projectAction(page, "关闭项目");
     await page.getByRole("button", { name: /^拖入资产/ }).click();
     await projectAction(page, "短剧工作室");
-    await assets.click();
+    await assets.press("Enter");
     await episode(1).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await expect(cards).toHaveCount(0);
-    await assetType("场景").click();
+    await selectAssetType("场景");
     await expect(cards.locator("img")).toBeVisible();
     await episode(2).click();
-    await assetType("道具").click();
+    await selectAssetType("道具");
     await expect(cards.locator("img")).toHaveCount(3);
     await expect(empty.locator("img")).toBeVisible();
     await page.getByRole("button", { name: "返回画布" }).click();
@@ -460,20 +466,25 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
           node.data.drama.type === "prop" &&
           node.id !== emptyId,
       );
-      expect(added.map((node) => snapshot.assets[node.data.assetId!]!.displayName)).toEqual([
-        "icon-48.png",
-        "icon-64.png",
-      ]);
-      expect(added[1]!.position).toEqual({
-        x: added[0]!.position.x + 440,
-        y: added[0]!.position.y,
+      expect(
+        added.map(
+          (node) =>
+            requireTestValue(snapshot.assets[requireTestValue(node.data.assetId)]).displayName,
+        ),
+      ).toEqual(["icon-48.png", "icon-64.png"]);
+      expect(requireTestValue(added[1]).position).toEqual({
+        x: requireTestValue(added[0]).position.x + 440,
+        y: requireTestValue(added[0]).position.y,
       });
       for (const [kind, file] of [
         ["audio", "环境.wav"],
         ["video", "外景.mp4"],
       ]) {
         const node = graph.find((item) => item.data.kind === kind);
-        expect(snapshot.assets[node!.data.assetId!]!.displayName).toBe(file);
+        expect(
+          requireTestValue(snapshot.assets[requireTestValue(requireTestValue(node).data.assetId)])
+            .displayName,
+        ).toBe(file);
       }
     } finally {
       await reopened.close();

@@ -61,7 +61,7 @@ export function PluginNotice({
       id={trial ? "trial-actions" : channel ? "channel-actions" : toasterId}
       customAriaLabel={trial ? "试跑通知" : channel ? "渠道通知" : "插件通知"}
       position="top-center"
-      theme="dark"
+      theme="system"
       icons={{
         success: <CircleCheck size={16} />,
         error: <OctagonX size={16} />,
@@ -69,9 +69,9 @@ export function PluginNotice({
       }}
       style={
         {
-          "--normal-bg": "oklch(.205 0 0)",
-          "--normal-text": "oklch(.985 0 0)",
-          "--normal-border": "oklch(1 0 0 / 10%)",
+          "--normal-bg": "var(--desk-card)",
+          "--normal-text": "var(--desk-text)",
+          "--normal-border": "var(--desk-border)",
           "--border-radius": "0.625rem",
         } as CSSProperties
       }

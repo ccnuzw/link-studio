@@ -107,6 +107,7 @@ export type SkillItem = {
   name: string;
   title: string;
   origin: "local" | "builtin";
+  updatedAt?: string;
   enabled: boolean;
   scopes: SkillScope[];
   activeVersion: number;

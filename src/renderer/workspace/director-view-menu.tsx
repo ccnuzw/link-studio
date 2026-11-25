@@ -57,7 +57,7 @@ export function ViewModeSwitch({
   };
 
   return (
-    <div ref={rootRef} className="director-view-menu">
+    <div ref={rootRef} className="director-view-menu" {...{ [MENU_ATTR]: "" }}>
       {open && (
         <div role="menu" onKeyDown={onMenuKey} aria-label="视角" className="director-menu-items">
           <MenuItem

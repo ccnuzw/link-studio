@@ -32,6 +32,7 @@ export function ReferenceMenu({
   link,
   kinds,
   upload,
+  voices,
   container,
   setError,
 }: {
@@ -40,6 +41,7 @@ export function ReferenceMenu({
   disabled: boolean;
   link: (id: string) => void;
   kinds: UploadKind[];
+  voices?: () => void;
   upload: (file: File) => Promise<void>;
   container?: RefObject<HTMLElement | null>;
   setError: (error: string) => void;
@@ -105,6 +107,11 @@ export function ReferenceMenu({
                   <Choice key={source.id} source={source} handle={handle} link={link} />
                 ))}
               </Menu.Group>
+              {voices && (
+                <Menu.Item className="reference-menu-item" onClick={voices}>
+                  从官方音色库选择
+                </Menu.Item>
+              )}
               {!!kinds.length && (
                 <>
                   <Menu.Separator className="reference-menu-separator" />

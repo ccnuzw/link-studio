@@ -137,7 +137,7 @@ func main(){var cases []struct{Graph json.RawMessage;Caps modelcfg.Capabilities}
             ...(mode !== "auto" && { op: mode }),
             ...Object.fromEntries(
               ["image", "audio", "video"].map((kind) => [
-                kind + "s",
+                `${kind}s`,
                 manual.filter((id) => assets[id].mediaType === kind),
               ]),
             ),
@@ -216,7 +216,7 @@ func main(){var cases []struct{Graph json.RawMessage;Caps modelcfg.Capabilities}
             const model = settings.providers[0].config;
             const refs = Object.fromEntries(
               ["image", "audio", "video"].map((kind) => [
-                kind + "s",
+                `${kind}s`,
                 input.referenceAssetIds.filter((id) => assets[id].mediaType === kind).map(Number),
               ]),
             );

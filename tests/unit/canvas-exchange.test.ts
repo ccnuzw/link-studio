@@ -6,7 +6,10 @@ import {
   prepareCanvasExchange,
   serializeCanvasExchange,
 } from "../../packages/link-studio-core/src/canvas-exchange";
-import { defaultDirectorScene } from "../../packages/link-studio-core/src/director";
+import {
+  defaultDirectorScene,
+  retimeDirectorScene,
+} from "../../packages/link-studio-core/src/director";
 import type { ProjectAsset } from "../../packages/link-studio-core/src/projects-api";
 import {
   exportVideoCanvas,
@@ -14,6 +17,7 @@ import {
 } from "../../packages/link-studio-core/src/video-canvas-exchange";
 import upstreamFile from "../fixtures/upstream-reference.canvas.json";
 import storyboardFile from "../fixtures/upstream-storyboard.canvas.json";
+import { requireTestValue } from "../require-test-value";
 
 const canvas: ProjectCanvasView = {
   nodes: [
@@ -43,6 +47,47 @@ const canvas: ProjectCanvasView = {
 };
 
 describe("画布交换", () => {
+  it("失败文本节点往返保留可复制的任务引用，缺少任务或已成功时隐藏引用", () => {
+    const makeNode = (id: string, extra: object) => ({
+      id,
+      position: { x: 0, y: 0 },
+      type: "canvas",
+      data: {
+        kind: "script",
+        label: id,
+        text: "旧稿",
+        status: "error",
+        errorTaskRef: "task-ref",
+        ...extra,
+      },
+    });
+    const file = {
+      format: "video-canvas/canvas",
+      version: 1,
+      assets: {},
+      canvas: {
+        edges: [],
+        nodes: [
+          makeNode("failed", { taskId: "job-id" }),
+          makeNode("missing", {}),
+          makeNode("done", { taskId: "old", status: "done" }),
+        ],
+      },
+    };
+    const { nodes } = prepareVideoCanvasExchange(file, []).document;
+    expect(nodes[0]?.data).toMatchObject({
+      textFailureTask: { id: "job-id", reference: "task-ref" },
+    });
+    expect(nodes.slice(1).every((node) => !("textFailureTask" in node.data))).toBe(true);
+    const exported = JSON.parse(
+      exportVideoCanvas({ ...canvas, nodes, edges: [] }, "任务引用", []).json,
+    );
+    expect(exported.canvas.nodes[0].data).toMatchObject({
+      taskId: "job-id",
+      errorTaskRef: "task-ref",
+    });
+    expect(prepareVideoCanvasExchange(exported, []).document.nodes).toEqual(nodes);
+  });
   it("旧拉线锚点只换算一次，用未测量的默认尺寸，不移动组和普通左上角节点", () => {
     const position = { x: 500, y: 300 };
     const raw = (id: string, kind: string, extra: object = {}) => ({
@@ -152,9 +197,21 @@ describe("画布交换", () => {
     expect(prepareVideoCanvasExchange(exported, []).document.nodes).toMatchObject([node]);
   });
   it("导演台缩略图按哈希重新绑定，缺图时仍保留场景", () => {
-    const director = defaultDirectorScene(),
+    const original = defaultDirectorScene();
+    requireTestValue(original.characters[0]).keys = [0.01, 0.02].map((t, index) => ({
+      t,
+      x: index,
+      z: 0,
+      yaw: 0,
+      ease: "linear",
+    }));
+    const director = retimeDirectorScene(original, 1),
       assetId = "11111111-1111-4111-8111-111111111111",
       sha256 = "a".repeat(64);
+    expect(requireTestValue(director.characters[0]).keys.map(({ t, x }) => [t, x])).toEqual([
+      [0, 0],
+      [0, 1],
+    ]);
     const image: ProjectAsset = {
       assetId,
       sha256,
@@ -225,7 +282,7 @@ describe("画布交换", () => {
         look: "夜班",
         description: "",
         extraAssetIds: [],
-        voice: { assetId, ...(origin && { origin }) },
+        voice: { assetId, ...(origin && { origin, name: "角色录音.wav" }) },
       };
       const nodes = canvas.nodes.map((node) =>
         node.type === "creative"
@@ -233,7 +290,12 @@ describe("画布交换", () => {
           : node,
       );
       const exported = JSON.parse(exportVideoCanvas({ ...canvas, nodes }, "角色", [audio]).json);
-      const expected = { mode: "audio", assetHash: sha256, origin: origin ?? "upload" };
+      const expected = {
+        mode: "audio",
+        assetHash: sha256,
+        origin: origin ?? "upload",
+        ...(origin && { name: "角色录音.wav" }),
+      };
       expect(exported.canvas.nodes[1].data.character.voice).toEqual(expected);
       const imported = prepareVideoCanvasExchange(exported, [audio]).document;
       expect(imported.nodes[1]).toMatchObject({
@@ -277,9 +339,11 @@ describe("画布交换", () => {
         count: 2,
       };
       const fixture = structuredClone(storyboardFile);
-      const video = fixture.canvas.nodes.find((node) => node.data.kind === "video")!;
+      const video = requireTestValue(
+        fixture.canvas.nodes.find((node) => node.data.kind === "video"),
+      );
       Object.assign(video.data, { mediaAspect: 9 / 16, model: "remote-artist-v2" });
-      Object.assign(video.data.params!, params, {
+      Object.assign(requireTestValue(video.data.params), params, {
         endpoint: "https://example.invalid",
         sample_rate: 5,
       });
@@ -353,10 +417,10 @@ describe("画布交换", () => {
       availability: "ready",
     }));
     const result = JSON.parse(exportVideoCanvas({ ...canvas, nodes }, "历史版本", assets).json);
-    expect(Object.keys(result.assets)).toEqual([assets[0]!.sha256]);
+    expect(Object.keys(result.assets)).toEqual([requireTestValue(assets[0]).sha256]);
     expect(result.canvas.nodes[1].data.outputs).toEqual([
       {
-        assetHash: assets[0]!.sha256,
+        assetHash: requireTestValue(assets[0]).sha256,
         mediaType: "image",
         model: "画布模型",
         createdAt: Date.parse(createdAt),

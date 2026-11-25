@@ -1,4 +1,4 @@
-import type { CanvasCharacter, GenerationJob } from "@link-studio/core";
+import { type CanvasCharacter, characterVoice, type GenerationJob } from "@link-studio/core";
 import { AudioLines, Ellipsis, FolderOpen, Loader2, Pause, Play, Plus, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { imageTaskTitle, MediaGenerationTask } from "./character-image-task";
@@ -8,12 +8,12 @@ import "./character-card-body.css";
 export function useLocalPreviewResult(
   projectHandle?: string,
   assetId?: string,
-  variant?: "poster",
+  variant?: "poster" | "thumb",
 ) {
   const [preview, setPreview] = useState<{
     projectHandle: string;
     assetId: string;
-    variant?: "poster";
+    variant?: "poster" | "thumb";
     url: string | null;
   }>();
   useEffect(() => {
@@ -57,14 +57,22 @@ function CharacterImage({
   return url ? <img src={url} alt={alt} draggable={false} /> : null;
 }
 
-function VoiceCell({ projectHandle, assetId }: { projectHandle?: string; assetId: string }) {
+function VoiceCell({
+  projectHandle,
+  assetId,
+  name,
+}: {
+  projectHandle?: string;
+  assetId: string;
+  name?: string;
+}) {
   const { playing, toggle } = useCharacterVoice(projectHandle, assetId);
   return (
     <button
       type="button"
       className="character-cell voice nodrag nopan"
-      title="声音"
-      aria-label={playing ? "暂停试听" : "试听声音"}
+      title={name || "声音"}
+      aria-label={`${playing ? "暂停试听" : "试听声音"}${name ? `：${name}` : ""}`}
       aria-pressed={playing}
       onClick={(event) => {
         event.stopPropagation();
@@ -72,12 +80,14 @@ function VoiceCell({ projectHandle, assetId }: { projectHandle?: string; assetId
       }}
     >
       {playing ? <Pause /> : <Play />}
+      {name && <small>{name}</small>}
     </button>
   );
 }
 
 export function CharacterCardBody({
   character,
+  voiceAssetName,
   projectHandle,
   mainId,
   aspect,
@@ -90,6 +100,7 @@ export function CharacterCardBody({
   taskAction,
 }: {
   character: CanvasCharacter;
+  voiceAssetName?: string;
   projectHandle?: string;
   mainId?: string;
   aspect: number;
@@ -131,10 +142,11 @@ export function CharacterCardBody({
               type="button"
               className="nodrag nopan"
               disabled={disabled}
+              aria-label="从资产库选主图"
               onClick={() => library(false)}
             >
               <FolderOpen />
-              素材库
+              资产库
             </button>
             <span>或选中后在下方直接生成</span>
           </>
@@ -146,6 +158,14 @@ export function CharacterCardBody({
             key={character.voice.assetId}
             projectHandle={projectHandle}
             assetId={character.voice.assetId}
+            name={
+              character.voice.name ||
+              characterVoice(
+                character.voice.assetId,
+                character.voice.origin ?? "library",
+                voiceAssetName,
+              ).name
+            }
           />
         ) : (
           <button

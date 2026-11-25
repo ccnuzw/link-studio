@@ -19,6 +19,7 @@ import { SettingsAgent } from "./agent.ts";
 import { runModelTrial, type TrialCheckpoint } from "./model-trial.ts";
 import { SettingsRegistry } from "./registry.ts";
 import { TrialMediaStore } from "./trial-media.ts";
+import { uploadTrialReference } from "./trial-reference-upload.ts";
 
 function storage<Result>(action: () => Result) {
   try {
@@ -106,6 +107,40 @@ export class SettingsIpc {
       readonly { projectId: string; directory: string }[]
     >,
   ) {
+    ipcMain.handle("link-studio:trial:upload-reference", async (event, input) => {
+      const trusted = this.windows.get(event.sender.id);
+      if (
+        !trusted ||
+        !event.senderFrame ||
+        event.senderFrame !== event.sender.mainFrame ||
+        !isTrustedDocument(event.senderFrame.url, trusted) ||
+        typeof input?.path !== "string" ||
+        input.path.length > 4096 ||
+        typeof input.mime !== "string" ||
+        !Number.isSafeInteger(input.maximum)
+      )
+        return { ok: false };
+      const endpoint = process.env.LINK_STUDIO_TRIAL_ASSET_ENDPOINT;
+      if (!endpoint) return { ok: true };
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      event.sender.once("destroyed", abort);
+      try {
+        const url = await uploadTrialReference(
+          input.path,
+          input.mime,
+          input.maximum,
+          endpoint,
+          process.env.LINK_STUDIO_TRIAL_ASSET_TOKEN,
+          controller.signal,
+        );
+        return { ok: true, url };
+      } catch {
+        return { ok: false };
+      } finally {
+        event.sender.removeListener("destroyed", abort);
+      }
+    });
     for (const method of Object.keys(settingsRequests) as SettingsMethod[]) {
       ipcMain.handle(`link-studio:settings:${method}`, async (event, input: unknown) => {
         const trusted = this.windows.get(event.sender.id);

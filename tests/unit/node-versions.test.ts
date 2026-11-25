@@ -7,6 +7,7 @@ import {
   versionNodes,
   versionOutputs,
 } from "../../src/renderer/workspace/node-versions";
+import { requireTestValue } from "../require-test-value";
 
 const source: CreativeData = {
   kind: "image",
@@ -64,7 +65,7 @@ it("同素材的两个版本保持各自标识；新节点避开邻居，不继�
   const origin = { x: 10, y: 20, width: 280, height: 220 };
   const created = versionNodes(
     { ...source, pendingMediaVersion: { batchId: "current", outputId: "second" } },
-    source.outputs!,
+    requireTestValue(source.outputs),
     origin,
     [origin, { ...origin, x: 330 }],
   );
@@ -74,7 +75,7 @@ it("同素材的两个版本保持各自标识；新节点避开邻居，不继�
   ]);
   expect(new Set(created.map((node) => node.id)).size).toBe(2);
   for (const [index, node] of created.entries()) {
-    const output = source.outputs![index]!;
+    const output = requireTestValue(requireTestValue(source.outputs)[index]);
     expect(node.selected).toBe(true);
     expect(node.data).toEqual({
       kind: "image",

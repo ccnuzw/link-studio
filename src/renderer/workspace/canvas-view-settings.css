@@ -244,9 +244,6 @@
 .canvas-frame-menu.canvas-view-menu [role="menuitem"] {
   gap: 8px;
 }
-.canvas-frame-menu.canvas-view-menu [role="menuitem"] svg {
-  color: inherit;
-}
 .canvas-frame-menu.canvas-view-menu [aria-haspopup="menu"] {
   gap: 6px;
   height: auto;
@@ -263,16 +260,10 @@
   letter-spacing: 0.1em;
   color: oklch(0.556 0 0);
 }
-.canvas-view-menu [role="menuitem"]:focus small {
-  color: inherit;
-}
 .canvas-view-menu :is([role="separator"], hr[data-ui-divider]) {
   height: 1px;
   margin: 4px -4px;
   background: oklch(0.922 0 0);
-}
-.canvas-view-menu [aria-haspopup="menu"] svg:last-child {
-  margin-left: auto;
 }
 .canvas-frame-menu.canvas-theme-menu {
   min-width: 96px;
@@ -291,11 +282,6 @@
 }
 .canvas-theme-menu [role="menuitemradio"]:focus {
   background: oklch(0.97 0 0);
-}
-.canvas-theme-menu [role="menuitemradio"] span {
-  position: absolute;
-  right: 8px;
-  display: flex;
 }
 .canvas-hint-switch {
   position: relative;
@@ -331,9 +317,6 @@
   background: var(--pref-bg);
   transition: translate 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.canvas-hint-switch[data-checked] > span {
-  translate: calc(100% - 2px) 0;
-}
 @media (prefers-color-scheme: dark) {
   .canvas-view-zone {
     --pill-ink: oklch(0.985 0 0);
@@ -355,18 +338,12 @@
     --menu-accent: oklch(0.269 0 0);
     --menu-active: oklch(0.985 0 0);
   }
-  .canvas-view-menu :is([role="separator"], hr[data-ui-divider]) {
-    background: oklch(1 0 0 / 0.1);
-  }
   .canvas-view-menu small {
     color: oklch(0.708 0 0);
   }
   .canvas-frame-menu.canvas-view-menu [aria-haspopup="menu"][data-popup-open] {
     background: oklch(0.269 0 0);
     color: oklch(0.985 0 0);
-  }
-  .canvas-view-more button:focus-visible {
-    box-shadow: 0 0 0 2px oklch(1 0 0 / 0.432);
   }
   .canvas-theme-menu [role="menuitemradio"]:focus {
     background: oklch(0.269 0 0);
@@ -379,9 +356,6 @@
   }
   .canvas-hint-switch > span {
     background: oklch(0.985 0 0);
-  }
-  .canvas-hint-switch[data-checked] > span {
-    background: oklch(0.205 0 0);
   }
 }
 .canvas-preferences {
@@ -446,10 +420,6 @@
   line-height: 1;
   font-weight: 500;
 }
-.canvas-preferences header p {
-  margin: 8px 0 0;
-  color: var(--muted-foreground);
-}
 .canvas-preferences-body {
   flex: 1;
   min-height: 0;
@@ -476,6 +446,10 @@
   margin: 4px 0 0;
   font-size: 12px;
   line-height: 20px;
+  color: var(--muted-foreground);
+}
+.canvas-preferences header p {
+  margin: 8px 0 0;
   color: var(--muted-foreground);
 }
 .canvas-preference-options {
@@ -508,33 +482,11 @@
   gap: 8px;
   justify-content: flex-start;
 }
-.canvas-preferences :is(.canvas-preference-options, footer) button {
-  border-radius: 8px;
-}
-.canvas-preferences button[aria-pressed="true"] {
-  background-color: var(--pref-bg);
-  color: var(--foreground);
-  box-shadow:
-    0 1px 3px #0000001a,
-    0 1px 2px -1px #0000001a;
-}
-.canvas-preferences :is(nav, .canvas-preference-options, footer) button:hover {
-  background-color: var(--pref-muted);
-  color: var(--foreground);
-}
-.canvas-preferences :is(nav, .canvas-preference-options, footer) button:focus-visible {
-  outline: none;
-  border-color: var(--board-ring, oklch(0.708 0 0));
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--board-ring, oklch(0.708 0 0)) 50%, transparent);
-}
 .canvas-preferences :is(nav, .canvas-preference-options) button[aria-pressed="true"]:focus-visible {
   box-shadow:
     0 0 0 3px color-mix(in oklab, var(--board-ring, oklch(0.708 0 0)) 50%, transparent),
     0 1px 3px #0000001a,
     0 1px 2px -1px #0000001a;
-}
-.canvas-preferences :is(nav, .canvas-preference-options, footer) button:active {
-  translate: 0 1px;
 }
 .canvas-preferences footer {
   align-self: flex-end;
@@ -570,10 +522,46 @@
 .canvas-model-choice svg {
   flex: none;
 }
+.canvas-frame-menu.canvas-view-menu [role="menuitem"] svg {
+  color: inherit;
+}
+.canvas-model-choice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-theme-menu [role="menuitemradio"] span {
+  position: absolute;
+  right: 8px;
+  display: flex;
+}
+.canvas-hint-switch[data-checked] > span {
+  translate: calc(100% - 2px) 0;
+}
+@media (prefers-color-scheme: dark) {
+  .canvas-view-menu :is([role="separator"], hr[data-ui-divider]) {
+    background: oklch(1 0 0 / 0.1);
+  }
+  .canvas-view-more button:focus-visible {
+    box-shadow: 0 0 0 2px oklch(1 0 0 / 0.432);
+  }
+  .canvas-hint-switch[data-checked] > span {
+    background: oklch(0.205 0 0);
+  }
+}
+.canvas-preferences :is(.canvas-preference-options, footer) button {
+  border-radius: 8px;
+}
+.canvas-preferences button[aria-pressed="true"] {
+  background-color: var(--pref-bg);
+  color: var(--foreground);
+  box-shadow:
+    0 1px 3px #0000001a,
+    0 1px 2px -1px #0000001a;
+}
 .canvas-model-choice svg:last-child {
   opacity: 0.6;
 }
-.canvas-model-choice span,
 .canvas-model-label > * {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -602,14 +590,32 @@
   flex: 1;
   flex-direction: column;
 }
+.canvas-model-label small {
+  margin-left: 0;
+}
 .canvas-model-options [role="menuitemradio"] small {
   font: inherit;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: normal;
 }
-.canvas-model-label small {
-  margin-left: 0;
+.canvas-view-menu [role="menuitem"]:focus small {
+  color: inherit;
+}
+.canvas-view-menu [aria-haspopup="menu"] svg:last-child {
+  margin-left: auto;
+}
+.canvas-preferences :is(nav, .canvas-preference-options, footer) button:hover {
+  background-color: var(--pref-muted);
+  color: var(--foreground);
+}
+.canvas-preferences :is(nav, .canvas-preference-options, footer) button:focus-visible {
+  outline: none;
+  border-color: var(--board-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--board-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.canvas-preferences :is(nav, .canvas-preference-options, footer) button:active {
+  translate: 0 1px;
 }
 .canvas-model-check {
   position: absolute;

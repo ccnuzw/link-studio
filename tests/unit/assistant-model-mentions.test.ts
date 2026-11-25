@@ -4,6 +4,7 @@ import {
   rebaseMentions,
   serializeModels,
 } from "../../src/renderer/workspace/assistant-model-mentions";
+import { requireTestValue } from "../require-test-value";
 
 const pair = [
   { start: 0, end: 3, id: "image-a", name: "模型" },
@@ -22,7 +23,10 @@ test("跨行同名节点草稿还原各自的 ID、图标与位置", () => {
 
 test("技能发送时保留 skill_read 所需的版本号，与同名模型区分", () => {
   expect(
-    serializeModels("@模型 @模型", [pair[0]!, { ...pair[1]!, kind: "skill", id: "shot-list@2" }]),
+    serializeModels("@模型 @模型", [
+      requireTestValue(pair[0]),
+      { ...requireTestValue(pair[1]), kind: "skill", id: "shot-list@2" },
+    ]),
   ).toBe("@[模型](model:image-a) @[模型](skill:shot-list@2)");
 });
 

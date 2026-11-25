@@ -1,10 +1,32 @@
 import { Check, X } from "lucide-react";
+import { formatSeconds } from "../assistant/activity-summary";
 
-export function RejectedChange({ answer }: { answer?: string }) {
+export function changeOrderTitle(revertOf: unknown) {
+  return typeof revertOf === "string" && revertOf ? `回滚变更单 ${revertOf}` : "配置变更单";
+}
+
+export function ChangeDisposition({
+  status,
+  revertOf,
+  answer,
+  error,
+}: {
+  status: "expired" | "failed" | "rejected";
+  revertOf?: unknown;
+  answer?: unknown;
+  error?: string;
+}) {
+  const prefix =
+    status === "expired" ? "已失效" : status === "failed" ? "已批准，但执行失败" : "已拒绝";
   return (
-    <div className="settings-action-result">
-      <X size={14} aria-hidden />
-      <span>已拒绝：配置变更单{answer ? ` · 你的说明：${answer}` : ""}</span>
+    <div className="settings-action-result" title={status === "failed" ? error : undefined}>
+      <X className={status === "failed" ? "failed" : undefined} size={14} aria-hidden />
+      <span>
+        {prefix}：{changeOrderTitle(revertOf)}
+        {status === "rejected" && typeof answer === "string" && answer
+          ? ` · 你的说明：${answer}`
+          : ""}
+      </span>
     </div>
   );
 }
@@ -47,7 +69,12 @@ export function SettingsActionResult({
           : expired
             ? "密钥请求已失效"
             : "正在确认密钥";
-  const text = [summary, trial && label, error].filter(Boolean).join(" · ");
+  const duration = result.duration_ms;
+  const elapsed =
+    trial && typeof duration === "number" && Number.isFinite(duration) && duration >= 0
+      ? `耗时 ${formatSeconds(duration / 1000)}`
+      : undefined;
+  const text = [summary, trial && label, elapsed, error].filter(Boolean).join(" · ");
   const Icon = failed || expired || rejected ? X : Check;
   return (
     <div className="settings-action-result">

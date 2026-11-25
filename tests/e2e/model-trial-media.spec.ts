@@ -2,6 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
+import { compactViewport } from "./desktop-window";
 
 test("全能参考按原顺序展示前一百个音色，选择去重并进入豆包请求", async () => {
   const directory = await mkdtemp(join(tmpdir(), "link-studio-voice-trial-"));
@@ -14,6 +16,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
   });
   try {
     const page = await app.firstWindow();
+    await page.setViewportSize(compactViewport);
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const channel = await api.channelSave({
@@ -53,7 +56,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
       });
       if (!model.ok) throw Error(model.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "测试 音色试跑", exact: true }).click();
     const trial = page.getByRole("dialog", { name: "测试 音色试跑" });
     const picker = trial.getByRole("button", { name: "音色库" });
@@ -68,14 +71,47 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
       "true",
     );
     const items = trial.getByRole("menuitem");
+    const voiceMenu = trial.getByRole("menu", { name: "音色库" });
     const first = "Young - Male - Zayne 2.0",
       last = "Middle-aged - Female - Anna";
-    await picker.click();
+    await picker.press("Enter");
     await expect(items).toHaveCount(100);
     await expect(items.first()).toHaveText(first);
     await expect(items.last()).toHaveText(last);
-    await items.last().scrollIntoViewIfNeeded();
-    await expect(items.last()).toBeInViewport();
+    await expect(items.first()).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(items.last()).toBeFocused();
+    try {
+      await expect.poll(() => voiceMenu.evaluate((menu) => menu.scrollTop)).toBeGreaterThan(0);
+      await expect(items.last()).toBeInViewport();
+    } catch (error) {
+      const geometry = await items.last().evaluate((item) => {
+        const ancestors = [];
+        for (let element: Element | null = item; element; element = element.parentElement) {
+          ancestors.push({
+            tag: element.tagName,
+            className: element.className,
+            bounds: element.getBoundingClientRect().toJSON(),
+            overflow: getComputedStyle(element).overflow,
+            scrollTop: element.scrollTop,
+            clientHeight: element.clientHeight,
+            scrollHeight: element.scrollHeight,
+          });
+        }
+        return { width: innerWidth, height: innerHeight, devicePixelRatio, ancestors };
+      });
+      await test.info().attach("voice-menu-geometry", {
+        body: JSON.stringify(geometry, null, 2),
+        contentType: "application/json",
+      });
+      await test
+        .info()
+        .attach("voice-menu", { body: await page.screenshot(), contentType: "image/png" });
+      throw error;
+    }
+    await items.last().press("Home");
+    await expect(items.first()).toBeFocused();
+    await expect(items.first()).toBeInViewport();
     await page.keyboard.press("Escape");
     await expect(picker).toBeFocused();
     for (const name of [first, first, last]) {
@@ -103,19 +139,19 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     const request = trial.getByRole("tabpanel", { name: "请求描述" }).locator("pre");
     await expect(request).toContainText("reference_audio");
     await expect(request).toContainText(exactPrompt);
-    const original = await request.innerText();
+    const original = await readRenderedText(request);
     const requestPanel = trial.getByRole("tabpanel", { name: "请求描述" });
     await expect(requestPanel.locator("time")).toHaveAttribute("datetime", /^\d{4}-/);
     await requestPanel.getByRole("button", { name: "收起" }).press("Enter");
     await expect(request).toHaveText(
-      original.split("\n").slice(0, 12).join("\n").slice(0, 1500) + "\n…",
+      `${original.split("\n").slice(0, 12).join("\n").slice(0, 1500)}\n…`,
       { useInnerText: true },
     );
     await requestPanel
       .getByRole("button", { name: `展开全部（${original.length} 字符）` })
       .press("Space");
-    expect(await request.innerText()).toBe(original);
-    expect(JSON.parse(await request.innerText()).json.content.slice(1)).toEqual(
+    expect(await readRenderedText(request)).toBe(original);
+    expect(JSON.parse(await readRenderedText(request)).json.content.slice(1)).toEqual(
       ["fz-asset-20260908172456-9zvzx-audio.wav", "fz-asset-20260908172605-qjqkx-audio.mp3"].map(
         (key) => ({
           type: "audio_url",
@@ -135,7 +171,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     await expect(request).not.toContainText("reference_audio");
     await modes.getByRole("radio", { name: "全能参考" }).click();
     await expect(trial.getByRole("button", { name: `移除素材 ${last}` })).toBeVisible();
-    const lastPreview = await request.innerText();
+    const lastPreview = await readRenderedText(request);
     await app.evaluate(({ ipcMain }) => {
       const method = "link-studio:settings:modelTrial";
       ipcMain.removeHandler(method);
@@ -163,7 +199,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     );
     await expect(resultTab).toHaveAttribute("aria-selected", "true");
     await trial.getByRole("tab", { name: "请求描述", exact: true }).click();
-    expect(await request.innerText()).toBe(lastPreview);
+    expect(await readRenderedText(request)).toBe(lastPreview);
     await resultTab.click();
     await trial.getByRole("button", { name: "只看请求（不发送）" }).click();
     await expect(requestPanel.getByRole("alert")).toContainText(
@@ -222,7 +258,10 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
           description: "",
           sort: 100,
           refs: { image: { max: 2, mb: 1 } },
-          params: { quality: { values: ["medium", "high"], default: "high" } },
+          params: {
+            quality: { values: ["medium", "high"], default: "high" },
+            count: { values: ["1", "2"], default: "1", open: true, fanout: true },
+          },
           pricing: {
             unit: "request",
             input: 8,
@@ -232,7 +271,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       });
       if (!model.ok) throw new Error(model.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "测试 图片试跑", exact: true }).click();
     const trial = page.getByRole("dialog", { name: "测试 图片试跑" });
     await expect(trial.getByRole("button", { name: "开始测试 · 8 积分" })).toBeVisible();
@@ -296,7 +335,10 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await editor.getByRole("tab", { name: "能力与参数" }).click();
     const preview = editor.getByLabel("创作端预览");
     await preview.getByRole("radio", { name: "图生图", exact: true }).click();
-    await preview.getByRole("button", { name: "2 张", exact: true }).click();
+    const count = preview
+      .getByRole("radiogroup", { name: "生成数量" })
+      .getByRole("radio", { name: "2张", exact: true });
+    await count.click();
     await preview.locator('input[type="file"]').setInputFiles(image("预览.png"));
     await editor.getByRole("button", { name: "测试模型" }).click();
     await expect(trial.getByRole("button", { name: "开始测试 · 24 积分" })).toBeVisible();
@@ -304,10 +346,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await trial.getByRole("button", { name: "移除素材 预览.png" }).click();
     await trial.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(preview.getByRole("img", { name: "预览.png" })).toHaveCount(0);
-    await expect(preview.getByRole("button", { name: "2 张", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(count).toBeChecked();
     await editor.getByRole("button", { name: "关闭弹窗" }).click();
     await page
       .locator(".channel-model-heading")
@@ -370,10 +409,10 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await expect(create).toBeHidden();
     await page.getByRole("button", { name: "测试 视频声音报价", exact: true }).click();
     const video = page.getByRole("dialog", { name: "测试 视频声音报价" });
-    const sound = video.getByRole("group", { name: "生成音频", exact: true });
-    await expect(video.getByRole("group", { name: "清晰度", exact: true })).toHaveCount(0);
-    await expect(sound.getByRole("button", { name: "默认 · 生成声音" })).toHaveAttribute(
-      "aria-pressed",
+    const sound = video.getByRole("radiogroup", { name: "生成音频", exact: true });
+    await expect(video.getByRole("radiogroup", { name: "清晰度", exact: true })).toHaveCount(0);
+    await expect(sound.getByRole("radio", { name: "开启" })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
     await video.getByLabel("测试提示词").fill("视频示例");
@@ -381,7 +420,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       [true, 15],
       [false, 10],
     ] as const) {
-      if (!useAudio) await sound.getByRole("button", { name: "静音", exact: true }).click();
+      if (!useAudio) await sound.getByRole("radio", { name: "关闭", exact: true }).click();
       await expect(video.getByRole("button", { name: `开始测试 · ${credits} 积分` })).toBeVisible();
       await video.getByRole("button", { name: "只看请求（不发送）" }).click();
       await expect
@@ -404,14 +443,13 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       .poll(
         async () =>
           JSON.parse(
-            await video.getByRole("tabpanel", { name: "请求描述" }).locator("pre").innerText(),
+            await readRenderedText(
+              video.getByRole("tabpanel", { name: "请求描述" }).locator("pre"),
+            ),
           ).json.duration,
       )
       .toBe(7);
-    await video
-      .getByRole("group", { name: "视频时长", exact: true })
-      .getByRole("button", { name: "重置" })
-      .click();
+    await video.getByRole("spinbutton", { name: "视频时长（数值）" }).fill("");
     await expect(slider).toHaveValue("5");
     await video.getByRole("button", { name: "关闭", exact: true }).click();
     await page.getByRole("button", { name: /^视频声音报价/ }).click();
@@ -428,7 +466,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await audioRow.getByRole("button", { name: "上移" }).click();
     await expect(audioRow.getByRole("button", { name: "上移" })).toBeDisabled();
     const orderedPreview = editor.getByLabel("创作端预览");
-    const mute = orderedPreview.getByRole("button", { name: "静音", exact: true });
+    const mute = orderedPreview.getByRole("radio", { name: "关闭", exact: true });
     await mute.focus();
     await mute.press("Tab");
     await expect(orderedPreview.getByRole("slider", { name: "视频时长" })).toBeFocused();
@@ -479,7 +517,9 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       .poll(
         async () =>
           JSON.parse(
-            await video.getByRole("tabpanel", { name: "请求描述" }).locator("pre").innerText(),
+            await readRenderedText(
+              video.getByRole("tabpanel", { name: "请求描述" }).locator("pre"),
+            ),
           ).json,
       )
       .toMatchObject({ duration: 7, generate_audio: false, resolution: "4K" });
@@ -511,7 +551,9 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await video.getByRole("button", { name: "只看请求（不发送）" }).click();
     const requestBody = video.getByRole("tabpanel", { name: "请求描述" }).locator("pre");
     await expect(requestBody).toContainText("4K");
-    expect(JSON.parse(await requestBody.innerText()).json).not.toHaveProperty("generate_audio");
+    expect(JSON.parse(await readRenderedText(requestBody)).json).not.toHaveProperty(
+      "generate_audio",
+    );
     await video.getByRole("button", { name: "关闭", exact: true }).click();
     await page
       .locator(".channel-model-heading")
@@ -534,7 +576,7 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
         ops: ["t2v", "i2v", "omni"],
         refs: { video: { on: true, max: 1, max_mb: 100 } },
         params: {
-          resolution: { options: ["720P", "1080P", "4K"] },
+          resolution: { options: ["720P", "1080P", "4K", "480P"] },
           count: { options: [1, 2, 4], fanout: true },
           duration: { min: 5, max: 10, default: 5 },
           generate_audio: { default: true, spec: true },

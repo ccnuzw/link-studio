@@ -1,4 +1,9 @@
-import { type PluginView, providerPluginSourceLimit, type SettingsValues } from "@link-studio/core";
+import {
+  type PluginView,
+  providerPluginSourceLimit,
+  requirePresent,
+  type SettingsValues,
+} from "@link-studio/core";
 import {
   ArrowLeft,
   Boxes,
@@ -255,7 +260,7 @@ export function AdapterManager({
   const selectedHash = plugin?.hash;
   useEffect(() => onSelection?.(selectedHash), [selectedHash, onSelection]);
   const versions = loaded
-    ? groupAdapters(loaded)[0]!
+    ? requirePresent(groupAdapters(loaded)[0], "groupAdapters(loaded)[0]")
     : (groups.find(([entry]) => entry?.key === plugin?.key) ?? []);
   const latest = versions[0];
   const history = loaded ? [...loaded].reverse() : [];
@@ -472,14 +477,6 @@ export function AdapterManager({
   );
   return (
     <div className="adapter-workspace">
-      <form
-        id="local-plugin-draft"
-        hidden
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!busy && !modalOpen) edit();
-        }}
-      />
       <PluginNotice
         detailOpen={modalOpen}
         actionOpen={Boolean(plan || disabling || deleting || remove)}
@@ -588,14 +585,24 @@ export function AdapterManager({
         <div>
           <h2>插件</h2>
         </div>
-        <button
-          type="button"
-          className="settings-primary"
-          disabled={busy}
-          onClick={() => setUploading(true)}
-        >
-          <Upload size={16} /> 上传插件
-        </button>
+        <div className="adapter-heading-actions">
+          <button
+            type="button"
+            title="编写插件源码，校验后保存版本"
+            disabled={busy || catalogState !== "ready"}
+            onClick={() => edit()}
+          >
+            <Plus size={16} /> 插件草稿
+          </button>
+          <button
+            type="button"
+            className="settings-primary"
+            disabled={busy}
+            onClick={() => setUploading(true)}
+          >
+            <Upload size={16} /> 上传插件
+          </button>
+        </div>
       </div>
       {!modalOpen && message}
       {uploading && (
@@ -608,7 +615,6 @@ export function AdapterManager({
       <AdapterCatalog
         state={catalogState}
         reload={() => void refresh()}
-        upload={() => setUploading(true)}
         groups={groups}
         providers={data.providers}
         initialHash={initialHash}

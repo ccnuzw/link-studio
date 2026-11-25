@@ -1,12 +1,14 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { crc32 } from "node:zlib";
 import { skillsRequests } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { readSkillPackage } from "../../src/main/skills/intake";
 import { SkillLibrary } from "../../src/main/skills/library";
+import { requireTestValue } from "../require-test-value";
 
 let directory: string;
 let library: SkillLibrary | undefined;
@@ -17,6 +19,7 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "link-skills-test-"));
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   library?.close();
   library = undefined;
   await rm(directory, { recursive: true, force: true });
@@ -93,6 +96,24 @@ it("拒绝路径越界、符号链接、错误的 YAML、多个入口和过大�
   await expect(readSkillPackage(file)).rejects.toThrow("文件过大");
 });
 
+it("旧技能库迁移不虚构更新时间，编辑后的时间在重启后保留", () => {
+  const old = new DatabaseSync(join(directory, "skills.sqlite"));
+  try {
+    old.exec(`CREATE TABLE skills(name TEXT PRIMARY KEY, title TEXT NOT NULL, enabled INTEGER NOT NULL,
+      scopes TEXT NOT NULL, active INTEGER NOT NULL, latest INTEGER NOT NULL);
+      INSERT INTO skills VALUES ('legacy', '旧技能', 0, '[]', 1, 1)`);
+  } finally {
+    old.close();
+  }
+  library = new SkillLibrary(directory);
+  expect(library.list()[0]?.updatedAt).toBeUndefined();
+  const edited = library.update({ name: "legacy", title: "新标题", enabled: false, scopes: [] });
+  expect(Number.isFinite(Date.parse(edited.updatedAt ?? ""))).toBe(true);
+  library.close();
+  library = new SkillLibrary(directory);
+  expect(library.list()[0]).toEqual(edited);
+});
+
 it("预检暂存绑定窗口，同名新增版本并保留生效版本和配置", async () => {
   const file = join(directory, "SKILL.md");
   await writeFile(file, skill("版本 1"));
@@ -110,6 +131,7 @@ it("预检暂存绑定窗口，同名新增版本并保留生效版本和配置"
   expect(library.preview(1, { id: request.id, path: "SKILL.md" }).text).toContain("版本 1");
   expect(() => library?.confirm(2, request)).toThrow("暂存已失效");
   const created = library.confirm(1, request);
+  expect(created.updatedAt).toBe(created.versions[0]?.createdAt);
   expect(library.stage(1, first)).toMatchObject({
     plan: null,
     error: expect.stringContaining("已有的 v1"),
@@ -117,14 +139,23 @@ it("预检暂存绑定窗口，同名新增版本并保留生效版本和配置"
   await writeFile(file, skill("版本 2"));
   const next = library.stage(1, await readSkillPackage(file));
   expect(next.plan).toEqual({ action: "new_version", version: 2 });
+  const importedAt = "2020-02-02T12:00:00.000Z";
+  vi.spyOn(Date.prototype, "toISOString").mockReturnValueOnce(importedAt);
   expect(library.confirm(1, { id: next.id ?? "", enabled: false, scopes: [] })).toMatchObject({
     activeVersion: 1,
+    updatedAt: importedAt,
     enabled: true,
     scopes: ["agent"],
   });
   expect(() => library?.removeVersion({ name: created.name, version: 1 })).toThrow("切换生效版本");
-  library.activate({ name: created.name, version: 2 });
-  library.removeVersion({ name: created.name, version: 1 });
+  expect(library.list()[0]?.updatedAt).toBe(importedAt);
+  const activatedAt = "2020-03-03T12:00:00.000Z";
+  vi.spyOn(Date.prototype, "toISOString").mockReturnValueOnce(activatedAt);
+  expect(library.activate({ name: created.name, version: 2 }).updatedAt).toBe(activatedAt);
+  const removed = library.removeVersion({ name: created.name, version: 1 });
+  expect(Number.isFinite(Date.parse(removed.updatedAt ?? ""))).toBe(true);
+  expect(removed.updatedAt).not.toBe(activatedAt);
+  expect(removed.versions[0]?.createdAt).toBe(importedAt);
   library.update({
     name: created.name,
     title: "拍摄清单",
@@ -164,16 +195,16 @@ it("导出指定历史版本可原样回导，预检提示随版本保留", asyn
   const pkg = await readSkillPackage(folder);
   library = new SkillLibrary(join(directory, "db"));
   const imported = library.confirm(1, {
-    id: library.stage(1, pkg).id!,
+    id: requireTestValue(library.stage(1, pkg).id),
     enabled: false,
     scopes: [],
   });
-  const warnings = imported.versions[0]!.warnings?.join("\n");
+  const warnings = requireTestValue(imported.versions[0]).warnings?.join("\n");
   for (const text of ["allowed-tools", "references/missing.md", "脚本"])
     expect(warnings).toContain(text);
   await writeFile(path, skill("下一版"));
   const next = library.stage(1, await readSkillPackage(folder));
-  library.confirm(1, { id: next.id!, enabled: false, scopes: [] });
+  library.confirm(1, { id: next.id ?? "", enabled: false, scopes: [] });
   const zip = join(directory, "export.zip");
   await writeFile(zip, library.exportZip({ name: pkg.name, version: 1 }));
   expect((await readSkillPackage(zip)).hash).toBe(pkg.hash);
@@ -185,7 +216,11 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
   library = new SkillLibrary(db);
   await writeFile(file, skill("第一版方法"));
   const pkg = await readSkillPackage(file);
-  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  library.confirm(1, {
+    id: requireTestValue(library.stage(1, pkg).id),
+    enabled: true,
+    scopes: ["agent"],
+  });
   const candidate = { source: "skill" as const, name: pkg.name, version: 1 },
     step = "marketing.create" as const;
   const details = {
@@ -206,18 +241,18 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
     { ...bind, candidate: { source: "builtin" as const } },
     { ...bind, step: "marketing.follow" as const },
   ])
-    expect(() => library!.bind(invalid)).toThrow("试跑");
+    expect(() => requireTestValue(library).bind(invalid)).toThrow("试跑");
   try {
     vi.useFakeTimers();
     vi.setSystemTime(good.finished + 86400001);
-    expect(() => library!.bind(bind)).toThrow("24 小时");
+    expect(() => requireTestValue(library).bind(bind)).toThrow("24 小时");
   } finally {
     vi.useRealTimers();
   }
   library.bind(bind);
   await writeFile(file, skill("第二版方法"));
   const next = library.stage(1, await readSkillPackage(file));
-  library.confirm(1, { id: next.id!, enabled: false, scopes: [] });
+  library.confirm(1, { id: requireTestValue(next.id), enabled: false, scopes: [] });
   library.activate({ name: pkg.name, version: 2 });
   library.close();
   library = new SkillLibrary(db);
@@ -232,10 +267,14 @@ it("环节绑定校验试跑归属、结果、时效，持久钉版与失效回�
     fallback: true,
     method: { Source: "builtin" },
   });
-  expect(() => library!.bind(bind)).toThrow("试跑");
+  expect(() => requireTestValue(library).bind(bind)).toThrow("试跑");
   library.update({ name: pkg.name, title: pkg.title, enabled: false, scopes: [] });
   library.remove({ name: pkg.name });
-  library.confirm(1, { id: library.stage(1, pkg).id!, enabled: true, scopes: ["agent"] });
+  library.confirm(1, {
+    id: requireTestValue(library.stage(1, pkg).id),
+    enabled: true,
+    scopes: ["agent"],
+  });
   expect(library.resolveMethod(step).fallback).toBe(true);
-  expect(() => library!.bind(bind)).toThrow("试跑");
+  expect(() => requireTestValue(library).bind(bind)).toThrow("试跑");
 });

@@ -10,7 +10,7 @@ it("按所有现有节点标题补第一个空号", () => {
 it("素材节点去最后一个扩展名并按字符截断", () => {
   expect(assetNodeLabel(" 角色   图.v2.png ", "图片")).toBe("角色 图.v2");
   expect(assetNodeLabel(".参考", "图片")).toBe(".参考");
-  expect(assetNodeLabel("🎬".repeat(41) + ".mp4", "视频")).toBe("🎬".repeat(40));
+  expect(assetNodeLabel(`${"🎬".repeat(41)}.mp4`, "视频")).toBe("🎬".repeat(40));
   expect(assetNodeLabel("  ", "音频")).toBe("音频");
 });
 

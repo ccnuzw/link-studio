@@ -28,6 +28,7 @@ const Character = Type.Object(
       Type.Object(
         {
           assetId: assetIdentifier,
+          name: Type.Optional(label),
           origin: Type.Optional(
             Type.Union([
               Type.Literal("upload"),
@@ -43,6 +44,16 @@ const Character = Type.Object(
   strict,
 );
 export type CanvasCharacter = Static<typeof Character>;
+export function characterVoice(
+  assetId: string,
+  origin: "library" | "upload" | "generated",
+  fileName?: string,
+): NonNullable<CanvasCharacter["voice"]> {
+  const name = fileName
+    ?.replace(/^(Child|Teen|Young|Middle-aged|Older) - (Male|Female) - /, "")
+    .trim();
+  return { assetId, origin, ...(name && { name }) };
+}
 export const shotSizes = [
   "大远景",
   "远景",
@@ -132,6 +143,12 @@ export const CreativeData = Type.Object(
       Type.Union([Type.Literal("idle"), Type.Literal("done"), Type.Literal("error")]),
     ),
     textError: Type.Optional(Type.String({ maxLength: 32768 })),
+    textFailureTask: Type.Optional(
+      Type.Object({
+        id: Type.String({ minLength: 1, maxLength: 32768 }),
+        reference: Type.String({ minLength: 1, maxLength: 32768 }),
+      }),
+    ),
     uploaded: Type.Optional(Type.Literal(true)),
     uploadFailed: Type.Optional(Type.Literal(true)),
     mediaAspect: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),

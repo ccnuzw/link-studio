@@ -1,5 +1,41 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+export async function blankCanvasPosition(pane: Locator, preferred?: { x: number; y: number }) {
+  const position = await pane.evaluate((element, preferred) => {
+    const { left, top, right, bottom } = element.getBoundingClientRect();
+    if (preferred && document.elementFromPoint(left + preferred.x, top + preferred.y) === element)
+      return preferred;
+    const visibleLeft = Math.max(0, left);
+    const visibleTop = Math.max(0, top);
+    const width = Math.min(innerWidth, right) - visibleLeft;
+    const height = Math.min(innerHeight, bottom) - visibleTop;
+    if (width <= 0 || height <= 0) return null;
+    const fractions = [0.5, 0.25, 0.75, 0.125, 0.875, 0.05, 0.95];
+    for (const row of fractions) {
+      for (const column of fractions) {
+        const x = visibleLeft + width * column;
+        const y = visibleTop + height * row;
+        if (document.elementFromPoint(x, y) === element) return { x: x - left, y: y - top };
+      }
+    }
+    return null;
+  }, preferred);
+  if (!position) throw Error("找不到可点击的画布空白区域");
+  return position;
+}
+
+export async function clickBlankCanvas(page: Page) {
+  const pane = page.locator(".react-flow__pane:visible");
+  await pane.click({ position: await blankCanvasPosition(pane) });
+}
+
+export async function createCanvasProject(page: Page, name?: string) {
+  await page.getByRole("button", { name: /^新建画布项目/ }).click();
+  const dialog = page.getByRole("dialog", { name: "新建画布项目" });
+  if (name) await dialog.getByLabel("新项目名称").fill(name);
+  await dialog.getByRole("button", { name: "选择保存位置…" }).click();
+}
+
 export async function editTextNode(preview: Locator, ...drafts: string[]) {
   await preview.dblclick();
   const dialog = preview.page().getByRole("dialog");
@@ -23,8 +59,17 @@ export async function chooseCanvasZoom(
 export async function projectAction(page: Page, name: string) {
   await page.getByRole("button", { name: "画布菜单", exact: true }).click();
   const label = name === "关闭项目" ? "返回项目列表" : name;
-  if (!["返回项目列表", "新建画布", "导出画布"].includes(label))
+  if (!["返回项目列表", "新建画布项目", "导出画布"].includes(label)) {
     await page.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
+    const item = page
+      .getByRole("menu", { name: "桌面项目操作", exact: true })
+      .getByRole("menuitem", { name: label, exact: true });
+    await expect(item).toBeVisible();
+    await expect(item).toBeEnabled();
+    if (label === "导入画布") await item.click();
+    else await item.press("Enter");
+    return;
+  }
   await page.getByRole("menuitem", { name: label, exact: true }).click();
 }
 

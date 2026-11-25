@@ -4,8 +4,14 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "30 1 * * *"
   workflow_dispatch:
     inputs:
+      full_e2e:
+        description: 运行完整桌面 E2E 与证据回归
+        type: boolean
+        default: false
       package_smoke:
         description: 同时验证未签名 macOS 应用包
         type: boolean
@@ -41,10 +47,11 @@ jobs:
   desktop:
     name: Desktop macOS ARM64
     needs: quality
-    runs-on: macos-15
-    timeout-minutes: 60
+    runs-on: macos-26
+    timeout-minutes: ${{ inputs.package_smoke && 135 || 75 }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      FULL_E2E: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.full_e2e || inputs.package_smoke)) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -70,16 +77,30 @@ jobs:
           path: .cache/media
           key: media-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('resources/media/build.json', 'scripts/build-media.mjs') }}
       - run: pnpm install --frozen-lockfile
-      - name: Build, integration, upstream regression and desktop E2E
-        env:
-          PACKAGE_SMOKE: ${{ inputs.package_smoke }}
-        run: |
-          if [ "$PACKAGE_SMOKE" = true ]; then
-            pnpm check:package
-          else
-            pnpm check:desktop
-          fi
+      - name: Build desktop app
+        id: build
+        run: node scripts/check.mjs desktop build
+      - name: Integration tests
+        id: integration
+        run: node scripts/check.mjs desktop integration
+      - name: Agent upstream regression
+        id: upstream
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/check.mjs desktop upstream
+      - name: Electron E2E
+        id: e2e
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_E2E == 'true' }}
+        run: node scripts/check.mjs desktop e2e
+      - name: Build unsigned macOS package
+        id: package
+        if: ${{ !cancelled() && inputs.package_smoke && env.FULL_E2E == 'true' && steps.build.outcome == 'success' }}
+        run: node scripts/check.mjs desktop package
+      - name: Packaged Electron E2E
+        id: packaged_e2e
+        if: ${{ !cancelled() && steps.package.outcome == 'success' && env.FULL_E2E == 'true' }}
+        run: node scripts/check.mjs desktop packaged-e2e
       - name: Upload test evidence
+        id: evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -89,3 +110,12 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Desktop verification summary
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CHECK_STEPS: ${{ toJSON(steps) }}
+          PACKAGE_SMOKE: ${{ inputs.package_smoke }}
+          FULL_E2E: ${{ env.FULL_E2E }}
+          EVIDENCE_URL: ${{ steps.evidence.outputs.artifact-url }}
+        run: node scripts/desktop-summary.mjs

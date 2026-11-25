@@ -146,18 +146,18 @@ try {
               await route.fulfill({ path: resolve("resources/icons/icon-32.png") });
             });
           }
-          await page.route(origin + "assets/**", (route) =>
+          await page.route(`${origin}assets/**`, (route) =>
             route.fulfill({
               path: join(assets, basename(new URL(route.request().url()).pathname)),
             }),
           );
-          await page.route(origin + "audit", (route) =>
+          await page.route(`${origin}audit`, (route) =>
             route.fulfill({
               contentType: "text/html",
               body: `<!doctype html><html class="${theme}"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><style>#back{position:fixed;inset:0;background:${theme === "light" ? "#fafafa" : "#171717"}}#badge{position:absolute;left:50px;top:50px;width:576px;height:288px;box-shadow:none;border:0;background:transparent}</style><main id="back" class="${upstream ? "" : "canvas-workspace"}"><div id="badge" class="${upstream ? "" : "creative-card"}"></div></main><script type="module" src="${fixture}"></script>`,
             }),
           );
-          await page.goto(origin + "audit");
+          await page.goto(`${origin}audit`);
           const badge = page.getByRole("button", { name: `历史记录，共 ${badgeCount} 版` });
           await expect(badge).toBeVisible({ timeout: 30000 });
           if (transitions) {
@@ -221,7 +221,7 @@ try {
                     name,
                     await dialog.evaluate((el) => [
                       el.getBoundingClientRect().toJSON(),
-                      el.innerText.slice(0, 100),
+                      (el.textContent ?? "").slice(0, 100),
                       getComputedStyle(el).boxShadow,
                       getComputedStyle(el).transform,
                     ]),
@@ -230,7 +230,7 @@ try {
                   clip: frame,
                   path: join(output, `${side}-${theme}-${key}.png`),
                 });
-                assert(bytes.equals(await page.screenshot({ clip: frame })), key + " unstable");
+                assert(bytes.equals(await page.screenshot({ clip: frame })), `${key} unstable`);
               }
               await page.evaluate(() => {
                 for (const animation of window.historyFrames) animation.finish();

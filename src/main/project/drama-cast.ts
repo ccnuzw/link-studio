@@ -48,7 +48,7 @@ export function dramaKnownCast(state: ProjectState, doc: DramaDocument) {
     Array.from(
       JSON.stringify(entry).replace(
         /[<>&\u2028\u2029]/gu,
-        (char) => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0"),
+        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
       ),
     ).length + 1;
   let remaining = 11998;

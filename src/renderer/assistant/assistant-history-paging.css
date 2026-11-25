@@ -82,10 +82,6 @@
   color: inherit;
   font: inherit;
 }
-.assistant-surface .assistant-transcript .assistant-page-pill button:hover:not(:disabled) {
-  background: none;
-  color: var(--foreground, var(--assistant-text));
-}
 .assistant-transcript .assistant-page-jump {
   bottom: 8px;
   width: 28px;
@@ -133,6 +129,10 @@
 }
 .assistant-surface .assistant-page-opening button:hover:not(:disabled) {
   background-color: var(--retry-hover, oklch(0.97 0 0));
+}
+.assistant-surface .assistant-transcript .assistant-page-pill button:hover:not(:disabled) {
+  background: none;
+  color: var(--foreground, var(--assistant-text));
 }
 @media (prefers-color-scheme: light) {
   :is(.settings-assistant, .drama-assistant) .assistant-page-opening {

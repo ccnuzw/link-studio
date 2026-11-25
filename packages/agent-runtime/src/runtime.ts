@@ -64,10 +64,9 @@ async function readSteerImages(
 function eventApprovalId(type: string, payload: unknown) {
   if (type !== "approval.created" && type !== "approval.decided") return undefined;
   const data = payload as { id?: unknown; recoveryId?: unknown } | null;
-  if (typeof data?.id === "string") return desktopIdCodec.decodeDecimal(data.id);
   if (typeof data?.recoveryId === "string")
     return /^approval:([1-9]\d{0,19})$/.exec(data.recoveryId)?.[1];
-  return undefined;
+  return typeof data?.id === "string" ? desktopIdCodec.decodeDecimal(data.id) : undefined;
 }
 
 export class LocalAgentRuntime {
@@ -108,6 +107,7 @@ export class LocalAgentRuntime {
         : createLocalGateway({ targets, onEffectCommitted: options.onEffectCommitted });
       if (options.settings) await reconcileSettingsDecisions(store, platform, options.settings);
       const openedCanvases = new Set<string>();
+      const settings = options.settings;
       const engine = await AgentEngine.open({
         store,
         storage: await openNodeSqliteStorage(database, { prefix: "pi_" }),
@@ -119,13 +119,13 @@ export class LocalAgentRuntime {
         autoTitle: Boolean(options.settings),
         activitySummary: Boolean(options.settings),
         leaseIntervalMs: 1000,
-        ...(options.settings
+        ...(settings
           ? {
               watchGraceMs: 500,
               watchPollMs: 2000,
               modelDiagnostics: true,
               readSteerImages: (run: Run, ids: string[]) =>
-                readSteerImages(store, targets, options.settings!, run, ids),
+                readSteerImages(store, targets, settings, run, ids),
               localModelUsage: true,
               canvasWatchEnabled: (id: string) => openedCanvases.has(id),
             }
@@ -304,7 +304,7 @@ export class LocalAgentRuntime {
     if (scope.kind !== "canvas") throw new LocalAgentError("AGENT_SCOPE_DENIED");
     const { engineId } = this.targets.scope(scope);
     this.openedCanvases.add(engineId);
-    const approvals = this.store.recentGenerationApprovals(
+    const approvals = this.store.generationApprovalsToRecover(
       "1",
       engineId,
       Date.now() - WATCH_KEEP_MS,
@@ -555,14 +555,23 @@ async function reconcileSettingsDecisions(
               approvalId: approval.id,
               payload: approval.payload,
               recovery: true,
-            })) as { tested?: true; code?: string })
+            })) as { tested?: true; code?: string; duration_ms?: number })
           : undefined;
       const execution = result
         ? { status: result.tested ? "executed" : "failed", result }
         : await platform.execute(context, kind, approval.id, approval.toolCallId, outcome);
       const recoveryId = `approval:${approval.id}`;
+      const display = approval.payload as { label?: unknown; revertOf?: unknown } | null;
       appendRecoveryEvent(store, session.id, run.id, "approval.decided", recoveryId, {
         kind,
+        ...(kind === "admin_test_run" &&
+          typeof display?.label === "string" && {
+            payload: { label: display.label },
+          }),
+        ...(kind === "admin_change" &&
+          typeof display?.revertOf === "string" && {
+            payload: { revertOf: display.revertOf },
+          }),
         status: execution.status,
         result: execution.result,
       });

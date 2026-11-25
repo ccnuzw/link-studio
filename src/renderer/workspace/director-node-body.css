@@ -44,10 +44,6 @@
   color: var(--director-muted);
   background: none;
 }
-.canvas-workspace .creative-card[data-director] .node-icon svg {
-  width: 16px;
-  height: 16px;
-}
 .director-node-body {
   position: relative;
   overflow: hidden;
@@ -114,12 +110,6 @@
 .director-node-center button:focus-visible {
   box-shadow: 0 0 0 2px var(--director-ring);
 }
-.director-node-body[data-thumbnail] button {
-  color: white;
-  background: color-mix(in oklab, white 15%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, white 25%, transparent);
-  backdrop-filter: blur(8px);
-}
 .director-node-body[data-thumbnail] button:hover {
   background: color-mix(in oklab, white 25%, transparent);
 }
@@ -148,6 +138,10 @@
 .director-node-cameras svg {
   width: 12px;
   height: 12px;
+}
+.canvas-workspace .creative-card[data-director] .node-icon svg {
+  width: 16px;
+  height: 16px;
 }
 .director-node-body[data-thumbnail] button:focus-visible {
   box-shadow: 0 0 0 2px var(--director-ring);
@@ -208,6 +202,12 @@
   padding: 0 10px;
   background: oklch(0.269 0 0);
   border: 0;
+}
+.director-node-body[data-thumbnail] button {
+  color: white;
+  background: color-mix(in oklab, white 15%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, white 25%, transparent);
+  backdrop-filter: blur(8px);
 }
 .director-preset-controls :disabled {
   opacity: 0.5;

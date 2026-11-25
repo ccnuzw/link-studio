@@ -4,6 +4,8 @@ import { mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promise
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { Value } from "@sinclair/typebox/value";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentWorkerClient } from "../../packages/agent-runtime/src/client";
 import type { PublishedEvent } from "../../packages/agent-runtime/upstream/src/engine/engine";
@@ -11,6 +13,7 @@ import type { Approval, Run } from "../../packages/agent-runtime/upstream/src/st
 import { fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
 import type { GenerationInput, JobStatus } from "../../packages/link-studio-core/src/generation";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
+import { settingsRequests } from "../../packages/link-studio-core/src/settings-api";
 import { probeMedia } from "../../packages/media-runtime/src/probe";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { AssetFiles } from "../../src/main/project/asset-files";
@@ -22,15 +25,23 @@ import {
   chooseDramaTake,
   createDrama,
   DramaTools,
+  deleteDramaSegment,
   dramaDocument,
+  reorderDramaSegments,
 } from "../../src/main/project/drama";
 import { estimateDramaJob } from "../../src/main/project/drama-estimate";
 import { submitApprovedDramaJob } from "../../src/main/project/drama-job";
 import { runDramaAssetJob } from "../../src/main/project/drama-worker";
 import { GenerationService } from "../../src/main/project/generation";
 import { ProjectStore } from "../../src/main/project/store";
+import { openAgentStream } from "../../src/main/settings/agent-model";
 import { runModelTrial } from "../../src/main/settings/model-trial";
 import { SettingsRegistry } from "../../src/main/settings/registry";
+import { uploadTrialReference } from "../../src/main/settings/trial-reference-upload";
+import { applyKindTemplate } from "../../src/renderer/settings/model-kind-template";
+import { batchVideoTargets } from "../../src/renderer/workspace/drama-segment-status";
+import { CanvasResultObserver } from "../../src/renderer/workspace/pet/result-observer";
+import { requireTestValue } from "../require-test-value";
 
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=";
@@ -202,9 +213,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       prompt: "推开门。",
       seconds: 5,
     });
-    const segment = segments![0]!;
+    const segment = requireTestValue(requireTestValue(segments)[0]);
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     const tools = new DramaTools();
@@ -245,7 +256,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(board()).toMatchObject({ activeOutputId: outputId, assetId: asset.assetId });
     await expect(summary()).resolves.toMatchObject({ done_board_count: 1 });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.segments![0]!.prompt += "回头。";
+      requireTestValue(
+        requireTestValue(requireTestValue(dramaDocument(state)).segments)[0],
+      ).prompt += "回头。";
       return { changed: true, result: null };
     });
     await expect(summary()).resolves.toMatchObject({ done_board_count: 0 });
@@ -266,7 +279,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("文本任务按提交快照和产物用量计价；缺报按报价、超报封顶，重开不重新计价", async () => {
     const channel = generationChannel(1),
-      plugin = registry.list().plugins.find((item) => item.key === "openai")!;
+      plugin = requireTestValue(registry.list().plugins.find((item) => item.key === "openai"));
     const model = registry.modelSave({
       channelId: channel.id,
       channelRevision: channel.revision,
@@ -301,7 +314,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           .end(JSON.stringify({ choices: [{ message: { content: "回执" } }], usage }));
       const entry = { id: randomUUID(), input: { ...input(model, "script"), prompt: "海🌙" } };
       const [queued] = await service.submit(store, [entry]);
-      expect(queued).toMatchObject({ status: "queued", quotedCredits: 131 });
+      expect(queued).toMatchObject({
+        status: "queued",
+        quotedCredits: 131,
+        modelKey: model.id,
+        model: "用量测试",
+      });
       expect(queued).not.toHaveProperty("settledCredits");
       expect(await wait(entry.id, "succeeded")).toMatchObject({
         quotedCredits: 131,
@@ -313,6 +331,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     for (const { entry, expected } of receipts)
       expect((await service.submit(store, [entry]))[0]).toMatchObject({
         quotedCredits: 131,
+        modelKey: model.id,
         settledCredits: expected,
       });
     expect(calls).toHaveLength(4);
@@ -320,7 +339,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("停用 OpenAI 后 Gemini 分镜经宿主流式网关提交，持久化分镜且重开不重复请求", async () => {
     const channel = generationChannel(1, [{ name: "x-fixture-channel", value: "split" }]);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai")!;
+    const plugin = requireTestValue(registry.list().plugins.find((item) => item.key === "openai"));
     registry.pluginToggle({ hash: plugin.hash, enabled: false });
     const model = registry.modelSave({
       expectedRevision: 0,
@@ -402,6 +421,52 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       "POST /antigravity/v1beta/models/fixture:streamGenerateContent?alt=sse",
     ]);
   });
+  it("脚本节点使用未配置价格的 Responses Agent 生成正文", async () => {
+    const channel = generationChannel(1);
+    const model = registry.modelSave({
+      expectedRevision: 0,
+      channelId: channel.id,
+      channelRevision: channel.revision,
+      upstreamModel: "fixture",
+      config: { kind: "agent", name: "对白", description: "", sort: 1 },
+      enabled: true,
+      settings: { api: "responses" },
+    });
+    await edit(node("script", "script"));
+    provider = (_request, response) => {
+      const item = {
+        type: "message",
+        id: "msg_fixture",
+        role: "assistant",
+        content: [{ type: "output_text", text: "雨停了。" }],
+      };
+      const frame = (type: string, fields: object) =>
+        `event: ${type}\ndata: ${JSON.stringify({ type, ...fields })}\n\n`;
+      response.writeHead(200, { "content-type": "text/event-stream" }).end(
+        frame("response.output_item.added", { output_index: 0, item }) +
+          frame("response.output_text.delta", {
+            output_index: 0,
+            content_index: 0,
+            delta: "雨停了。",
+          }) +
+          frame("response.output_item.done", { output_index: 0, item }) +
+          frame("response.completed", {
+            response: {
+              status: "completed",
+              output: [item],
+              usage: { input_tokens: 8, output_tokens: 4, total_tokens: 12 },
+            },
+          }),
+      );
+    };
+    const entry = { id: randomUUID(), input: input(model, "script") };
+    await service.submit(store, [entry]);
+    await wait(entry.id, "succeeded");
+    expect(
+      store.getCanvas().canvas.nodes.find((entry) => entry.id === "script")?.data,
+    ).toMatchObject({ text: "雨停了。" });
+    expect(calls).toEqual(["POST /v1/responses"]);
+  });
   it("文本任务失败清空旧稿，成功清除错误，迟到的失败不会覆盖新稿", async () => {
     const profile = configure("openai", undefined, "fixture", { api: "chat_completions" });
     const initial = {
@@ -417,6 +482,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     const saved = () =>
       store.getCanvas().canvas.nodes.find((entry) => entry.id === initial.id)?.data;
     await putNode("旧稿");
+    const petResults = new CanvasResultObserver(Date.now());
     const send = async () => {
       const entry = { id: randomUUID(), input: input(profile, initial.id) };
       await service.submit(store, [entry]);
@@ -439,8 +505,19 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       response
         .writeHead(200, { "content-type": "application/json" })
         .end(JSON.stringify({ choices: [{ message: { content: "新一版对白" } }] }));
-    expect(await wait(await send(), "succeeded")).toMatchObject({ bound: true });
+    const successful = await wait(await send(), "succeeded");
+    expect(successful).toMatchObject({ bound: true });
+    const completed = service.list(store).jobs;
+    expect(
+      petResults
+        .collect(completed)
+        .map(({ id }) => id)
+        .sort(),
+    ).toEqual([failed?.id, successful?.id].sort());
+    expect(petResults.collect(completed)).toEqual([]);
     await reopen();
+    const reopenedResults = new CanvasResultObserver(Date.now());
+    expect(reopenedResults.collect(service.list(store).jobs)).toEqual([]);
     expect(saved()).toMatchObject({ text: "新一版对白", textStatus: "done" });
     expect(saved()).not.toHaveProperty("textError");
     let pending: ServerResponse | undefined;
@@ -452,7 +529,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(saved()).toMatchObject({ text: "", outputs: [{ text: "新一版对白" }] });
     expect(saved()).not.toHaveProperty("activeOutputId");
     await putNode("人工改稿");
-    fail(pending!);
+    fail(requireTestValue(pending));
     await wait(late, "failed");
     expect(saved()).toMatchObject({ text: "人工改稿" });
     expect(saved()).not.toHaveProperty("textError");
@@ -487,6 +564,283 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       data: { assetId: asset?.assetId },
     });
     expect(calls).toHaveLength(1);
+  });
+
+  it("视频模型编辑值经保存、请求预览和本地试跑使用同一份配置", async () => {
+    const channel = generationChannel();
+    const upstreamModel = "doubao-seedance-2-5-flash";
+    const config = applyKindTemplate(
+      { kind: "video", name: "视频", description: "", sort: 0 },
+      "video",
+      false,
+      { adapter: "doubao-video", model: upstreamModel },
+    );
+    config.refs = {
+      image: { max: 9, mb: 10 },
+      audio: { max: 4, mb: 15, on: false },
+      video: { max: 1, mb: 100 },
+    };
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
+    const model = registry.modelSave({
+      expectedRevision: 0,
+      channelId: channel.id,
+      channelRevision: channel.revision,
+      pluginHash: plugin.hash,
+      upstreamModel,
+      settings: { as: "url" },
+      approve: true,
+      enabled: false,
+      config,
+    });
+    const trial = {
+      id: model.id,
+      expectedRevision: model.revision,
+      prompt: "山间云雾",
+      op: "omni" as const,
+      params: { duration: 8, resolution: "4K", generateAudio: false },
+    };
+    const received: Blob[] = [];
+    const grant = (blob: Blob) => {
+      received.push(blob);
+      return "link-media://trial/fixture";
+    };
+    const reference = join(root, "reference.mp4");
+    const maximum = 100 * 1024 * 1024;
+    const handle = await open(reference, "w");
+    await handle.truncate(maximum);
+    await handle.close();
+    const assetURL = "https://assets.example.com/uploaded-video.mp4";
+    let uploadBytes = 0;
+    let multipartPrefix = "";
+    let multipartSuffix = "";
+    provider = (request, response) => {
+      request.on("data", (chunk: Buffer) => {
+        if (!uploadBytes) multipartPrefix = chunk.subarray(0, 512).toString();
+        uploadBytes += chunk.length;
+        multipartSuffix = (multipartSuffix + chunk.subarray(-128).toString()).slice(-128);
+      });
+      request.on("end", () => response.end(JSON.stringify({ code: 0, data: { url: assetURL } })));
+    };
+    await expect(
+      uploadTrialReference(reference, "video/mp4", maximum - 1, `${endpoint}/assets`),
+    ).rejects.toThrow();
+    expect(calls).toEqual([]);
+    const url = await uploadTrialReference(reference, "video/mp4", maximum, `${endpoint}/assets`);
+    const headerBytes = multipartPrefix.indexOf("\r\n\r\n") + 4;
+    const footerBytes = multipartSuffix.length - multipartSuffix.indexOf("\r\n--link-studio-");
+    expect(multipartPrefix).toContain('name="file"; filename="reference.mp4"');
+    expect(uploadBytes - headerBytes - footerBytes).toBe(maximum);
+    const references = [{ kind: "video" as const, url }];
+    const preview = await runModelTrial(registry, { ...trial, references, dry: true }, grant);
+    expect(preview.status).toBe("preview");
+    const expected = {
+      ratio: "Auto",
+      resolution: "4K",
+      duration: 8,
+      generate_audio: false,
+      content: expect.arrayContaining([
+        { type: "video_url", video_url: { url: assetURL }, role: "reference_video" },
+      ]),
+    };
+    expect(JSON.parse(requireTestValue(requireTestValue(preview.request).body))).toMatchObject(
+      expected,
+    );
+    expect(calls).toEqual(["POST /assets"]);
+    const clip = join(root, "trial.mp4");
+    await runMediaProcess(ffmpeg, [
+      "-f",
+      "lavfi",
+      "-i",
+      "color=s=64x48:d=0.2",
+      "-c:v",
+      "h264_videotoolbox",
+      "-allow_sw",
+      "1",
+      clip,
+    ]);
+    const video = await readFile(clip);
+    const tasks = "/api/v3/contents/generations/tasks";
+    let sent: unknown;
+    provider = (request, response) => {
+      if (request.url === tasks && request.method === "POST") {
+        const chunks: Buffer[] = [];
+        request.on("data", (chunk) => chunks.push(chunk));
+        request.on("end", () => {
+          sent = JSON.parse(Buffer.concat(chunks).toString());
+          response.end(JSON.stringify({ id: "trial-video" }));
+        });
+      } else if (request.url === `${tasks}/trial-video`) {
+        response.end(
+          JSON.stringify({ status: "succeeded", content: { video_url: `${endpoint}/trial.mp4` } }),
+        );
+      } else if (request.url === "/trial.mp4") {
+        response.writeHead(200, { "content-type": "video/mp4" }).end(video);
+      } else response.writeHead(404).end();
+    };
+    const result = await runModelTrial(registry, { ...trial, references, dry: false }, grant);
+    expect(result).toMatchObject({
+      status: "succeeded",
+      outputs: [{ mediaType: "video", previewUrl: "link-media://trial/fixture" }],
+    });
+    expect(Buffer.from(await requireTestValue(received[0]).arrayBuffer())).toEqual(video);
+    expect(sent).toMatchObject(expected);
+    expect(calls).toEqual([
+      "POST /assets",
+      `POST ${tasks}`,
+      `GET ${tasks}/trial-video`,
+      "GET /trial.mp4",
+    ]);
+  }, 40000);
+
+  it("全能参考请求接收各类型配置之和并拒绝单项超限", async () => {
+    const channel = generationChannel();
+    const upstreamModel = "doubao-seedance-2-5-flash";
+    const config = applyKindTemplate(
+      { kind: "video", name: "视频", description: "", sort: 0 },
+      "video",
+      false,
+      { adapter: "doubao-video", model: upstreamModel },
+    );
+    const refs = {
+      image: { max: 9, mb: 10 },
+      audio: { max: 4, mb: 15 },
+      video: { max: 1, mb: 100 },
+    };
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
+    const model = registry.modelSave({
+      expectedRevision: 0,
+      channelId: channel.id,
+      channelRevision: channel.revision,
+      pluginHash: plugin.hash,
+      upstreamModel,
+      settings: { as: "url" },
+      approve: true,
+      enabled: false,
+      config: { ...config, refs },
+    });
+    const references = (["image", "audio", "video"] as const).flatMap((kind) =>
+      Array.from({ length: refs[kind].max }, (_, index) => ({
+        kind,
+        url: `https://assets.example.com/${kind}-${index}`,
+      })),
+    );
+    const mixed = {
+      id: model.id,
+      expectedRevision: model.revision,
+      prompt: "云雾",
+      params: {},
+      op: "omni" as const,
+      references,
+      dry: true,
+    };
+    expect(references).toHaveLength(14);
+    expect(Value.Check(settingsRequests.modelTrial, mixed)).toBe(true);
+    const grant = () => {
+      throw new Error("请求预览不应产生文件");
+    };
+    const preview = await runModelTrial(registry, mixed, grant);
+    expect(preview.status).toBe("preview");
+    const media = JSON.parse(
+      requireTestValue(requireTestValue(preview.request).body),
+    ).content.filter((item: { type: string }) => item.type !== "text");
+    expect(media).toHaveLength(references.length);
+    for (const { kind, url } of references)
+      expect(media).toContainEqual({
+        type: `${kind}_url`,
+        [`${kind}_url`]: { url },
+        role: `reference_${kind}`,
+      });
+    await expect(
+      runModelTrial(
+        registry,
+        {
+          ...mixed,
+          references: [...references, { kind: "video", url: "https://assets.example.com/extra" }],
+        },
+        grant,
+      ),
+    ).rejects.toMatchObject({ code: "MODEL_TRIAL_INPUT_INVALID" });
+    expect(calls).toEqual([]);
+  });
+
+  it("OpenAI 生图预设经保存和真实适配器换算为尺寸，Auto 不发送 size", async () => {
+    const channel = generationChannel();
+    const plugin = requireTestValue(
+      registry.list().plugins.find(({ key }) => key === "openai-image"),
+    );
+    const upstreamModel = "gpt-image-2";
+    const config = applyKindTemplate(
+      { kind: "image", name: upstreamModel, description: "", sort: 0 },
+      "image",
+      false,
+      { adapter: plugin.key, model: upstreamModel },
+    );
+    const model = registry.modelSave({
+      expectedRevision: 0,
+      channelId: channel.id,
+      channelRevision: channel.revision,
+      pluginHash: plugin.hash,
+      upstreamModel,
+      settings: {},
+      approve: true,
+      enabled: false,
+      config,
+    });
+    for (const [ratio, size] of [
+      [undefined, "1024x1024"],
+      ["Auto", undefined],
+      ["16:9", "1536x1024"],
+      ["9:16", "1024x1536"],
+      ["4:3", "1536x1024"],
+      ["3:4", "1024x1536"],
+    ] as const) {
+      const preview = await runModelTrial(
+        registry,
+        {
+          id: model.id,
+          expectedRevision: model.revision,
+          dry: true,
+          prompt: "比例测试",
+          params: ratio ? { aspectRatio: ratio } : {},
+        },
+        () => "",
+      );
+      expect(preview.status).toBe("preview");
+      const body = JSON.parse(requireTestValue(requireTestValue(preview.request).body));
+      if (size === undefined) expect(body).not.toHaveProperty("size");
+      else expect(body.size).toBe(size);
+      expect(body).not.toHaveProperty("quality");
+    }
+    const trial = {
+      id: model.id,
+      expectedRevision: model.revision,
+      prompt: "色彩",
+      params: {},
+    };
+    expect(calls).toEqual([]);
+    let editBody = "";
+    provider = (request, response) => {
+      request.on("data", (chunk) => {
+        editBody += chunk.toString("latin1");
+      });
+      request.on("end", () => response.end(JSON.stringify({ data: [{ b64_json: png }] })));
+    };
+    const edited = await runModelTrial(
+      registry,
+      {
+        ...trial,
+        dry: false,
+        references: [{ kind: "image", file: { mime: "image/png", base64: png } }],
+      },
+      () => "link-media://trial/fixture",
+    );
+    expect(edited.status).toBe("succeeded");
+    expect(calls).toEqual(["POST /v1/images/edits"]);
+    expect(editBody).not.toContain('name="quality"');
   });
 
   it("导入模型后必须显式配置，离线图片试跑支持本地参考且不写入项目", async () => {
@@ -568,14 +922,18 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ],
     });
     expect(calls).toEqual(["POST /v1/images/edits"]);
-    expect(Buffer.from(await received[0]!.arrayBuffer()).toString("base64")).toBe(png);
+    expect(Buffer.from(await requireTestValue(received[0]).arrayBuffer()).toString("base64")).toBe(
+      png,
+    );
     expect(Buffer.concat(bodies).toString()).toContain("1024x1024");
     expect(Object.keys(store.snapshot.assets)).toHaveLength(0);
   });
 
   it("画布自定义生成数量绑定同一节点，部分失败不丢结果，重提交复用整批回执", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -634,7 +992,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("队列只剩两个位置时接纳前两份，同一请求重开后只补建第三份", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -674,7 +1034,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(completed).toHaveLength(3);
     expect(completed.slice(0, 2).map((job) => job.id)).toEqual(accepted.map((job) => job.id));
     expect(completed[0]).not.toHaveProperty("unsubmittedCount");
-    await wait(completed[2]!.id, "succeeded");
+    await wait(requireTestValue(completed[2]).id, "succeeded");
     expect((await service.submit(store, [entry])).map((job) => job.id)).toEqual(
       completed.map((job) => job.id),
     );
@@ -696,11 +1056,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(trial).toBeTypeOf("function");
     expect(registry.acquireGeneration(first.id, "model-trial", "second-trial")).toBeUndefined();
     expect(registry.acquireGeneration(first.id, "project-0", "job-0")).toBeTypeOf("function");
-    releases[2]!();
+    requireTestValue(releases[2])();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeUndefined();
-    trial!();
+    requireTestValue(trial)();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeTypeOf("function");
-    releases[1]!();
+    requireTestValue(releases[1])();
     expect(registry.acquireGeneration(undefined, "legacy", "direct")).toBeTypeOf("function");
   });
 
@@ -708,8 +1068,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     const channel = generationChannel(2),
       now = Date.now(),
       until = now + 30000;
-    const first = registry.acquireGeneration(channel.id, "active", "one")!,
-      second = registry.acquireGeneration(channel.id, "active", "two")!;
+    const first = requireTestValue(registry.acquireGeneration(channel.id, "active", "one")),
+      second = requireTestValue(registry.acquireGeneration(channel.id, "active", "two"));
     const enter = (index: number) =>
       registry.acquireGeneration(channel.id, `pending-${index}`, `job-${index}`, until, {
         created: now + index - 30,
@@ -721,9 +1081,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     registry.reconcileJobPins("pending-0", []);
     registry.clearGenerationWaiters("pending-1");
     expect(enter(4)).toBeUndefined();
-    const third = enter(3)!;
+    const third = requireTestValue(enter(3));
     expect(enter(4)).toBeUndefined();
-    const next = enter(2)!;
+    const next = requireTestValue(enter(2));
     expect(registry.acquireGeneration(channel.id, "model-trial", "trial")).toBeUndefined();
     next();
     third();
@@ -731,12 +1091,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       if (index + 2 < 12) expect(enter(index + 2)).toBeUndefined();
       const release = enter(index);
       expect(release).toBeTypeOf("function");
-      release!();
+      requireTestValue(release)();
     }
     const future = vi.spyOn(Date, "now").mockReturnValue(now + 40000);
     try {
-      const held = registry.acquireGeneration(channel.id, "active", "a")!,
-        other = registry.acquireGeneration(channel.id, "active", "b")!;
+      const held = requireTestValue(registry.acquireGeneration(channel.id, "active", "a")),
+        other = requireTestValue(registry.acquireGeneration(channel.id, "active", "b"));
       expect(
         registry.acquireGeneration(channel.id, "stale", "expired", now + 41000, {
           created: now,
@@ -758,7 +1118,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       until = created + 30000;
     const enter = (project: string) =>
       registry.acquireGeneration(channel.id, project, "job", until, { created, until });
-    const holder = () => registry.acquireGeneration(channel.id, "holder", "active")!;
+    const holder = () =>
+      requireTestValue(registry.acquireGeneration(channel.id, "holder", "active"));
     expect(holder()).toBeTypeOf("function");
     for (const name of ["sleeping", "cancelled", "first", "second"])
       expect(enter(name)).toBeUndefined();
@@ -771,11 +1132,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(enter("cancelled")).toBeUndefined();
     const release = enter("first");
     expect(release).toBeTypeOf("function");
-    release!();
+    requireTestValue(release)();
     registry.clearGenerationWaiters("second");
     const next = enter("cancelled");
     expect(next).toBeTypeOf("function");
-    next!();
+    requireTestValue(next)();
     expect(calls).toEqual([]);
   });
 
@@ -802,7 +1163,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("两个打开的项目共用渠道生成名额，等待期间不重复提交", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -846,10 +1209,10 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       expect(service.list(second).jobs[0]?.status).toBe("queued");
       expect(pending).toHaveLength(1);
       const body = JSON.stringify({ data: [{ b64_json: png }] });
-      pending[0]!.setHeader("content-type", "application/json").end(body);
+      requireTestValue(pending[0]).setHeader("content-type", "application/json").end(body);
       await wait(firstJob.id, "succeeded");
       await expect.poll(() => pending.length).toBe(2);
-      pending[1]!.setHeader("content-type", "application/json").end(body);
+      requireTestValue(pending[1]).setHeader("content-type", "application/json").end(body);
       await expect.poll(() => service.list(second).jobs[0]?.status).toBe("succeeded");
       expect(Object.keys(store.snapshot.assets)).toHaveLength(1);
       expect(Object.keys(second.snapshot.assets)).toHaveLength(1);
@@ -863,7 +1226,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("四个项目共用一个上游名额，关掉最早的等待项目后按顺序提交", async () => {
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -920,14 +1285,16 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
             )
             .toBeGreaterThan(0);
       }
-      await service.stop(others[0]!);
-      ready(pending[0]!);
+      await service.stop(requireTestValue(others[0]));
+      ready(requireTestValue(pending[0]));
       await expect.poll(() => sent).toEqual(["在生成", "先排队"]);
-      ready(pending[1]!);
+      ready(requireTestValue(pending[1]));
       await expect.poll(() => sent).toEqual(["在生成", "先排队", "后排队"]);
-      ready(pending[2]!);
-      await expect.poll(() => service.list(others[2]!).jobs[0]?.status).toBe("succeeded");
-      expect(service.list(others[0]!).jobs[0]?.status).toBe("queued");
+      ready(requireTestValue(pending[2]));
+      await expect
+        .poll(() => service.list(requireTestValue(others[2])).jobs[0]?.status)
+        .toBe("succeeded");
+      expect(service.list(requireTestValue(others[0])).jobs[0]?.status).toBe("queued");
     } finally {
       for (const response of pending) response.destroy();
       for (const target of others) {
@@ -940,7 +1307,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("等待渠道名额的任务超过模型时限后停止排队", async () => {
     await edit(node("sample"));
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1130,7 +1499,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       await handle.close();
     }
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -1276,7 +1647,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         if (scenario !== "不收参考图")
           return configure("doubao-audio", undefined, "seed-audio", { as: "base64" });
         const channel = generationChannel();
-        const plugin = registry.list().plugins.find((item) => item.key === "doubao-audio")!;
+        const plugin = requireTestValue(
+          registry.list().plugins.find((item) => item.key === "doubao-audio"),
+        );
         const model = registry.modelSave({
           expectedRevision: 0,
           channelId: channel.id,
@@ -1382,7 +1755,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           await expect.poll(() => !!imageResponse).toBe(true);
           expect(service.list(store).jobs.find((job) => job.id === voiceId)?.status).toBe("queued");
           expect(voiceRequest).toBeUndefined();
-          imageResponse!.end(JSON.stringify({ data: [{ b64_json: png }] }));
+          requireTestValue(imageResponse).end(JSON.stringify({ data: [{ b64_json: png }] }));
         }
         const completed = await wait(voiceId, "succeeded");
         expect(completed).toMatchObject({ afterImageJobId: imageId, bound: true });
@@ -1417,6 +1790,136 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     },
   );
 
+  it("片场同批视频分别落盘，重开后只重试失败片段", async () => {
+    const clip = join(root, "batch.mp4");
+    await runMediaProcess(ffmpeg, [
+      "-f",
+      "lavfi",
+      "-i",
+      "color=s=64x48:d=1",
+      "-an",
+      "-c:v",
+      "h264_videotoolbox",
+      "-allow_sw",
+      "1",
+      clip,
+    ]);
+    const video = await readFile(clip);
+    const builtin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
+    const plugin = await draftVideo(
+      String(builtin.source).replace(
+        "firstDelay: 15, interval: 10",
+        "firstDelay: 0.01, interval: 0.01",
+      ),
+    );
+    const model = configure("doubao-video", plugin.hash);
+    const submitted: string[] = [];
+    provider = async (request, response) => {
+      if (request.method === "POST") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(Buffer.from(chunk));
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const prompt = body.content.find((entry: { type: string }) => entry.type === "text").text;
+        const failed = prompt === "关门。" && !submitted.includes(prompt);
+        submitted.push(prompt);
+        response.end(JSON.stringify({ id: failed ? "rejected" : `take-${submitted.length}` }));
+      } else if (request.url === "/batch.mp4") {
+        response.writeHead(200, { "content-type": "video/mp4" }).end(video);
+      } else {
+        response.end(
+          JSON.stringify(
+            request.url?.endsWith("/rejected")
+              ? { status: "failed", error: { message: "片段生成失败" } }
+              : { status: "succeeded", content: { video_url: `${endpoint}/batch.mp4` } },
+          ),
+        );
+      }
+    };
+    let document = await createDrama(store, { title: "门口", script: "开门又关上。" });
+    for (const prompt of ["开门。", "关门。", ""]) {
+      document = await addDramaSegment(store, {
+        episode_no: 1,
+        revision: document.revision,
+        seconds: 5,
+        prompt,
+      });
+    }
+    await store.updateGeneration((state) => {
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
+      return { changed: true, result: null };
+    });
+    const files = new AssetFiles(join(root, "locators"));
+    const pending = async () => {
+      const available = await Promise.all(
+        Object.values(store.snapshot.assets)
+          .filter((asset) => asset.availability !== "deleted")
+          .map(async (asset) => ({
+            ...asset,
+            availability: (await files.previewMetadata(store, asset))
+              ? ("ready" as const)
+              : ("missing" as const),
+          })),
+      );
+      return batchVideoTargets(
+        requireTestValue(requireTestValue(dramaDocument(store.snapshot)).segments),
+        1,
+        service.list(store).jobs,
+        available,
+      );
+    };
+    const entries = async () =>
+      (await pending()).map((segment) => ({
+        id: randomUUID(),
+        input: {
+          ...input(model, `seg:${segment.id}`),
+          purpose: "drama-segment" as const,
+          prompt: segment.prompt,
+        },
+      }));
+    const first = await entries();
+    expect(first.map((entry) => entry.input.prompt)).toEqual(["开门。", "关门。"]);
+    await Promise.all(first.map((entry) => service.submit(store, [entry])));
+    await Promise.all([
+      wait(requireTestValue(first[0]).id, "succeeded"),
+      wait(requireTestValue(first[1]).id, "failed"),
+    ]);
+    await reopen();
+    const retry = await entries();
+    expect(retry.map((entry) => entry.input.prompt)).toEqual(["关门。"]);
+    await service.submit(store, retry);
+    await wait(requireTestValue(retry[0]).id, "succeeded");
+    await reopen();
+    expect(await pending()).toEqual([]);
+    expect(submitted.sort()).toEqual(["开门。", "关门。", "关门。"].sort());
+    const read = await new DramaTools().command(store, "drama-read", {
+      runId: "batch-read",
+      input: { scope: "segments", episode_no: 1 },
+    });
+    expect(read).toMatchObject([
+      {
+        chosen_task_id: requireTestValue(first[0]).id,
+        takes: [
+          { task_id: requireTestValue(first[0]).id, status: "succeeded", asset: { kind: "video" } },
+        ],
+      },
+      {
+        chosen_task_id: requireTestValue(retry[0]).id,
+        takes: [
+          { task_id: requireTestValue(first[1]).id, status: "failed", asset: null },
+          { task_id: requireTestValue(retry[0]).id, status: "succeeded", asset: { kind: "video" } },
+        ],
+      },
+      { takes: [] },
+    ]);
+    const asset = requireTestValue(
+      Object.values(store.snapshot.assets).find((item) => item.mediaType === "video"),
+    );
+    await rm(join(store.directory, "assets", "sha256", asset.sha256.slice(0, 2), asset.sha256));
+    expect((await pending()).map((segment) => segment.prompt)).toEqual(["开门。", "关门。"]);
+  });
+
   it("短剧片段采用首次成功视频，后续失败保留采用，重开后可改选", async () => {
     const clip = join(root, "take.mp4");
     await runMediaProcess(ffmpeg, [
@@ -1431,7 +1934,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       clip,
     ]);
     let video = await readFile(clip);
-    const plugin = registry.list().plugins.find((entry) => entry.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       String(plugin.source).replace(
         "firstDelay: 15, interval: 10",
@@ -1446,7 +1951,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       seconds: 5,
       prompt: "门打开",
     });
-    const segment = document.segments![0]!;
+    const segment = requireTestValue(requireTestValue(document.segments)[0]);
     const request = {
       ...input(model, `seg:${segment.id}`),
       purpose: "drama-segment" as const,
@@ -1457,7 +1962,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       code: "DRAMA_STEP_NOT_READY",
     });
     await store.updateGeneration((state) => {
-      dramaDocument(state)!.episodes[0]!.locked = true;
+      requireTestValue(requireTestValue(dramaDocument(state)).episodes[0]).locked = true;
       return { changed: true, result: null };
     });
     let success = true;
@@ -1483,7 +1988,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     await service.submit(store, [first]);
     await expect(
       estimateDramaJob(
-        dramaDocument(store.snapshot)!,
+        requireTestValue(dramaDocument(store.snapshot)),
         { step: "storyboard", episodes: [1] },
         registry,
       ),
@@ -1513,7 +2018,15 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         takes: [
           { status: "succeeded" },
           { status: "succeeded" },
-          { status: "failed", asset: null },
+          {
+            status: "failed",
+            asset: null,
+            error_message:
+              requireTestValue(service.list(store).jobs.find((entry) => entry.id === failed.id))
+                .errorMessage ||
+              requireTestValue(service.list(store).jobs.find((entry) => entry.id === failed.id))
+                .error,
+          },
         ],
       },
     ]);
@@ -1528,13 +2041,13 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(store.getCanvas().canvasRevision).toBe(request.expectedCanvasRevision);
     await addDramaSegment(store, {
       episode_no: 1,
-      revision: dramaDocument(store.snapshot)!.revision,
+      revision: requireTestValue(dramaDocument(store.snapshot)).revision,
       seconds: 5,
       prompt: "尚未拍摄",
     });
     const last = await addDramaSegment(store, {
       episode_no: 1,
-      revision: dramaDocument(store.snapshot)!.revision,
+      revision: requireTestValue(dramaDocument(store.snapshot)).revision,
       seconds: 5,
       prompt: "白色信纸",
     });
@@ -1560,20 +2073,45 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     success = true;
     const lastId = randomUUID();
     await service.submit(store, [
-      { id: lastId, input: { ...request, nodeId: `seg:${last.segments!.at(-1)!.id}` } },
+      {
+        id: lastId,
+        input: {
+          ...request,
+          nodeId: `seg:${requireTestValue(requireTestValue(last.segments).at(-1)).id}`,
+        },
+      },
     ]);
     const lastJob = await wait(lastId, "succeeded");
+    const previous = requireTestValue(last.segments).map((item) => item.id);
+    const ids = [...previous].reverse();
+    const order = { episodeNo: 1, episodeOrder: last.episode_order ?? 0, previous, ids };
+    const ordered = await reorderDramaSegments(store, order);
+    await expect(reorderDramaSegments(store, order)).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    expect((await reorderDramaSegments(store, { ...order, previous: ids })).revision).toBe(
+      ordered.revision,
+    );
+    await reopen();
+    expect(
+      requireTestValue(requireTestValue(dramaDocument(store.snapshot)).segments).map(
+        (item) => item.id,
+      ),
+    ).toEqual(ids);
     const payload = { args: { step: "compose" as const, episodes: [1] }, estimate: 0 };
     const task = await submitApprovedDramaJob(store, registry, "run", "compose-approval", payload);
     expect(task).not.toHaveProperty("model");
     const assetIdFor = (jobId: string) =>
-      (service.list(store).jobs.find((job) => job.id === jobId)!.outputs[0] as { assetId: string })
-        .assetId;
+      (
+        requireTestValue(service.list(store).jobs.find((job) => job.id === jobId)).outputs[0] as {
+          assetId: string;
+        }
+      ).assetId;
     expect(task.compose_input).toMatchObject({
-      asset_ids: [assetIdFor(second.id), assetIdFor(lastJob!.id)],
+      asset_ids: [assetIdFor(requireTestValue(lastJob).id), assetIdFor(second.id)],
       skipped_seqs: [1],
     });
-    await chooseDramaTake(store, { segmentId: segment.id, taskId: first.id, revision: 3 });
+    await chooseDramaTake(store, { segmentId: segment.id, taskId: first.id, revision: 4 });
     const files = new AssetFiles(join(root, "locators"));
     const media = new CanvasMedia(files, new AssetService(join(binaries, "ffprobe")), ffmpeg);
     const render = () =>
@@ -1585,24 +2123,31 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       interrupted.abort();
     });
     await runDramaAssetJob(store, registry, task.id, interrupted.signal, media);
-    expect(dramaDocument(store.snapshot)!.jobs!.find((job) => job.id === task.id)).toMatchObject({
+    expect(
+      requireTestValue(requireTestValue(dramaDocument(store.snapshot)).jobs).find(
+        (job) => job.id === task.id,
+      ),
+    ).toMatchObject({
       status: "running",
       compose_input: task.compose_input,
     });
     await reopen();
+    const composeJob = () => dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === task.id);
     await expect
-      .poll(() => dramaDocument(store.snapshot)?.jobs?.find((job) => job.id === task.id)?.status)
-      .toBe("succeeded");
-    const finished = dramaDocument(store.snapshot)!.jobs!.find((job) => job.id === task.id)!;
+      .poll(() => composeJob()?.status, { timeout: 15_000 })
+      .toMatch(/^(succeeded|failed|canceled)$/);
+    const finished = requireTestValue(composeJob());
     expect(finished, finished.error_message).toMatchObject({
       status: "succeeded",
       frozen_credits: 0,
     });
-    const final = store.snapshot.assets[finished.final_asset_id!]!;
+    const final = requireTestValue(
+      store.snapshot.assets[requireTestValue(finished.final_asset_id)],
+    );
     expect(final).toMatchObject({
       mediaType: "video",
       origin: "derived",
-      metadata: { width: 64, height: 48 },
+      metadata: { width: 720, height: 1280 },
     });
     expect(final.metadata.durationMs).toBeGreaterThanOrEqual(1950);
     expect(final.metadata.durationMs).toBeLessThan(2100);
@@ -1616,29 +2161,31 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ]),
     );
     const centerPixel = async (seconds: number) =>
-      (
-        await runMediaProcess(ffmpeg, [
-          "-v",
-          "error",
-          "-ss",
-          String(seconds),
-          "-i",
-          output,
-          "-map",
-          "0:v:0",
-          "-frames:v",
-          "1",
-          "-vf",
-          "crop=2:2",
-          "-pix_fmt",
-          "rgb24",
-          "-f",
-          "rawvideo",
-          "pipe:1",
-        ])
-      )[0]!;
-    expect(await centerPixel(0.5)).toBeLessThan(10);
-    expect(await centerPixel(1.5)).toBeGreaterThan(240);
+      requireTestValue(
+        (
+          await runMediaProcess(ffmpeg, [
+            "-v",
+            "error",
+            "-ss",
+            String(seconds),
+            "-i",
+            output,
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-vf",
+            "crop=2:2",
+            "-pix_fmt",
+            "rgb24",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+          ])
+        )[0],
+      );
+    expect(await centerPixel(0.5)).toBeGreaterThan(240);
+    expect(await centerPixel(1.5)).toBeLessThan(10);
     await expect(
       tools.command(store, "drama-read", {
         runId: "read",
@@ -1651,6 +2198,35 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     ).toBe(task.id);
     await render();
     expect(store.snapshot.revision).toBe(revision);
+    const previousSegments = requireTestValue(
+      requireTestValue(dramaDocument(store.snapshot)).segments,
+    );
+    const removed = requireTestValue(previousSegments[0]);
+    const deletion = { segmentId: removed.id, episodeNo: 1, episodeOrder: order.episodeOrder };
+    const beforeDelete = store.snapshot;
+    for (const mismatch of [{ episodeOrder: order.episodeOrder + 1 }, { episodeNo: 2 }]) {
+      await expect(deleteDramaSegment(store, { ...deletion, ...mismatch })).rejects.toMatchObject({
+        code: "AGENT_APPROVAL_STALE",
+      });
+    }
+    const afterDelete = await deleteDramaSegment(store, deletion);
+    expect(afterDelete.segments).toEqual(
+      previousSegments.slice(1).map((item, seq) => ({ ...item, seq, revision: item.revision + 1 })),
+    );
+    await expect(deleteDramaSegment(store, deletion)).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    await reopen();
+    expect(store.snapshot.assets).toEqual(beforeDelete.assets);
+    expect(store.snapshot.jobs).toEqual(beforeDelete.jobs);
+    expect(dramaDocument(store.snapshot)).toEqual(afterDelete);
+    const original = join(root, "removed-segment.mp4");
+    await files.materialize(
+      store,
+      requireTestValue(store.snapshot.assets[assetIdFor(requireTestValue(lastJob).id)]),
+      original,
+    );
+    expect(await readFile(original)).toEqual(video);
   });
 
   it.each(["首次转存", "刷新后仍过期", "转存查询中重开", "转存查询暂回运行中"] as const)(
@@ -1778,7 +2354,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("C6 停用渠道拒绝新任务，已取得回执的视频按原渠道完成", async () => {
     await edit(node("sample", "video"), node("later", "video"));
     const channel = generationChannel();
-    const builtin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+    const builtin = requireTestValue(
+      registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       builtin.source.replace("firstDelay: 15, interval: 10", "firstDelay: 0.05, interval: 0.05"),
     );
@@ -1854,7 +2432,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("C6 停用渠道不为退避中的无回执任务重提", async () => {
     await edit(node("sample", "video"));
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+    );
     const model = registry.modelSave({
       channelId: channel.id,
       channelRevision: channel.revision,
@@ -1891,7 +2471,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   it("已获任务号的渠道任务在项目和设置库重开后继续占用原名额", async () => {
     await edit(node("sample", "video"));
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       plugin.source.replace(
         "firstDelay: 15, interval: 10",
@@ -1953,7 +2535,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       expectedRevision: destination.revision,
       secret: "destination-key",
     });
-    const plugin = registry.list().plugins.find((item) => item.key === "doubao-video")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "doubao-video"),
+    );
     const draft = await draftVideo(
       plugin.source.replace(
         "firstDelay: 15, interval: 10",
@@ -2049,7 +2633,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ...Array(3).fill("Bearer rotated-source-key"),
     ]);
     expect(routes).toEqual(Array(4).fill("original"));
-    expect(times[1]! - times[0]!).toBeGreaterThanOrEqual(1590);
+    expect(requireTestValue(times[1]) - requireTestValue(times[0])).toBeGreaterThanOrEqual(1590);
     await service.stop(store);
     registry.close();
     registry = await openRegistry();
@@ -2081,7 +2665,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           .toMatchObject({ status: "queued", submitRetries: attempt });
         const job = store.snapshot.jobs[entry.id] as { pollAfter: number };
         const base = 2000 * 2 ** (attempt - 1);
-        const waitMs = job.pollAfter - timestamps[attempt - 1]!;
+        const waitMs = job.pollAfter - requireTestValue(timestamps[attempt - 1]);
         expect(waitMs).toBeGreaterThanOrEqual(base * 0.8);
         expect(waitMs).toBeLessThan(base * 1.2 + 1000);
         offset += Math.max(0, job.pollAfter - Date.now()) + 1;
@@ -2388,7 +2972,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       await edit(node("sample", "video"));
       const source = generationChannel();
       const destination = generationChannel();
-      const builtin = registry.list().plugins.find((plugin) => plugin.key === "doubao-video")!;
+      const builtin = requireTestValue(
+        registry.list().plugins.find((plugin) => plugin.key === "doubao-video"),
+      );
       const uploaded = await draftVideo(builtin.source);
       const fields = {
         upstreamModel: "fixture",
@@ -2500,7 +3086,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       .agentPlugin("doubao-video")
       .code.replace("firstDelay: 15, interval: 10", "firstDelay: 0.01, interval: 0.01");
     const plugin = await registry.draft(
-      source + "\nmodule.exports.meta.key='retired-video';",
+      `${source}\nmodule.exports.meta.key='retired-video';`,
       "builtin",
     );
     const channel = generationChannel();
@@ -3130,7 +3716,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       pendingMediaVersion: { batchId: failed.id, outputId: original.id },
     });
     const channel = generationChannel(1);
-    const plugin = registry.list().plugins.find((item) => item.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((item) => item.key === "openai-image"),
+    );
     const model = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -3156,12 +3744,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       const retry = { id: randomUUID(), input: { ...input(model), customParams: { copies: 2 } } };
       const accepted = await service.submit(store, [retry]);
       expect(accepted).toHaveLength(2);
-      await service.cancel(store, accepted[0]!.id);
+      await service.cancel(store, requireTestValue(accepted[0]).id);
       expect(data()).not.toHaveProperty("assetId");
       expect(data()).toMatchObject({
         pendingMediaVersion: { batchId: retry.id, outputId: original.id },
       });
-      await service.cancel(store, accepted[1]!.id);
+      await service.cancel(store, requireTestValue(accepted[1]).id);
       expect(data()).toMatchObject(withHistory.data);
       expect(data()).not.toHaveProperty("pendingMediaVersion");
       expect(calls).toHaveLength(2);
@@ -3301,8 +3889,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         ],
       },
     })) as { created: Record<string, string> };
-    const variant = result.created.variant!;
-    const story = result.created.story!;
+    const variant = requireTestValue(result.created.variant);
+    const story = requireTestValue(result.created.story);
     await expect(preview(variant)).rejects.toMatchObject({ code: "JOB_MODEL_UNAVAILABLE" });
     await agent.command("apply-ops", {
       ...args,
@@ -3343,7 +3931,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ],
     });
     expect(calls).toHaveLength(1);
-    const source = store.getCanvas().canvas.nodes.find((entry) => entry.id === "source")!;
+    const source = requireTestValue(
+      store.getCanvas().canvas.nodes.find((entry) => entry.id === "source"),
+    );
     if (source.type !== "creative") throw Error("缺少已连接的原图节点");
     await store.applyCanvasOperations({
       operationId: randomUUID(),
@@ -3356,7 +3946,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       request.on("end", () => response.end(JSON.stringify({ data: [{ b64_json: png }] })));
     };
     const receipt = (await apply(proposal)) as { tasks: { task_id: string }[] };
-    await wait(receipt.tasks[0]!.task_id, "succeeded");
+    await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded");
     expect(await apply(proposal)).toEqual(receipt);
     expect(calls.at(-1)).toMatch(/\/images\/edits$/);
     expect(calls).toHaveLength(2);
@@ -3372,7 +3962,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
 
   it("生成方式与参数按绑定模型读写，非法批次不落盘，重开后仍只申请一个结果", async () => {
     const channel = generationChannel();
-    const plugin = registry.list().plugins.find((entry) => entry.key === "openai-image")!;
+    const plugin = requireTestValue(
+      registry.list().plugins.find((entry) => entry.key === "openai-image"),
+    );
     const image = registry.modelSave({
       expectedRevision: 0,
       channelId: channel.id,
@@ -3415,8 +4007,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         params: { duration: 5, aspect_ratio: "16:9" },
       },
     ])) as { created: Record<string, string> };
-    const poster = result.created.poster!;
-    const shot = result.created.shot!;
+    const poster = requireTestValue(result.created.poster);
+    const shot = requireTestValue(result.created.shot);
     const read = (nodeId: string) =>
       agent.command("read", { ...args, input: { nodeIds: [nodeId] } });
     const preview = (nodeId: string) =>
@@ -3475,7 +4067,9 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       selected: [0],
     })) as { tasks: { task_id: string }[] };
     expect(receipt.tasks).toHaveLength(1);
-    expect((await wait(receipt.tasks[0]!.task_id, "succeeded"))?.outputs).toHaveLength(1);
+    expect(
+      (await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded"))?.outputs,
+    ).toHaveLength(1);
     expect(calls).toHaveLength(1);
     await read(shot);
     await change([{ op: "update_node", id: shot, model: "" }]);
@@ -3520,7 +4114,12 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       agent.command("read", { ...args, input: { nodeIds: ["poster", "keep", "discard"] } });
     const preview = () =>
       agent.command("generate-preview", { ...args, input: { items: [{ nodeId: "poster" }] } });
-    await read();
+    const detail = await read();
+    if (!detail || !("nodes" in detail) || !detail.nodes) throw Error("缺少节点精读结果");
+    const retainedNode = detail.nodes.find((item) => item.id === "keep");
+    expect(retainedNode?.data).toMatchObject({ hasOutput: true, outputCount: 1 });
+    for (const field of ["assetId", "activeOutputId", "outputs"])
+      expect(retainedNode?.data).not.toHaveProperty(field);
     await expect(preview()).rejects.toMatchObject({ code: "AGENT_REFERENCE_LIMIT" });
     expect(calls).toHaveLength(2);
     expect(service.list(store).jobs).toHaveLength(2);
@@ -3539,7 +4138,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         input: proposal,
       }) as Promise<{ tasks: { task_id: string }[] }>;
     const receipt = await apply();
-    await wait(receipt.tasks[0]!.task_id, "succeeded");
+    await wait(requireTestValue(receipt.tasks[0]).task_id, "succeeded");
     expect((await apply()).tasks).toEqual(receipt.tasks);
     expect(calls).toEqual([
       "POST /v1/images/generations",
@@ -3547,8 +4146,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       "POST /v1/images/edits",
     ]);
     expect(edits).toHaveLength(1);
-    expect(edits[0]!.includes(Buffer.from(retained, "base64"))).toBe(true);
-    expect(edits[0]!.includes(Buffer.from(png, "base64"))).toBe(false);
+    expect(requireTestValue(edits[0]).includes(Buffer.from(retained, "base64"))).toBe(true);
+    expect(requireTestValue(edits[0]).includes(Buffer.from(png, "base64"))).toBe(false);
   });
 
   it.each(["omni", "i2v"] as const)(
@@ -3578,12 +4177,14 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         ...args,
         input: { items: [{ nodeId }] },
       })) as { items: { request: GenerationInput }[] };
-      expect(proposal.items[0]!.request).toMatchObject({
+      expect(requireTestValue(proposal.items[0]).request).toMatchObject({
         op: mode,
         referenceAssetIds: [],
         prompt: "远处的窗亮了",
       });
-      await expect(service.prepare(store, proposal.items[0]!.request)).rejects.toMatchObject({
+      await expect(
+        service.prepare(store, requireTestValue(proposal.items[0]).request),
+      ).rejects.toMatchObject({
         code: "JOB_INPUT_INVALID",
       });
       expect(calls).toHaveLength(0);
@@ -3604,7 +4205,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
           input: proposal,
         }) as Promise<{ tasks: { task_id: string }[] }>;
       const result = await approve();
-      await wait(result.tasks[0]!.task_id, "failed");
+      await wait(requireTestValue(result.tasks[0]).task_id, "failed");
       expect(await approve()).toEqual(result);
       expect(requests).toEqual([
         expect.objectContaining({ content: [{ type: "text", text: "远处的窗亮了" }] }),
@@ -3668,7 +4269,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     "审批后用户停止",
     "混合成败后 Worker 中止",
     "部分批准后 Worker 中止",
-  ])("%s，保留原任务且只交付一次", async (scenario) => {
+    "Worker 中止八天后重开",
+  ])("%s，保留原任务且不重复交付", async (scenario) => {
     const mixed = scenario === "混合成败后 Worker 中止";
     const partial = scenario === "部分批准后 Worker 中止";
     const nodeIds = mixed || partial ? ["sample", "second"] : ["sample"];
@@ -3770,11 +4372,55 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
             .sort(),
         )
         .toEqual(mixed ? ["failed", "succeeded"] : ["succeeded"]);
+      if (scenario === "Worker 中止八天后重开") {
+        const database = new DatabaseSync(join(root, "assistant", "agent.sqlite"));
+        try {
+          const update = database.prepare(
+            "UPDATE agent_approvals SET decided_at = ? WHERE id = ? AND status = 'approved'",
+          );
+          expect(
+            update.run(Date.now() - 8 * 24 * 3600000, requireTestValue(approval).id).changes,
+          ).toBe(1);
+        } finally {
+          database.close();
+        }
+      }
       await reopen();
       const recovered = await open();
       client = recovered;
       await recovered.request("recoverCanvas", { scope });
       await recovered.request("recoverCanvas", { scope });
+      if (scenario === "Worker 中止八天后重开") {
+        const decisions = await recovered.request<Approval[]>("approvals", {
+          scope,
+          sessionId,
+          runId: run.id,
+        });
+        expect(decisions).toMatchObject([
+          {
+            id: requireTestValue(approval).id,
+            status: "executed",
+            result: { tasks: [{ node_id: "sample" }] },
+          },
+        ]);
+        const { events } = await recovered.request<{
+          events: { type: string; approvalId?: string }[];
+        }>("page", { scope, sessionId, after: 0 });
+        for (const type of ["approval.created", "approval.decided"])
+          expect(
+            events.filter((event) => event.type === type).map((event) => event.approvalId),
+          ).toEqual([requireTestValue(approval).id]);
+        expect(
+          events.some((event) => event.type === "watch.updated" || event.type === "tasks.settled"),
+        ).toBe(false);
+        expect(service.list(store).jobs.map((job) => job.id)).toEqual(
+          approved.map((job) => job.id),
+        );
+        expect(executions).toBe(1);
+        expect(calls).toHaveLength(1);
+        expect(model.modelRequests).toHaveLength(2);
+        return;
+      }
       await expect
         .poll(() => events.filter(({ type }) => type === "tasks.settled").length, {
           timeout: 5000,
@@ -3967,6 +4613,187 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(store.getCanvas().canvas).toEqual(original);
   });
 
+  it("精读分镜区分手传配图与关联节点，改台词和撤销保留配图", async () => {
+    const path = join(root, "shot.png");
+    await writeFile(path, Buffer.from(png, "base64"));
+    const handle = await open(path, "r");
+    const imported = await new AssetService(join(binaries, "ffprobe"))
+      .importCopy(store, handle, "shot.png", randomUUID())
+      .finally(() => handle.close());
+    if (imported.kind !== "created") throw Error("缺少镜头图片");
+    await store.commitAsset({
+      operationId: randomUUID(),
+      expectedRevision: store.snapshot.revision,
+      requestHash: imported.asset.sha256,
+      asset: imported.asset,
+    });
+    const sheet = node("sheet", "script");
+    const shot = {
+      id: "first",
+      scene: "来信",
+      shot: "中景" as const,
+      camera: "固定" as const,
+      dialogue: "",
+      action: "",
+      duration: 4,
+      imageNodeId: "still",
+      videoNodeId: "clip",
+    };
+    const shots = [
+      { ...shot, imageAssetId: imported.asset.assetId },
+      { ...shot, id: "second" },
+    ];
+    await store.applyCanvasOperations({
+      operationId: randomUUID(),
+      expectedCanvasRevision: store.getCanvas().canvasRevision,
+      operations: [
+        node("still"),
+        node("clip", "video"),
+        { ...sheet, data: { ...sheet.data, storyboard: shots } },
+      ].map((node) => ({ type: "putNode", node })),
+    });
+    const original = store.getCanvas().canvas;
+    const run = { project: agent.key(store), runId: "read-shot-images" };
+    const result = await agent.command("read", { ...run, input: { nodeIds: ["sheet"] } });
+    expect(result).toMatchObject({
+      nodes: [
+        {
+          data: {
+            shotCount: 2,
+            storyboard: [
+              { ...shot, no: 1, hasImage: true },
+              { ...shot, id: "second", no: 2 },
+            ],
+          },
+        },
+      ],
+    });
+    if (!result || !("nodes" in result) || !result.nodes) throw Error("缺少镜头详情");
+    expect(result.nodes[0]).not.toHaveProperty("data.storyboard.1.hasImage");
+    expect(JSON.stringify(result.nodes)).not.toContain(imported.asset.assetId);
+    await agent.command("apply-ops", {
+      ...run,
+      id: "dialogue",
+      input: {
+        ops: [
+          {
+            op: "update_node",
+            id: "sheet",
+            storyboard: { edits: [{ op: "update", no: 1, set: { dialogue: "请进。" } }] },
+          },
+        ],
+      },
+    });
+    expect(store.getCanvas().canvas.nodes.find((item) => item.id === "sheet")).toMatchObject({
+      data: {
+        storyboard: [{ ...shots[0], dialogue: "请进。" }, shots[1]],
+      },
+    });
+    await agent.command("undo", run);
+    expect(store.getCanvas().canvas).toEqual(original);
+  });
+
+  it("小灵一次搭建剧本到分镜到视频的工作流，重放只写入一次", async () => {
+    const input = {
+      ops: [
+        { op: "create_node", kind: "script", tempId: "script", prompt: "剧本模板" },
+        { op: "create_node", kind: "storyboard", tempId: "board", storyboard: { shots: [] } },
+        { op: "create_node", kind: "video", tempId: "clip" },
+        { op: "connect", source: "script", target: "board" },
+        { op: "connect", source: "board", target: "clip" },
+        { op: "create_group", label: "剧本 → 分镜 → 视频", memberIds: ["script", "board", "clip"] },
+      ],
+    };
+    const model = await fakeGo({
+      turns: [
+        { tools: [{ id: "create", name: "canvas_apply_ops", args: input }] },
+        { text: "工作流已搭建" },
+      ],
+    });
+    const scope = { kind: "canvas", projectId: agent.key(store) };
+    let write: unknown;
+    let bridgeError: unknown;
+    let client: AgentWorkerClient | undefined;
+    try {
+      const profile = registry.save({
+        expectedRevision: 0,
+        pluginHash: requireTestValue(registry.list().plugins.find(({ key }) => key === "openai"))
+          .hash,
+        approve: true,
+        secret: "sk-fixture-only",
+        fields: {
+          label: "回放模型",
+          endpoint: model.url,
+          model: "fixture",
+          allowLocal: true,
+          agentEnabled: true,
+          channel: { api: "chat_completions", pathPrefix: "/internal/platform/v1/model" },
+        },
+      });
+      const binding = registry.agentBinding(profile.id, profile.revision);
+      provider = async (incoming, response) => {
+        try {
+          const chunks: Buffer[] = [];
+          for await (const chunk of incoming) chunks.push(Buffer.from(chunk));
+          const upstream = await openAgentStream(
+            binding,
+            JSON.parse(Buffer.concat(chunks).toString()),
+            registry.redactor(),
+            5000,
+            AbortSignal.timeout(5000),
+          );
+          response.writeHead(200, { "content-type": "text/event-stream" });
+          for await (const chunk of upstream) response.write(chunk);
+          response.end();
+        } catch (error) {
+          bridgeError = error;
+          response.destroy(error as Error);
+        }
+      };
+      client = await AgentWorkerClient.open({
+        workerPath: join(process.cwd(), "out/agent-runtime/worker.mjs"),
+        directory: join(root, "assistant"),
+        modelBridgeUrl: endpoint,
+        settings: async (command, args) => {
+          if (command === "model")
+            return { name: "fixture", context_window: 32768, max_tokens: 2048 };
+          if (command === "canvas:apply-ops") {
+            expect(write).toBeUndefined();
+            write = args;
+          }
+          return agent.command(command.slice(7), args);
+        },
+      });
+      await client.request("recoverCanvas", { scope });
+      const { sessionId } = await client.request<{ sessionId: string }>("create", { scope });
+      await client.request("start", {
+        scope,
+        sessionId,
+        message: "搭建剧本到分镜再到视频的工作流",
+      });
+      await client.request("idle");
+      const state = await client.request<{ runs: Run[] }>("state", { scope, sessionId });
+      expect(bridgeError).toBeUndefined();
+      expect(state.runs[0]?.status, JSON.stringify(state.runs[0])).toBe("succeeded");
+      expect(write).toMatchObject({ input });
+    } finally {
+      await client?.close();
+      await model.close();
+    }
+    const canvas = store.getCanvas();
+    const receipt = await agent.command("apply-ops", write);
+    if (!receipt || !("created" in receipt) || !receipt.created) throw Error("缺少创建结果");
+    const { script, board, clip } = receipt.created;
+    expect(canvas.canvas.nodes).toHaveLength(4);
+    expect(canvas.canvas.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: script, target: board }),
+        expect.objectContaining({ source: board, target: clip }),
+      ]),
+    );
+    expect(store.getCanvas()).toEqual(canvas);
+  });
+
   it("小灵按当前镜号修改分镜表，修正时长，保留镜头 ID，可重放和撤销", async () => {
     const args = { project: agent.key(store), runId: "storyboard-create" };
     const apply = (id: string, ops: unknown[], runId = args.runId) =>
@@ -4042,7 +4869,13 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     const args = { project: agent.key(store), runId: "group-ops" };
     const apply = (id: string, ops: unknown[]) =>
       agent.command("apply-ops", { ...args, id, input: { ops } });
-    const create = { op: "create_group", tempId: "group", memberIds: ["first"] };
+    const create = {
+      op: "create_group",
+      tempId: "group",
+      memberIds: ["first"],
+      color: "blue",
+      labelColor: "pink",
+    };
     await expect(apply("unread", [create])).rejects.toMatchObject({ code: "AGENT_READ_REQUIRED" });
     await agent.command("read", { ...args, input: { nodeIds: ["first", "second"] } });
     const result = await apply("make", [
@@ -4067,7 +4900,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(canvas.canvas.nodes).toContainEqual({
       id: group,
       type: "group",
-      data: { label: "开场" },
+      data: { label: "开场", color: "blue", labelColor: "pink" },
       position: { x: 752, y: -2 },
       width: 672,
       height: 444,
@@ -4079,6 +4912,30 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       ]),
     ).rejects.toMatchObject({ code: "CANVAS_OPERATION_INVALID" });
     expect(store.getCanvas()).toEqual(canvas);
+    await apply("colors", [{ op: "set_group", id: group, labelColor: "" }]);
+    const colored = store.getCanvas();
+    expect(colored.canvas.nodes.find((node) => node.id === group)?.data).toEqual({
+      label: "开场",
+      color: "blue",
+    });
+    const detail = await agent.command("read", { ...args, input: { nodeIds: [group, "second"] } });
+    expect(detail).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({
+          id: group,
+          size: { x: 672, y: 444 },
+          data: { label: "开场", color: "blue" },
+        }),
+        expect.objectContaining({ id: "second", parent: group, position: { x: 48, y: 72 } }),
+      ]),
+    });
+    await expect(
+      apply("bad-color", [
+        { op: "set_group", id: group, color: "red" },
+        { op: "set_group", id: group, labelColor: "invalid" },
+      ]),
+    ).rejects.toMatchObject({ code: "CANVAS_OPERATION_INVALID" });
+    expect(store.getCanvas()).toEqual(colored);
     await agent.command("undo", args);
     expect(store.getCanvas().canvas).toEqual(original.canvas);
   });
@@ -4102,6 +4959,221 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
         input: { ops: [{ op: "update_node", id: "sample", prompt: "覆盖" }] },
       }),
     ).rejects.toMatchObject({ code: "AGENT_READ_REQUIRED" });
+  });
+
+  it("小灵保留指定位置，回执汇总组间重叠，贴边后清除提醒", async () => {
+    const group = (id: string, x: number) => ({
+      id,
+      type: "group" as const,
+      data: { label: id },
+      position: { x, y: 0 },
+      width: 1000,
+      height: 800,
+    });
+    const groups = [
+      group("alpha", 0),
+      group("bravo", 300),
+      group("charlie", 700),
+      group("delta", 900),
+    ];
+    const member = { ...node("member"), parentId: "bravo", position: { x: 48, y: 72 } };
+    await store.applyCanvasOperations({
+      operationId: randomUUID(),
+      expectedCanvasRevision: store.getCanvas().canvasRevision,
+      operations: [...groups, member].map((node) => ({ type: "putNode", node })),
+    });
+    const original = store.getCanvas();
+    const run = { project: agent.key(store), runId: "overlap" };
+    await agent.command("read", { ...run, input: { nodeIds: groups.map((group) => group.id) } });
+    const request = {
+      ...run,
+      id: "fixed",
+      input: {
+        ops: groups.map((group) => ({
+          op: "move",
+          id: group.id,
+          position: { ...group.position, y: 10 },
+        })),
+      },
+    };
+    const receipt = await agent.command("apply-ops", request);
+    const warnings = receipt && "warnings" in receipt ? receipt.warnings : undefined;
+    expect(warnings).toHaveLength(5);
+    expect(warnings?.[0]).toContain("「alpha」（alpha）与「bravo」（bravo）重叠");
+    expect(warnings?.[1]).toContain("「charlie」（charlie）与「delta」（delta）重叠");
+    expect(warnings?.join(" ")).not.toContain("member");
+    expect(store.getCanvas().canvas.nodes).toEqual(
+      expect.arrayContaining(
+        groups.map((group) => ({ ...group, position: { ...group.position, y: 10 } })),
+      ),
+    );
+    expect(await agent.command("apply-ops", request)).toEqual(receipt);
+    const aligned = await agent.command("apply-ops", {
+      ...run,
+      id: "touch",
+      input: { ops: [{ op: "move", id: "delta", position: { x: 1700, y: 10 } }] },
+    });
+    expect(aligned).not.toHaveProperty("warnings");
+    await agent.command("undo", run);
+    expect(store.getCanvas().canvas).toEqual(original.canvas);
+  });
+
+  it("小灵扩组时绕开同批固定节点并撤销邻居位移", async () => {
+    const frame = {
+      id: "frame",
+      type: "group" as const,
+      data: { label: "分镜组", color: "blue" as const },
+      position: { x: 0, y: 0 },
+      width: 200,
+      height: 140,
+    };
+    const image = { ...node("image"), position: { x: 48, y: 72 } };
+    const neighbor = { ...node("neighbor"), position: { x: 320, y: 0 } };
+    const fixed = { ...node("fixed"), position: { x: 1200, y: 0 } };
+    await store.applyCanvasOperations({
+      operationId: randomUUID(),
+      expectedCanvasRevision: store.getCanvas().canvasRevision,
+      operations: [frame, image, neighbor, fixed].map((node) => ({ type: "putNode", node })),
+    });
+    const original = store.getCanvas();
+    const run = { project: agent.key(store), runId: "group-growth" };
+    await agent.command("read", { ...run, input: { nodeIds: ["frame", "image", "fixed"] } });
+    const request = {
+      ...run,
+      id: "group-member",
+      input: {
+        ops: [
+          { op: "set_group", id: "frame", addMembers: ["image"] },
+          { op: "move", id: "image", position: { x: 58, y: 82 } },
+          { op: "move", id: "fixed", position: fixed.position },
+        ],
+      },
+    };
+    const receipt = await agent.command("apply-ops", request);
+    expect(store.getCanvas().canvas.nodes).toEqual(
+      expect.arrayContaining([
+        { ...frame, position: { x: 10, y: 10 }, width: 672, height: 444 },
+        { ...image, parentId: frame.id, position: { x: 48, y: 72 } },
+        { ...neighbor, position: { x: 1896, y: 0 } },
+        fixed,
+      ]),
+    );
+    expect(await agent.command("apply-ops", request)).toEqual(receipt);
+    expect(store.getCanvas().canvasRevision).toBe(original.canvasRevision + 1);
+    await agent.command("undo", run);
+    expect(store.getCanvas().canvas).toEqual(original.canvas);
+  });
+
+  it("小灵直接在同批新组和已有组内创建节点", async () => {
+    const original = store.getCanvas();
+    const project = agent.key(store);
+    const run = { project, runId: "direct-members" };
+    const create = await agent.command("apply-ops", {
+      ...run,
+      id: "make",
+      input: {
+        ops: [
+          { op: "create_group", tempId: "group", position: { x: 1000, y: 200 } },
+          { op: "create_node", tempId: "first", kind: "image", parentGroup: "group" },
+          {
+            op: "create_node",
+            tempId: "second",
+            kind: "audio",
+            parentGroup: "group",
+            position: { x: 20, y: 420 },
+          },
+          { op: "create_node", tempId: "third", kind: "audio", parentGroup: "group" },
+        ],
+      },
+    });
+    if (!create || !("created" in create) || !create.created) throw Error("缺少创建回执");
+    const { group, first, second, third } = create.created;
+    const made = store.getCanvas();
+    expect(made.canvas.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: group,
+          position: { x: 972, y: 200 },
+          width: 1144,
+          height: 792,
+        }),
+        expect.objectContaining({ id: first, parentId: group, position: { x: 76, y: 72 } }),
+        expect.objectContaining({ id: second, parentId: group, position: { x: 48, y: 420 } }),
+        expect.objectContaining({ id: third, parentId: group, position: { x: 772, y: 420 } }),
+      ]),
+    );
+    const nextRun = { project, runId: "append-member" };
+    const append = {
+      ...nextRun,
+      id: "append",
+      input: { ops: [{ op: "create_node", kind: "video", tempId: "video", parentGroup: group }] },
+    };
+    await expect(agent.command("apply-ops", append)).rejects.toMatchObject({
+      code: "AGENT_READ_REQUIRED",
+    });
+    await agent.command("read", { ...nextRun, input: { nodeIds: [group] } });
+    const receipt = await agent.command("apply-ops", append);
+    expect(await agent.command("apply-ops", append)).toEqual(receipt);
+    expect(store.getCanvas().canvas.nodes).toContainEqual(
+      expect.objectContaining({ parentId: group, position: { x: 1216, y: 420 } }),
+    );
+    await agent.command("undo", nextRun);
+    expect(store.getCanvas().canvas).toEqual(made.canvas);
+    await agent.command("undo", run);
+    expect(store.getCanvas().canvas).toEqual(original.canvas);
+  });
+
+  it("小灵按竖屏视频与宽图的实际画幅整理分组并撤销", async () => {
+    const group = {
+      id: "mixed",
+      type: "group" as const,
+      position: { x: 3000, y: 0 },
+      width: 500,
+      height: 400,
+      data: { label: "混合画幅" },
+    };
+    const video = node("portrait", "video");
+    const image = node("wide", "image");
+    const neighbor = { ...node("neighbor"), position: { x: 3700, y: 100 } };
+    await store.applyCanvasOperations({
+      operationId: randomUUID(),
+      expectedCanvasRevision: store.getCanvas().canvasRevision,
+      operations: [
+        group,
+        {
+          ...video,
+          parentId: group.id,
+          position: { x: 48, y: 72 },
+          data: { ...video.data, mediaAspect: 9 / 16 },
+        },
+        {
+          ...image,
+          parentId: group.id,
+          position: { x: 100, y: 80 },
+          data: { ...image.data, generation: { params: { customParams: { ratio: "21:9" } } } },
+        },
+        neighbor,
+      ].map((node) => ({ type: "putNode", node })),
+    });
+    const original = store.getCanvas();
+    const args = {
+      project: agent.key(store),
+      runId: "mixed-frames",
+      id: "row",
+      input: { layout: "row", groupId: group.id },
+    };
+    const receipt = await agent.command("arrange", args);
+    expect(await agent.command("arrange", args)).toEqual(receipt);
+    expect(store.getCanvas().canvasRevision).toBe(original.canvasRevision + 1);
+    expect(store.getCanvas().canvas.nodes).toEqual(
+      expect.arrayContaining([
+        { ...group, width: 1296, height: 696 },
+        expect.objectContaining({ id: "wide", position: { x: 492, y: 72 } }),
+        { ...neighbor, position: { x: 4416, y: 100 } },
+      ]),
+    );
+    await agent.command("undo", args);
+    expect(store.getCanvas().canvas).toEqual(original.canvas);
   });
 
   it("小灵布局贴合组框，推开邻居，重放和整轮撤销保留原坐标", async () => {
@@ -4149,6 +5221,83 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(store.getCanvas().canvas).toEqual(original.canvas);
   });
 
+  it("小灵补写失败文本、清空正文并撤销", async () => {
+    const failed = node("script", "script", "初稿");
+    await edit({
+      ...failed,
+      data: {
+        ...failed.data,
+        textStatus: "error",
+        textError: "旧错误",
+        textFailureTask: { id: "legacy-job", reference: "legacy-ref" },
+      },
+    } as typeof failed);
+    const original = store.getCanvas().canvas;
+    const run = { project: agent.key(store), runId: "rewrite-script" };
+    await agent.command("apply-ops", {
+      ...run,
+      id: "create",
+      input: {
+        ops: [
+          { op: "create_node", kind: "script", label: "有正文", prompt: "## 来信" },
+          { op: "create_node", kind: "script", label: "空白正文", prompt: "  " },
+          { op: "create_node", kind: "script", label: "尚未填写" },
+        ],
+      },
+    });
+    const dataFor = (label: string) =>
+      store.getCanvas().canvas.nodes.find((item) => item.data.label === label)?.data;
+    expect(dataFor("有正文")).toMatchObject({ text: "## 来信", textStatus: "done" });
+    expect(dataFor("空白正文")).toMatchObject({ text: "  ", textStatus: "idle" });
+    expect(dataFor("尚未填写")).toMatchObject({ text: "" });
+    expect(dataFor("尚未填写")).not.toHaveProperty("textStatus");
+    const read = () => agent.command("read", { ...run, input: { nodeIds: [failed.id] } });
+    await read();
+    const write = (id: string, prompt: string) =>
+      agent.command("apply-ops", {
+        ...run,
+        id,
+        input: { ops: [{ op: "update_node", id: failed.id, prompt }] },
+      });
+    await write("rewrite", "## 第一集");
+    const rewritten = await read();
+    expect(rewritten).toMatchObject({
+      nodes: [{ data: { text: "## 第一集", textStatus: "done" } }],
+    });
+    expect(rewritten).not.toHaveProperty("nodes.0.data.textError");
+    expect(dataFor(failed.data.label)).not.toHaveProperty("textFailureTask");
+    await write("clear", "");
+    expect(await read()).toMatchObject({ nodes: [{ data: { text: "", textStatus: "idle" } }] });
+    await agent.command("undo", run);
+    expect(store.getCanvas().canvas).toEqual(original);
+  });
+
+  it("精读长正文保留完整字符并返回全部关联边", async () => {
+    const prefix = `${"信".repeat(3999)}📬`;
+    const letter = node("letter", "script", `${prefix}到达`);
+    const targets = Array.from({ length: 101 }, (_, index) => node(`target-${index}`));
+    await edit(letter, ...targets);
+    const edges = targets.map((target) => ({
+      id: `to-${target.id}`,
+      source: letter.id,
+      target: target.id,
+    }));
+    await store.applyCanvasOperations({
+      operationId: randomUUID(),
+      expectedCanvasRevision: store.getCanvas().canvasRevision,
+      operations: edges.map((edge) => ({ type: "putEdge", edge })),
+    });
+    const result = await agent.command("read", {
+      project: agent.key(store),
+      runId: "letter-detail",
+      input: { nodeIds: [letter.id] },
+    });
+    expect(result).toMatchObject({
+      nodes: [{ id: letter.id, data: { text: `${prefix}…` } }],
+      edges,
+    });
+  });
+
   it("读集与修订门控编辑，撤销跳过后来手工编辑", async () => {
     await edit(node("sample"), node("second"));
     const args = { project: agent.key(store), runId: "run-2" };
@@ -4168,7 +5317,22 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     });
     await expect(
       agent.command("read", { ...args, input: { nodeIds: ["sample", "second", "missing"] } }),
-    ).resolves.toMatchObject({ missingNodeIds: ["missing"] });
+    ).rejects.toMatchObject({
+      code: "CANVAS_OPERATION_INVALID",
+      message: expect.stringContaining("missing"),
+    });
+    await expect(agent.command("edit-preview", { ...args, input })).rejects.toMatchObject({
+      code: "AGENT_READ_REQUIRED",
+    });
+    await expect(
+      agent.command("read", { ...args, input: { nodeIds: Array(51).fill("sample") } }),
+    ).rejects.toMatchObject({ code: "CANVAS_OPERATION_INVALID" });
+    await expect(
+      agent.command("read", {
+        ...args,
+        input: { nodeIds: ["second", ...Array(49).fill("sample")] },
+      }),
+    ).resolves.toMatchObject({ nodes: [{ id: "second" }, { id: "sample" }] });
     const preview = await agent.command("edit-preview", { ...args, input });
     await agent.command("edit-apply", { ...args, input: preview, id: "edit-1" });
     await expect(

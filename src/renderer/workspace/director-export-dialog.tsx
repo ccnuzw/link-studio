@@ -1,4 +1,4 @@
-import { type DirectorScene, sanitizeFileName } from "@link-studio/core";
+import { type DirectorScene, requirePresent, sanitizeFileName } from "@link-studio/core";
 import { X } from "lucide-react";
 import "./director-export-dialog.css";
 import { useEffect, useRef, useState } from "react";
@@ -53,7 +53,12 @@ export function DirectorExportDialog({
   async function run(selected: string[]) {
     const cameras = selected
       .filter((id) => !published.current.has(id))
-      .map((id) => scene.cameras.find((camera) => camera.id === id)!);
+      .map((id) =>
+        requirePresent(
+          scene.cameras.find((camera) => camera.id === id),
+          "scene.cameras.find((camera) => camera.id === id)",
+        ),
+      );
     if (!cameras.length || job.current) return;
     const controller = new AbortController();
     job.current = controller;
@@ -104,7 +109,11 @@ export function DirectorExportDialog({
           });
           if (!result.ok) throw Error("预演素材写入失败，可以重试该机位");
           const [width, height] = camera.aspect.split(":").map(Number);
-          takes.push({ ...result.value, cameraName: camera.name, aspect: width! / height! });
+          takes.push({
+            ...result.value,
+            cameraName: camera.name,
+            aspect: requirePresent(width, "width") / requirePresent(height, "height"),
+          });
           success.push(camera.id);
         } catch (error) {
           failures[camera.id] = error instanceof Error ? error.message : "预演素材写入失败";

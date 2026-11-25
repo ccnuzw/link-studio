@@ -30,24 +30,20 @@
   background: var(--rail-muted);
   color: var(--rail-soft);
 }
-.drama-studio-gate > span svg {
-  width: 28px;
-  height: 28px;
-}
 .drama-studio-gate h3 {
   margin: 0;
   font: inherit;
   font-size: 17px;
   font-weight: 600;
 }
-.drama-columns .drama-studio-gate p {
-  white-space: normal;
-}
 .drama-studio-gate p {
   max-width: 44ch;
   margin: 0;
   color: var(--rail-soft);
   font-size: 13px;
+}
+.drama-columns .drama-studio-gate p {
+  white-space: normal;
 }
 .drama-studio-gate button {
   display: inline-flex;
@@ -66,10 +62,6 @@
   line-height: 20px;
   white-space: nowrap;
   transition: background-color 0.15s;
-}
-.drama-studio-gate button svg {
-  width: 16px;
-  height: 16px;
 }
 .drama-studio-gate button:hover {
   background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
@@ -106,11 +98,6 @@
   height: 32px;
   border-radius: 8px;
 }
-.drama-studio-gate button[data-storyboard] b {
-  color: oklch(0.72 0.15 75);
-  font-weight: inherit;
-  font-variant-numeric: tabular-nums;
-}
 .drama-studio-gate button:disabled {
   pointer-events: none;
   opacity: 0.5;
@@ -144,19 +131,6 @@
   line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
-.drama-studio-gate .drama-storyboard-progress button {
-  height: 28px;
-  padding: 0 8px;
-  background: transparent;
-  color: inherit;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 16px;
-}
-.drama-studio-gate .drama-storyboard-progress button:hover {
-  background: var(--rail-muted);
-  color: var(--rail-ink);
-}
 .drama-storyboard-error {
   align-self: center;
   max-width: 240px;
@@ -166,21 +140,209 @@
   .drama-storyboard-pulse {
     animation: episode-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-  .drama-studio-gate [data-storyboard] svg {
-    animation: storyboard-spin 1s linear infinite;
-  }
   @keyframes storyboard-spin {
     to {
       transform: rotate(360deg);
     }
   }
 }
+.drama-studio-production {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.drama-studio-batch-bar {
+  gap: 8px;
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--rail-line);
+  background: var(--rail-bg);
+}
+.drama-studio-batch-bar .drama-asset-toggle {
+  margin-right: auto;
+}
+.drama-studio-generate-controls,
+.drama-studio-generate-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drama-studio-generate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 32px;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 12px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  background: var(--rail-primary) padding-box;
+  color: white;
+  font:
+    500 14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-studio-generate:hover {
+  background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
+}
+.drama-studio-generate:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.drama-studio-generate-controls .drama-studio-generate:focus-visible {
+  outline: none;
+  border-color: var(--rail-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.drama-studio-generate:active {
+  translate: 0 1px;
+}
+.drama-studio-generate span {
+  opacity: 0.5;
+}
+.drama-studio-generate b {
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-gate button[data-storyboard] b {
+  color: oklch(0.72 0.15 75);
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+}
 @media (prefers-color-scheme: dark) {
   .drama-studio-gate button[data-storyboard] b {
     color: oklch(0.82 0.15 85);
   }
 }
-.drama-script-area button.drama-storyboard-redo {
+.drama-studio-generate svg {
+  animation: studio-generate-spin 1s linear infinite;
+}
+.drama-studio-gate > span svg {
+  width: 28px;
+  height: 28px;
+}
+.drama-studio-gate button svg {
+  width: 16px;
+  height: 16px;
+}
+@keyframes studio-generate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .drama-studio-generate {
+    color: oklch(0.2 0.03 85);
+  }
+}
+.drama-studio-seconds,
+.studio-seconds-menu {
+  transform-origin: var(--transform-origin);
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-studio-seconds {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.studio-seconds-chip,
+.studio-seconds-menu button {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  outline: 0;
+}
+.studio-seconds-chip {
+  height: 32px;
+  border-radius: 10px;
+  padding: 0 10px;
+  gap: 6px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+.studio-seconds-chip:hover {
+  background: var(--rail-muted);
+}
+.drama-studio-seconds .studio-seconds-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.studio-ratio {
+  color: var(--rail-soft);
+  padding: 0 8px;
+  font:
+    12px / 16px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+.studio-seconds-position {
+  isolation: isolate;
+  z-index: 100;
+}
+.studio-seconds-menu {
+  --seconds-fg: oklch(0.145 0 0);
+  --seconds-muted: oklch(0.97 0 0);
+  --seconds-warn: oklch(0.7 0.16 70);
+  --seconds-ring: oklch(0.708 0 0);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 160px;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 10px;
+  outline: 0;
+  background: white;
+  color: var(--seconds-fg);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--seconds-fg) 10%, transparent),
+    0 4px 6px -1px rgb(0 0 0 / 10%),
+    0 2px 4px -2px rgb(0 0 0 / 10%);
+}
+.studio-seconds-menu button {
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-gate .drama-storyboard-progress button {
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drama-studio-gate [data-storyboard] svg {
+    animation: storyboard-spin 1s linear infinite;
+  }
+}
+.drama-studio-batch-bar button.drama-storyboard-redo {
   display: inline-grid;
   place-items: center;
   width: 32px;
@@ -191,6 +353,228 @@
   border: 0;
   border-radius: 8px;
 }
-.drama-script-area button.drama-storyboard-redo:hover {
+.drama-studio-batch-bar > button[data-batch] {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rail-line);
+  border-radius: 8px;
+  background: var(--rail-bg) padding-box;
+  color: var(--rail-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.studio-seconds-menu[data-open] {
+  animation: studio-picker-enter 0.1s ease-out;
+}
+.studio-seconds-menu[data-closed] {
+  animation: studio-picker-enter 0.1s ease-in reverse;
+}
+@keyframes studio-picker-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.studio-seconds-menu button:hover {
+  background: var(--seconds-muted);
+}
+.drama-studio-gate .drama-storyboard-progress button:hover {
   background: var(--rail-muted);
+  color: var(--rail-ink);
+}
+.drama-studio-batch-bar button.drama-storyboard-redo:hover {
+  background: var(--rail-muted);
+}
+.drama-studio-batch-bar > button[data-batch]:hover {
+  background-color: var(--rail-muted);
+}
+.studio-seconds-menu button[aria-pressed="true"] {
+  background: var(--seconds-muted);
+}
+.studio-seconds-menu button[aria-pressed="true"] {
+  font-weight: 500;
+}
+.studio-seconds-menu button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--seconds-ring) 50%, transparent);
+}
+.studio-seconds-menu button[data-warning] {
+  color: var(--seconds-warn);
+}
+.studio-seconds-menu small {
+  margin-left: auto;
+  font-size: 11px;
+}
+.studio-seconds-menu[data-resolution] {
+  width: 256px;
+}
+.studio-seconds-menu[data-resolution] button {
+  font-variant-numeric: normal;
+}
+.studio-resolution-label {
+  padding: 4px 6px 0;
+  color: oklch(0.556 0 0);
+  font-size: 12px;
+  line-height: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  .studio-resolution-label {
+    color: oklch(0.708 0 0);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .studio-seconds-menu {
+    --seconds-fg: oklch(0.985 0 0);
+    --seconds-muted: oklch(0.269 0 0);
+    --seconds-warn: oklch(0.8 0.15 75);
+    --seconds-ring: oklch(0.556 0 0);
+    background: oklch(0.205 0 0);
+  }
+}
+@media (width < 768px) {
+  .drama-studio-seconds,
+  .studio-seconds-position:not([data-model]) {
+    display: none;
+  }
+}
+.studio-seconds-chip[data-model] {
+  height: 36px;
+  gap: 8px;
+  padding: 0 12px;
+  min-width: 0;
+  font:
+    14px / 20px "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.studio-seconds-chip[data-model] > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.studio-seconds-chip[data-model] > span:not(.model-avatar) {
+  max-width: 160px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.studio-seconds-chip[data-model]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.studio-seconds-menu[data-model] {
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.studio-seconds-menu[data-model] button {
+  width: 100%;
+  min-height: 40px;
+  gap: 8px;
+  padding: 4px 8px;
+  text-align: left;
+  font-variant-numeric: normal;
+  flex-shrink: 0;
+}
+.studio-seconds-menu[data-model] button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+.studio-model-name {
+  min-width: 0;
+  flex: 1;
+}
+.studio-model-name > * {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-model-name small {
+  font-weight: 400;
+  line-height: 1.42857143;
+}
+.studio-model-name small,
+.studio-model-empty {
+  color: oklch(0.556 0 0);
+}
+.studio-model-empty {
+  padding: 12px 8px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.studio-seconds-menu[data-model] .model-avatar,
+.studio-seconds-chip[data-model] .model-avatar {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.studio-seconds-menu[data-model] .model-avatar svg,
+.studio-seconds-chip[data-model] .model-avatar svg {
+  width: 68%;
+  height: 68%;
+}
+@media (prefers-color-scheme: dark) {
+  .studio-model-name small,
+  .studio-model-empty {
+    color: oklch(0.708 0 0);
+  }
+}
+.drama-studio-canvas-face,
+.drama-studio-production .drama-script-area[data-studio-list] {
+  position: absolute;
+  inset: 48px 0 0;
+  transition: opacity 0.2s ease-out;
+}
+.drama-studio-canvas-face[data-shown="false"],
+.drama-script-area[data-studio-list][inert] {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drama-studio-canvas-face,
+  .drama-studio-production .drama-script-area[data-studio-list] {
+    transition: none;
+  }
+}
+.drama-scripts-dialog[data-storyboard-batch] .script-episodes {
+  max-height: 288px;
+}
+.drama-scripts-dialog[data-storyboard-batch] {
+  transform: none;
+  translate: -50% -50%;
+}
+.drama-segment-prompt {
+  min-height: 192px;
+  padding: 12px 14px;
+  border: 1px solid var(--rail-line);
+  border-radius: 14px;
+  background: white;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-segment-prompt {
+    background: oklch(0.19 0.004 286);
+  }
+}
+.drama-segment-prompt:focus-within {
+  border-color: var(--rail-primary);
+}
+.drama-segment-prompt .canvas-prompt-wrap {
+  font-size: 13.5px;
+  line-height: 2.05;
+}
+.drama-segment-prompt .canvas-prompt-wrap[data-expanded="true"] .canvas-prompt-content {
+  min-height: 164px;
+  padding: 0;
 }

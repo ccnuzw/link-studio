@@ -3,7 +3,7 @@ import { feedbackValue, type RunRating } from "./agent-feedback.ts";
 import { CanvasAgentAnswers } from "./canvas-agent.ts";
 import { type DramaPromptEntry, PromptLibraryRequest } from "./drama-prompts.ts";
 import { GenerationInput } from "./generation.ts";
-import { ModelConfig, maximumModelPromptLength } from "./model-config.ts";
+import { ModelConfig, maximumModelPromptLength, maxMixedReferences } from "./model-config.ts";
 
 const strict = { additionalProperties: false };
 const canvasProviderId = Type.String({
@@ -588,7 +588,7 @@ export const settingsRequests = {
             },
             strict,
           ),
-          { maxItems: 12 },
+          { maxItems: maxMixedReferences },
         ),
       ),
       op: Type.Optional(GenerationInput.properties.op),
@@ -622,7 +622,9 @@ export const settingsRequests = {
       contextId: Type.Optional(id),
       channelId: Type.Optional(id),
       pluginHash: Type.Optional(hash),
-      route: Type.Optional(Type.Union([Type.Literal("adapters"), Type.Literal("providers")])),
+      route: Type.Optional(
+        Type.Union([Type.Literal("adapters"), Type.Literal("providers"), Type.Literal("skills")]),
+      ),
       message: Type.String({ minLength: 1, maxLength: 24000 }),
       runId: Type.Optional(id),
     },

@@ -71,7 +71,10 @@ export function CustomEnumEditor({
           }}
         />
         {presets
-          .filter((option) => !field.values.some((value) => String(value) === option))
+          .filter(
+            (option) =>
+              !field.values.some((value) => String(value).toLowerCase() === option.toLowerCase()),
+          )
           .map((option) => (
             <button
               type="button"

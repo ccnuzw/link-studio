@@ -86,7 +86,7 @@ export function ModelTrial({
   }, [model.id, model.revision, session, sessionKey]);
   const taskId = session?.id;
   const runId = session?.outcome ? undefined : taskId;
-  const busy = Boolean(preparing || runId);
+  const busy = Boolean(preparing || runId || values.uploading);
   const previousRun = useRef(runId);
   useEffect(() => {
     if (previousRun.current && session?.outcome?.ok && session.outcome.value.status !== "unknown")
@@ -150,6 +150,7 @@ export function ModelTrial({
   const requestFailure =
     previewError || (previewResult?.error && settingsError(previewResult.error));
   const result = tab === "request" ? previewResult : runResult;
+  const runStatus = runId ? "running" : runResult?.status;
   const error =
     tab === "request"
       ? previewError
@@ -157,7 +158,7 @@ export function ModelTrial({
   const name = model.config?.name ?? model.model;
   const kind = model.config?.kind ?? (plugin.kind as ModelKind);
   const repairReport =
-    runResult?.status === "failed"
+    runResult?.status === "failed" && !trace.reading
       ? composeRepairReport(
           [
             `插件：${plugin.key} v${plugin.version}`,
@@ -230,16 +231,24 @@ export function ModelTrial({
         (attachments[kind] ?? []).map((item) => ({ kind, item })),
       );
       const files = picked.flatMap(({ kind, item }) =>
-        "file" in item ? [{ kind, file: item.file }] : [],
+        "file" in item ? [{ kind, file: item.file, url: item.url }] : [],
       );
       if (
-        files.reduce((sum, { file }) => sum + file.size, 0) > mediaReferenceBytes ||
         files.some(
           ({ kind, file }) =>
             !file.size || file.size > (options.referenceBytes[kind] ?? mediaReferenceBytes),
         )
       ) {
-        setError("参考文件超出模型的大小限制，试跑总计最多 10 MB。");
+        setError("参考文件超出模型的大小限制。");
+        return;
+      }
+      const inline = files.reduce((sum, { file }) => sum + file.size, 0) <= mediaReferenceBytes;
+      if (
+        !inline &&
+        files.filter(({ url }) => !url).reduce((sum, { file }) => sum + file.size, 0) >
+          mediaReferenceBytes
+      ) {
+        setError("本地内联素材总计最多 10 MB。请使用公开链接，或配置试跑素材服务后重新上传。");
         return;
       }
       const selected = await Promise.all(
@@ -248,7 +257,10 @@ export function ModelTrial({
             ? { kind, url: item.voice.url }
             : {
                 kind,
-                file: { mime: item.file.type, base64: await readTrialFile(item.file) },
+                ...(item.url && { url: item.url }),
+                ...((inline || !item.url) && {
+                  file: { mime: item.file.type, base64: await readTrialFile(item.file) },
+                }),
               },
         ),
       );
@@ -370,7 +382,7 @@ export function ModelTrial({
                 onClick={() => setTab(key)}
               >
                 {tabs[key]}
-                {key === "result" && runResult && <small aria-hidden="true">1</small>}
+                {key === "result" && taskId && <small aria-hidden="true">1</small>}
                 {key === "request" && (previewResult || previewError) && (
                   <small aria-hidden="true">1</small>
                 )}
@@ -387,15 +399,18 @@ export function ModelTrial({
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The active tab panel can contain only non-focusable output text.
             tabIndex={0}
           >
-            {busy && tab === "result" && preparing !== "request" && (
-              <p role="status">
-                {progress?.phase === "finalizing"
-                  ? "正在读取试跑产物…"
-                  : progress?.phase === "query"
-                    ? "已提交，等待供应商返回结果…"
-                    : "测试进行中…"}
-              </p>
-            )}
+            {tab === "result" &&
+              taskId &&
+              runStatus &&
+              ["running", "failed", "succeeded"].includes(runStatus) && (
+                <div className="trial-run-heading" role="status">
+                  <h3>试跑任务 #{taskId}</h3>
+                  <span className="trial-run-status" data-status={runStatus}>
+                    {runId && <Loader2 size={12} aria-hidden="true" className="settings-spin" />}
+                    {runStatus}
+                  </span>
+                </div>
+              )}
             {busy && tab === "result" && progress?.percent !== undefined && (
               <progress
                 className="model-trial-progress"
@@ -414,7 +429,7 @@ export function ModelTrial({
               </div>
             )}
             {error && tab !== "request" && <p role="alert">{error}</p>}
-            {!busy && !error && !result && tab !== "logs" && !(tab === "trace" && taskId) && (
+            {!error && !result && tab !== "logs" && (tab === "request" || !taskId) && (
               <p>
                 {
                   {
@@ -424,14 +439,6 @@ export function ModelTrial({
                   }[tab]
                 }
               </p>
-            )}
-            {tab === "result" && result && ["failed", "succeeded"].includes(result.status) && (
-              <div className="trial-run-heading" role="status">
-                <h3>试跑任务 #{taskId}</h3>
-                <span className="trial-run-status" data-status={result.status}>
-                  {result.status}
-                </span>
-              </div>
             )}
             {result?.error &&
               tab !== "logs" &&
@@ -443,7 +450,7 @@ export function ModelTrial({
                     : settingsError(result.error)}
                 </p>
               )}
-            {repairReport && tab === "result" && (
+            {runResult?.status === "failed" && tab === "result" && (
               <div className="trial-run-notice" role="alert">
                 <CircleAlert size={16} />
                 <div>
@@ -453,14 +460,16 @@ export function ModelTrial({
                       settingsError(runResult?.error || "PROVIDER_TEST_FAILED")}
                   </span>
                 </div>
-                <PluginCopy
-                  key={`${tab}-${taskId}`}
-                  text={repairReport}
-                  label="复制修复信息"
-                  className="trial-repair-copy"
-                  onError={() => setCopyError(true)}
-                  onCopied={() => setCopyError(false)}
-                />
+                {repairReport && (
+                  <PluginCopy
+                    key={`${tab}-${taskId}`}
+                    text={repairReport}
+                    label="复制修复信息"
+                    className="trial-repair-copy"
+                    onError={() => setCopyError(true)}
+                    onCopied={() => setCopyError(false)}
+                  />
+                )}
                 {copyError && (
                   <div role="status" className="trial-repair-fallback">
                     <span>复制失败，可选中下面的修复信息手动复制。</span>

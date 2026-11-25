@@ -112,10 +112,6 @@ export function PluginUpload({
       className="adapter-dialog plugin-upload"
       ref={dialog}
       aria-labelledby="upload-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
       onClose={(event) => {
         if (!event.currentTarget.open && mounted.current) close();
       }}
@@ -200,19 +196,17 @@ export function PluginUpload({
             )}
           </div>
           {issues.length > 0 && (
-            <>
-              <ul>
-                {issues.map((issue) => (
-                  <li key={`${issue.path}-${issue.message}`}>
-                    <div>
-                      <code>{issue.path || "（整个文件）"}</code>
-                      <p>{issue.message}</p>
-                    </div>
-                    {issue.path && <PluginCopy iconOnly label="复制路径" text={issue.path} />}
-                  </li>
-                ))}
-              </ul>
-            </>
+            <ul>
+              {issues.map((issue) => (
+                <li key={`${issue.path}-${issue.message}`}>
+                  <div>
+                    <code>{issue.path || "（整个文件）"}</code>
+                    <p>{issue.message}</p>
+                  </div>
+                  {issue.path && <PluginCopy iconOnly label="复制路径" text={issue.path} />}
+                </li>
+              ))}
+            </ul>
           )}
           {copyError && <p role="status">复制失败：无法写入剪贴板，请检查剪贴板权限后重试。</p>}
         </section>
@@ -250,7 +244,7 @@ export function PluginUpload({
         </>
       )}
       <footer>
-        <button type="button" onClick={close}>
+        <button type="button" onClick={() => dialog.current?.close()}>
           {saved ? "完成" : "取消"}
         </button>
         {saved ? (
@@ -269,7 +263,12 @@ export function PluginUpload({
           </button>
         )}
       </footer>
-      <button type="button" className="upload-close" aria-label="关闭" onClick={close}>
+      <button
+        type="button"
+        className="upload-close"
+        aria-label="关闭"
+        onClick={() => dialog.current?.close()}
+      >
         <X size={16} />
       </button>
     </dialog>

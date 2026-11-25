@@ -11,7 +11,7 @@ it.each([
   "01.2.3",
   "1.2.3-a_b",
   "1.0.0\n",
-  "1.0.0-" + "a".repeat(27),
+  `1.0.0-${"a".repeat(27)}`,
 ])("非法声明 %s 按未填写处理", (declared) => {
   expect(declaredPluginVersion(declared)).toBe("");
   expect(nextPluginVersion(declared, [])).toBe("1.0.0");

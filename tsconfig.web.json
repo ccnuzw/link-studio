@@ -8,6 +8,7 @@
   "include": [
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
+    "tests/unit/**/*.renderer.test.ts",
     "packages/link-studio-core/src/**/*.ts"
   ]
 }

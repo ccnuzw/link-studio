@@ -11,6 +11,7 @@ import { createDrama, dramaDocument } from "../../src/main/project/drama";
 import { ProjectStore } from "../../src/main/project/store";
 import { readSkillPackage } from "../../src/main/skills/intake";
 import { SkillLibrary } from "../../src/main/skills/library";
+import { requireTestValue } from "../require-test-value";
 
 let root: string;
 let library: SkillLibrary;
@@ -48,14 +49,14 @@ it("短剧按生效版本及环节冻结技能，引用链排除脚本、二进�
   );
   const stage = async () =>
     library.confirm(1, {
-      id: library.stage(1, await readSkillPackage(folder)).id!,
+      id: requireTestValue(library.stage(1, await readSkillPackage(folder)).id),
       enabled: false,
       scopes: ["video"],
     });
   await stage();
   const read = library.dramaSnapshot.bind(library);
   expect(read("assets", "agent-fixture")).toBeUndefined();
-  const first = read("video", "agent-fixture")!;
+  const first = requireTestValue(read("video", "agent-fixture"));
   expect(first.body.split("<skill>\n")[1]).toBe(
     `${body}\n\n## z.md\n读 deep.md\n\n## a.md\n再读 z.md\n\n## deep.md\n末尾\n</skill>`,
   );
@@ -93,7 +94,7 @@ it("画布与短剧按运行固定版本、分段读取资源；撤销场景即�
     await writeFile(join(folder, "SKILL.md"), packageText(body));
     await writeFile(join(folder, "例子.md"), body + "镜".repeat(30000));
     library.confirm(1, {
-      id: library.stage(1, await readSkillPackage(folder)).id!,
+      id: requireTestValue(library.stage(1, await readSkillPackage(folder)).id),
       enabled: true,
       scopes: ["agent"],
     });
@@ -159,7 +160,7 @@ it("画布与短剧按运行固定版本、分段读取资源；撤销场景即�
           )
         ).content,
       );
-      expect(page.text + next.text).toBe("一版" + "镜".repeat(30000));
+      expect(page.text + next.text).toBe(`一版${"镜".repeat(30000)}`);
       await platform.endRun(context);
       expect(
         JSON.parse(

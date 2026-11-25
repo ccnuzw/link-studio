@@ -18,7 +18,7 @@ it("试跑 IPC 可承载一个模型上限的双码元字符，也拒绝大于�
     prompt: "🎵".repeat(maximumModelPromptLength),
   };
   expect(Value.Check(settingsRequests.modelTrial, trial)).toBe(true);
-  expect(Value.Check(settingsRequests.modelTrial, { ...trial, prompt: trial.prompt + "A" })).toBe(
+  expect(Value.Check(settingsRequests.modelTrial, { ...trial, prompt: `${trial.prompt}A` })).toBe(
     false,
   );
 });

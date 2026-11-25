@@ -1,726 +1,1631 @@
 [
   {
     "name": "Young - Male - Zayne 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172456-9zvzx-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172456-9zvzx-audio.wav",
+    "avatar": "fz-asset-20260908172456-9zvzx-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01020101c5bee6bff684aeeced7739030101d8ebc1cd8151b7e15817010201020176f5ffc0ca7b500c010202eee4cb97c69ec897380a0102"
   },
   {
     "name": "Young - Male - Xavier 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-bpv4g-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-bpv4g-audio.wav",
+    "avatar": "fz-asset-20260908172500-bpv4g-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "02029cff7be1b946010102028ea5a38f8ca37c8271600201010101abcba864510802010101bfe67db1959c8c29775cc9abbe752a7f020102"
   },
   {
     "name": "Young - Male - Tim",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172527-6jxfc-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172527-6jxfc-audio.mp3",
+    "avatar": "fz-asset-20260908172527-6jxfc-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "000405060501e9fe769281574164e1c772575f44abdd3b67615d72562326030316cebf6b82187a640a8d743b8d5e1fff425b2f100a0a0603"
   },
   {
     "name": "Young - Male - Michael 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172203-fvvh2-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172203-fvvh2-audio.wav",
+    "avatar": "fz-asset-20260908172203-fvvh2-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010151c3ff9fada18da48c7e6a7c7463190d030081d0c18993754a78e1d89c95bda5419b92aa6edcb35aaecf7d697d93d9d345484d0c0201"
   },
   {
     "name": "Young - Male - Lucas",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172545-wbl7f-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172545-wbl7f-audio.mp3",
+    "avatar": "fz-asset-20260908172545-wbl7f-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "07ab658984d1ba9770726431988ea389fdb9f22c010101c3fc6899a2585d4b56160000c6d9e2ffaabe7ec84105049ce0b3ba82844d270000"
   },
   {
     "name": "Young - Male - Josh",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-sz9jp-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-sz9jp-audio.wav",
+    "avatar": "fz-asset-20260908172332-sz9jp-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0401ddffb3e145787963d3cb7c617659797c5809002066997d93b09e948a6eb8826c925a687b6955606696749e3a5ccbf8a07e6412060305"
   },
   {
     "name": "Young - Male - Jimmy",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-tshr8-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172332-tshr8-audio.wav",
+    "avatar": "fz-asset-20260908172332-tshr8-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020107d5ff623b391995966c25321a171a0700057755692d1869634311735338363f152b1c233e36215672231e293699b18d25340f010201"
   },
   {
     "name": "Young - Male - Jasper",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-m2f54-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-m2f54-audio.wav",
+    "avatar": "fz-asset-20260908172358-m2f54-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020102ffa4212a253d748b513a6b994627280d0103075c48742060533f225659175f602b2a232f322f74402e1543715453313a1c08010301"
   },
   {
     "name": "Young - Male - Jackson",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172602-8wvvv-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172602-8wvvv-audio.mp3",
+    "avatar": "fz-asset-20260908172602-8wvvv-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0101011fc8d9b78de0c76b8ae0b1ffcf020002010110b6a53aa07f8d738dadaf1a1c78b18e58825dbac53197543eaf8d70bacccb2e010001"
   },
   {
     "name": "Young - Male - Harmony",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172534-m9mzp-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172534-m9mzp-audio.mp3",
+    "avatar": "fz-asset-20260908172534-m9mzp-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "37dabeb6ffeed4ea140001f7f4a5dfc0c1ea75809e430a0026e6dcffbcf9f10fb0acbcc6e3cee1d20d47ebc9fec8f9c575d1b19e94270000"
   },
   {
     "name": "Young - Male - Ethan 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172515-mdl95-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172515-mdl95-audio.wav",
+    "avatar": "fz-asset-20260908172515-mdl95-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01010001010101c6f9eafa7004002bdd95d498a4c5ffb97dab6ba1b6080101004f7ca287d1d712013a55de3fe08bd5e286c8c96105010201"
   },
   {
     "name": "Young - Male - Daniel",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172542-8c75s-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172542-8c75s-audio.mp3",
+    "avatar": "fz-asset-20260908172542-8c75s-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0fff7be8d1dd7b60463d6f51f874195e7a685086435056100101a9d0adb8d9e7f4eb337c89f88f7cc1243d43d2a9fa6488f8d744804e0100"
   },
   {
     "name": "Young - Male - Chucky 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-sgjh8-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-sgjh8-audio.wav",
+    "avatar": "fz-asset-20260908172518-sgjh8-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "02babb5353e6dda1010196d4baced4e5d941010141b1bcc695d2b40fc8c7268312ad53b71101b117b1ec77bdffdbc66f9a5a5d8e212a0601"
   },
   {
     "name": "Young - Male - Alvin",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172537-gdrwd-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172537-gdrwd-audio.mp3",
+    "avatar": "fz-asset-20260908172537-gdrwd-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01ffdeaeb7bedb49030158b1aa7a370101b9c2936d0201a5dd91070100029596839bf5dc8687756c480200037ec6a1ebbd85916137020000"
   },
   {
     "name": "Young - Male - Alastor 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172520-ctbrn-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172520-ctbrn-audio.wav",
+    "avatar": "fz-asset-20260908172520-ctbrn-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "02213e3ee5f0ae402526befaff8f67afae91602c9cf2eadaa7c0b4d5676ad2ce766ebc6eabc4a246a7b575cfd79fd8e78b4f85868c383402"
   },
   {
     "name": "Young - Female - Zoe",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172429-76wmf-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172429-76wmf-audio.wav",
+    "avatar": "fz-asset-20260908172429-76wmf-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "020327ffc465673d888ed9808774395a48070406659c887161597365847437909e6f6e5356565550685744487889694c5c170a0403030302"
   },
   {
     "name": "Young - Female - Zendaya",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172200-wjj26-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172200-wjj26-audio.wav",
+    "avatar": "fz-asset-20260908172200-wjj26-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0201b1ff26211a214b452f41360d0d0907040401010657664b3f1a412a403459112628261e1915262d1f2c271a1c15314227231a1a0d0101"
   },
   {
     "name": "Young - Female - Sunny",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-gdzwk-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-gdzwk-audio.wav",
+    "avatar": "fz-asset-20260908172302-gdzwk-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "062872f57f9d7367994a5b927d7cff88cd85231f110a668aa053423c656a6c6e545f6c53af5d3a1761605e1a0a5a81b77f5b38442c130903"
   },
   {
     "name": "Young - Female - Stokie",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-hmwgb-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172518-hmwgb-audio.mp3",
+    "avatar": "fz-asset-20260908172518-hmwgb-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "58baafa8937cb9f497708eb278705f5124050295876e8779ff661d0167147b75596165617e4301656850ef623f72e57f685d613e5e342105"
   },
   {
     "name": "Young - Female - Skye",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172544-nqqhx-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172544-nqqhx-audio.mp3",
+    "avatar": "fz-asset-20260908172544-nqqhx-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "57bfc67229eaeeebee937d532a01d6cdf3f4a87fa4d39668c6d038edb8787dc49e511a00cde9ff96a8f87fdb5317fc98c29d656265742e00"
   },
   {
     "name": "Young - Female - Skye",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172242-4hmhd-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172242-4hmhd-audio.wav",
+    "avatar": "fz-asset-20260908172242-4hmhd-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "030138e162652e6d6222efff848394701519010164686f541389a06f23b5c16cab8e999c968e64667378674b1182c9d85b6187420b030402"
   },
   {
     "name": "Young - Female - Sharron",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172248-22kx8-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172248-22kx8-audio.wav",
+    "avatar": "fz-asset-20260908172248-22kx8-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "060c6d75d6130acaffee533a2c2d1d298541010602031e422d1396801e2b1d743c6c46b47d43712116303420124f823b111c70607c0b0208"
   },
   {
     "name": "Young - Female - Rachel",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172258-t4b69-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172258-t4b69-audio.wav",
+    "avatar": "fz-asset-20260908172258-t4b69-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "030107fffe524b362a4d67593f48623e1f180104696b5c3d1e304281226b732232267052333327056a8785292530e58f5f376b6110020202"
   },
   {
     "name": "Young - Female - Natasha",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172255-bz2t6-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172255-bz2t6-audio.wav",
+    "avatar": "fz-asset-20260908172255-bz2t6-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "04020caba16fb06db0cb88918c6999a11c0001010101c9e8afd593d5a88d7e6a7c9fff77c8ff72444580d0afa59da75195552f3100010302"
   },
   {
     "name": "Young - Female - Myra",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172305-5rqhw-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172305-5rqhw-audio.wav",
+    "avatar": "fz-asset-20260908172305-5rqhw-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0408ffc06227204d1e6e994a2e603c100d04030103485a29490c35242f3f222f3737441c342e1c2a3c2e214e48350e1c4e451b2e27110505"
   },
   {
     "name": "Young - Female - Mel",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172318-bwhnq-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172318-bwhnq-audio.wav",
+    "avatar": "fz-asset-20260908172318-bwhnq-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0307f9ff683e335a4a405e6e5c5b3e2030220506020867674b31543e525251374f39463f302d283f4a3f387164403036525651463b230603"
   },
   {
     "name": "Young - Female - Megan",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172158-qqpd5-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172158-qqpd5-audio.wav",
+    "avatar": "fz-asset-20260908172158-qqpd5-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0403daff9091623773947d38522310120d010168787f7c1d22383a463d623f4b451c30321b433d2809483336111c324b2b2d2b211c020403"
   },
   {
     "name": "Young - Female - Lynn",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172319-bh7qp-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172319-bh7qp-audio.wav",
+    "avatar": "fz-asset-20260908172319-bh7qp-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0301d5ff6d613a4a4392b88a5d82692520000000000ed2c1a2364182972290835e75596a753636756c6264676b36507c7170586247190103"
   },
   {
     "name": "Young - Female - Kayla",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172235-22khk-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172235-22khk-audio.wav",
+    "avatar": "fz-asset-20260908172235-22khk-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "020116b2b294823f8440ffcc6840655830351c0102020d5c4d383874884ebdc54d983d743f48576386a2807c3858bcc58474704e13010201"
   },
   {
     "name": "Young - Female - Joanne",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172333-6w7ss-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172333-6w7ss-audio.wav",
+    "avatar": "fz-asset-20260908172333-6w7ss-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "030118ff6b9d33653f346f71646268325448060a52536d5b4f704942666d3b47515032405649194e27444c3b372e3034382f280f07010404"
   },
   {
     "name": "Young - Female - Jenny",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172343-ffqvn-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172343-ffqvn-audio.wav",
+    "avatar": "fz-asset-20260908172343-ffqvn-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0302c2ff6d8f8d3364678fc7c1b56e69384d2b0309bbcdad4e3a485866959c4948883b78316035552e7462592947aeb392614e3e17020303"
   },
   {
     "name": "Young - Female - Jane",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-xz68g-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-xz68g-audio.wav",
+    "avatar": "fz-asset-20260908172215-xz68g-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "05015cff8b4b1e434b7370355e2f5f373937040110615b533e464946434549275d6846493c3c3d2d3b365f42225e4e586e522a2611080502"
   },
   {
     "name": "Young - Female - Ivy",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172316-9j8rw-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172316-9j8rw-audio.wav",
+    "avatar": "fz-asset-20260908172316-9j8rw-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0604fff68ccf497e58454a2832401b0404050409b1b78055657c5d6f834356445c543b573c2a54403b304f32385b5b4c5e3d1d1d03070403"
   },
   {
     "name": "Young - Female - Holly",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-vdpbf-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172358-vdpbf-audio.wav",
+    "avatar": "fz-asset-20260908172358-vdpbf-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "020213ff89602b6d6440c0ff816e691c30360e0906081266685e5d515476802d987f6e6c3d7e457832554b5360595bc09b5c454c250a0502"
   },
   {
     "name": "Young - Female - Hayley",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-v8vlc-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-v8vlc-audio.wav",
+    "avatar": "fz-asset-20260908172346-v8vlc-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "02014bffd8a5663853e6f473444623322a230217b9b894c6415f6b872da42b806b6c72207e705c2a8a88772c3b6160914a3e433d17020101"
   },
   {
     "name": "Young - Female - Elaine",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-dqb5v-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172302-dqb5v-audio.wav",
+    "avatar": "fz-asset-20260908172302-dqb5v-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "04339caf75886ab04cff7e8b527a475128020209916a365c53606b746856664f63653d59433b1070817f65798f26305562603f5546271902"
   },
   {
     "name": "Young - Female - Dacey",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172525-5dqng-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172525-5dqng-audio.mp3",
+    "avatar": "fz-asset-20260908172525-5dqng-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "08c8e2918dbd8dc4bd7f2b0e0202b7ff97d57457d07fc37b69354631030381e88e77c142ad64928a5e43350203a2d07b8d50889a6b456a09"
   },
   {
     "name": "Young - Female - Charlotte",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172441-jmz7j-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172441-jmz7j-audio.wav",
+    "avatar": "fz-asset-20260908172441-jmz7j-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "05025cff2d713134698e653034311a11120303031b6b3a491c404742462e5a65303c42283c1f3831314644371c153f734f3c282e1b030606"
   },
   {
     "name": "Young - Female - Charlie 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172529-b8qxs-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172529-b8qxs-audio.wav",
+    "avatar": "fz-asset-20260908172529-b8qxs-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0200b8da87bd99b4be25067892ffbd53818e70ce9d8e1e010000978dda6bb786a59c886b5e7ebc5490985c51a9de60d27a9aacba3c060001"
   },
   {
     "name": "Young - Female - Candy",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-jdgfs-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-jdgfs-audio.mp3",
+    "avatar": "fz-asset-20260908172559-jdgfs-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "01eeee73a09d5e986399923201dcff5bd19533080194cdcbbf674843cf5453d59f4e6f4f6654a7b376765162754f010001949aeb999a1000"
   },
   {
     "name": "Young - Female - Candice",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172548-kkzzn-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172548-kkzzn-audio.mp3",
+    "avatar": "fz-asset-20260908172548-kkzzn-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0100e9f7ffecc792897ead8b84a3efc7a2c39f9177a07f1a0101776ec5a2b768e68d7caca5b73c4a0600838e9475bd334341a46b80a48b37"
   },
   {
     "name": "Young - Female - Blair",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172259-zkkkr-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172259-zkkkr-audio.wav",
+    "avatar": "fz-asset-20260908172259-zkkkr-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "03093dffb0925b6486795a3d60425d933000006ba26fb68fb7bc49695f4e679060675e6a87521faeaf60613e7eba5e5c8b67482b01010602"
   },
   {
     "name": "Young - Female - Amanda",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172609-tgwzq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172609-tgwzq-audio.mp3",
+    "avatar": "fz-asset-20260908172609-tgwzq-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0100001e9f8523fff3a0a87debdba38edfe7cb50a52c9b969b9b03030fa4b4d5d0cad235a3a46abbac431b8a7a9a81349d4c332719000000"
   },
   {
     "name": "Young - Female - Allison",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172446-7g6k2-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172446-7g6k2-audio.wav",
+    "avatar": "fz-asset-20260908172446-7g6k2-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "en",
+    "wave": "050220f7ff9b5dcdd158c1a8888c8c426d5d0101506c75483a6f754f66801e3b574d81373347453c275a6f5d373a777a4130412316010705"
   },
   {
     "name": "Teen - Male - Brayan",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172532-qx6f5-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172532-qx6f5-audio.mp3",
+    "avatar": "fz-asset-20260908172532-qx6f5-thumb.png",
+    "age": "teen",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0dca65d4978b938580b2766e820500708decbcc88fa154a68a66ec7442ca130201b2ffe4f0bda29b9982a096893b8fa57fa5cdda9d880300"
   },
   {
     "name": "Teen - Female - Shiny",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172612-tr54s-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172612-tr54s-audio.mp3",
+    "avatar": "fz-asset-20260908172612-tr54s-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "en",
+    "wave": "01009a8302625cc8c4be8c0101d6b4d4cbdbcf1a016bffbbc886bdcfa1c0a301a95fdfc7988ea1e4c9015df6adacd5cebba1b6aaaf350201"
   },
   {
     "name": "Teen - Female - Cutey",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-7gjt7-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-7gjt7-audio.mp3",
+    "avatar": "fz-asset-20260908172550-7gjt7-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "en",
+    "wave": "01ebe868e2afd34b461c6d3a310e1e0f0001495f8c61a32aa3a31d2d292324130300c4ffbb29522a3c3a2c16000b944f949a3350450e0800"
   },
   {
     "name": "Older - Male - Ronald",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172212-99cgg-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172212-99cgg-audio.wav",
+    "avatar": "fz-asset-20260908172212-99cgg-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0306d3ff623f1e3a219e8d6a625426212a01000101014a904f502e7068503490745f6d25431f503f5d118e5a3221225376774e2f16060404"
   },
   {
     "name": "Older - Male - Orion",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172225-2lsb4-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172225-2lsb4-audio.wav",
+    "avatar": "fz-asset-20260908172225-2lsb4-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "021afed6868f5c9257d7c4c48495a39e5c5d3502010117beb7b0ae7faa8d74d68e95a888a2a99471a6ffb099926296849680ad8a54440c02"
   },
   {
     "name": "Older - Male - Jones",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-r7f2m-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172550-r7f2m-audio.wav",
+    "avatar": "fz-asset-20260908172550-r7f2m-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0205087f9e6978432b1aa9a3a9ffdc840d0e02029177d5c62072979ea086a28b2eb97d5c5c573d416ea5c87f19998fbd9897982009060503"
   },
   {
     "name": "Older - Male - John",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-gwptf-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-gwptf-audio.wav",
+    "avatar": "fz-asset-20260908172414-gwptf-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0205a4f786f930684583a5a5aca1fffd8119080b1e8a529b5435d87b8795837b5838ab744a5b62707a6ffa9689353e7b9ea874db56320c03"
   },
   {
     "name": "Older - Male - Jigsaw 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172506-pxwkc-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172506-pxwkc-audio.wav",
+    "avatar": "fz-asset-20260908172506-pxwkc-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0102b34fe4774f1c06218f8a7f6271632c3331133b6261c864837b9446582a5f5b2e181c4e2b4e52708c82295252794affad55253c0d0403"
   },
   {
     "name": "Older - Male - Clown Man 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-hpvqb-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-hpvqb-audio.wav",
+    "avatar": "fz-asset-20260908172500-hpvqb-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "02026e5f5a6752484140100304266d8235536556352009030202888512563f342405020201e88e905d4ae5ff1b231f7661435b37241a0203"
   },
   {
     "name": "Older - Male - Big Boogie 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172134-jdrd2-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172134-jdrd2-audio.wav",
+    "avatar": "fz-asset-20260908172134-jdrd2-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0101f218f93a732b795f5e602c65379d3141cf9e96021abea9c0a376d2d7675d4c12ff554b8784d27eb115c7c68fbfc7a388d49320140301"
   },
   {
     "name": "Older - Male - Alfred",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-t2jdz-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-t2jdz-audio.wav",
+    "avatar": "fz-asset-20260908172229-t2jdz-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040383bb43bf87563b959f60735e503f352c210614868a625540ff7b7d4fda69457d49544e6987238a6d77464d88727944745427150a0503"
   },
   {
     "name": "Middle-aged - Male - Valentino",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172240-6tdfs-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172240-6tdfs-audio.wav",
+    "avatar": "fz-asset-20260908172240-6tdfs-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040112edffb9858541dcb67c7a5e356f5c3e012d839c896c7d4b8a7d6cb0a162887866618c5c5e467791544b48708c945857501f13020502"
   },
   {
     "name": "Middle-aged - Male - Tom",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172241-wwdzv-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172241-wwdzv-audio.wav",
+    "avatar": "fz-asset-20260908172241-wwdzv-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0101b2a96e4c0f3359ff9772725f322b0d0100000013868d6a5453a576357182244367463935477469504f5e3d283e42454049381a060102"
   },
   {
     "name": "Middle-aged - Male - The Grinch 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172159-wwtn4-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172159-wwtn4-audio.wav",
+    "avatar": "fz-asset-20260908172159-wwtn4-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01047d868370317e5089886daea596120291563dd593c4be58e3ae4937c85f1d1a239a8b243c497659ca9f5f9bbf933cff9933f1d8221702"
   },
   {
     "name": "Middle-aged - Male - Smith",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172603-rhwbq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172603-rhwbq-audio.mp3",
+    "avatar": "fz-asset-20260908172603-rhwbq-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "03d1fba2e04c2404eefff9f1cff5e99cb9a7b15c3803f5c894bda655877f8da3050304cfe2d5288ab4a397be3004bab1b5a8f3baa46a2703"
   },
   {
     "name": "Middle-aged - Male - Simba",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172244-qrqfz-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172244-qrqfz-audio.wav",
+    "avatar": "fz-asset-20260908172244-qrqfz-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "04012ae4d785483a38ffaf8b648328323202010402010948c5bb8d8aaac3b065ad535d8c556455656d479af3795c68b1ca9d867724030505"
   },
   {
     "name": "Middle-aged - Male - Russell",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172250-49j9p-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172250-49j9p-audio.wav",
+    "avatar": "fz-asset-20260908172250-49j9p-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0302028eb933a8384a3bffaa7da37d2e3f200301010d8b98774d85b47560b4a1376365495442365ab2297b66553d454468555c3c300a0404"
   },
   {
     "name": "Middle-aged - Male - Rowan",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172453-b5wpw-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172453-b5wpw-audio.wav",
+    "avatar": "fz-asset-20260908172453-b5wpw-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040155e9d989512d188ce5b26c6d4c26291d010251a78474582dffc96884855942622d651f5a1f4a66c6b43033275fa96cde75441b030502"
   },
   {
     "name": "Middle-aged - Male - Rory",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172310-h8qsz-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172310-h8qsz-audio.wav",
+    "avatar": "fz-asset-20260908172310-h8qsz-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "029fff3c290d3317bfd4615d622b130c000000020a3b6a5e2b6672689ab021504f3b210ea79c44069a45261e01093f461ca9648134230502"
   },
   {
     "name": "Middle-aged - Male - Noah 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172510-vtfvn-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172510-vtfvn-audio.wav",
+    "avatar": "fz-asset-20260908172510-vtfvn-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01012cb8abfbff75700a8cb78c2ab59c7671848b696b646c352417120e0302014645c0c3cb637b5493bc9e6793721c405059a2561e080202"
   },
   {
     "name": "Middle-aged - Male - Michael_Kevin",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172214-5jbqz-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172214-5jbqz-audio.wav",
+    "avatar": "fz-asset-20260908172214-5jbqz-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "04010da7eddbff291452f0e1844242191d1502020929555a552ea2be9225b6bd236279386e20513b37589b4e382a466a49534f1b19030602"
   },
   {
     "name": "Middle-aged - Male - Marcus",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172231-w6cbx-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172231-w6cbx-audio.wav",
+    "avatar": "fz-asset-20260908172231-w6cbx-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040126fffa8e893a5d42c77b706e74377f5101010106989a896167ac8144cc9959575e37283b0472547a4a7d4eab615363725b5e3f0a0102"
   },
   {
     "name": "Middle-aged - Male - Leo",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-hm2k5-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172414-hm2k5-audio.wav",
+    "avatar": "fz-asset-20260908172414-hm2k5-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "030105ffed2d51231b696f30302e1a2424020224352b1d1a3a2c38103a3e1d253c27321f1d1c04262e251c171f222a22252c1e0c03010401"
   },
   {
     "name": "Middle-aged - Male - Knightley",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172328-jmf7s-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172328-jmf7s-audio.wav",
+    "avatar": "fz-asset-20260908172328-jmf7s-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0311f1b9e2d36d4fffc595a16f3954290b0404020322dc8e4a6bb8bc855ab094377a8b6a7d2b4f5369b5d587614d678475a86a5d3b0b0403"
   },
   {
     "name": "Middle-aged - Male - Kevin",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-2xxgq-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-2xxgq-audio.wav",
+    "avatar": "fz-asset-20260908172331-2xxgq-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0301209264722d1bffbaac5e6a471a0d0104020f7c7e682f35756f35645f125f49175c2c323d451958775518243e65754658261f08010401"
   },
   {
     "name": "Middle-aged - Male - Julian",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-s5n72-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-s5n72-audio.wav",
+    "avatar": "fz-asset-20260908172400-s5n72-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0402aaddabb3a063ff8b7333684d24322e02010f7381783c66a59269646d5528505a59444774485f0f59584841314a474f4e7131351e0904"
   },
   {
     "name": "Middle-aged - Male - Josiah",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-l2nsd-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172215-l2nsd-audio.wav",
+    "avatar": "fz-asset-20260908172215-l2nsd-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020101fff380564b349dbd5576651a403507000100012d4a5f9252388055641568604255535043443031394d363d425d4c36372f0d040201"
   },
   {
     "name": "Middle-aged - Male - Joker",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-4rv84-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172331-4rv84-audio.wav",
+    "avatar": "fz-asset-20260908172331-4rv84-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "04538f7e3f290f304f8fff4c3f495631392b120101010d70475d3a25625b4044616843503c382b7619482d6389334542338f765162290f01"
   },
   {
     "name": "Middle-aged - Male - Jamie",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172445-gh4gt-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172445-gh4gt-audio.wav",
+    "avatar": "fz-asset-20260908172445-gh4gt-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "02062253aaa3d856d36bffe6bccabfce73794b094d9c87c55d4078635653b1715e6f3e82458c4e0b5b666f3e3d6a7894729b543d09040403"
   },
   {
     "name": "Middle-aged - Male - Harrison",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-42c8g-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172400-42c8g-audio.wav",
+    "avatar": "fz-asset-20260908172400-42c8g-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0237ff53674d6c387dac466f7e937a523f020101022e9f7c5a896078624b67a5664d735e5e5d5b2d69926b4e766b61538e938c7250160303"
   },
   {
     "name": "Middle-aged - Male - Hank",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-bzf8j-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-bzf8j-audio.wav",
+    "avatar": "fz-asset-20260908172315-bzf8j-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0302deff534a1f28576f5b2b211c12211a010000095b5a4645244459610c5a5d363c3d1849222d312b28514b324829374b5147231d090303"
   },
   {
     "name": "Middle-aged - Male - Gollum",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-drr9c-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-drr9c-audio.wav",
+    "avatar": "fz-asset-20260908172347-drr9c-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "06e0f26a624065ada2ca524486843663830a0402314b51438967e75a3c2ea14a8966bc76a46d06e4ff9047e6e44ff04e57a6becedb3e1309"
   },
   {
     "name": "Middle-aged - Male - Godfather",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-rk7g2-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172347-rk7g2-audio.wav",
+    "avatar": "fz-asset-20260908172347-rk7g2-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0401a5e3829b6a5c7fadbb88787b201c170301010110bb97853effc2a65ee3e468919d6c8d20827a698ba56c3d1b6b77688f202e19010603"
   },
   {
     "name": "Middle-aged - Male - Frosty Man 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172204-9vgng-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172204-9vgng-audio.wav",
+    "avatar": "fz-asset-20260908172204-9vgng-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010000f441cec05deee0ee9e8dd8b9a452d5846305048e44ddcbdcc1339d4ac9beff95710606ebf5a1f0cb4aca6eb67986d5e0490f010002"
   },
   {
     "name": "Middle-aged - Male - Felix",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172355-ch228-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172355-ch228-audio.wav",
+    "avatar": "fz-asset-20260908172355-ch228-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020238c47377366750a8ffb19a968422271d07000586bc89712f95bb8a58abdb187c783978397e336a0aaea47c46479a9ab36c21380f0103"
   },
   {
     "name": "Middle-aged - Male - Dylan",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-mb889-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172229-mb889-audio.wav",
+    "avatar": "fz-asset-20260908172229-mb889-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "060293ffc3de6abf34d2e2b27fa4d33c31020102b9bd94806fbdb2726891a973b09382b182625ca82b7391834016a8a9b2939651892e0706"
   },
   {
     "name": "Middle-aged - Male - Dryw",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172557-smcv5-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172557-smcv5-audio.mp3",
+    "avatar": "fz-asset-20260908172557-smcv5-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "01dcfbadc57a6200c8de6de5fabdc5b75401a0b6f0e0e8a590b72c0102ffdac39d960ae9d4afc7c1aba2e29504b0daaf7da4b3bd999c5900"
   },
   {
     "name": "Middle-aged - Male - David",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172413-f2pmm-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172413-f2pmm-audio.wav",
+    "avatar": "fz-asset-20260908172413-f2pmm-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "043e96958c581c6b67a19c8b9d7f73423b2a0400010116dad7ac6f7dff8c80dfae637d7568648c4ea5aa9f62524f9194b7709c724b0b0204"
   },
   {
     "name": "Middle-aged - Male - Clark",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172238-n6fz6-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172238-n6fz6-audio.wav",
+    "avatar": "fz-asset-20260908172238-n6fz6-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020133ffe46c3543605695a2725540194e4f200101266776a16c3c7f6a414f755d393d3e618757541f535e2360414f8988774d4116100103"
   },
   {
     "name": "Middle-aged - Male - Chip",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-9gqwn-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172315-9gqwn-audio.wav",
+    "avatar": "fz-asset-20260908172315-9gqwn-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040167ac756a2c23231eab94e5cf743c122b02020c5c734b2c3bc5907114d7885a644b6d6d682a5316d9de703e5da0ffcb6531510e020501"
   },
   {
     "name": "Middle-aged - Male - Cartoon Chef 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-zztz2-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172500-zztz2-audio.wav",
+    "avatar": "fz-asset-20260908172500-zztz2-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0102a3ffb286cd6e6fed8a44bcb198a27448514afdd48a3fd3ce49c6af4c04020202ce5668f59b86a7b6a2f6cf8580eea715cfbe40020302"
   },
   {
     "name": "Middle-aged - Male - Brad_Pitt",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172430-s4j7x-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172430-s4j7x-audio.wav",
+    "avatar": "fz-asset-20260908172430-s4j7x-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040115e9ff8d4d6ab2b7664a9dcc3e4a2301020101010011dad9753ac6b18ea4d63c67aa463b2f3f66907dcba93d36537f4a775735110102"
   },
   {
     "name": "Middle-aged - Male - Bob",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172412-zfsgw-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172412-zfsgw-audio.wav",
+    "avatar": "fz-asset-20260908172412-zfsgw-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "040273ea41e4c63fc8dcd7ff82c1b13b6e6f421522d5d2e7c859d9bbb1f6ba2c96ca7aae5ca24b918cd0b7585c86c1f0bb9f603e1c020502"
   },
   {
     "name": "Middle-aged - Male - Blaze",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-jt68f-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172346-jt68f-audio.wav",
+    "avatar": "fz-asset-20260908172346-jt68f-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "06021dffc298be432872b0cb94364a411b1f0d0102317b512f298b7c8f1bc1572a3e375a513b1c2929473e4d270e274e60433a4710090306"
   },
   {
     "name": "Middle-aged - Male - Bill",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172431-vn7vk-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172431-vn7vk-audio.wav",
+    "avatar": "fz-asset-20260908172431-vn7vk-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020101cbd6df528c5ccfe7bfe9bbc3b139585402020f28867beb9a8f9f876bb4b0767e8070766d7a7a737bd5815c5876d6ff91804e340601"
   },
   {
     "name": "Middle-aged - Male - Beau",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172218-hl9kx-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172218-hl9kx-audio.wav",
+    "avatar": "fz-asset-20260908172218-hl9kx-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "030137dee4332d4a30aeac6532442423240901023ded9c9d7b3dddca8ff7ff4b5a7c507d49623a176272343a3b38503d572b211002010501"
   },
   {
     "name": "Middle-aged - Male - Alex",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172447-rwchl-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172447-rwchl-audio.wav",
+    "avatar": "fz-asset-20260908172447-rwchl-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0201d3bc43af3875418eb3bea8b0cf4e554b0d02020caeffe5505aaab9a3b599a0beaa6feb76896950e0fb60705f84d2efb39f5d6f1b0402"
   },
   {
     "name": "Middle-aged - Male - Alberto",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172227-kcrhz-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172227-kcrhz-audio.wav",
+    "avatar": "fz-asset-20260908172227-kcrhz-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "020189ff629d42554bb1a164555b413c3526020984706749308b835c4fa179575e644c69485c3254518161232e203d6f74663c240d070202"
   },
   {
     "name": "Middle-aged - Male - Adrian",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172507-xqbnn-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172507-xqbnn-audio.wav",
+    "avatar": "fz-asset-20260908172507-xqbnn-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0100f3ff875b5e498ac4ae5677834a2a330f0000000d84fe90313e576168268d8c20656a35473837383c6e71511d3aa18d533f3305010201"
   },
   {
     "name": "Middle-aged - Male - Adam",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172613-nvc8v-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172613-nvc8v-audio.mp3",
+    "avatar": "fz-asset-20260908172613-nvc8v-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0104d6d3a395c2807c3a0203cb5eddaea46a7a516d92724475a6965d5a65ceb14a1d855fbc8e90894e2d010281ffa47a8d9a71749ca23202"
   },
   {
     "name": "Middle-aged - Female - Scarlet",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172213-rcwx7-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172213-rcwx7-audio.wav",
+    "avatar": "fz-asset-20260908172213-rcwx7-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "050240ffbdaca12da7a859cdab9a7b74394d5d760104d3efc8bd8dbbcb8774aa479fd1789275987980348f6780a096bd947c673f21020105"
   },
   {
     "name": "Middle-aged - Female - Sarah",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-g8qkt-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172559-g8qkt-audio.mp3",
+    "avatar": "fz-asset-20260908172559-g8qkt-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "0106ffe4c7d15383aaa347190203a2a67a9ecf9db79d6e1c919ba7acaf89a6a898a3766f5e020204c5d2c484cda27fc7bbb5b5b9947c1901"
   },
   {
     "name": "Middle-aged - Female - Margaret",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172439-c7p5l-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172439-c7p5l-audio.wav",
+    "avatar": "fz-asset-20260908172439-c7p5l-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "030125c6ff90b85541bdb7b3908b74367d4d03d39c7b636d706a1886644e7960406b8b426f6f7025805e5c697e817e98a251642615020303"
   },
   {
     "name": "Middle-aged - Female - Hope",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172533-l8rr7-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172533-l8rr7-audio.mp3",
+    "avatar": "fz-asset-20260908172533-l8rr7-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "01c4c27a089fe9c87d808511afcba730050101ecf9f1c2728e84a53b0907ffd5cad19e6c080805d5dd939c70877a80a67d0a077cda724a0e"
   },
   {
     "name": "Middle-aged - Female - Brittney",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172426-kn86t-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172426-kn86t-audio.wav",
+    "avatar": "fz-asset-20260908172426-kn86t-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "030611dacf79645975c8ff6343695e3d3303072770de96a84d3b4f82696dd03473ad437632402737515c4b2f4d4284866a52751f14040402"
   },
   {
     "name": "Middle-aged - Female - Anna",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172605-qjqkx-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172605-qjqkx-audio.mp3",
+    "avatar": "fz-asset-20260908172605-qjqkx-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "en",
+    "wave": "018cd3ed98e38ba98a6110caeca69e655ce5b1b54d01ff9c8131ea26a99302a1a87d5f6ab39a3d019cbe817569dbb182546094759fc5a80e"
   },
   {
     "name": "Child - Male - Kevin McCallister 2.0",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172157-42f76-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260908172157-42f76-audio.wav",
+    "avatar": "fz-asset-20260908172157-42f76-thumb.png",
+    "age": "child",
+    "gender": "male",
+    "lang": "en",
+    "wave": "014ff3f280021eb3c2ffd7a8d8aeac5b6b73290201c4fffab2f5d2a9de8cdf967a8bae6416020101f4faa885ebd689def8ee5984412f2201"
   },
   {
     "name": "Zayne",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-j7z55-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-j7z55-audio.mp3",
+    "avatar": "fz-asset-20260224190657-j7z55-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010000000000cef3ffc9dcceecdee96d70160060f9e5ccc3858e97b8ae7487ccb8681101f1eb7a5000000000002ee7dbccaa8993fdd07131"
   },
   {
     "name": "Xavier",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k7px4-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k7px4-audio.mp3",
+    "avatar": "fz-asset-20260224190656-k7px4-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0201017ba3d3b9b1ae5f0e0292bafff4d8e27a97b3b7472c0301777f450a010101010101012dd9ff66c4b5bbbd807b8898778d6f5b2d4513"
   },
   {
     "name": "Vivi",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4hks7-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4hks7-audio.mp3",
+    "avatar": "fz-asset-20260224190657-4hks7-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "03a086916268639b818a7c7a4f767c4f3b0f3d976a7368a282926c540a23baff347fa7a6b49d9498c58183d9ad8e1610a2747c7f7a95c708"
   },
   {
     "name": "Tina老师",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-smk6c-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-smk6c-audio.mp3",
+    "avatar": "fz-asset-20260224190657-smk6c-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01abfeffc2e4927d62afb077e3b48d8a0100020a7af6f362b458b5a827f9e8a461a7ab1a6c668b509ae85754a41a0101c8c255008afee505"
   },
   {
     "name": "Noah",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dqph5-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dqph5-audio.mp3",
+    "avatar": "fz-asset-20260224190656-dqph5-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "en",
+    "wave": "0b0803020101b79bfff0785b14d4bf5a99b9aa1f384965424c3f5b3e2524205a537795653f37622552574f4d325f5a21262a26502a1d150a"
   },
   {
     "name": "Kevin McCallister",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-kl5gf-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-kl5gf-audio.mp3",
+    "avatar": "fz-asset-20260224190656-kl5gf-thumb.png",
+    "age": "child",
+    "gender": "male",
+    "lang": "en",
+    "wave": "07f4e06c02b8d7c59fbaabe4b6a95676540301010101eef2c8b9807acbc6207687c84e050101010101fffd9a5f0101f1d4eee9c26a73514a"
   },
   {
     "name": "Jigsaw",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qltvl-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qltvl-audio.mp3",
+    "avatar": "fz-asset-20260224190656-qltvl-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010000031a13b5a1a9a853005bb5f59c64e1213888b95228c3756fb3646e5e79691b0c000b125153817164967c3f60617b7f3dff3c14352c"
   },
   {
     "name": "Clown Man",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ccgx8-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ccgx8-audio.mp3",
+    "avatar": "fz-asset-20260224190656-ccgx8-thumb.png",
+    "age": "older",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010001ffb75a6b5a4e3e121a1a01010180a0802f4b291929160402010107f963ae615934090100a7cc4f75946419151218685d2844180c0b"
   },
   {
     "name": "Chucky",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-5rq88-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-5rq88-audio.mp3",
+    "avatar": "fz-asset-20260224190656-5rq88-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "en",
+    "wave": "010000ddc46a0001f2ff8e0100003db4a5d2b7bcbd1f000000d56decabc4a4d4bac2bd5a550300b6c180c69f1750c39aaa97584c897b2a34"
   },
   {
     "name": "Charlie",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qx2rl-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qx2rl-audio.mp3",
+    "avatar": "fz-asset-20260224190657-qx2rl-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010100005fdcf4ffd6c0d1cb3409040201e7928aa24c7f81609aab897a64ddb5a297c4d5b0b86496ba953ad0a49cf1eac4e1ac8abc7a4e09"
   },
   {
     "name": "温柔女神2",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6kzhw-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6kzhw-audio.mp3",
+    "avatar": "fz-asset-20260224190657-6kzhw-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010037a0b20a010556ffaf949447482b0108068b7e87af9b394b8499a09e6c6f22010707024a686eb3655f4d0e54b194c0fed2c67f55ae49"
   },
   {
     "name": "黑猫侦探社咪仔",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-f5wvc-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-f5wvc-audio.wav",
+    "avatar": "fz-asset-20260224190656-f5wvc-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "cbceff473738033d5f4144517d4d2f357835135c964d3c40042e5e4c5f36221421242e3d180f1a10027e8340482f522f02473128130d1307"
   },
   {
     "name": "鸡汤妹妹",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mcs77-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mcs77-audio.mp3",
+    "avatar": "fz-asset-20260224190656-mcs77-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010023d3f7b6b28f730705ae9a629e5b120505d8bba06a976e4206053effb194787d440506ad848663788e8764816f06054ef8d46f540f02"
   },
   {
     "name": "鸡汤女",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-8t7zs-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-8t7zs-audio.wav",
+    "avatar": "fz-asset-20260224190656-8t7zs-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01d2ffae760201a7ae89ab880502cda8898b80544806010128f26a6475631901364c2f637f38030104029d86615e3c4d40385340422a0a02"
   },
   {
     "name": "魅力苏菲",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4vxtg-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-4vxtg-audio.mp3",
+    "avatar": "fz-asset-20260224190657-4vxtg-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01c9ffe5b37c45357d32030303ae8c98c4846d468b79393502000001d5d279fc76acb99ea24e4f12040306d0a3c49e3c54a1814c749b1b02"
   },
   {
     "name": "魅力女友",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qr992-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-qr992-audio.wav",
+    "avatar": "fz-asset-20260224190656-qr992-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "019398d5c7c17f46685601018ddf6a4e8f6da5493302000203beffb37773776a8f683b1f01010d71d25c10010540c5ca4b7b72875e2e0101"
   },
   {
     "name": "阳光阿辰",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-cfzpd-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-cfzpd-audio.mp3",
+    "avatar": "fz-asset-20260224190658-cfzpd-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "011bfe19010303dc9b5c45a0e7abd890457e11014343589b913b4c9b887659417945929e9e384a6f715c00ffd1e28b3a9dcdb7865e232100"
   },
   {
     "name": "醇厚低音",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ld557-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ld557-audio.mp3",
+    "avatar": "fz-asset-20260224190656-ld557-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "01010202d0cb9c98aa87887f541b00a09db0709b6c65360d0012fff786815e91477556700300cadeafb2b371b58469988f53a0474e45787b"
   },
   {
     "name": "邻家女孩",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-c25mw-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-c25mw-audio.mp3",
+    "avatar": "fz-asset-20260224190657-c25mw-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "03e4561e62adc77f564e030239a1b55cba8c530604527b6e95d07f588e8d76567d480294b2ff8a685d020336a55f7aac346b6e5d43120100"
   },
   {
     "name": "贴心闺蜜",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-l5jhn-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-l5jhn-audio.mp3",
+    "avatar": "fz-asset-20260224190658-l5jhn-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010200012b45712b77e9eb5ddf92f1dfb865360502010c3b676df5cf9b7f616c22ffc5030201014a69c8cc49a6f2bfd6b0a7a49596562a07"
   },
   {
     "name": "贴心妹妹",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6z7hn-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-6z7hn-audio.mp3",
+    "avatar": "fz-asset-20260224190657-6z7hn-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "02020235d1e6aea1ffa8afa98b8e3da53d02020795709de27a6b70cef4e4c6a09760370202010101618e6b935301013aeff8f8c9b69f8818"
   },
   {
     "name": "贴心女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ddltv-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-ddltv-audio.mp3",
+    "avatar": "fz-asset-20260224190656-ddltv-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01016bff9894457d5e690cd2e23b5ba165991dd281c2854a8c3f94a55c0355f674df3d9da085704e06e07d9555bdcc5a4c9379605c650501"
   },
   {
     "name": "解说小明",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dw6jj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dw6jj-audio.mp3",
+    "avatar": "fz-asset-20260224190657-dw6jj-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0eff25a6fbc6051d8887a1cc6eef4d5553902aa743400f705262805a1b4260030357ec9a6f463e58022e4050143e582549603644391d0100"
   },
   {
     "name": "萌丫头",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mdwbp-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mdwbp-audio.mp3",
+    "avatar": "fz-asset-20260224190656-mdwbp-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01003f2062bad46c4830598d59376eca772b406d0111bd84ff8a3f4495b49ca71da30108a1f0a7b64fb298ba59e3166f2beeb562afc20000"
   },
   {
     "name": "纯澈女生",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-xf6fq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-xf6fq-audio.mp3",
+    "avatar": "fz-asset-20260224190658-xf6fq-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01010100006ba174bc868c969bc4c9a4c5c96dd2cab7acaae85876b18f0707050302010062ffafa15c7d71505e81b976a48dd89d4a6f791f"
   },
   {
     "name": "知性温婉",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-79wft-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-79wft-audio.mp3",
+    "avatar": "fz-asset-20260224190657-79wft-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "02038ee8f4ca94e4c0827d7d6fc1afc18005010107fcc8909fb1d47a7587c581bf7204ffdbabbdbdb3b17a34020102f18fcfc2b2ac6e66b1"
   },
   {
     "name": "知性女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-8h2gv-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-8h2gv-audio.mp3",
+    "avatar": "fz-asset-20260224190658-8h2gv-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "0104ffc2ebe7eea0a8a20c588d654e676b9459aaa2b12231b175cde6b28bbac28baa54dd0c79d69b8fd992c7f95d7fa1d74fd39384940101"
   },
   {
     "name": "知心姐姐",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-7kss5-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-7kss5-audio.mp3",
+    "avatar": "fz-asset-20260224190658-7kss5-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010101010190b2f5ff98737c978190856b4d9555090001016d7788a0aa87a5771f01016d96c0c7a4e3828d817b493201625f82b76d47672b"
   },
   {
     "name": "甜美小源",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kvrll-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kvrll-audio.mp3",
+    "avatar": "fz-asset-20260224190657-kvrll-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "80c3b38f869a738c700a79bce0b6747d8fb13c779376b59e63d3bea1010a10d49da9d56c9e8db47567c4b7a3cbab8401013fff73919a0100"
   },
   {
     "name": "率真小伙",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qn26k-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qn26k-audio.mp3",
+    "avatar": "fz-asset-20260224190657-qn26k-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "020190de87120200003a526968eaa802000019bdffd87e0a0000020201517c6c7fb06356880800206675688670669e9302005fa46d29b04b"
   },
   {
     "name": "猴哥",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-sq5tk-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-sq5tk-audio.mp3",
+    "avatar": "fz-asset-20260224190656-sq5tk-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "02a99990ab82a3b2ff0123a23ea18372c25891cbb6824901807161905262b9ac823f51a567b674016b8bd5c7999596b601a389469374c40b"
   },
   {
     "name": "爽快思思",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jk6vd-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jk6vd-audio.mp3",
+    "avatar": "fz-asset-20260224190657-jk6vd-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01233a302a5e3f230a45b04353413f182e1a1e0e53785b22333d2e5f033e752f2577531a1d0d08475e975f24191912deff753c2c1f080100"
   },
   {
     "name": "熊二",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mrbs2-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-mrbs2-audio.mp3",
+    "avatar": "fz-asset-20260224190656-mrbs2-thumb.png",
+    "age": "teen",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "01b1b0a1b8a0e6dc998020afc2cd5b5a89c06511ac97cabe67afff6178c1d5df9ebbe9e2b00172cace8e58e6eb9a9c726faca9a8c2aba900"
   },
   {
     "name": "炀炀",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-bj5zq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-bj5zq-audio.mp3",
+    "avatar": "fz-asset-20260224190657-bj5zq-thumb.png",
+    "age": "teen",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "059f79b05a5f82319c965d144748608a659ba4d56a8eac925369600a020102369ec1af93b714010101011672644459989a4d4e56ffee0e00"
   },
   {
     "name": "灿灿",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qm7zm-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-qm7zm-audio.mp3",
+    "avatar": "fz-asset-20260224190657-qm7zm-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01000001c3deceabb094b9c99f08066d97a972a3d5c7abadbba9a1cb1b01020362b4b2adffa702030708a78e6478b6905e4bc89f02010000"
   },
   {
     "name": "温柔白月光",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mwq8b-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mwq8b-audio.mp3",
+    "avatar": "fz-asset-20260224190658-mwq8b-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01010000ffd9dcc0a79a94b8b5a6604c0f01010104bdffc5b9dbd6757cb2ec6aa4d08066736968a35400013391bedebee5beb3ac877d8044"
   },
   {
     "name": "温柔文雅",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-tx5bj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-tx5bj-audio.mp3",
+    "avatar": "fz-asset-20260224190657-tx5bj-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "015b74796ab8b595030289eab7746b500205868bb9d3c6ff49020671f0b995cfde87ac949c5d2d0420757c798ca9c12f041cd8c49486e355"
   },
   {
     "name": "温柔小雅",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-zrb6k-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-zrb6k-audio.mp3",
+    "avatar": "fz-asset-20260224190656-zrb6k-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "55ff6708fcb26d67684a54160101e7497e06cd7b3f5932a473674f4f3301000101ec8b6f536a5944041aae5b583c6f7f6f7752384e4b0100"
   },
   {
     "name": "温柔小哥",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dk6kj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dk6kj-audio.mp3",
+    "avatar": "fz-asset-20260224190657-dk6kj-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "010005908a8ce5a3d2d9038499c97fe6ba8d01000000e5e6b09aad02019ae0aba9e2718e93ff07000057e6ef00005192e7f759a0f40c0000"
   },
   {
     "name": "温暖阿虎",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-w9bjq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-w9bjq-audio.mp3",
+    "avatar": "fz-asset-20260224190657-w9bjq-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0109a0c3db7879ac03020102959ea38e8eba65ffa88ec380802801010183918d4562a57d496951070102047e3fb2893b5e57630c01000000"
   },
   {
     "name": "温暖少年",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-x2g8f-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-x2g8f-audio.mp3",
+    "avatar": "fz-asset-20260224190657-x2g8f-thumb.png",
+    "age": "teen",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "020100006c288aa767010001a69ec2e7c59f8f9871541d06d45ab1fb79eff5b28ccc960100000001bac783ffa0829bad995f84966c52988b"
   },
   {
     "name": "清爽男大",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-zzv99-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-zzv99-audio.mp3",
+    "avatar": "fz-asset-20260224190657-zzv99-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "017887a77cfffd9e8072783c54a3c5a88f01b9bdccc2ffb7805e571136a3887f825f0108b455b19a848e4f4d010ed8598466be7156786e00"
   },
   {
     "name": "清澈梓梓",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dmrnn-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dmrnn-audio.mp3",
+    "avatar": "fz-asset-20260224190657-dmrnn-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "009ef2c6eb0a0aab8966744dffefa6a85f2b17088aada0676facce80304165862b1a08d3566472657565075452586b574a4f3f4447190000"
   },
   {
     "name": "清新女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-8tcfp-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-8tcfp-audio.mp3",
+    "avatar": "fz-asset-20260224190657-8tcfp-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01027eb2d96e868ebeb7a5dbdc03ff8cbb72797a6dc57e9b685bbab9a054030fd1a99779ac9eaba3c643b1b0b8a864b891ce9e6d8bbc1400"
   },
   {
     "name": "流畅女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7nvns-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7nvns-audio.wav",
+    "avatar": "fz-asset-20260224190656-7nvns-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01bdffa5868c7082a5ba93de847791010405235f5637636b98610166a3a3a772d7cb8aa755802a0208206e7442849bab9b98a4cabcbb0101"
   },
   {
     "name": "活泼爽朗",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-7dgr4-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-7dgr4-audio.mp3",
+    "avatar": "fz-asset-20260224190657-7dgr4-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "02020029fef13c0100000094a5b1775e687859a17d010000445dedfff6514f0b00000026ed74583c8cdfdc686e030000174a5f7e5a9b3d3c"
   },
   {
     "name": "武则天",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-rb4s7-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-rb4s7-audio.mp3",
+    "avatar": "fz-asset-20260224190656-rb4s7-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01d4a9b999494c615c35018cae4da780309845afa47a5f5f5b606a6703ffc67f8e6493a68a6e3d6c98038c838f8cb77987ac97747f39b82a"
   },
   {
     "name": "樱桃丸子",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-gz5kb-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-gz5kb-audio.mp3",
+    "avatar": "fz-asset-20260224190656-gz5kb-thumb.png",
+    "age": "child",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01c8e0ecb3db9493caffe9310060cabd105b60297d1f5636b7a2277a6f002cb9ef8fbaa3bcc5ca005456c8cd54e46976313e8f8831817b00"
   },
   {
     "name": "机灵小伙",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wx5qt-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wx5qt-audio.mp3",
+    "avatar": "fz-asset-20260224190658-wx5qt-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "01020101010138a4b6d8c0ffe8dc2c35e2da781a0301010101c9c6d9f0dfcea975250c0302011a6c847fb1ac82c9d6bddfa8bed09872901d"
   },
   {
     "name": "暖阳女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-fjfcj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-fjfcj-audio.mp3",
+    "avatar": "fz-asset-20260224190657-fjfcj-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01e4959409be7ce9b09a976e4f06209c83d5d27a870202c0fff6a4a4b7dce8d08c0101d1cab2c1a69388b7cbf06f72f5b9eabdb8b69f9f01"
   },
   {
     "name": "暖心体贴",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jjj56-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-jjj56-audio.mp3",
+    "avatar": "fz-asset-20260224190657-jjj56-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0202ded4d2d3c9d0d4cfd5c96d020101013aaa73febfd2ea0801010101010127eebc9ac2aed7fa7f01010101f4e9d4dc58c1c0ffb58eb206"
   },
   {
     "name": "文静毛毛",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-pc9ns-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-pc9ns-audio.mp3",
+    "avatar": "fz-asset-20260224190656-pc9ns-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "019494abb24885d4a186834f4c460101012a8eb5f4ff65b1b06c9e530a9eb2cf8eb07a0125cdcaa3799297b1c1abaf9b8f73295b2e010000"
   },
   {
     "name": "懒音绵宝",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-srtjr-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-srtjr-audio.mp3",
+    "avatar": "fz-asset-20260224190656-srtjr-thumb.png",
+    "age": "child",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "00010072757a6258ede2970000001342553c3f827d6772aa94080000015b60557c6c667047885962937d6376439998277487fff58f000000"
   },
   {
     "name": "悠悠君子",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-wbz44-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-wbz44-audio.mp3",
+    "avatar": "fz-asset-20260224190656-wbz44-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0096edac7f864f4c40522720030a0b8bff8a897b742f4c58354c3c43395337533c3601010345db77467c574561507a636f392d2a18000000"
   },
   {
     "name": "快乐小东",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-k8s4v-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-k8s4v-audio.mp3",
+    "avatar": "fz-asset-20260224190658-k8s4v-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "27fc70ff49564cad4a50db145b856f6948010101f3d6df02a6bd956b31162a81de66bf62697e13016f476287b09f8361654b514286670100"
   },
   {
     "name": "心灵鸡汤",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dtx47-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-dtx47-audio.mp3",
+    "avatar": "fz-asset-20260224190657-dtx47-thumb.png",
+    "age": "middle",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "8ba3a9644f8f85927d6a220404d1b19680538375620802039c87875c1970a25c1e030404ffc9af932f03ba6aaf8b2b034c6f6c7f71700400"
   },
   {
     "name": "开朗轻快",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-t55r8-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-t55r8-audio.mp3",
+    "avatar": "fz-asset-20260224190657-t55r8-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0102010a7f88deb5796d85a098774f18c57d03040362bae48bc6a797df830605f5ffc7997a5fc97272428d77834357290202013690eef873"
   },
   {
     "name": "开朗学长",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wg7vs-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-wg7vs-audio.mp3",
+    "avatar": "fz-asset-20260224190658-wg7vs-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0027ff860100000eee81938780d679a8adb187b9756d775b915411000000009a9fd09ca2ada99db36451a78b1394f8f3596ca25d04000000"
   },
   {
     "name": "开朗姐姐",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-hjk6p-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-hjk6p-audio.mp3",
+    "avatar": "fz-asset-20260224190657-hjk6p-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "16a638a6757300b0978c837c7083aa42047a6e9a687b688586a08a82717301b5ffbab395ac89b4c8018380d7589998707a5e6ca5646e0000"
   },
   {
     "name": "广告解说",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tqq2h-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tqq2h-audio.mp3",
+    "avatar": "fz-asset-20260224190656-tqq2h-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0160a5666ea1c970404a0f03ff8ab53fa256733c3e5497954c0117dd9da983d448f249e985432100467a71565c86317546b86595a19d6302"
   },
   {
     "name": "少儿故事",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dw78f-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-dw78f-audio.mp3",
+    "avatar": "fz-asset-20260224190656-dw78f-thumb.png",
+    "age": "teen",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "0100fa8473748d5e587aadd7ccbdc70001a3cf87c9c294aedaa27bb49875c40001cc8bbee2c7bf78958b7d6f00007ccaf7f5aec5bfff0700"
   },
   {
     "name": "小天",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-nd59k-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-nd59k-audio.mp3",
+    "avatar": "fz-asset-20260224190657-nd59k-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "01016dfeb6ffec97e620020209989bd5b393a5b1afa7b4d15b60a15f9e8d635702020536c2d3a652f3aa020285feffb8c47a998cab450908"
   },
   {
     "name": "小何",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-558cg-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-558cg-audio.mp3",
+    "avatar": "fz-asset-20260224190657-558cg-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "03022d8576d6aca08ee9fda154fdb0b2b8c4acd18d0a121409e9a1908dffd594fdd0bb6d070723bfaabcab86936ff0fdfdfdfefdfefd6906"
   },
   {
     "name": "天才童声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6gkjj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6gkjj-audio.mp3",
+    "avatar": "fz-asset-20260224190656-6gkjj-thumb.png",
+    "age": "child",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "010001567b7bbeb1ff2243899d8ecf9b8bac015690af4bb30020789be77baad649a743567481c5055b507b97c5368dba83c1db625b000000"
   },
   {
     "name": "大壹",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tnphs-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-tnphs-audio.wav",
+    "avatar": "fz-asset-20260224190656-tnphs-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "060811279aa1c4926ba269b3b25c3d4e0d11813d5658ffcf595a735258671960563536201e74634bb9a57e61500e675787c6b733281a1e1a"
   },
   {
     "name": "四郎",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-hczx4-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-hczx4-audio.mp3",
+    "avatar": "fz-asset-20260224190656-hczx4-thumb.png",
+    "age": "middle",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0973a473c0a90aa3acb366625c0000ffc1a5b993fd520200969d97787f606f00000097bfc3c283001a97a2999be3b66ee590310127822005"
   },
   {
     "name": "咆哮小哥",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-q8n9n-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-q8n9n-audio.mp3",
+    "avatar": "fz-asset-20260224190656-q8n9n-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0100012b3ea4a026000000000100007a4b1a8795698c88899eb5b1825b72842101000000000027098a35286b8b82ab9e9ba68a93ff705d04"
   },
   {
     "name": "初恋女友",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mdd62-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-mdd62-audio.mp3",
+    "avatar": "fz-asset-20260224190658-mdd62-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010101010101ffee98d1b78e61ae3a8a91616565cfcc6701015c9f90c45658060201010102030206defef2239caf54b1aed5c76b6e575b06"
   },
   {
     "name": "冷酷哥哥",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-llks5-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-llks5-audio.mp3",
+    "avatar": "fz-asset-20260224190658-llks5-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0100001fd9c1bfa28784f75ce29c0a00ceef8c8d98ae06000029f7f6e0c4a748bb97080000ecff899dea1e0201dfc4a76841090000abed5c"
   },
   {
     "name": "元气甜妹",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-dbmhj-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-dbmhj-audio.mp3",
+    "avatar": "fz-asset-20260224190658-dbmhj-thumb.png",
+    "age": "child",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "0101010101011bef89d88a97fff8020201010126223a3b7f819f3e86a67bfa909a7d9d7c7474780102776f9b589bad91959b9b6bf8dfe1c6"
   },
   {
     "name": "儿童绘本",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-9lsgk-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-9lsgk-audio.mp3",
+    "avatar": "fz-asset-20260224190657-9lsgk-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "0101979c5d7ff9b8ffb6eea7b118015ecf9f98d7a28c6c02010057796a5c079d936477720b828663a78e110347ab829263659a9ba35f0101"
   },
   {
     "name": "儒雅逸辰",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7n7cg-audio.wav"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7n7cg-audio.wav",
+    "avatar": "fz-asset-20260224190656-7n7cg-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "024cd0bfcebfc4788e898567203942070203c8b4d9857b489e8910030438ff987b44813b060202015e927562370202402e55313976230209"
   },
   {
     "name": "儒雅男友",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-pljvq-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-pljvq-audio.mp3",
+    "avatar": "fz-asset-20260224190657-pljvq-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "010111c0a6ffdeee99a05873526a64a15c68a2bd15060100cab43d2d688b4c6c31cd196d1051666578568058e95f66540c274b0200000001"
   },
   {
     "name": "儒雅公子",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k9d7r-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-k9d7r-audio.mp3",
+    "avatar": "fz-asset-20260224190656-k9d7r-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "010101010270f0ffba8f75ae8a0d02010107df4739434e924b0201020102dbcce49b9ed3da5240a24a44130308c46a6d727755361b507012"
   },
   {
     "name": "倾心少女",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-459nf-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-459nf-audio.mp3",
+    "avatar": "fz-asset-20260224190656-459nf-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "010101016e8adbdb8670cb9d91c4bc51c1ac56655fffb75964632801010001010fabca88aacbc9f5e9699974b4d786b9213b6c646332270b"
   },
   {
     "name": "俏皮女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-jtswz-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-jtswz-audio.mp3",
+    "avatar": "fz-asset-20260224190656-jtswz-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "020202668c82f155605d1cdbc9586e53dea78e9db0ec3c0303b5efcadcc50b02d8eac457ff6c05057dc96199a88868c28c4d5751b31f0101"
   },
   {
     "name": "佩奇猪",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7r964-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-7r964-audio.mp3",
+    "avatar": "fz-asset-20260224190656-7r964-thumb.png",
+    "age": "child",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "01c39cbbd860f79b5a6c6ba1450109aa67863fceb8d76439b656fee5020220fff4a87e97989a01012a79953daadebd30e6fe739a845c0800"
   },
   {
     "name": "亲切女声",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-9xwll-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190658-9xwll-audio.mp3",
+    "avatar": "fz-asset-20260224190658-9xwll-thumb.png",
+    "age": "young",
+    "gender": "female",
+    "lang": "zh",
+    "wave": "0103a77b9897faffafcd9b6e71768bd19807080493816f93bde386c79d6381337f7a7c6c50648f67042d574d386d856da0c8790201000000"
   },
   {
     "name": "亮嗓萌仔",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6g84r-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190656-6g84r-audio.mp3",
+    "avatar": "fz-asset-20260224190656-6g84r-thumb.png",
+    "age": "teen",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "0100000178584ea4f9b8d0e185aec19a0801435f264f21b2764d4a565d140174733d36c2c08bab5cbb9d27536d9e9ade9bd1ff7401010001"
   },
   {
     "name": "云舟",
-    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kdxqk-audio.mp3"
+    "url": "https://img.vbing.site/official-voices/fz-asset-20260224190657-kdxqk-audio.mp3",
+    "avatar": "fz-asset-20260224190657-kdxqk-thumb.png",
+    "age": "young",
+    "gender": "male",
+    "lang": "zh",
+    "wave": "02027ef8af98fdfbfbb3fcece295977173050427fe78846ffda7c675909567fdc32e030413c1ebfdd3fefee8e2b7e1fec9aefffcd268fd04"
   }
 ]

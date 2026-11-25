@@ -1,17 +1,18 @@
-import { type SkillItem, skillScopes } from "@link-studio/core";
+import type { SkillItem } from "@link-studio/core";
 import {
-  ArrowLeft,
-  ChevronFirst,
-  ChevronLast,
   ChevronLeft,
   ChevronRight,
-  Layers3,
+  ChevronsLeft,
+  ChevronsRight,
   Search,
   Upload,
+  X,
 } from "lucide-react";
+import { MotionConfig, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SkillDetail } from "./skill-detail";
 import { SkillImport } from "./skill-import";
+import { activeDescription, SkillList } from "./skill-list";
 import "./skills.css";
 import { MethodWorkbench } from "./method-workbench";
 
@@ -24,8 +25,11 @@ const filters = [
 ] as const;
 type Filter = (typeof filters)[number][0];
 
-function activeDescription(item: SkillItem) {
-  return item.versions.find(({ version }) => version === item.activeVersion)?.description ?? "";
+function pageNumbers(page: number, pages: number): (number | "…")[] {
+  if (pages <= 5) return Array.from({ length: pages }, (_, index) => index + 1);
+  if (page <= 3) return [1, 2, 3, 4, "…", pages];
+  if (page >= pages - 2) return [1, "…", pages - 3, pages - 2, pages - 1, pages];
+  return [1, "…", page - 1, page, page + 1, "…", pages];
 }
 
 function matches(item: SkillItem, filter: Filter) {
@@ -43,13 +47,24 @@ function matches(item: SkillItem, filter: Filter) {
   }
 }
 
-export function SkillsPage({ close }: { close: () => void }) {
+export function SkillsPage({ visit = 0 }: { visit?: number }) {
+  const [pageSize, setPageSize] = useState(20);
+  return <SkillBrowser key={visit} pageSize={pageSize} setPageSize={setPageSize} />;
+}
+
+function SkillBrowser({
+  pageSize,
+  setPageSize,
+}: {
+  pageSize: number;
+  setPageSize: (size: number) => void;
+}) {
   const [methods, setMethods] = useState(false);
   const [items, setItems] = useState<SkillItem[] | null>(null);
   const [query, setQuery] = useState("");
+  const [input, setInput] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [importing, setImporting] = useState<{ files: File[] | null }>();
   const [selected, setSelected] = useState<string>();
   const [notice, setNotice] = useState("");
@@ -58,6 +73,15 @@ export function SkillsPage({ close }: { close: () => void }) {
   const search = useRef<HTMLInputElement>(null);
   const loadSequence = useRef(0);
   const active = items?.find((item) => item.name === selected);
+
+  useEffect(() => {
+    if (input === query) return;
+    const timer = window.setTimeout(() => {
+      setQuery(input);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [input, query]);
 
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current;
@@ -85,6 +109,7 @@ export function SkillsPage({ close }: { close: () => void }) {
         importing ||
         methods ||
         active ||
+        document.querySelector("dialog[open]") ||
         (event.target instanceof Element &&
           event.target.closest("input, textarea, select, [contenteditable]"))
       )
@@ -118,7 +143,7 @@ export function SkillsPage({ close }: { close: () => void }) {
   }
 
   return (
-    <main
+    <section
       className="skills-page"
       aria-label="技能管理"
       data-dragging={dragging}
@@ -138,16 +163,8 @@ export function SkillsPage({ close }: { close: () => void }) {
           setImporting({ files: Array.from(event.dataTransfer.files) });
       }}
     >
-      <nav className="skills-nav" aria-label="当前位置">
-        <button type="button" onClick={close}>
-          <ArrowLeft size={16} />
-          模型设置
-        </button>
-        <ChevronRight size={14} />
-        <span aria-current="page">技能</span>
-      </nav>
       <div className="skills-heading">
-        <h1>技能</h1>
+        <h2>技能</h2>
         <button type="button" disabled={!items} onClick={() => setMethods(true)}>
           环节技能
         </button>
@@ -162,36 +179,56 @@ export function SkillsPage({ close }: { close: () => void }) {
       </div>
       <section className="skills-panel" aria-label="技能列表">
         <div className="skills-toolbar">
-          <label className="skills-search">
-            <Search size={17} />
+          <div className="skills-search">
+            <Search size={16} aria-hidden="true" />
             <input
               ref={search}
               type="search"
-              aria-label="搜索名称或说明"
-              placeholder="搜索名称或说明"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
+              aria-label="搜索名称或说明（/）"
+              placeholder="搜索名称或说明（/）"
+              autoComplete="off"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
             />
-            <kbd>/</kbd>
-          </label>
-          <fieldset className="skills-filters" aria-label="筛选技能">
-            {filters.map(([key, label]) => (
+            {input && (
               <button
-                key={key}
                 type="button"
-                aria-pressed={filter === key}
+                aria-label="清空搜索"
                 onClick={() => {
-                  setFilter(key);
+                  setInput("");
+                  setQuery("");
                   setPage(1);
                 }}
               >
-                {label}
+                <X size={14} />
               </button>
-            ))}
-          </fieldset>
+            )}
+          </div>
+          <MotionConfig reducedMotion="user">
+            <fieldset data-ui-group className="skills-filters" aria-label="状态筛选">
+              {filters.map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={filter === key}
+                  onClick={() => {
+                    setFilter(key);
+                    setPage(1);
+                  }}
+                >
+                  {filter === key && (
+                    <motion.span
+                      aria-hidden="true"
+                      className="skill-filter-slider"
+                      layoutId="skill-filter"
+                      transition={{ type: "spring", stiffness: 500, damping: 38, mass: 0.8 }}
+                    />
+                  )}
+                  <span>{label}</span>
+                </button>
+              ))}
+            </fieldset>
+          </MotionConfig>
           <span className="skill-note">共 {results.length} 个</span>
         </div>
         {notice && (
@@ -212,132 +249,93 @@ export function SkillsPage({ close }: { close: () => void }) {
               正在读取技能库…
             </div>
           ) : visible.length === 0 ? (
-            <div className="skills-empty">
-              <Layers3 size={26} />
-              <strong>
-                {items.length === 0 && filter === "all" && !needle
-                  ? "技能库为空"
-                  : "没有符合条件的技能"}
-              </strong>
-              {items.length === 0 && filter === "all" && !needle && (
-                <span>导入 ZIP、文件夹或 SKILL.md 开始管理技能。</span>
-              )}
+            <div className="skills-empty skills-no-results">
+              <p>没有符合条件的技能</p>
             </div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">名称</th>
-                  <th scope="col">适用场景</th>
-                  <th scope="col">状态</th>
-                  <th scope="col">生效版本</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((item) => (
-                  <tr key={item.name}>
-                    <td>
-                      <button
-                        className="skill-name"
-                        type="button"
-                        onClick={() => setSelected(item.name)}
-                      >
-                        {item.title}
-                        <ChevronRight size={15} />
-                      </button>
-                      <div className="skill-description" title={activeDescription(item)}>
-                        {activeDescription(item)}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="skill-tags">
-                        {item.scopes.length ? (
-                          item.scopes.map((scope) => (
-                            <span className="skill-tag" key={scope}>
-                              {skillScopes[scope]}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="skill-note">未配置</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="skill-status" data-enabled={item.scopes.length > 0}>
-                        {item.scopes.length ? "使用中" : "未使用"}
-                      </span>
-                    </td>
-                    <td>
-                      v{item.activeVersion}
-                      {item.versions[0] && item.versions[0].version > item.activeVersion && (
-                        <small className="skill-note"> · v{item.versions[0].version} 待启用</small>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <SkillList items={visible} open={setSelected} />
           )}
         </div>
         <footer className="skills-pagination">
-          <label>
-            <select
-              aria-label="每页条数"
-              value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value));
-                setPage(1);
-              }}
-            >
-              {[10, 20, 50].map((count) => (
-                <option key={count}>{count}</option>
-              ))}
-            </select>
-            每页条数
-          </label>
-          <span className="skill-note">共 {results.length} 条</span>
-          <span className="skills-page-number">
-            第 {current} / {pages} 页
-          </span>
-          <fieldset className="skill-actions" aria-label="分页">
-            <button
-              type="button"
-              className="skill-icon-button"
-              aria-label="第一页"
-              disabled={current === 1}
-              onClick={() => setPage(1)}
-            >
-              <ChevronFirst size={17} />
-            </button>
-            <button
-              type="button"
-              className="skill-icon-button"
-              aria-label="上一页"
-              disabled={current === 1}
-              onClick={() => setPage(current - 1)}
-            >
-              <ChevronLeft size={17} />
-            </button>
-            <span aria-current="page">{current}</span>
-            <button
-              type="button"
-              className="skill-icon-button"
-              aria-label="下一页"
-              disabled={current === pages}
-              onClick={() => setPage(current + 1)}
-            >
-              <ChevronRight size={17} />
-            </button>
-            <button
-              type="button"
-              className="skill-icon-button"
-              aria-label="最后一页"
-              disabled={current === pages}
-              onClick={() => setPage(pages)}
-            >
-              <ChevronLast size={17} />
-            </button>
-          </fieldset>
+          <div className="skills-page-summary">
+            <label>
+              <select
+                aria-label="每页条数"
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(1);
+                }}
+              >
+                {[10, 20, 30, 40, 50].map((count) => (
+                  <option key={count}>{count}</option>
+                ))}
+              </select>
+              <span>每页条数</span>
+            </label>
+            <span className="skill-note">共 {results.length} 条</span>
+          </div>
+          <div className="skills-page-controls">
+            <span className="skills-page-number">
+              第 {current} / {pages} 页
+            </span>
+            <fieldset className="skill-actions" aria-label="分页">
+              <button
+                type="button"
+                className="skill-icon-button"
+                aria-label="第一页"
+                disabled={current === 1}
+                onClick={() => setPage(1)}
+              >
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                type="button"
+                className="skill-icon-button"
+                aria-label="上一页"
+                disabled={current === 1}
+                onClick={() => setPage(current - 1)}
+              >
+                <ChevronLeft size={17} />
+              </button>
+              {pageNumbers(current, pages).map((number, index, entries) =>
+                number === "…" ? (
+                  <span key={`gap-${entries[index - 1]}`} className="skill-page-gap">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={number}
+                    className="skill-page-link"
+                    type="button"
+                    aria-label={`第 ${number} 页`}
+                    aria-current={number === current ? "page" : undefined}
+                    onClick={() => setPage(number)}
+                  >
+                    {number}
+                  </button>
+                ),
+              )}
+              <button
+                type="button"
+                className="skill-icon-button"
+                aria-label="下一页"
+                disabled={current === pages}
+                onClick={() => setPage(current + 1)}
+              >
+                <ChevronRight size={17} />
+              </button>
+              <button
+                type="button"
+                className="skill-icon-button"
+                aria-label="最后一页"
+                disabled={current === pages}
+                onClick={() => setPage(pages)}
+              >
+                <ChevronsRight size={16} />
+              </button>
+            </fieldset>
+          </div>
         </footer>
       </section>
       {dragging && (
@@ -353,9 +351,6 @@ export function SkillsPage({ close }: { close: () => void }) {
           imported={(item, version) => {
             saveItem(item);
             setImporting(undefined);
-            setQuery("");
-            setFilter("all");
-            setPage(1);
             setNotice(`已导入「${item.title}」v${version}。`);
           }}
         />
@@ -365,7 +360,10 @@ export function SkillsPage({ close }: { close: () => void }) {
         <SkillDetail
           key={active.name}
           item={active}
-          close={() => setSelected(undefined)}
+          close={() => {
+            setSelected(undefined);
+            void load();
+          }}
           changed={(item) => {
             if (item) saveItem(item);
             else {
@@ -377,6 +375,6 @@ export function SkillsPage({ close }: { close: () => void }) {
           }}
         />
       )}
-    </main>
+    </section>
   );
 }

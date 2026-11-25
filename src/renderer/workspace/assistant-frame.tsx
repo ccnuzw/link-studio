@@ -5,6 +5,7 @@ import { saveAgentLayout, useAgentLayout } from "./agent-layout";
 import { type PetBounds, panelSize, placePanel } from "./pet/placement";
 
 const origin = { x: 0, y: 0 };
+const fallbackBottomInset = 68;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
 export function AssistantFrame({
@@ -29,13 +30,13 @@ export function AssistantFrame({
   const docked = layout.docked && canDock;
   const mode = sheet ? "sheet" : docked ? "dock" : "float";
   const area = bounds?.stage ?? { ...viewport, x: 0, y: 0 };
-  const { width, height } = panelSize(area);
   const pet = bounds?.pet;
+  const { width, height } = panelSize(area, pet ? undefined : fallbackBottomInset);
   const anchor = pet
     ? placePanel(pet, area, { width, height })
     : {
         x: area.width - 12 - width,
-        y: area.height - 68 - height,
+        y: area.height - fallbackBottomInset - height,
         origin: "bottom right",
       };
   const [preview, setPreview] = useState<typeof origin>();

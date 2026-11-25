@@ -4,8 +4,8 @@ export const PANEL_GAP = 8;
 export type Size = { width: number; height: number };
 export type Rect = { x: number; y: number; width: number; height: number };
 export type PetBounds = { pet: Rect | null; stage: Rect };
-export function panelSize(area: Size): Size {
-  return { width: 400, height: Math.min(600, area.height - 2 * PET_MARGIN) };
+export function panelSize(area: Size, bottomInset = PET_MARGIN): Size {
+  return { width: 400, height: Math.min(600, area.height - PET_MARGIN - bottomInset) };
 }
 export function placePanel(pet: Rect, area: Size, want: Size) {
   const fitX = (x: number) => clamp(x, PET_MARGIN, area.width - PET_MARGIN - want.width);

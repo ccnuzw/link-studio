@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AssetVideo } from "../asset-media";
 import { CanvasControlTip } from "./canvas-control-tip";
 import { previewBytes } from "./canvas-preview-items";
 import { useLocalPreviewResult } from "./character-card-body";
@@ -20,6 +21,7 @@ import { MediaThumbnail } from "./media-thumbnail";
 import "./shot-image-preview.css";
 
 export type ShotPreviewItem = {
+  src?: string;
   id: string;
   assetId: string;
   label: string;
@@ -58,7 +60,18 @@ function ShotTab({
       aria-current={active}
       onClick={select}
     >
-      {item.kind === "video" ? (
+      {item.src ? (
+        item.kind === "video" ? (
+          <>
+            <AssetVideo muted preload="metadata" src={item.src} />
+            <i>
+              <Play />
+            </i>
+          </>
+        ) : (
+          <img src={item.src} alt="" />
+        )
+      ) : item.kind === "video" ? (
         <>
           <LocalVideoPoster assetId={item.assetId} projectHandle={projectHandle} />
           <i>
@@ -204,7 +217,7 @@ export function ShotImagePreview({
   const assetId = item?.assetId;
   const poster = useLocalPreviewResult(
     projectHandle,
-    item?.kind === "video" ? assetId : undefined,
+    item?.kind === "video" && !item.src ? assetId : undefined,
     "poster",
   );
   const [source, setSource] = useState<{
@@ -214,7 +227,7 @@ export function ShotImagePreview({
     url?: string;
   }>();
   useEffect(() => {
-    if (!assetId) return;
+    if (!assetId || item?.src) return;
     let current = true;
     const finish = (url?: string) => {
       if (current) setSource({ projectHandle, assetId, attempt, url });
@@ -226,14 +239,14 @@ export function ShotImagePreview({
     return () => {
       current = false;
     };
-  }, [assetId, projectHandle, attempt]);
+  }, [assetId, projectHandle, attempt, item?.src]);
   const loadedSource =
     source?.projectHandle === projectHandle &&
     source.assetId === assetId &&
     source.attempt === attempt
       ? source
       : undefined;
-  const url = loadedSource?.url;
+  const url = item?.src ?? loadedSource?.url;
   const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({});
   const bytes = previewBytes(item?.bytes);
   const mediaKey = JSON.stringify([projectHandle, assetId]);
@@ -334,7 +347,7 @@ export function ShotImagePreview({
                     width: `min(100%, calc((100svh - 222px) * ${ratio}))`,
                   }}
                 >
-                  {loadedSource && (
+                  {(item.src || loadedSource) && (
                     <PreviewStage
                       key={JSON.stringify([mediaKey, url, attempt])}
                       item={item}

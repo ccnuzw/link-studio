@@ -1,4 +1,4 @@
-import type { DirectorScene } from "@link-studio/core";
+import { type DirectorScene, requirePresent, sameDirectorKeyTime } from "@link-studio/core";
 import { Diamond, Pause, Play, SkipBack, Trash2, UserRound, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { applyPreset, CAMERA_PRESETS, type CameraPresetId } from "./director-presets";
@@ -89,7 +89,10 @@ export function DirectorTimeline({
     stop.current = reset;
   }
   const [presetId, setPresetId] = useState<CameraPresetId>("dollyIn");
-  const preset = CAMERA_PRESETS.find((p) => p.id === presetId)!;
+  const preset = requirePresent(
+    CAMERA_PRESETS.find((p) => p.id === presetId),
+    "CAMERA_PRESETS.find((p) => p.id === presetId)",
+  );
   const [strength, setStrength] = useState(preset.defaultStrength);
   const lanesRef = useRef<HTMLDivElement>(null);
 
@@ -196,7 +199,10 @@ export function DirectorTimeline({
           disabled={!isCamera}
           title={isCamera ? preset.description : "先选中一台机位"}
           onChange={(event) => {
-            const next = CAMERA_PRESETS.find((p) => p.id === event.target.value)!;
+            const next = requirePresent(
+              CAMERA_PRESETS.find((p) => p.id === event.target.value),
+              "CAMERA_PRESETS.find((p) => p.id === event.target.value)",
+            );
             setPresetId(next.id);
             setStrength(next.defaultStrength);
           }}
@@ -275,12 +281,15 @@ export function DirectorTimeline({
               className={cn("dt-row", selectedId === item.id && "dt-active")}
               style={{ height: ROW }}
             >
-              {item.keys.map((key) => {
+              {item.keys.map((key, index) => {
                 const chosen =
                   selectedKey?.id === item.id && Math.abs(selectedKey.time - key.t) < 0.005;
+                const occurrence = item.keys
+                  .slice(0, index)
+                  .filter((frame) => frame.t === key.t).length;
                 return (
                   <button
-                    key={key.t}
+                    key={`${key.t}:${occurrence}`}
                     type="button"
                     onClick={(event) => {
                       if (event.detail === 0) {
@@ -293,7 +302,8 @@ export function DirectorTimeline({
                     onPointerDown={(event) => grabKey(event, item.id, key.t)}
                     onContextMenu={(event) => {
                       event.preventDefault();
-                      change(item.id, key.t, key.t, key.ease === "linear" ? "smooth" : "linear");
+                      const first = item.keys.find((frame) => sameDirectorKeyTime(frame.t, key.t));
+                      change(item.id, key.t, key.t, first?.ease === "linear" ? "smooth" : "linear");
                     }}
                     className={cn(
                       "dt-key",

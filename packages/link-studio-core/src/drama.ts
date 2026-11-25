@@ -47,7 +47,55 @@ const title = Type.String({ minLength: 1, maxLength: 255 });
 const episodeNo = Type.Integer({ minimum: 1, maximum: 100000 });
 const seconds = Type.Integer({ minimum: 1, maximum: 86400 });
 const segmentId = Type.String({ pattern: "^[0-9a-f]{32}$" });
+const segmentOrder = Type.Array(segmentId, { minItems: 1, maxItems: 5000, uniqueItems: true });
+export const ReorderDramaSegments = Type.Object(
+  {
+    episodeNo,
+    episodeOrder: Type.Integer({ minimum: 0 }),
+    previous: segmentOrder,
+    ids: segmentOrder,
+  },
+  strict,
+);
 const revision = Type.Integer({ minimum: 1 });
+export const AdaptDramaSegment = Type.Object(
+  {
+    segmentId,
+    episodeNo,
+    episodeOrder: Type.Integer({ minimum: 0 }),
+    revision,
+    format: Type.Union([Type.Literal("generic"), Type.Literal("h3")]),
+  },
+  strict,
+);
+const adaptation = Type.Object(
+  {
+    prompt: text,
+    source_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    edited: Type.Boolean(),
+    updated_at: Type.String(),
+  },
+  strict,
+);
+export const DeleteDramaSegment = Type.Object(
+  { segmentId, episodeNo, episodeOrder: Type.Integer({ minimum: 0 }) },
+  strict,
+);
+export const SetDramaSegmentSeconds = Type.Object(
+  { segmentId, episodeNo, episodeOrder: Type.Integer({ minimum: 0 }), revision, seconds },
+  strict,
+);
+export const SetDramaSegmentPrompt = Type.Object(
+  {
+    segmentId,
+    episodeNo,
+    episodeOrder: Type.Integer({ minimum: 0 }),
+    revision,
+    prompt: text,
+    format: Type.Optional(AdaptDramaSegment.properties.format),
+  },
+  strict,
+);
 const imageModelChoice = Type.String({
   pattern: "^(?:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?$",
 });
@@ -83,6 +131,8 @@ export const DramaJobRequest = Type.Object(
         ),
       ),
     ),
+    max_audios: Type.Optional(Type.Integer({ minimum: 0 })),
+    video_model: Type.Optional(imageModelChoice),
     max_seconds: Type.Optional(Type.Integer({ minimum: 4, maximum: 60 })),
   },
   strict,
@@ -115,6 +165,7 @@ export const DramaJobRecord = Type.Object(
     ),
     final_asset_id: Type.Optional(Type.String()),
     approval_id: Type.String({ minLength: 1 }),
+    episode_order: Type.Optional(Type.Integer({ minimum: 0 })),
     approval_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
     prompt_snapshots: Type.Optional(PromptSnapshots),
     done_episodes: Type.Optional(Type.Array(episodeNo)),
@@ -134,14 +185,73 @@ export const DramaJobRecord = Type.Object(
     ),
     new_nodes: Type.Optional(Type.Array(Type.String())),
     prompted_nodes: Type.Optional(Type.Array(Type.String())),
+    deferred_nodes: Type.Optional(Type.Array(Type.String())),
+    prompt_error: Type.Optional(Type.String()),
     error_message: Type.Optional(Type.String()),
   },
   strict,
 );
 export type DramaJobRecord = Static<typeof DramaJobRecord>;
+
+export function episodeScriptPhase(
+  job: DramaJobRecord,
+  no: number,
+): "queued" | "writing" | undefined {
+  if (job.step !== "scripts" || (job.status !== "queued" && job.status !== "running")) return;
+  if (!job.episodes.includes(no) || job.done_episodes?.includes(no)) return;
+  const current = job.episodes.find((number) => !job.done_episodes?.includes(number));
+  return job.status === "running" && current === no ? "writing" : "queued";
+}
+
+export const dramaPromptBatchSize = 8;
+
+export function pendingDramaPromptIds(
+  jobs: readonly DramaJobRecord[],
+  episodes: readonly number[],
+  blankNodes: ReadonlySet<string>,
+) {
+  const recorded = new Set(jobs.flatMap((job) => job.prompted_nodes ?? []));
+  const candidates = jobs
+    .filter(
+      (job) =>
+        job.step === "breakdown" &&
+        job.episodes.length === episodes.length &&
+        episodes.every((no) => job.episodes.includes(no)),
+    )
+    .flatMap((job) => job.new_nodes ?? []);
+  return [...new Set(candidates)].filter((id) => !recorded.has(id) && blankNodes.has(id));
+}
 export const AddDramaEpisode = Type.Object({ revision, title, script_md: text }, strict);
 const episodeOrder = Type.Integer({ minimum: 0 });
 export const DeleteDramaEpisode = Type.Object({ episode_no: episodeNo, episodeOrder }, strict);
+export const EditDramaField = Type.Union([
+  Type.Object(
+    {
+      field: Type.Literal("title"),
+      previous: title,
+      value: Type.String({ minLength: 1, maxLength: 64, pattern: "\\S" }),
+    },
+    strict,
+  ),
+  Type.Object(
+    {
+      field: Type.Union([Type.Literal("outline_md"), Type.Literal("characters_md")]),
+      previous: text,
+      value: text,
+    },
+    strict,
+  ),
+  Type.Object(
+    {
+      field: Type.Union([Type.Literal("hook"), Type.Literal("cliffhanger")]),
+      previous: text,
+      value: text,
+      episode_no: episodeNo,
+      episodeOrder,
+    },
+    strict,
+  ),
+]);
 export const SaveDramaScript = Type.Object(
   {
     revision,
@@ -154,7 +264,7 @@ export const SaveDramaScript = Type.Object(
 export const AddDramaSegment = Type.Object(
   {
     episode_no: episodeNo,
-    prompt: Type.String({ minLength: 1, maxLength: 24000 }),
+    prompt: Type.Optional(text),
     seconds,
     revision,
   },
@@ -208,6 +318,8 @@ export const DramaSourceFields = {
   episodeSeconds: Type.Optional(Type.Integer({ minimum: 30, maximum: 180 })),
 };
 export interface DramaSourcePreview {
+  priceUnavailable?: boolean;
+  estimateProblem?: string;
   sourceToken?: string;
   kindGuess?: "novel" | "script" | "unknown";
   planning?: {
@@ -301,6 +413,7 @@ export const DramaDocument = Type.Object(
                 to: episodeNo,
                 input: Type.String(),
                 created_at: Type.String(),
+                expected_seconds: Type.Optional(Type.Number({ minimum: 1 })),
                 progress: Type.Optional(Type.Literal(50)),
                 body: Type.Optional(Type.String()),
                 model: Type.Optional(Type.Object({ id: imageModelChoice, revision }, strict)),
@@ -340,6 +453,12 @@ export const DramaDocument = Type.Object(
             revision,
             take_ids: Type.Optional(Type.Array(Type.String(), { uniqueItems: true })),
             chosen_task_id: Type.Optional(Type.String()),
+            adaptations: Type.Optional(
+              Type.Object(
+                { generic: Type.Optional(adaptation), h3: Type.Optional(adaptation) },
+                strict,
+              ),
+            ),
           },
           strict,
         ),

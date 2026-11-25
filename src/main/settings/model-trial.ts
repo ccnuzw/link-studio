@@ -20,6 +20,7 @@ import { openProviderResponse, providerTransport } from "./network.ts";
 import { providerPollDelay } from "./provider-poll.ts";
 import type { SettingsRegistry } from "./registry.ts";
 import { inlineTrialImage, trialMediaLimit, trialOutputMime } from "./trial-media.ts";
+import { trialMimes } from "./trial-reference-upload.ts";
 import { traceBody } from "./trial-trace-body.ts";
 
 type Trial = SettingsInput<"modelTrial">;
@@ -40,20 +41,6 @@ export type TrialCheckpoint = {
   deadline: number;
 };
 const mimes = { image: "image/png", video: "video/mp4", audio: "audio/mpeg" };
-const trialMimes = {
-  image: ["image/png", "image/jpeg", "image/webp", "image/gif"],
-  video: ["video/mp4", "video/webm", "video/quicktime"],
-  audio: [
-    "audio/mpeg",
-    "audio/mp4",
-    "audio/wav",
-    "audio/x-wav",
-    "audio/ogg",
-    "audio/opus",
-    "audio/webm",
-    "audio/flac",
-  ],
-};
 const previewStop = "MODEL_TRIAL_PREVIEW";
 
 function prepare(saved: ReturnType<SettingsRegistry["trialBinding"]>, trial: Trial) {
@@ -73,7 +60,7 @@ function prepare(saved: ReturnType<SettingsRegistry["trialBinding"]>, trial: Tri
   for (const { kind, url, file } of trial.references ?? []) {
     const list = refs[`${kind}s`];
     if (
-      Boolean(url) === Boolean(file) ||
+      (!url && !file) ||
       (url && !isPublicReferenceURL(url)) ||
       list.length >= (options.references[kind] ?? 0)
     )
@@ -98,7 +85,7 @@ function prepare(saved: ReturnType<SettingsRegistry["trialBinding"]>, trial: Tri
     list.push(key);
     media[key] = {
       url,
-      ...(url && { urlOnly: true as const }),
+      ...(url && !file && { urlOnly: true as const }),
       bytes,
       mime: file?.mime ?? mimes[kind],
       filename: `reference-${kind}.${(file?.mime ?? mimes[kind]).split("/")[1]}`,
@@ -132,7 +119,8 @@ function prepare(saved: ReturnType<SettingsRegistry["trialBinding"]>, trial: Tri
     throw invalid();
   if (
     (input.size &&
-      ((!options.manualSize && ![...options.sizes, ...options.largeSizes].includes(input.size)) ||
+      (((!options.manualSize || input.size === "auto") &&
+        ![...options.sizes, ...options.largeSizes].includes(input.size)) ||
         input.aspectRatio ||
         input.resolution)) ||
     (input.aspectRatio && !options.ratios.includes(input.aspectRatio)) ||

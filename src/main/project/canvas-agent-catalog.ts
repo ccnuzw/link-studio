@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type { ProjectCanvasView } from "../../../packages/link-studio-core/src/canvas.ts";
 
 export function agentCanvasCatalog(
@@ -30,7 +31,7 @@ export function agentCanvasCatalog(
 
   const selectedIds = [...new Set(selection)].filter((id) => byId.has(id));
   const selected = selectedIds.map((id) => {
-    const node = byId.get(id)!;
+    const node = requirePresent(byId.get(id), "byId.get(id)");
     const children = members.get(id) ?? [];
     return {
       ...describeNode(node),
@@ -40,7 +41,7 @@ export function agentCanvasCatalog(
   });
   const ordered = new Set([...selectedIds, ...byId.keys()]);
   const nodes = [...ordered].slice(0, 200).map((id) => {
-    const node = byId.get(id)!;
+    const node = requirePresent(byId.get(id), "byId.get(id)");
     const description = describeNode(node);
     if (node.type !== "creative") {
       const count = members.get(id)?.length ?? 0;
@@ -50,11 +51,11 @@ export function agentCanvasCatalog(
     const shots = data.storyboard;
     const summary = shots
       ? shots.length
-        ? `${shots.length} 镜 · ${shots[0]!.scene}`
+        ? `${shots.length} 镜 · ${requirePresent(shots[0], "shots[0]").scene}`
         : "0 镜"
       : data.text;
     const runes = Array.from(redact(summary));
-    const prompt = runes.length > 60 ? runes.slice(0, 60).join("") + "…" : runes.join("");
+    const prompt = runes.length > 60 ? `${runes.slice(0, 60).join("")}…` : runes.join("");
     return {
       ...description,
       ...(node.parentId && { group: node.parentId }),

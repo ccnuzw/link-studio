@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { GenerationInput } from "../../../packages/link-studio-core/src/generation.ts";
 import { Asset, type ProjectState } from "../../../packages/link-studio-core/src/project.ts";
@@ -24,7 +25,7 @@ function generated(state: ProjectState) {
       typeof job !== "object" ||
       Array.isArray(job) ||
       job.version !== 1 ||
-      job.kind !== "image" ||
+      (job.kind !== "image" && job.kind !== "video" && job.kind !== "audio") ||
       job.id !== jobId ||
       typeof job.model !== "string" ||
       !Value.Check(GenerationInput, job.input) ||
@@ -36,7 +37,7 @@ function generated(state: ProjectState) {
         !output ||
         typeof output !== "object" ||
         Array.isArray(output) ||
-        output.kind !== "image" ||
+        output.kind !== job.kind ||
         typeof output.assetId !== "string"
       )
         continue;
@@ -44,7 +45,7 @@ function generated(state: ProjectState) {
       if (
         asset?.origin === "generated" &&
         asset.metadata.jobId === job.id &&
-        asset.mediaType === "image" &&
+        asset.mediaType === job.kind &&
         asset.availability === "ready" &&
         asset.storage.kind === "blob" &&
         Number.isFinite(Date.parse(asset.createdAt))
@@ -182,7 +183,13 @@ export class FilingHistory {
       return;
     }
   }
-  async page(filter: Filter, query: string, before?: HistoryCursor) {
+  async page(
+    filter: Filter,
+    query: string,
+    before?: HistoryCursor,
+    media: "image" | "video" | "audio" = "image",
+    oldest = false,
+  ) {
     const db = await this.index();
     const indexed = db.prepare("SELECT id AS canvas,* FROM canvases").all();
     const canvases = (await Promise.all(indexed.map((row) => this.current(row)))).flatMap(
@@ -195,14 +202,16 @@ export class FilingHistory {
       since = filter.days
         ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - filter.days + 1).getTime()
         : 0;
+    const order = oldest ? "ASC" : "DESC";
     const rows =
       ids.length && !filter.conversation
         ? db
             .prepare(
-              `SELECT images.*,project FROM images JOIN canvases ON canvas=canvases.id WHERE canvas IN (${ids.map(() => "?").join(",")}) AND created>=? AND instr(lower(prompt),lower(?))>0 AND (? IS NULL OR (created,images.id)<(?,?)) ORDER BY created DESC,images.id DESC LIMIT 41`,
+              `SELECT images.*,project FROM images JOIN canvases ON canvas=canvases.id WHERE canvas IN (${ids.map(() => "?").join(",")}) AND json_extract(record,'$.mediaType')=? AND created>=? AND instr(lower(prompt),lower(?))>0 AND (? IS NULL OR (created,images.id)${oldest ? ">" : "<"}(?,?)) ORDER BY created ${order},images.id ${order} LIMIT 41`,
             )
             .all(
               ...ids,
+              media,
               since,
               query.trim(),
               before?.id ?? null,
@@ -215,7 +224,10 @@ export class FilingHistory {
       items: rows.slice(0, 40).map((row) => this.item(row)),
       next:
         rows.length > 40
-          ? { created: Number(rows[39]!.created), id: String(rows[39]!.id) }
+          ? {
+              created: Number(requirePresent(rows[39], "rows[39]").created),
+              id: String(requirePresent(rows[39], "rows[39]").id),
+            }
           : undefined,
     };
   }
@@ -227,18 +239,18 @@ export class FilingHistory {
       raw.origin !== "generated" ||
       raw.availability !== "ready" ||
       raw.storage.kind !== "blob" ||
-      raw.storage.hash !== raw.sha256 ||
-      raw.mediaType !== "image"
+      raw.storage.hash !== raw.sha256
     )
       throw new ProjectError("ASSET_NOT_FOUND", "历史图片不可用");
     return {
       asset: { ...raw, availability: "ready" as const, assetId: `history:${row.id}` },
       origin: { project: String(row.project), asset: raw.assetId },
+      canvasId: String(row.canvas),
       prompt: String(row.prompt),
       model: String(row.model),
     };
   }
-  private async lookup(key: string) {
+  async lookup(key: string) {
     const db = await this.index();
     const row = db
       .prepare(
@@ -250,11 +262,14 @@ export class FilingHistory {
   }
   async selection(key: string) {
     const item = await this.lookup(key);
-    return item && { asset: item.asset, origin: item.origin };
+    return item?.asset.mediaType === "image"
+      ? { asset: item.asset, origin: item.origin }
+      : undefined;
   }
   async image(key: string) {
     const item = await this.lookup(key);
-    if (!item) throw new ProjectError("ASSET_NOT_FOUND", "历史图片已失效");
+    if (item?.asset.mediaType !== "image")
+      throw new ProjectError("ASSET_NOT_FOUND", "历史图片已失效");
     const { asset, origin, canvas, row } = item;
     if (
       asset.sizeBytes > 10 * 1024 * 1024 ||

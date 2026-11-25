@@ -6,6 +6,7 @@ import {
   assetVoiceInput,
 } from "../../src/renderer/workspace/drama-asset-generation";
 import { assetMarquee } from "../../src/renderer/workspace/drama-asset-marquee";
+import { requireTestValue } from "../require-test-value";
 
 const provider: ProviderView = {
   id: "image",
@@ -123,7 +124,11 @@ it("联合生成仅拦截需要公网图址的模型，无图能力不是禁用�
       voicePrompt: " 低声 ",
     },
   };
-  const plugin = { ...settings.plugins[0]!, key: "doubao-audio", kind: "audio" as const };
+  const plugin = {
+    ...requireTestValue(settings.plugins[0]),
+    key: "doubao-audio",
+    kind: "audio" as const,
+  };
   for (const [max, as, allowed] of [
     [1, "url", false],
     [1, "base64", true],

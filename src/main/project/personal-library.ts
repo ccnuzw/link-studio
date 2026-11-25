@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, unlink } from "node:fs/promises";
+import { type FileHandle, mkdir, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { Asset } from "../../../packages/link-studio-core/src/project.ts";
 import {
@@ -88,7 +89,7 @@ export class PersonalLibrary {
       })),
       folders: this.folderList(db),
       ...(removedSourceIds.length && { removedSourceIds }),
-      ...(rows.length > 40 && { next: Number(rows[39]!.cursor) }),
+      ...(rows.length > 40 && { next: Number(requirePresent(rows[39], "rows[39]").cursor) }),
     };
   }
   async listFolders() {
@@ -226,7 +227,7 @@ export class PersonalLibrary {
     return {
       assets: rows.slice(0, 40).map((row) => this.record(row.record)),
       folders: this.folderList(db),
-      ...(rows.length > 40 && { next: Number(rows[39]!.cursor) }),
+      ...(rows.length > 40 && { next: Number(requirePresent(rows[39], "rows[39]").cursor) }),
     };
   }
   async filingSelection(itemId: string) {
@@ -292,12 +293,28 @@ export class PersonalLibrary {
     await requireDirectory(tempDir);
     const temporary = join(tempDir, `${randomUUID()}.upload`);
     const handle = await open(temporary, "wx+", 0o600);
-    let staged: StagedAsset | undefined;
     try {
       await handle.writeFile(bytes, { signal });
-      staged = await this.blobs.stage(this, handle, name, randomUUID(), { signal });
+      return await this.importFile(handle, name, folder, signal);
+    } finally {
+      await handle.close();
+      await unlink(temporary).catch(() => {});
+    }
+  }
+  async importFile(
+    handle: FileHandle,
+    name: string,
+    folder?: string,
+    signal?: AbortSignal,
+    onProgress?: (copied: number, total: number) => void,
+  ) {
+    const db = await this.index();
+    await mkdir(join(this.directory, "tmp"), { recursive: true, mode: 0o700 });
+    let staged: StagedAsset | undefined;
+    try {
+      staged = await this.blobs.stage(this, handle, name, randomUUID(), { signal, onProgress });
       await this.blobs.publishBlob(this, staged, signal);
-      signal.throwIfAborted();
+      signal?.throwIfAborted();
       const { asset } = staged;
       this.transaction(db, () => {
         if (folder) this.requireFolder(db, folder);
@@ -312,8 +329,6 @@ export class PersonalLibrary {
       });
       return asset;
     } finally {
-      await handle.close();
-      await unlink(temporary).catch(() => {});
       if (staged) await this.blobs.discard(staged);
     }
   }
@@ -388,10 +403,14 @@ export class PersonalLibrary {
     }
   }
   async register(store: ProjectStore, assetId: string, folderId?: string) {
-    const database = await this.index();
     const source = store.snapshot.assets[assetId];
     if (source?.availability !== "ready")
       throw new ProjectError("ASSET_NOT_FOUND", "项目素材不可用");
+    return this.registerSource(store, source, folderId);
+  }
+  async registerSource(store: MediaLocation, source: AssetRecord, folderId?: string) {
+    const database = await this.index();
+    const assetId = source.assetId;
     if (typeof source.metadata.libraryItemId === "string") {
       const existing = await this.get(source.metadata.libraryItemId);
       if (existing.sha256 === source.sha256) return this.restore(database, existing, folderId);
@@ -431,7 +450,12 @@ export class PersonalLibrary {
       this.pendingRecords.get(key) === source.sha256,
     );
     if (this.pendingRecords.size >= 128)
-      this.pendingRecords.delete(this.pendingRecords.keys().next().value!);
+      this.pendingRecords.delete(
+        requirePresent(
+          this.pendingRecords.keys().next().value,
+          "this.pendingRecords.keys().next().value",
+        ),
+      );
     this.pendingRecords.set(key, source.sha256);
     database.exec("BEGIN IMMEDIATE");
     try {
@@ -448,7 +472,7 @@ export class PersonalLibrary {
       throw error;
     }
     this.pendingRecords.delete(key);
-    return this.record(find()!.record);
+    return this.record(requirePresent(find(), "find()").record);
   }
   async attach(store: ProjectStore, itemId: string, operationId: string, signal?: AbortSignal) {
     const item = await this.get(itemId);

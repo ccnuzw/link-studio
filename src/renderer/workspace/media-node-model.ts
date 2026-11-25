@@ -3,6 +3,7 @@ import {
   configuredGenerationInput,
   imageDisplaySize,
   modelPriceLabel,
+  parseCanvasAspect,
   type SettingsValues,
 } from "@link-studio/core";
 import { imageFrameSize } from "./grid-placement";
@@ -10,11 +11,18 @@ import { imageFrameSize } from "./grid-placement";
 export function nodeModels(settings: SettingsValues["list"], kind: CreativeData["kind"]) {
   return settings.providers
     .filter((provider) => {
+      if (provider.config?.kind === "agent")
+        return (
+          kind === "script" &&
+          provider.enabled &&
+          provider.agentEnabled &&
+          provider.hasSecret &&
+          provider.channelEnabled !== false
+        );
       const plugin = settings.plugins.find((entry) => entry.hash === provider.pluginHash);
       return (
         provider.enabled &&
         provider.channelEnabled !== false &&
-        provider.config?.kind !== "agent" &&
         !plugin?.disabled &&
         plugin?.kind === (kind === "script" ? "text" : kind) &&
         (plugin.auth === "none" || provider.hasSecret)
@@ -53,15 +61,19 @@ function modelFrameSize(data: CreativeData, models: ReturnType<typeof nodeModels
   const draft = data.generation;
   const key = draft?.providerId ?? draft?.modelKey;
   const target = key ? models.find((entry) => entry.id === key) : models[0];
-  if (!target) return;
-  const effective = configuredGenerationInput(target.config, {
+  const input = {
     ...draft?.params,
     ...(draft?.sizeInput && { size: draft.sizeInput }),
-  });
-  const match =
-    /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(
-      String(effective.aspectRatio ?? effective.customParams?.ratio ?? ""),
-    ) ?? /^(\d+)x(\d+)$/.exec(effective.size ?? "");
+  };
+  const effective = target ? configuredGenerationInput(target.config, input) : input;
+  const ratio =
+    parseCanvasAspect(input.aspectRatio) ??
+    parseCanvasAspect(input.customParams?.aspect_ratio) ??
+    parseCanvasAspect(input.customParams?.ratio) ??
+    parseCanvasAspect(effective.aspectRatio) ??
+    parseCanvasAspect(effective.customParams?.ratio);
+  if (ratio) return imageFrameSize(ratio, 1);
+  const match = /^(\d+)x(\d+)$/.exec(effective.size ?? "");
   return match ? imageFrameSize(Number(match[1]), Number(match[2])) : undefined;
 }
 

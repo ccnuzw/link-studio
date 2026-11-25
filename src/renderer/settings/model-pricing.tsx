@@ -7,6 +7,7 @@ import {
   modelModeLabels,
   type PriceTier,
   quoteModel,
+  requirePresent,
   stalePriceCondition,
 } from "@link-studio/core";
 import { Check, Plus, Star, Trash2 } from "lucide-react";
@@ -160,7 +161,7 @@ export function PricingRules({
   const replace = (index: number, value: PriceTier) =>
     setTiers(tiers.map((tier, i) => (i === index ? value : tier)));
   const condition = (index: number, key: string, value: Dimension["initial"] | undefined) => {
-    const tier = tiers[index]!;
+    const tier = requirePresent(tiers[index], "tiers[index]");
     const when = { ...tier.when };
     if (value === undefined) delete when[key];
     else when[key] = value;

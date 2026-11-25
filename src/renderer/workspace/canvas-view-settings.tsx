@@ -50,7 +50,7 @@ const themeIcons = { system: Monitor, dark: Moon, light: Sun };
 const sections = {
   canvas: ["画布设置", "底纹、对齐与滚轮，改动即时生效。"],
   general: ["通用设置", "外观与界面上的常驻提示。"],
-  model: ["模型设置", "新建节点时默认选中的模型。"],
+  model: ["新节点默认模型", "新建节点时默认选中的模型。"],
 } as const;
 const modelKinds = {
   script: ["文本", Type],
@@ -295,7 +295,7 @@ export function CanvasPreferencesDialog({
                 onClick={() => setSection("model")}
               >
                 <Cpu size={16} />
-                模型设置
+                新节点默认模型
               </button>
             </nav>
             <section>

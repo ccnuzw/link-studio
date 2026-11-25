@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, type Page, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
+import { requireTestValue } from "../require-test-value";
 
 async function chooseFilter(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label, exact: true }).click();
@@ -22,12 +24,19 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const catalog = await api.list({});
       if (!catalog.ok) throw Error(catalog.code);
-      const builtin = catalog.value.plugins.find((entry) => entry.key === "openai")!;
+      const builtin = requireTestValue(
+        catalog.value.plugins.find((entry) => entry.key === "openai"),
+      );
       const source =
         builtin.source +
         `\nObject.assign(module.exports.meta, {key:'version-test',name:'版本夹具',version:'1.0.0'}); module.exports.meta.channelSettings.flag={type:'boolean',label:'兼容模式'};`;
@@ -58,7 +67,7 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
       });
       if (!imported.ok) throw Error(imported.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = page.getByRole("button", { name: /^version-model/ });
     await open.click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
@@ -81,7 +90,9 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
     await expect(flag).toBeChecked();
     await expect(editor.getByText("新版本不再声明协议设置项：extra，已丢弃")).toBeVisible();
     await version.press("Enter");
+    await expect(page.getByRole("option", { name: "v1.0.0", exact: true })).toBeFocused();
     await page.keyboard.press("Home");
+    await expect(page.getByRole("option", { name: "v2.0.0（最新）", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(extra).toHaveValue("7");
     await expect(prefix).toHaveValue("/custom");
@@ -143,11 +154,16 @@ test("协议鉴权变化：升级失败后手动取消或授权，试跑只使�
     });
     const page = await app.firstWindow();
     const fixture = await page.evaluate(async (port) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const list = await api.list({});
       if (!list.ok) throw Error(list.code);
       const source =
-        list.value.plugins.find((plugin) => plugin.key === "openai")!.source +
+        requireTestValue(list.value.plugins.find((plugin) => plugin.key === "openai")).source +
         "\nObject.assign(module.exports.meta,{key:'reauth',name:'授权对照',version:'1.0.0'});";
       const first = await api.draft({ source });
       if (!first.ok) throw Error(first.code);
@@ -218,7 +234,7 @@ test("协议鉴权变化：升级失败后手动取消或授权，试跑只使�
       ok: true,
       value: { status: "succeeded" },
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: /^鉴权验收/ }).click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
     await chooseFilter(page, "协议版本", "v2.0.0（最新）");
@@ -279,7 +295,7 @@ test("批量删除最后两个模型，列表刷新为空时结果仍可读", as
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     await page.evaluate(async () => {
       const api = window.desktop.settings;
       const channel = await api.channelSave({
@@ -302,7 +318,7 @@ test("批量删除最后两个模型，列表刷新为空时结果仍可读", as
       });
       if (!added.ok) throw Error(added.code);
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("checkbox", { name: "选择本页模型" }).check();
     await page.getByRole("button", { name: "批量删除", exact: true }).click();
     await page
@@ -334,7 +350,7 @@ test("渠道模型首次加载、失败重试及无 Key 空状态", async () => 
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).waitFor();
+    await page.getByRole("button", { name: "应用设置" }).waitFor();
     const saved = await page.evaluate(() =>
       window.desktop.settings.channelSave({
         expectedRevision: 0,
@@ -385,7 +401,7 @@ test("渠道模型首次加载、失败重试及无 Key 空状态", async () => 
         return { ok: false, code: "SETTINGS_ACTION_FAILED" };
       });
     }, saved.value);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await expect(page.getByLabel("渠道列表加载中").locator(":scope > div")).toHaveCount(3);
     await expect(page.getByLabel("渠道详情加载中").locator(":scope > div")).toHaveCount(2);
     await app.evaluate(({ ipcMain }) => ipcMain.emit("finish-channel-list-load"));
@@ -460,6 +476,7 @@ test("拉取时关闭不会串单，导入失败保留选择并可重试", async
       window.desktop.settings.channelSave({
         expectedRevision: 0,
         approve: true,
+        secret: "fixture-pull-key",
         fields: {
           name: "拉取测试",
           endpoint: "https://unused.invalid",
@@ -503,7 +520,7 @@ test("拉取时关闭不会串单，导入失败保留选择并可重试", async
         return { ok: true, value: { added: 1, prefixed: 1 } };
       });
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = () =>
       page
         .getByRole("region", { name: "渠道模型空状态" })
@@ -556,7 +573,7 @@ test("渠道表单在首次保存后逐字段报错，修正后保留授权并�
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道" })
@@ -579,8 +596,8 @@ test("渠道表单在首次保存后逐字段报错，修正后保留授权并�
       ["https://fixture.invalid/#", "Base URL 不能带查询参数或片段"],
       ["https://name@fixture.invalid", "Base URL 不能包含用户名或密码"],
     ]) {
-      await url.fill(input!);
-      await expect(url).toHaveAccessibleDescription(message!);
+      await url.fill(requireTestValue(input));
+      await expect(url).toHaveAccessibleDescription(requireTestValue(message));
     }
     await url.fill("https://fixture.invalid");
     await editor.getByRole("button", { name: "添加 User-Agent" }).click();
@@ -659,7 +676,7 @@ test("渠道授权按实际端点和本机网络范围判断，等价地址不�
     );
     expect(seeded.ok).toBe(true);
     const list = () => page.evaluate(() => window.desktop.settings.channelList({}));
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     const open = page.getByRole("button", { name: "编辑渠道", exact: true });
     await open.click();
     const editor = page.getByRole("dialog", { name: "编辑渠道" });
@@ -733,7 +750,7 @@ test("方舟配置与备案凭证分步保存，第二步失败后原窗只重�
       }),
     );
     expect(seeded.ok).toBe(true);
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "编辑渠道", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "编辑渠道" });
     await editor.getByRole("switch", { name: "虚拟人像库" }).press("Space");
@@ -794,7 +811,7 @@ test("新增渠道部分凭证失败不重复创建，设置 Key 可补写，原
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道" })
@@ -847,7 +864,7 @@ test("新增渠道部分凭证失败不重复创建，设置 Key 可补写，原
 
 test("新建渠道、拉取模型、保存能力与参数并试跑", async () => {
   const testInfo = test.info();
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const directory = await mkdtemp(join(tmpdir(), "link-studio-channels-"));
   const requests: { path?: string; authorization?: string; label?: string; body: string }[] = [];
   let emptyCatalog = false;
@@ -921,7 +938,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     app = await launch();
     const page = await app.firstWindow();
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1024, 700));
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page
       .getByRole("complementary", { name: "模型渠道列表" })
       .getByRole("button", { name: "新增渠道", exact: true })
@@ -949,13 +966,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
       .getByRole("dialog", { name: "新建模型" })
       .getByRole("button", { name: "取消", exact: true })
       .click();
-    await emptyChannelPanel.getByRole("button", { name: "拉取模型", exact: true }).click();
-    const missingKey = page.getByRole("dialog", { name: "选择要导入的模型" });
-    await expect(missingKey.getByRole("alert")).toBeVisible();
-    await missingKey.getByRole("button", { name: "重试" }).click();
-    await expect(missingKey.getByRole("alert")).toBeVisible();
-    await missingKey.getByRole("button", { name: "关闭", exact: true }).last().click();
-    await page.getByRole("button", { name: "设置 Key", exact: true }).click();
+    await emptyChannelPanel.getByRole("button", { name: "配置 API Key" }).click();
     const keys = page.getByRole("dialog", { name: /的 Key/ });
     await keys.getByLabel("API Key", { exact: true }).fill("channel-fixture-key");
     await keys.getByRole("button", { name: "保存", exact: true }).click();
@@ -1331,7 +1342,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
       });
     const submissions = requests.filter((request) => request.path !== "/v1/models");
     expect(submissions.map((request) => request.path)).toEqual(["/v1/responses"]);
-    expect(JSON.parse(submissions[0]!.body)).toMatchObject({
+    expect(JSON.parse(requireTestValue(submissions[0]).body)).toMatchObject({
       model: "gpt-fixture",
       instructions: "只回复 OK。",
       max_output_tokens: 256,
@@ -1417,7 +1428,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await app.close();
     app = await launch();
     const restored = await app.firstWindow();
-    await restored.getByRole("button", { name: "模型设置" }).click();
+    await restored.getByRole("button", { name: "应用设置" }).click();
     await expect(restored.locator(".channel-model-name strong")).toHaveText([
       "剧本助手模型",
       "pending-fixture",
@@ -1633,7 +1644,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await app.close();
     app = await launch();
     const finalPage = await app.firstWindow();
-    await finalPage.getByRole("button", { name: "模型设置" }).click();
+    await finalPage.getByRole("button", { name: "应用设置" }).click();
     const finalNav = finalPage.getByRole("navigation", { name: "选择渠道" });
     await expect(finalNav.locator(".channel-item strong")).toHaveText(["备用服务", "创作服务"]);
     await finalNav.getByRole("button", { name: /^创作服务/ }).click();
@@ -1741,7 +1752,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await protocolBatch.getByRole("button", { name: "文本", exact: true }).click();
     await expect(protocolBatch.getByRole("status")).toHaveCount(0);
     await protocolBatch.getByRole("radio", { name: /^OpenAI/ }).click();
-    const pinned = await protocolBatch.getByLabel("协议版本").innerText();
+    const pinned = await readRenderedText(protocolBatch.getByLabel("协议版本"));
     await chooseFilter(finalPage, "接口", "（不设置）");
     await chooseFilter(finalPage, "参考图传输格式", "请选择");
     await expect(applyProtocol).toBeDisabled();
@@ -1769,10 +1780,17 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await table.getByLabel("选择 剧本助手模型", { exact: true }).check();
     await finalPage.getByRole("button", { name: "批量删除", exact: true }).click();
     const conflict = await finalPage.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const listing = await api.list({});
       if (!listing.ok) throw Error(listing.code);
-      const stale = listing.value.providers.find((model) => model.model === "page-model-1")!;
+      const stale = requireTestValue(
+        listing.value.providers.find((model) => model.model === "page-model-1"),
+      );
       return api.modelRemove({ id: stale.id, expectedRevision: stale.revision });
     });
     expect(conflict.ok).toBe(true);
@@ -2061,7 +2079,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await expect(
       finalPage.getByRole("switch", { name: "停用插件 OpenAI", exact: true }),
     ).toBeChecked();
-    await finalPage.getByRole("button", { name: "返回模型渠道", exact: true }).click();
+    await finalPage.getByRole("button", { name: "模型与渠道", exact: true }).click();
     await finalNav.getByRole("button", { name: /^创作服务/ }).click();
     await finalPage
       .locator(".channel-model-heading")

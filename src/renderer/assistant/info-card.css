@@ -171,7 +171,22 @@
   background: var(--card-hover);
 }
 .agent-info-card .card-reference {
-  padding: 0;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  margin-inline: -4px;
+  padding: 0 4px;
+  border-radius: 6px;
+  text-align: left;
+}
+.agent-info-card .card-reference span {
+  min-width: 0;
+}
+.agent-info-card .card-reference svg {
+  color: var(--card-muted);
+}
+.agent-info-card .card-reference:hover {
+  text-decoration: underline;
 }
 .agent-info-card ul {
   padding: 0;

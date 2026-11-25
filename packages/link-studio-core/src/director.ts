@@ -1,6 +1,10 @@
 import { type Static, Type } from "@sinclair/typebox";
 
 const strict = { additionalProperties: false };
+export const MAX_DIRECTOR_SCENE_BYTES = 256 * 1024;
+
+export const sameDirectorKeyTime = (left: number, right: number) =>
+  Math.round(left * 100) === Math.round(right * 100);
 const id = Type.String({ pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$" });
 const name = Type.String({ minLength: 1, maxLength: 80 });
 const coordinate = Type.Number();
@@ -63,7 +67,7 @@ export const DirectorScene = Type.Object(
           model: Type.Optional(Type.Union([Type.Literal("male"), Type.Literal("female")])),
           pose: Type.Union(directorPoses.map((item) => Type.Literal(item))),
           scale: Type.Number({ minimum: 0.8, maximum: 1.2 }),
-          keys: Type.Array(Type.Object({ ...position, ...key }, strict), { maxItems: 1501 }),
+          keys: Type.Array(Type.Object({ ...position, ...key }, strict)),
           hidden: Type.Optional(Type.Boolean()),
           locked: Type.Optional(Type.Boolean()),
         },
@@ -96,7 +100,7 @@ export const DirectorScene = Type.Object(
           ...cameraPose,
           aspect: Type.Union(directorAspects.map((item) => Type.Literal(item))),
           lookAt: Type.Optional(id),
-          keys: Type.Array(Type.Object({ ...cameraPose, ...key }, strict), { maxItems: 1501 }),
+          keys: Type.Array(Type.Object({ ...cameraPose, ...key }, strict)),
         },
         strict,
       ),
@@ -164,14 +168,9 @@ export function cloneDirectorScene(scene: DirectorScene, newId: () => string) {
 export function retimeDirectorScene(scene: DirectorScene, value: number): DirectorScene {
   const duration = Math.min(15, Math.max(1, Math.round(value * 2) / 2));
   if (duration === scene.duration) return scene;
-  const retime = <Key extends { t: number }>(keys: Key[]) => [
-    ...new Map(
-      keys.map((key) => {
-        const t = Math.round(((key.t * duration) / scene.duration) * 100) / 100;
-        return [t, { ...key, t }];
-      }),
-    ).values(),
-  ];
+  const ratio = duration / scene.duration;
+  const retime = <Key extends { t: number }>(keys: Key[]) =>
+    keys.map((key) => ({ ...key, t: Math.round(key.t * ratio * 100) / 100 }));
   return {
     ...scene,
     duration,
@@ -183,11 +182,12 @@ export function retimeDirectorScene(scene: DirectorScene, value: number): Direct
 export function validDirectorScene(scene: DirectorScene) {
   const items = [...scene.characters, ...scene.props, ...scene.cameras];
   return (
+    new TextEncoder().encode(JSON.stringify(scene)).length <= MAX_DIRECTOR_SCENE_BYTES &&
     new Set(items.map(({ id }) => id)).size === items.length &&
     (!scene.activeCameraId || scene.cameras.some(({ id }) => id === scene.activeCameraId)) &&
     [...scene.characters, ...scene.cameras].every(({ keys }) =>
       keys.every(
-        ({ t }, index) => t <= scene.duration && (index === 0 || t > (keys[index - 1]?.t ?? 0)),
+        ({ t }, index) => t <= scene.duration && (index === 0 || t >= (keys[index - 1]?.t ?? 0)),
       ),
     )
   );

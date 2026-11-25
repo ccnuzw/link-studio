@@ -161,8 +161,9 @@ try {
       desktop,
       await readFile("resources/icons/icon-32.png", "base64"),
     );
+  await desktop.getByRole("button", { name: /^新建画布项目/ }).click();
   await desktop.getByRole("textbox", { name: "新项目名称" }).fill(title);
-  await desktop.getByRole("button", { name: "新建项目" }).click();
+  await desktop.getByRole("button", { name: "选择保存位置…" }).click();
   await desktop.getByRole("button", { name: "更多", exact: true }).click();
   await desktop.getByRole("menuitem", { name: "主题", exact: true }).press("ArrowRight");
   await desktop
@@ -361,7 +362,7 @@ try {
           await page.evaluate(
             async ({ src, clip }) => {
               const image = new Image();
-              image.src = "data:image/png;base64," + src;
+              image.src = `data:image/png;base64,${src}`;
               await image.decode();
               const canvas = document.createElement("canvas"),
                 dpr = devicePixelRatio;
@@ -470,7 +471,7 @@ try {
           if (name === "original") await page.evaluate(() => window.openAuditTarget());
           else {
             await page.getByRole("button", { name: "画布菜单" }).click();
-            await page.getByRole("menuitem", { name: "新建画布" }).click();
+            await page.getByRole("menuitem", { name: "新建画布项目" }).click();
             const title = page.getByRole("textbox", { name: "画布名称" });
             await expect(title).toHaveValue("未命名画布");
             await expect(title).toBeEnabled();
@@ -854,7 +855,7 @@ try {
       const buffers = await Promise.all(
         pair.map(async (src) => {
           const bitmap = new Image();
-          bitmap.src = "data:image/png;base64," + src;
+          bitmap.src = `data:image/png;base64,${src}`;
           await bitmap.decode();
           const canvas = document.createElement("canvas");
           canvas.width = bitmap.width;
@@ -877,7 +878,7 @@ try {
             Promise.all(
               pair.map(async (bytes) => {
                 const image = new Image();
-                image.src = "data:image/png;base64," + bytes;
+                image.src = `data:image/png;base64,${bytes}`;
                 await image.decode();
                 return image;
               }),
@@ -930,7 +931,7 @@ try {
         ctx.font = "15px sans-serif";
         for (const [column, bytes] of pair.entries()) {
           const image = new Image();
-          image.src = "data:image/png;base64," + bytes;
+          image.src = `data:image/png;base64,${bytes}`;
           await image.decode();
           ctx.fillText(column ? "桌面 Electron" : reference, column * 352 + 8, 20);
           ctx.drawImage(image, column * 352, 28);
@@ -955,7 +956,7 @@ try {
       context.font = "16px sans-serif";
       for (const [column, bytes] of pair.entries()) {
         const image = new Image();
-        image.src = "data:image/png;base64," + bytes;
+        image.src = `data:image/png;base64,${bytes}`;
         await image.decode();
         const dpr = devicePixelRatio;
         context.fillStyle = "white";
@@ -987,7 +988,7 @@ try {
         ctx.font = "16px sans-serif";
         for (const [column, bytes] of pair.entries()) {
           const image = new Image();
-          image.src = "data:image/png;base64," + bytes;
+          image.src = `data:image/png;base64,${bytes}`;
           await image.decode();
           ctx.fillText(column ? "桌面 Electron" : reference, column * 500 + 8, 22);
           ctx.drawImage(image, column * 500, 32, 500, 126);
@@ -1018,7 +1019,7 @@ try {
         for (const [row, pair] of pairs.entries())
           for (const [column, bytes] of pair.entries()) {
             const image = new Image();
-            image.src = "data:image/png;base64," + bytes;
+            image.src = `data:image/png;base64,${bytes}`;
             await image.decode();
             const left = 10 + column * 332,
               top = 10 + row * 300;

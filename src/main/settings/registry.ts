@@ -3,6 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   channelEndpointIdentity,
@@ -68,7 +69,7 @@ import {
 } from "../../../packages/provider-runtime/src/runner.ts";
 import provenance from "../../../resources/provider-plugins/provenance.json" with { type: "json" };
 import { projectCanvas } from "../project/canvas.ts";
-import { dramaKindSample } from "../project/drama-source.ts";
+import { dramaKindSample, dramaPromptLimit } from "../project/drama-source.ts";
 import { canonicalJson } from "../project/encoding.ts";
 import { ProjectStore } from "../project/store.ts";
 import type { SkillLibrary } from "../skills/library.ts";
@@ -151,7 +152,10 @@ function filingURLKey(value: string) {
     /^(x-amz|x-goog)-signature$/i.test(key),
   );
   if (!signature) return value;
-  const prefix = signature.toLowerCase().split("-signature")[0]!;
+  const prefix = requirePresent(
+    signature.toLowerCase().split("-signature")[0],
+    'signature.toLowerCase().split("-signature")[0]',
+  );
   for (const key of [...url.searchParams.keys()]) {
     if (key.toLowerCase().startsWith(prefix) && signedURLParameters.has(key.toLowerCase()))
       url.searchParams.delete(key);
@@ -2288,6 +2292,7 @@ export class SettingsRegistry {
         const result = await probeAgentStream(binding, this.redactor(), 30_000, {
           prompt,
           generation: true,
+          drama: true,
           signal,
         });
         const guess = (await this.runner.call("", "dramaKindGuess", [result.text], signal)) as {
@@ -2327,6 +2332,10 @@ export class SettingsRegistry {
   }
 
   dramaStepSeconds(model: { id: string; revision: number }, step: "analyze" | "plan") {
+    return this.dramaObservedSeconds(model, step) ?? 60;
+  }
+
+  dramaObservedSeconds(model: { id: string; revision: number }, step: "analyze" | "plan") {
     const seconds = this.database
       .prepare(
         "SELECT seconds FROM drama_step_durations WHERE model=? AND revision=? AND step=? ORDER BY finished DESC,task DESC LIMIT 50",
@@ -2334,9 +2343,16 @@ export class SettingsRegistry {
       .all(model.id, model.revision, step)
       .map((row) => Number(row.seconds))
       .sort((left, right) => left - right);
-    if (!seconds.length) return 60;
+    if (!seconds.length) return undefined;
     return Math.floor(
-      (seconds[Math.floor((seconds.length - 1) / 2)]! + seconds[Math.floor(seconds.length / 2)]!) /
+      (requirePresent(
+        seconds[Math.floor((seconds.length - 1) / 2)],
+        "seconds[Math.floor((seconds.length - 1) / 2)]",
+      ) +
+        requirePresent(
+          seconds[Math.floor(seconds.length / 2)],
+          "seconds[Math.floor(seconds.length / 2)]",
+        )) /
         2,
     );
   }
@@ -2469,13 +2485,26 @@ export class SettingsRegistry {
     for (let attempt = 0; attempt < 2; attempt++) {
       const prompt = await this.dramaPromptText(step, input, signal, draft);
       const context = binding.profile.config?.contextWindow;
-      if (Array.from(prompt).length > (context ? Math.max(1, Math.floor(context * 0.6)) : 12000))
+      if (Array.from(prompt).length > dramaPromptLimit(context))
         throw new ProviderError("DRAMA_CONTEXT");
+      const diagnostic = {
+        step,
+        model_revision: model.revision,
+        prompt_hash: createHash("sha256").update(prompt).digest("hex"),
+        prompt_chars: Array.from(prompt).length,
+        template: draft ? ("snapshot" as const) : ("builtin" as const),
+        ...(draft && { template_hash: createHash("sha256").update(draft).digest("hex") }),
+      };
       const result = await probeAgentStream(
-        binding,
+        binding.origin === "gateway"
+          ? {
+              ...binding,
+              observeAttempt: (record) => binding.observeAttempt({ ...record, drama: diagnostic }),
+            }
+          : binding,
         this.redactor(),
         agentDeadlineMs(binding.profile),
-        { prompt, generation: true, signal },
+        { prompt, generation: true, drama: true, signal },
       );
       try {
         return await this.runner.call("", "dramaAssetOutput", [step, result.text, scope], signal);
@@ -2607,7 +2636,14 @@ export class SettingsRegistry {
       this.database
         .prepare(`UPDATE ark_assets SET status=? WHERE scope=? AND id=? AND status='processing'
         AND NOT EXISTS (SELECT 1 FROM ark_sources WHERE scope=? AND asset=? AND remote IS NOT ?)`)
-        .run(status, scope, image.id!, scope, image.id!, image.remote);
+        .run(
+          status,
+          scope,
+          requirePresent(image.id, "image.id"),
+          scope,
+          requirePresent(image.id, "image.id"),
+          image.remote,
+        );
       return this.filedReference(channelId, url);
     } catch {
       return undefined;
@@ -2679,10 +2715,10 @@ export class SettingsRegistry {
       throw new ProviderError("FILING_STORAGE_KEYS_REQUIRED");
     const access = input.accessKey
       ? this.secrets.encrypt(input.accessKey)
-      : (old!.access_key as Uint8Array);
+      : (requirePresent(old, "old").access_key as Uint8Array);
     const secret = input.secretKey
       ? this.secrets.encrypt(input.secretKey)
-      : (old!.secret_key as Uint8Array);
+      : (requirePresent(old, "old").secret_key as Uint8Array);
     this.database.exec("BEGIN IMMEDIATE");
     try {
       this.database.prepare("UPDATE filing_stores SET selected=0 WHERE selected=1").run();
@@ -3136,7 +3172,7 @@ export class SettingsRegistry {
     if (!keys) throw new ProviderError("CHANNEL_FILING_KEYS_INVALID");
     const submitImage = async (name: string, url: string) => {
       const result = await call(channel.endpoint, keys, "CreateAsset", {
-        GroupId: channel.filing!.groupId.trim(),
+        GroupId: requirePresent(channel.filing, "channel.filing").groupId.trim(),
         URL: url,
         AssetType: "Image",
         Name: name,
@@ -3658,7 +3694,7 @@ export class SettingsRegistry {
           config: decoded.config,
           settings: decoded.settings,
           pluginHash: decoded.pluginHash || undefined,
-          upstreamModel: decoded.channels[0]!.upstream_model,
+          upstreamModel: requirePresent(decoded.channels[0], "decoded.channels[0]").upstream_model,
         };
         if (!Value.Check(settingsRequests.modelSave, input)) throw new Error();
         documentIssues = issues;
@@ -4566,19 +4602,21 @@ export class SettingsRegistry {
     const receiptId = `trial:${approvalId}`;
     const fingerprint = digest(target);
     const prior = this.receipt(receiptId, fingerprint);
-    if (prior) return JSON.parse(prior) as { tested?: true; code?: string };
+    if (prior) return JSON.parse(prior) as { tested?: true; code?: string; duration_ms?: number };
     if (recovery) return { code: "PROVIDER_OUTCOME_UNKNOWN" };
     const current = this.actionTarget("admin_test_run", target.id, target.expectedRevision);
     if (digest(current) !== fingerprint) throw new ProviderError("SETTINGS_REVISION_CONFLICT");
     this.database
       .prepare("INSERT INTO settings_receipts VALUES (?, ?, ?)")
       .run(receiptId, fingerprint, JSON.stringify({ code: "PROVIDER_OUTCOME_UNKNOWN" }));
-    let result: { tested?: true; code?: string };
+    const startedAt = performance.now();
+    let result: { tested?: true; code?: string; duration_ms?: number };
     try {
       result = await this.test(target);
     } catch (error) {
       result = { code: error instanceof ProviderError ? error.code : "PROVIDER_OUTCOME_UNKNOWN" };
     }
+    result.duration_ms = Math.round(performance.now() - startedAt);
     this.database
       .prepare("UPDATE settings_receipts SET result = ? WHERE id = ?")
       .run(JSON.stringify(result), receiptId);
@@ -4848,7 +4886,11 @@ export class SettingsRegistry {
           profile.channelId && profile.config?.kind === "agent"
             ? this.agentFields(fields)
             : this.validateFields(fields, profile.pluginHash);
-        const selectedFields = new Set(ordered.map((index) => proposal.items[index]!.field));
+        const selectedFields = new Set(
+          ordered.map(
+            (index) => requirePresent(proposal.items[index], "proposal.items[index]").field,
+          ),
+        );
         for (const key of new Set([
           ...Object.keys(profile.channel),
           ...Object.keys(validated.channel),

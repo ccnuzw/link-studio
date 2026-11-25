@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { PET_ROW, PET_ROWS } from "./rows";
 
 export type PetMode = "lively" | "quiet" | "hidden";
@@ -61,7 +62,10 @@ export function petMood(s: PetMoodInput): PetMoodResult {
 
 export function reactionSpan(kind: PetReactionKind): number {
   const name = kind === "celebrate" ? "jumping" : "failed";
-  const row = PET_ROWS.find((r) => r.name === name)!;
+  const row = requirePresent(
+    PET_ROWS.find((r) => r.name === name),
+    "PET_ROWS.find((r) => r.name === name)",
+  );
   return row.durations.reduce((a, b) => a + b, 0) + REACTION_HOLD_MS;
 }
 

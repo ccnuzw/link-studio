@@ -1,4 +1,4 @@
-import { type DramaDocument, dramaDeleteBlocked } from "@link-studio/core";
+import { type DramaDocument, dramaDeleteBlocked, episodeScriptPhase } from "@link-studio/core";
 import { ChevronsDown, Lock, Plus, ScrollText, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -170,8 +170,10 @@ export function EpisodeRail({
           {doc.episodes.slice(first, end).map((item, index) => {
             const no = item.episode_no,
               label = `第 ${no} 集 · ${item.title}`;
-            const activeJob = doc.jobs?.find(
-              (job) => ["queued", "running"].includes(job.status) && job.episodes.includes(no),
+            const activeJob = doc.jobs?.find((job) =>
+              job.step === "scripts"
+                ? episodeScriptPhase(job, no)
+                : ["queued", "running"].includes(job.status) && job.episodes.includes(no),
             );
             const segments = doc.segments?.filter((segment) => segment.episode_no === no);
             const states = {
@@ -224,7 +226,10 @@ export function EpisodeRail({
                     </i>
                     {activeJob ? (
                       <EpisodeProgress
-                        queued={activeJob.status === "queued"}
+                        queued={
+                          activeJob.status === "queued" ||
+                          episodeScriptPhase(activeJob, no) === "queued"
+                        }
                         progress={activeJob.progress ?? 0}
                       />
                     ) : (

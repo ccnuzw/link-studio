@@ -1,14 +1,17 @@
+import { Popover } from "@base-ui/react/popover";
 import type { ModelConfig, modelGenerationOptions } from "@link-studio/core";
 import type { MediaParameters } from "./model-switch";
 
 export type { MediaParameters } from "./model-switch";
 
-import { Box, Check, Clock, Film, Grid, History, Sun, User } from "lucide-react";
+import { Box, Check, Clock, Film, History, LayoutGrid, Sun, User } from "lucide-react";
 import {
   Children,
+  createContext,
   isValidElement,
   type ReactNode,
   type RefObject,
+  useContext,
   useLayoutEffect,
   useRef,
   useState,
@@ -23,21 +26,70 @@ import {
   TEMPLATE_PRESETS,
 } from "./media-presets";
 
-export function MediaPopover({
+import { RatioIcon } from "./ratio-icon";
+import "./image-node-popover.css";
+
+export const MediaPanel = createContext(false);
+
+type MediaPopoverProps = {
+  anchor: RefObject<HTMLElement | null>;
+  label: string;
+  wide?: boolean;
+  presetPanel?: boolean;
+  mediaPanel?: boolean;
+  close: (restoreFocus?: boolean) => void;
+  children: ReactNode;
+};
+
+export function MediaPopover(props: MediaPopoverProps) {
+  if (!props.mediaPanel) return <LegacyMediaPopover {...props} />;
+  const { anchor, label, presetPanel, close, children } = props;
+  return (
+    <Popover.Root
+      open
+      onOpenChange={(open, details) => {
+        if (open) return;
+        if (
+          details.reason === "outside-press" &&
+          anchor.current &&
+          details.event.composedPath().includes(anchor.current)
+        )
+          return;
+        close(details.reason === "escape-key");
+      }}
+    >
+      <Popover.Portal container={anchor.current?.closest("dialog") ?? undefined}>
+        <Popover.Positioner
+          anchor={anchor}
+          side="top"
+          align="start"
+          sideOffset={10}
+          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          className="image-node-positioner"
+        >
+          <Popover.Popup
+            role="region"
+            aria-label={label}
+            finalFocus={false}
+            className="image-node-popover nodrag nopan nowheel"
+            data-preset-panel={presetPanel || undefined}
+          >
+            <MediaPanel.Provider value>{children}</MediaPanel.Provider>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function LegacyMediaPopover({
   anchor,
   label,
   wide = false,
   presetPanel = false,
   close,
   children,
-}: {
-  anchor: RefObject<HTMLElement | null>;
-  label: string;
-  wide?: boolean;
-  presetPanel?: boolean;
-  close: (restoreFocus?: boolean) => void;
-  children: ReactNode;
-}) {
+}: MediaPopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(close);
   useLayoutEffect(() => {
@@ -110,6 +162,10 @@ export function MediaPopover({
 
 type Options = ReturnType<typeof modelGenerationOptions>;
 
+function selectionProps(mediaPanel: boolean, selected: boolean) {
+  return mediaPanel ? { role: "radio", "aria-checked": selected } : { "aria-pressed": selected };
+}
+
 function Choices<T extends string | number | boolean>({
   label,
   values,
@@ -123,26 +179,52 @@ function Choices<T extends string | number | boolean>({
   defaultValue?: T;
   onPick: (value: T | undefined) => void;
 }) {
-  return (
-    <fieldset className="media-options">
-      <legend>{label}</legend>
-      <div className="media-option-row">
-        <button
-          type="button"
-          aria-pressed={current === undefined}
-          onClick={() => onPick(undefined)}
+  const mediaPanel = useContext(MediaPanel);
+  const effective = current ?? defaultValue;
+  const ratioChoices =
+    mediaPanel && values.every(({ value }) => /^(?:\d+:\d+|auto)$/i.test(String(value)));
+  if (mediaPanel && values.length > 6 && !ratioChoices)
+    return (
+      <label className="image-param-row">
+        {label}
+        <select
+          value={String(effective ?? "")}
+          onChange={(event) =>
+            onPick(values.find(({ value }) => String(value) === event.target.value)?.value)
+          }
         >
-          {defaultValue === undefined
-            ? "默认"
-            : `默认 · ${values.find(({ value }) => value === defaultValue)?.label ?? defaultValue}`}
-        </button>
+          {effective === undefined && <option value="">请选择</option>}
+          {values.map(({ value, label }) => (
+            <option key={String(value)} value={String(value)}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  return (
+    <fieldset className="media-options" role={mediaPanel ? "radiogroup" : undefined}>
+      <legend>{label}</legend>
+      <div className={`media-option-row${ratioChoices ? " media-ratios" : ""}`}>
+        {!mediaPanel && (
+          <button
+            type="button"
+            aria-pressed={current === undefined}
+            onClick={() => onPick(undefined)}
+          >
+            {defaultValue === undefined
+              ? "默认"
+              : `默认 · ${values.find(({ value }) => value === defaultValue)?.label ?? defaultValue}`}
+          </button>
+        )}
         {values.map(({ value, label }) => (
           <button
             type="button"
             key={String(value)}
-            aria-pressed={value === current}
+            {...selectionProps(mediaPanel, value === (mediaPanel ? effective : current))}
             onClick={() => onPick(value)}
           >
+            {ratioChoices && <RatioIcon ratio={String(value)} />}
             {label}
           </button>
         ))}
@@ -151,7 +233,14 @@ function Choices<T extends string | number | boolean>({
   );
 }
 
-const qualityLabels = { low: "低", medium: "中", high: "高", standard: "标准", hd: "高清" };
+const qualityLabels = {
+  auto: "自动",
+  low: "低",
+  medium: "中",
+  high: "高",
+  standard: "标准",
+  hd: "高清",
+};
 
 function OrderedControls({
   order,
@@ -160,14 +249,82 @@ function OrderedControls({
   order: ModelConfig["parameterOrder"];
   children: ReactNode;
 }) {
-  const ranks = new Map<string, number>(order?.map((name, index) => [name, index]));
-  const controls: { rank: number; node: ReactNode }[] = [];
+  const controls = new Map<string, ReactNode[]>();
+  const unkeyed: ReactNode[] = [];
   Children.forEach(children, (child) => {
     if (!isValidElement(child)) return;
-    const rank = ranks.get(String(child.key)) ?? ranks.size;
-    controls.push({ rank, node: child });
+    const key = child.key === null ? undefined : String(child.key);
+    if (!key) {
+      unkeyed.push(child);
+      return;
+    }
+    controls.set(key, [...(controls.get(key) ?? []), child]);
   });
-  return controls.sort((left, right) => left.rank - right.rank).map(({ node }) => node);
+  if (!order) return [...controls.values()].flat().concat(unkeyed);
+  const ordered = order.flatMap((key) => controls.get(key) ?? []);
+  const orderedKeys = new Set(order);
+  return [
+    ...ordered,
+    ...[...controls.entries()]
+      .filter(([key]) => !orderedKeys.has(key))
+      .flatMap(([, nodes]) => nodes),
+    ...unkeyed,
+  ];
+}
+
+function PanelNumber({
+  label,
+  min,
+  max,
+  step,
+  unit,
+  value,
+  select,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  value?: number;
+  select: (next: number | undefined) => void;
+}) {
+  return (
+    <div className="image-param-row">
+      <span>{label}</span>
+      <div className="image-number-inputs">
+        <input
+          aria-label={label}
+          type="range"
+          min={min}
+          max={max}
+          step={step ?? 1}
+          value={value ?? min}
+          onChange={(event) => select(event.target.valueAsNumber)}
+        />
+        <input
+          aria-label={`${label}（数值）`}
+          type="number"
+          min={min}
+          max={max}
+          step={step ?? 1}
+          value={value ?? ""}
+          onChange={(event) => select(event.target.value ? event.target.valueAsNumber : undefined)}
+        />
+        {unit && <span>{unit}</span>}
+      </div>
+      <div className="image-number-bounds">
+        <span>
+          最短 {min}
+          {unit}
+        </span>
+        <span>
+          最长 {max}
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function MediaParameterPicker({
@@ -187,11 +344,15 @@ export function MediaParameterPicker({
   setSize: (value: string) => void;
   setDuration: (value: string) => void;
 }) {
+  const mediaPanel = useContext(MediaPanel);
+  const counts = options.counts;
+  const showProtocolExtras = !mediaPanel || !options.hasParameterDefinitions;
   const allSizes = [...options.sizes, ...options.largeSizes];
   const defaults = options.defaultParameters;
   const visible = (name: (typeof options.hiddenParameters)[number]) =>
     !options.hiddenParameters.includes(name);
   const configuredSize = typeof defaults.size === "string" ? defaults.size : undefined;
+  const independentRatio = options.nativeImageSize && defaults.aspectRatio !== undefined;
   const ratios = options.ratios.length
     ? options.ratios
     : options.sizes.map((item) => {
@@ -206,7 +367,14 @@ export function MediaParameterPicker({
   const large = currentIndex >= options.sizes.length && options.largeSizes.length > 0;
   return (
     <div className="media-parameter-stack">
-      <OrderedControls order={options.parameterOrder}>
+      <OrderedControls
+        order={
+          options.parameterOrder ??
+          (mediaPanel
+            ? ["aspectRatio", "size", "resolution", "quality", "duration", "generateAudio", "count"]
+            : undefined)
+        }
+      >
         {Object.entries(options.customParameters).map(([key, field]) => {
           if (!field.open) return null;
           const selected = value.customParams?.[key];
@@ -216,6 +384,16 @@ export function MediaParameterPicker({
             else customParams[key] = next;
             change({ customParams });
           };
+          if (mediaPanel && field.type === "number")
+            return (
+              <PanelNumber
+                key={key}
+                {...field}
+                label={field.label}
+                value={Number(selected ?? field.default)}
+                select={select}
+              />
+            );
           if (field.type === "number")
             return (
               <label key={key} className="media-manual-param">
@@ -241,7 +419,12 @@ export function MediaParameterPicker({
               defaultValue={field.default}
               values={(field.type === "enum" ? field.values : [true, false]).map((value) => ({
                 value,
-                label: typeof value === "boolean" ? (value ? "开启" : "关闭") : String(value),
+                label:
+                  typeof value === "boolean"
+                    ? value
+                      ? "开启"
+                      : "关闭"
+                    : `${value}${mediaPanel && field.type === "enum" ? (field.unit ?? "") : ""}`,
               }))}
               onPick={select}
             />
@@ -252,22 +435,28 @@ export function MediaParameterPicker({
             key="size"
             label={options.parameterLabels.size || "尺寸"}
             current={value.size}
-            defaultValue={configuredSize}
+            defaultValue={value.aspectRatio ? undefined : configuredSize}
             values={allSizes.map((item) => ({ value: item, label: item }))}
             onPick={(size) => change({ size, aspectRatio: undefined, resolution: undefined })}
           />
         )}
-        {!configuredSize && visible("aspectRatio") && !!ratios.length && (
-          <fieldset key="aspectRatio" className="media-options">
+        {(!configuredSize || independentRatio) && visible("aspectRatio") && !!ratios.length && (
+          <fieldset
+            key="aspectRatio"
+            className="media-options"
+            role={mediaPanel ? "radiogroup" : undefined}
+          >
             <legend>{options.parameterLabels.aspectRatio || "画面比例"}</legend>
             <div className="media-option-row media-ratios">
-              <button
-                type="button"
-                aria-pressed={value.aspectRatio === undefined && ratioIndex < 0}
-                onClick={() => change({ size: undefined, aspectRatio: undefined })}
-              >
-                {defaults.aspectRatio ? `默认 · ${defaults.aspectRatio}` : "默认"}
-              </button>
+              {!mediaPanel && (
+                <button
+                  type="button"
+                  aria-pressed={value.aspectRatio === undefined && ratioIndex < 0}
+                  onClick={() => change({ size: undefined, aspectRatio: undefined })}
+                >
+                  {defaults.aspectRatio ? `默认 · ${defaults.aspectRatio}` : "默认"}
+                </button>
+              )}
               {ratios.map((ratio, index) => {
                 const [width = 1, height = 1] = ratio.split(":").map(Number);
                 const longest = Math.max(width, height);
@@ -275,7 +464,16 @@ export function MediaParameterPicker({
                   <button
                     type="button"
                     key={options.ratios.length ? ratio : options.sizes[index]}
-                    aria-pressed={value.aspectRatio === ratio || index === ratioIndex}
+                    {...selectionProps(
+                      mediaPanel,
+                      (value.aspectRatio ??
+                        (mediaPanel &&
+                        ratioIndex < 0 &&
+                        (!configuredSize || configuredSize === "auto")
+                          ? defaults.aspectRatio
+                          : undefined)) === ratio ||
+                        (!options.ratios.length && index === ratioIndex),
+                    )}
                     onClick={() =>
                       change(
                         options.ratios.length
@@ -287,11 +485,16 @@ export function MediaParameterPicker({
                       )
                     }
                   >
-                    {ratio !== "adaptive" && (
-                      <span
-                        className="media-ratio-outline"
-                        style={{ width: (28 * width) / longest, height: (28 * height) / longest }}
-                      />
+                    {mediaPanel ? (
+                      <RatioIcon ratio={ratio} />
+                    ) : (
+                      Number.isFinite(longest) &&
+                      longest > 0 && (
+                        <span
+                          className="media-ratio-outline"
+                          style={{ width: (28 * width) / longest, height: (28 * height) / longest }}
+                        />
+                      )
                     )}
                     {ratio === "adaptive"
                       ? "自适应"
@@ -304,17 +507,20 @@ export function MediaParameterPicker({
             </div>
           </fieldset>
         )}
-        {options.manualSize && visible("aspectRatio") && visible("resolution") && (
-          <label className="media-manual-param">
-            尺寸
-            <input
-              value={size}
-              maxLength={64}
-              onChange={(event) => setSize(event.target.value)}
-              placeholder="例如 1024x1024"
-            />
-          </label>
-        )}
+        {showProtocolExtras &&
+          options.manualSize &&
+          visible("aspectRatio") &&
+          visible("resolution") && (
+            <label className="media-manual-param">
+              尺寸
+              <input
+                value={size}
+                maxLength={64}
+                onChange={(event) => setSize(event.target.value)}
+                placeholder="例如 1024x1024"
+              />
+            </label>
+          )}
         {!!options.qualities.length && visible("quality") && (
           <Choices
             key="quality"
@@ -332,86 +538,115 @@ export function MediaParameterPicker({
             current={value.resolution}
             defaultValue={options.resolutions.find((item) => item === defaults.resolution)}
             values={options.resolutions.map((item) => ({ value: item, label: item }))}
-            onPick={(resolution) => change({ resolution })}
-          />
-        )}
-        {!configuredSize && visible("resolution") && !!options.largeSizes.length && (
-          <Choices
-            key="resolution"
-            label={options.parameterLabels.resolution || "清晰度"}
-            current={currentIndex < 0 ? undefined : large}
-            values={[
-              { value: false, label: "720p" },
-              { value: true, label: "高分辨率" },
-            ]}
-            onPick={(high) =>
-              change({
-                size:
-                  high === undefined
-                    ? undefined
-                    : (high ? options.largeSizes : options.sizes)[Math.max(0, ratioIndex)],
-              })
+            onPick={(resolution) =>
+              change(resolution ? { resolution, size: undefined } : { resolution })
             }
           />
         )}
-        {options.counts.some((count) => count > 1) && visible("count") && (
-          <Choices
-            key="count"
-            label={
-              options.parameterLabels.count ||
-              (options.countUnit === "首" ? "生成首数" : "生成张数")
-            }
-            current={value.count}
-            defaultValue={options.counts.find((item) => item === defaults.count)}
-            values={options.counts.map((count) => ({
-              value: count,
-              label: `${count} ${options.countUnit}`,
-            }))}
-            onPick={(count) => change({ count })}
-          />
-        )}
+        {!configuredSize &&
+          !options.resolutions.length &&
+          visible("resolution") &&
+          !!options.largeSizes.length && (
+            <Choices
+              key="resolution"
+              label={options.parameterLabels.resolution || "清晰度"}
+              current={currentIndex < 0 ? undefined : large}
+              values={[
+                { value: false, label: "720p" },
+                { value: true, label: "高分辨率" },
+              ]}
+              onPick={(high) =>
+                change({
+                  size:
+                    high === undefined
+                      ? undefined
+                      : (high ? options.largeSizes : options.sizes)[Math.max(0, ratioIndex)],
+                })
+              }
+            />
+          )}
+        {(options.hasConfiguredCount || options.counts.some((count) => count > 1)) &&
+          counts.length > 0 &&
+          visible("count") && (
+            <Choices
+              key="count"
+              label={
+                options.parameterLabels.count ||
+                (mediaPanel ? "生成数量" : options.countUnit === "首" ? "生成首数" : "生成张数")
+              }
+              current={value.count}
+              defaultValue={
+                counts.find((item) => item === defaults.count) ??
+                (mediaPanel ? counts[0] : undefined)
+              }
+              values={counts.map((count) => ({
+                value: count,
+                label: `${count}${mediaPanel ? "" : " "}${options.countUnit}`,
+              }))}
+              onPick={(count) => change({ count })}
+            />
+          )}
         {!!options.durations.length && !options.durationRange && visible("duration") && (
           <Choices
             key="duration"
             label={options.parameterLabels.duration || "时长"}
             current={value.duration}
             defaultValue={options.durations.find((item) => item === defaults.duration)}
-            values={options.durations.map((item) => ({ value: item, label: `${item} 秒` }))}
+            values={options.durations.map((item) => ({
+              value: item,
+              label: `${item}${mediaPanel ? "" : " "}${options.durationUnit}`,
+            }))}
             onPick={(seconds) => change({ duration: seconds })}
           />
         )}
-        {options.durationRange && options.durationControl && (
-          <fieldset key="duration" className="media-options">
-            <legend>{options.parameterLabels.duration || "时长"}</legend>
-            <label className="media-duration-slider">
-              <input
-                type="range"
-                aria-label={options.parameterLabels.duration || "视频时长"}
-                min={options.durationRange.min}
-                max={options.durationRange.max}
-                step={options.durationStep}
-                value={
-                  value.duration === -1
-                    ? options.durationRange.min
-                    : (value.duration ?? Number(defaults.duration ?? options.durationRange.min))
-                }
-                onChange={(event) => change({ duration: Number(event.target.value) })}
-              />
-              <output>
-                {value.duration === -1
-                  ? "智能时长"
-                  : value.duration === undefined
-                    ? defaults.duration === undefined
-                      ? "默认"
-                      : `默认 · ${defaults.duration} 秒`
-                    : `${value.duration} 秒`}
-              </output>
-              <button type="button" onClick={() => change({ duration: undefined })}>
-                重置
-              </button>
-            </label>
-          </fieldset>
-        )}
+        {options.durationRange &&
+          options.durationControl &&
+          (mediaPanel ? (
+            <PanelNumber
+              key="duration"
+              label={options.parameterLabels.duration || "视频时长"}
+              {...options.durationRange}
+              step={options.durationStep}
+              unit={options.durationUnit}
+              value={
+                value.duration === -1
+                  ? options.durationRange.min
+                  : (value.duration ?? Number(defaults.duration ?? options.durationRange.min))
+              }
+              select={(duration) => change({ duration })}
+            />
+          ) : (
+            <fieldset key="duration" className="media-options">
+              <legend>{options.parameterLabels.duration || "时长"}</legend>
+              <label className="media-duration-slider">
+                <input
+                  type="range"
+                  aria-label={options.parameterLabels.duration || "视频时长"}
+                  min={options.durationRange.min}
+                  max={options.durationRange.max}
+                  step={options.durationStep}
+                  value={
+                    value.duration === -1
+                      ? options.durationRange.min
+                      : (value.duration ?? Number(defaults.duration ?? options.durationRange.min))
+                  }
+                  onChange={(event) => change({ duration: Number(event.target.value) })}
+                />
+                <output>
+                  {value.duration === -1
+                    ? "智能时长"
+                    : value.duration === undefined
+                      ? defaults.duration === undefined
+                        ? "默认"
+                        : `默认 · ${defaults.duration} 秒`
+                      : `${value.duration} 秒`}
+                </output>
+                <button type="button" onClick={() => change({ duration: undefined })}>
+                  重置
+                </button>
+              </label>
+            </fieldset>
+          ))}
         {options.manualDuration && (
           <label className="media-manual-param">
             时长（秒）
@@ -432,8 +667,8 @@ export function MediaParameterPicker({
             current={value.generateAudio}
             defaultValue={defaults.generateAudio}
             values={[
-              { value: true, label: "生成声音" },
-              { value: false, label: "静音" },
+              { value: true, label: mediaPanel ? "开启" : "生成声音" },
+              { value: false, label: mediaPanel ? "关闭" : "静音" },
             ]}
             onPick={(generateAudio) => change({ generateAudio })}
           />
@@ -461,7 +696,7 @@ export function MediaParameterPicker({
             onPick={(videoAction) => change({ videoAction, duration: undefined })}
           />
         )}
-        {options.seed && (
+        {showProtocolExtras && options.seed && (
           <label className="media-manual-param">
             随机种子
             <input
@@ -476,7 +711,7 @@ export function MediaParameterPicker({
             />
           </label>
         )}
-        {options.negativePrompt && (
+        {showProtocolExtras && options.negativePrompt && (
           <label className="media-manual-param">
             负面提示词
             <input
@@ -553,7 +788,7 @@ export function MediaParameterPicker({
 
 const templateIcons = {
   film: Film,
-  grid: Grid,
+  grid: LayoutGrid,
   clock: Clock,
   history: History,
   sun: Sun,
@@ -575,13 +810,11 @@ export function MediaPresetPicker({
   kind,
   selected,
   onPick,
-  hasReference,
   maxLength,
 }: {
   kind: PresetKind;
   selected: string[];
   onPick: (id: string) => void;
-  hasReference: boolean;
   maxLength?: number;
 }) {
   const [category, setCategory] = useState("all");
@@ -621,30 +854,28 @@ export function MediaPresetPicker({
   if (kind === "tpl")
     return (
       <div className="media-template-groups">
-        {!hasReference && (
-          <p className="media-popover-hint">
-            模板需要一张参考图。请选择支持参考图的模型并添加素材。
-          </p>
+        {[[TEMPLATE_GROUPS[0]], [TEMPLATE_GROUPS[1], TEMPLATE_GROUPS[2]], [TEMPLATE_GROUPS[3]]].map(
+          (groups) => (
+            <div key={groups[0]}>
+              {groups.map((group) => (
+                <section key={group}>
+                  <h4>{group}</h4>
+                  {TEMPLATE_PRESETS.filter((item) => item.group === group).map((item) => {
+                    const Icon = templateIcons[item.icon];
+                    return (
+                      <button type="button" key={item.id} {...itemProps(item)}>
+                        <span className="template-icon">
+                          <Icon size={18} />
+                        </span>
+                        <span className="template-name">{item.name}</span>
+                      </button>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
+          ),
         )}
-        {TEMPLATE_GROUPS.map((group) => (
-          <section key={group}>
-            <h4>{group}</h4>
-            {TEMPLATE_PRESETS.filter((item) => item.group === group).map((item) => {
-              const { id, name, usage, icon } = item;
-              const Icon = templateIcons[icon];
-              return (
-                <button type="button" key={id} {...itemProps(item)}>
-                  <Icon size={17} />{" "}
-                  <span>
-                    <strong>{name}</strong>
-                    <small>{usage}</small>
-                  </span>
-                  {selected.includes(id) && <Check size={15} />}
-                </button>
-              );
-            })}
-          </section>
-        ))}
       </div>
     );
   const categories = kind === "style" ? STYLE_CATEGORIES : MOTION_CATEGORIES;
@@ -666,16 +897,18 @@ export function MediaPresetPicker({
           </button>
         ))}
       </fieldset>
-      <div className="media-preset-grid">
+      <div className="media-preset-grid" data-kind={kind}>
         {presets
           .filter((item) => category === "all" || item.category === category)
           .map((preset) => (
             <button type="button" key={preset.id} {...itemProps(preset)}>
               <img src={preset.cover} loading="lazy" alt="" />
-              <span>
-                {preset.name}
-                {selected.includes(preset.id) && <Check size={13} />}
-              </span>
+              <span>{preset.name}</span>
+              {selected.includes(preset.id) && (
+                <i className="style-selected">
+                  <Check size={12} strokeWidth={3} />
+                </i>
+              )}
             </button>
           ))}
       </div>

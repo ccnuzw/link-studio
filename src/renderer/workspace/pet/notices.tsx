@@ -1,33 +1,22 @@
-import {
-  type GenerationJob,
-  jobFailureReason,
-  jobIsTerminal,
-  type SettingsApproval,
-} from "@link-studio/core";
+import { type GenerationJob, jobFailureReason, type SettingsApproval } from "@link-studio/core";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import {
-  type Bubble,
-  type BubbleContext,
-  type BubbleInput,
-  bubbleQueue,
-  bubbleText,
-  initialBubbleQueue,
-} from "./bubble-queue";
+import { type PetRunEnd, runEndBubble } from "./assistant-notice";
+import { type Bubble, type BubbleContext, type BubbleInput, bubbleText } from "./bubble-queue";
 import { claimFirstOpenToday, claimNightEgg, pickEasterLine } from "./easter";
-import { nextReaction, type PetReaction } from "./mood";
+import { initialNoticeState, noticeState } from "./notice-state";
 import type { Rect, Size } from "./placement";
+import { CanvasResultObserver } from "./result-observer";
 
 export function usePetNotices(
   context: BubbleContext,
   active: boolean,
   approval: SettingsApproval | undefined,
   runId: string | undefined,
-  ended: { runId: string; status: string } | undefined,
+  ended: PetRunEnd | undefined,
   jobs: GenerationJob[],
 ) {
-  const [queue, dispatch] = useReducer(bubbleQueue, undefined, initialBubbleQueue);
-  const [reaction, setReaction] = useState<PetReaction | null>(null);
+  const [{ queue, reaction }, dispatch] = useReducer(noticeState, undefined, initialNoticeState);
   const push = useCallback(
     (bubble: BubbleInput) => dispatch({ type: "push", bubble, now: Date.now() }),
     [],
@@ -50,18 +39,19 @@ export function usePetNotices(
   useEffect(() => {
     if (!id || panelOpen || !active) return;
     push({
-      id,
+      id: `assistant:approval:${id}`,
       source: "assistant",
       priority: "approval",
       mood: "waiting",
       text: kind === "ask" ? "有个问题想问问你" : "这一步要你点个头",
       ttl: null,
     });
-    return () => dismiss(id);
+    return () => dismiss(`assistant:approval:${id}`);
   }, [id, kind, panelOpen, active, push, dismiss]);
   const watched = useRef<string | undefined>(undefined);
   const endedId = ended?.runId,
-    status = ended?.status;
+    status = ended?.status,
+    error = ended?.error;
   const finish = useCallback(
     (
       id: string,
@@ -71,8 +61,6 @@ export function usePetNotices(
       key?: string,
       nodeIds?: string[],
     ) => {
-      const now = Date.now();
-      setReaction((prev) => nextReaction(prev, success ? "celebrate" : "failed", now));
       push({
         id,
         key,
@@ -87,35 +75,27 @@ export function usePetNotices(
     [push],
   );
   useEffect(() => {
-    if (
-      watched.current &&
-      watched.current === endedId &&
-      watched.current !== runId &&
-      active &&
-      status &&
-      [
-        "succeeded",
-        "failed",
-        "timeout",
-        "expired",
-        "interrupted",
-        "step_limit",
-        "budget_exhausted",
-      ].includes(status)
-    )
-      finish(
-        `run:${endedId}`,
-        status === "succeeded",
-        "assistant",
-        status === "succeeded" ? "好啦，回复写完了" : "卡住了，这一轮没跑完",
-      );
-    watched.current = runId;
-  }, [runId, status, endedId, active, finish]);
-  const running = useRef(new Set<string>());
+    if (runId || !active) {
+      watched.current = runId;
+      return;
+    }
+    if (!endedId || watched.current !== endedId || !status) return;
+    const bubble = runEndBubble({ runId: endedId, status, error });
+    if (!bubble && status !== "canceled") return;
+    watched.current = undefined;
+    if (!bubble) return;
+    if (panelOpen)
+      dispatch({
+        type: "react",
+        kind: bubble.mood === "jumping" ? "celebrate" : "failed",
+        now: Date.now(),
+      });
+    else push(bubble);
+  }, [runId, status, endedId, error, active, panelOpen, push]);
+  const [resultObserver] = useState(() => new CanvasResultObserver(Date.now()));
   useEffect(() => {
-    for (const job of jobs) {
-      if (!active || !running.current.has(job.id) || !["failed", "succeeded"].includes(job.status))
-        continue;
+    for (const job of resultObserver.collect(jobs)) {
+      if (!active) continue;
       const success = job.status === "succeeded";
       const noun =
         job.kind === "image"
@@ -134,13 +114,13 @@ export function usePetNotices(
         [job.nodeId],
       );
     }
-    running.current = new Set(
-      jobs.filter((job) => !jobIsTerminal(job.status)).map((job) => job.id),
-    );
-  }, [jobs, active, finish]);
+  }, [jobs, active, finish, resultObserver]);
   useEffect(() => {
     if (!reaction) return;
-    const timer = setTimeout(() => setReaction(null), Math.max(0, reaction.until - Date.now()));
+    const timer = setTimeout(
+      () => dispatch({ type: "endReaction", until: reaction.until }),
+      Math.max(0, reaction.until - Date.now()),
+    );
     return () => clearTimeout(timer);
   }, [reaction]);
   useEffect(() => {
@@ -177,11 +157,12 @@ export function NoticeBubble({
   open: () => void;
 }) {
   const [hover, setHover] = useState(false);
+  const { id, ttl, version } = bubble;
   useEffect(() => {
-    if (!pageVisible || hover || bubble.ttl === null) return;
-    const timer = setTimeout(() => dismiss(bubble.id), bubble.ttl);
+    if (!pageVisible || hover || ttl === null) return;
+    const timer = setTimeout(() => dismiss(id), ttl);
     return () => clearTimeout(timer);
-  }, [bubble, hover, pageVisible, dismiss]);
+  }, [id, ttl, version, hover, pageVisible, dismiss]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) dismiss(bubble.id);
@@ -195,9 +176,7 @@ export function NoticeBubble({
   const text = chars.length > 40 ? `${chars.slice(0, 40).join("")}…` : chars.join("");
   return (
     <div
-      role="status"
-      className="pet-request"
-      data-priority={bubble.priority}
+      className="pet-request-anchor"
       style={{
         top: rect.y + rect.height / 2,
         maxWidth: Math.max(120, Math.min(264, room - 4)),
@@ -206,23 +185,30 @@ export function NoticeBubble({
       onPointerEnter={() => setHover(true)}
       onPointerLeave={() => setHover(false)}
     >
-      {bubble.source === "easter" ? (
-        <span className="pet-request-text">{text}</span>
-      ) : (
-        <button
-          type="button"
-          className="pet-request-text"
-          onClick={() => {
-            dismiss(bubble.id);
-            open();
-          }}
-        >
-          {text}
+      <div
+        role="status"
+        className="pet-request"
+        data-priority={bubble.priority}
+        style={{ transformOrigin: left ? "right center" : "left center" }}
+      >
+        {bubble.source === "easter" ? (
+          <span className="pet-request-text">{text}</span>
+        ) : (
+          <button
+            type="button"
+            className="pet-request-text"
+            onClick={() => {
+              dismiss(bubble.id);
+              open();
+            }}
+          >
+            {text}
+          </button>
+        )}
+        <button type="button" aria-label="关闭提醒" onClick={() => dismiss(bubble.id)}>
+          <X size={14} />
         </button>
-      )}
-      <button type="button" aria-label="关闭提醒" onClick={() => dismiss(bubble.id)}>
-        <X size={14} />
-      </button>
+      </div>
     </div>
   );
 }

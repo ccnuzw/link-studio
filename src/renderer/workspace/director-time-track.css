@@ -132,14 +132,6 @@
 .dt-row-names {
   border-right: 1px solid oklch(1 0 0 / 10%);
 }
-.dt-timeline .dt-name {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 6px;
-  padding: 0 10px;
-  color: var(--director-dim);
-}
 .dt-timeline .dt-name:is(.dt-selected, :hover) {
   color: oklch(0.985 0 0);
 }
@@ -149,8 +141,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dt-timeline .dt-name {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--director-dim);
+}
 .dt-lanes {
   position: relative;
+  transform: translateZ(0);
   cursor: pointer;
   user-select: none;
   touch-action: none;
@@ -184,16 +185,16 @@
   rotate: 45deg;
   border-radius: 2px;
 }
-.dt-key {
+.dt-timeline .dt-key {
   border: 0;
   padding: 0;
   cursor: grab;
   background: oklch(0.985 0 0);
 }
-.dt-key.dt-linear {
+.dt-timeline .dt-key.dt-linear {
   background: var(--director-dim);
 }
-.dt-key.dt-chosen {
+.dt-timeline .dt-key.dt-chosen {
   background: oklch(0.75 0.12 240);
 }
 .dt-pending {

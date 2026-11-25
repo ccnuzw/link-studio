@@ -5,8 +5,7 @@
   background: #f7f7f7;
   color: #202020;
 }
-.drama-studio header,
-.drama-studio form > label {
+.drama-studio header {
   display: flex;
   gap: 12px;
 }
@@ -249,10 +248,6 @@
   text-align: right;
   color: inherit;
 }
-.script-estimate small b {
-  color: var(--credit);
-  font-size: 14px;
-}
 .script-range {
   color: var(--soft);
   font-size: 13px;
@@ -359,9 +354,6 @@
 .drama-scripts-dialog button:disabled {
   opacity: 0.5;
 }
-.drama-scripts-dialog .script-episodes button:disabled {
-  opacity: 0.45;
-}
 .script-estimate,
 .drama-scripts-dialog [role="note"] {
   gap: 8px;
@@ -373,10 +365,6 @@
 .drama-scripts-dialog [role="note"] {
   background: color-mix(in oklab, var(--warning) 10%, transparent);
 }
-.drama-scripts-dialog [role="note"] svg {
-  color: var(--warning);
-  flex: none;
-}
 .drama-scripts-dialog footer {
   gap: 8px;
   justify-content: flex-end;
@@ -384,11 +372,6 @@
   padding: 16px;
   background: color-mix(in oklab, var(--muted) 50%, transparent);
   border-top: 1px solid var(--line);
-}
-.drama-scripts-dialog footer button {
-  height: 36px;
-  font-weight: 500;
-  border-radius: 10px;
 }
 .drama-scripts-dialog footer button:last-child {
   background: var(--primary);
@@ -407,23 +390,8 @@
 .drama-scripts-dialog footer {
   border-radius: 0 0 14px 14px;
 }
-.drama-scripts-dialog footer button {
-  background-clip: padding-box;
-}
-.drama-scripts-dialog .script-estimate small b {
-  line-height: 20px;
-}
 .drama-scripts-dialog[data-breakdown] .script-selection {
   gap: 8px;
-}
-.drama-scripts-dialog[data-breakdown] .script-selection small {
-  margin-left: 0;
-}
-.drama-scripts-dialog[data-breakdown] footer button:last-child {
-  background-clip: padding-box;
-}
-.drama-scripts-dialog[data-breakdown] .script-selection button:hover:not(:disabled) {
-  background: var(--muted);
 }
 .drama-scripts-dialog[data-breakdown]
   .script-episodes
@@ -433,48 +401,16 @@
 .drama-scripts-dialog[data-breakdown] .script-episodes {
   max-height: 224px;
 }
-.drama-scripts-dialog[data-breakdown] .script-estimate > svg {
-  flex: none;
-  color: var(--warning);
-}
-.drama-scripts-dialog[data-breakdown] .script-estimate > span {
-  flex: 1;
-}
 .drama-scripts-dialog[data-breakdown] .script-estimate > span > b:first-child {
   font-variant-numeric: tabular-nums;
-}
-.drama-scripts-dialog[data-breakdown] .script-range button {
-  background-clip: padding-box;
 }
 @media (prefers-color-scheme: light) {
   .drama-scripts-dialog[data-breakdown] {
     --paper: oklch(1 0 0);
   }
-  .drama-scripts-dialog[data-breakdown] .script-range button {
-    background-color: var(--paper);
-  }
 }
-.drama-scripts-dialog[data-breakdown] .script-estimate small {
-  flex: none;
-}
-.drama-scripts-dialog[data-breakdown] .script-estimate small span {
-  color: var(--soft);
-}
-.drama-scripts-dialog[data-breakdown] .script-estimate small [data-error],
-.drama-scripts-dialog[data-breakdown] [role="alert"] {
+.drama-scripts-dialog[data-breakdown] .script-estimate small [data-error] {
   color: var(--quote-error, oklch(0.577 0.245 27.325));
-}
-.drama-scripts-dialog[data-breakdown] [role="alert"] {
-  margin: 0;
-}
-.drama-scripts-dialog[data-breakdown] footer button:last-child {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-}
-.drama-scripts-dialog[data-breakdown] footer button svg {
-  animation: breakdown-submit-spin 1s linear infinite;
 }
 @keyframes breakdown-submit-spin {
   to {
@@ -517,21 +453,6 @@
   line-height: 1.42857143;
   border-radius: 999px;
 }
-.drama-continue-dialog [role="tab"][aria-selected="true"] {
-  background: var(--continue-bg, white);
-  color: var(--ink);
-  font-weight: 500;
-  --tab-shadow: 0 1px 3px #0000001a, 0 1px 2px -1px #0000001a;
-  box-shadow: var(--tab-shadow);
-}
-.drama-continue-dialog [role="tab"]:hover {
-  color: var(--ink);
-}
-.drama-continue-dialog [role="tab"]:focus-visible {
-  box-shadow:
-    0 0 0 2px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent),
-    var(--tab-shadow, 0 0 transparent);
-}
 .continue-end {
   display: flex;
   align-items: center;
@@ -552,13 +473,6 @@
   font-variant-numeric: tabular-nums;
   outline: none;
 }
-.continue-end input:focus-visible {
-  border-color: var(--focus-ring, oklch(0.708 0 0));
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent);
-}
-.drama-continue-dialog footer button:last-child {
-  background-clip: padding-box;
-}
 .continue-estimate {
   font-variant-numeric: tabular-nums;
 }
@@ -569,10 +483,6 @@
 .continue-estimate small {
   flex: none;
 }
-.continue-estimate small span {
-  color: var(--soft);
-}
-.continue-estimate small [data-error="true"],
 .drama-continue-dialog [role="alert"] {
   color: oklch(0.577 0.245 27.325);
 }
@@ -624,18 +534,6 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.drama-ref-bar > div > :is(span, button) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  padding: 0 8px 0 3px;
-  background: var(--muted, #ededed);
-  font: inherit;
-  color: inherit;
-}
 .drama-ref-bar i {
   display: grid;
   place-items: center;
@@ -646,20 +544,6 @@
   border-radius: 6px;
   background: rgb(255 255 255 / 60%);
 }
-.drama-ref-bar i img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.drama-ref-bar > div > span > span {
-  max-width: 128px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.drama-ref-bar [data-dead="true"] > span {
-  text-decoration: line-through;
-}
 .drama-ref-bar small {
   font-variant-numeric: tabular-nums;
 }
@@ -669,18 +553,6 @@
   padding: 2px;
   border-radius: 999px;
   background: var(--muted);
-}
-.drama-preview-switch button[role="radio"] {
-  padding: 0 12px;
-  height: 32px;
-  border: 0;
-  border-radius: 999px;
-  font-size: 13px;
-  background: transparent;
-}
-.drama-preview-switch button[aria-checked="true"] {
-  background: var(--background);
-  color: var(--foreground);
 }
 .drama-board-frame {
   display: grid;
@@ -717,10 +589,6 @@
   border-radius: 8px;
   opacity: 0.6;
 }
-.drama-board-strip button[aria-current="true"] {
-  outline: 2px solid var(--primary);
-  opacity: 1;
-}
 .drama-ref-bar .drama-board-empty {
   padding-inline: 8px;
   color: var(--muted-foreground);
@@ -728,25 +596,6 @@
 .drama-ref-bar .drama-board-chip {
   padding-right: 4px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
-}
-.drama-ref-bar .drama-board-chip:is([data-state="off"], [data-state="unsupported"]) {
-  opacity: 0.6;
-  box-shadow: none;
-}
-.drama-ref-bar .drama-board-chip button {
-  display: grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  font: inherit;
-  color: inherit;
-}
-.drama-ref-bar .drama-board-chip button:hover {
-  background: var(--background);
 }
 .drama-take-card {
   position: absolute;
@@ -781,12 +630,6 @@
   background: black;
   padding: 0;
   color: white;
-}
-.drama-take-play > span:last-child {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
 }
 .drama-take-chosen {
   position: absolute;
@@ -825,15 +668,6 @@
   background: #888;
   transition: width 200ms;
 }
-.drama-take-dots button.focused {
-  width: 20px;
-}
-.drama-take-dots button.failed {
-  background: #c94747;
-}
-.drama-take-dots button.chosen {
-  background: var(--primary, #171717);
-}
 .drama-source {
   margin: 6vh auto;
   padding: 24px;
@@ -847,34 +681,12 @@
   padding: 0;
   min-width: 0;
 }
-.drama-source fieldset > label {
-  display: grid;
-  gap: 6px;
-}
 .drama-source footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding-top: 10px;
-}
-.drama-source fieldset footer {
-  justify-content: space-between;
-  font-size: 13px;
-}
-.drama-source fieldset footer button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 50%;
-  background: #171717;
-  color: white;
-}
-.drama-source fieldset footer button:disabled {
-  background: #eee;
-  color: #777;
 }
 .drama-start-dialog {
   width: min(640px, calc(100vw - 32px));
@@ -924,11 +736,6 @@
   background: #00000006;
   box-shadow: 0 0 0 1px #00000014;
 }
-.drama-ratio button[aria-pressed="true"] {
-  font-weight: 500;
-  background: #0000000d;
-  box-shadow: 0 0 0 1.5px #17171799;
-}
 .drama-ratio i {
   border: 1.5px solid currentColor;
   border-radius: 3px;
@@ -959,6 +766,58 @@
   flex-basis: 100%;
   text-align: center;
 }
+.drama-studio:has(.drama-source) {
+  color: var(--desk-text);
+  background: var(--desk-bg);
+  font-family: "Geist Variable", "PingFang SC", sans-serif;
+}
+.drama-studio .drama-source {
+  width: min(100%, 740px);
+  margin: clamp(28px, 8vh, 88px) auto;
+  padding: 0;
+  background: transparent;
+}
+.drama-source > h2 {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.03em;
+}
+.drama-source > fieldset {
+  padding: clamp(14px, 2vw, 22px);
+  border: 1px solid var(--desk-border);
+  border-radius: 28px;
+  background: var(--desk-card);
+}
+.drama-source .drama-file-drop,
+.drama-source .drama-paste-pane {
+  position: relative;
+  height: 176px;
+  margin: 0;
+  border: 1px solid var(--desk-border);
+  border-radius: 22px;
+  overflow: hidden;
+}
+.drama-source .drama-file-drop {
+  border-style: dashed;
+  align-content: center;
+}
+.drama-paste-pane textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  padding: 16px 20px 32px;
+  background: transparent;
+  color: var(--desk-text);
+  border: 0;
+}
+.drama-paste-pane small {
+  position: absolute;
+  inset: auto 14px 8px auto;
+}
+.drama-paste-pane small {
+  color: var(--desk-muted);
+}
 .drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) {
   box-sizing: border-box;
   max-width: calc(100vw - 32px);
@@ -982,10 +841,6 @@
   text-rendering: auto;
   border-radius: 22px;
 }
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::backdrop {
-  background: rgb(0 0 0 / 0.1);
-  backdrop-filter: blur(4px);
-}
 .drama-start-dialog[aria-label="开拍设置"] {
   position: fixed;
   inset: 50% auto auto 50%;
@@ -997,15 +852,6 @@
     0 0 0 1px var(--start-line),
     0 10px 15px -3px #0000001a,
     0 4px 6px -4px #0000001a;
-}
-.drama-start-dialog[aria-label="开拍设置"]::before {
-  display: none;
-}
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) h2 {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-  padding-inline: 12px;
 }
 .drama-start-file {
   display: flex;
@@ -1085,62 +931,16 @@
   align-items: center;
   flex-wrap: wrap;
 }
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--start-bg);
-  backdrop-filter: blur(24px) saturate(150%);
-  z-index: -1;
-  pointer-events: none;
-}
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form {
-  padding: 20px;
-  max-height: 86vh;
-  overflow: auto;
-  overflow-x: hidden;
-  border-radius: inherit;
-}
-.drama-start-dialog[aria-label="开拍设置"] form {
-  overflow-x: auto;
-  scrollbar-gutter: stable;
-}
-.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-corner {
-  background: transparent;
-}
-.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--start-muted) 40%, transparent);
-  border-radius: 999px;
-}
-.drama-start-dialog[aria-label="开拍设置"] .drama-ratio {
-  min-width: min-content;
-}
-.drama-start-dialog[aria-label="开拍设置"] .drama-ratio button {
-  width: 112px;
-}
 .drama-start-chips:has(.drama-range-estimate) {
   column-gap: 12px;
 }
 .drama-range-estimate[aria-busy="true"] {
   opacity: 0.5;
 }
-.drama-start-field p[role="alert"] {
-  color: var(--error-ink, oklch(0.577 0.245 27.325));
-  font-size: 13px;
-}
 @media (prefers-color-scheme: dark) {
   .drama-start-dialog {
     --error-ink: oklch(0.704 0.191 22.216);
   }
-}
-.drama-start-file .drama-field-trigger[data-unconfirmed="true"] {
-  color: var(--start-warning, oklch(0.7 0.16 70));
-  box-shadow: 0 0 0 1px currentColor;
 }
 @media (prefers-color-scheme: dark) {
   .drama-start-dialog {
@@ -1161,20 +961,8 @@
   font: inherit;
   font-size: 13px;
 }
-.drama-field-trigger > span:not(.model-avatar) {
-  max-width: 288px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 .drama-field-trigger svg {
   flex: none;
-}
-.drama-field-trigger > svg:last-child {
-  opacity: 0.5;
-}
-.drama-field-trigger:not(:disabled):hover {
-  background: color-mix(in oklab, var(--start-hover) 70%, transparent);
 }
 .drama-field-trigger:disabled {
   opacity: 0.5;
@@ -1206,8 +994,83 @@
   isolation: isolate;
   pointer-events: auto;
 }
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form[hidden] {
-  display: none;
+.drama-start-dialog.drama-project-settings[aria-label="项目设置"] > form:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  max-height: min(88svh, 760px);
+  overflow: hidden;
+}
+.drama-project-settings .project-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 16px 16px 0 20px;
+}
+.project-settings-heading button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+}
+.project-settings-scroll {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-height: 0;
+  padding: 16px 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--desk-border) transparent;
+}
+.drama-project-settings .project-settings-note {
+  margin-inline: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  background: var(--start-hover);
+  overflow-wrap: anywhere;
+}
+.project-model-section {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding-inline: 12px;
+}
+.project-model-section h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--start-muted);
+}
+.project-model-section .drama-field-trigger {
+  min-width: 0;
+  max-width: 100%;
+}
+.project-settings-scroll > label,
+.project-settings-scroll > [role="alert"] {
+  margin-inline: 12px;
+}
+.project-settings-scroll > label {
+  display: grid;
+  gap: 8px;
+}
+.drama-studio form > label {
+  display: flex;
+  gap: 12px;
+}
+.project-settings-scroll textarea {
+  box-sizing: border-box;
+  width: 100%;
+  color: inherit;
+  background: var(--desk-inset);
 }
 .drama-prompts {
   display: grid;
@@ -1231,9 +1094,6 @@
   flex: none;
   color: var(--start-muted);
 }
-.drama-prompt-row[data-missing] .drama-field-trigger {
-  color: var(--destructive, #b42318);
-}
 .drama-skill-choice > span {
   min-width: 0;
 }
@@ -1243,63 +1103,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.drama-skill-choice > span > small {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--start-muted);
-  font-weight: 400;
-}
-.drama-field-menu[data-kind="prompt"] {
-  width: min(320px, 92vw);
-  max-height: var(--available-height);
-  overflow: auto;
-  gap: 2px;
-}
-.drama-field-menu[data-kind="prompt"] > small {
-  color: var(--start-muted);
-  padding: 8px 8px 2px;
-  font-size: 12px;
-  line-height: 16px;
-}
-.drama-field-menu[data-kind="prompt"] .drama-menu-row {
-  justify-content: flex-start;
-  padding: 0 10px;
-  min-width: 0;
-  border-radius: 10px;
-}
-.drama-field-menu[data-kind="prompt"] .drama-menu-row > small {
-  color: var(--start-muted);
-  background: var(--menu-muted);
-  border-radius: 999px;
-  padding-inline: 6px;
-  font-size: 10px;
-  line-height: 16px;
-}
-.drama-field-menu[data-kind="prompt"] .drama-menu-row:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--start-muted) 50%, transparent);
-  outline-offset: 0;
-}
 .drama-field-menu[data-kind="prompt"] .drama-menu-row:disabled:hover {
   background: transparent;
   cursor: not-allowed;
-}
-.drama-field-menu[data-kind="prompt"] .drama-menu-row svg:last-child:not(:first-child) {
-  margin-left: auto;
 }
 .drama-prompt-choice {
   display: flex;
   gap: 2px;
   align-items: center;
-}
-.drama-prompt-choice > button:first-child {
-  flex: 1;
-  min-width: 0;
-}
-.drama-prompt-choice > button:not(:first-child) {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
 }
 .drama-prompt-editor {
   display: grid;
@@ -1310,6 +1121,15 @@
 }
 .drama-prompt-editor {
   scrollbar-gutter: stable;
+}
+.drama-project-settings > .drama-prompt-editor {
+  max-height: min(88svh, 760px);
+}
+.drama-field-menu[data-kind="prompt"] {
+  width: min(320px, 92vw);
+  max-height: var(--available-height);
+  overflow: auto;
+  gap: 2px;
 }
 .drama-prompt-editor::-webkit-scrollbar {
   width: 8px;
@@ -1325,9 +1145,6 @@
   align-items: center;
   gap: 6px;
 }
-.drama-prompt-editor header strong {
-  font-size: 16px;
-}
 .drama-prompt-editor button {
   color: inherit;
   font: inherit;
@@ -1335,9 +1152,6 @@
   border-radius: 999px;
   padding: 6px 12px;
   background: transparent;
-}
-.drama-prompt-editor button:hover {
-  background: var(--start-hover);
 }
 .drama-prompt-editor > input,
 .drama-prompt-body {
@@ -1376,14 +1190,6 @@
   gap: 6px;
   margin-bottom: 8px;
 }
-.drama-prompt-editor [data-slot="placeholder-toolbar"] button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  border: 1px solid var(--start-line);
-  font-size: 12.5px;
-}
 .drama-prompt-body .ProseMirror {
   white-space: pre-wrap;
   outline: none;
@@ -1414,29 +1220,6 @@
   justify-content: space-between;
   padding: 0;
 }
-.drama-prompt-editor footer button,
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
-  height: 36px;
-}
-.drama-prompt-editor header button {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-}
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer {
-  padding: 0 4px;
-}
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
-  background: transparent;
-  color: inherit;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 12px;
-  font: inherit;
-  font-weight: 500;
-}
 .drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])
   form
   footer
@@ -1444,17 +1227,6 @@
   background: var(--start-primary, #171717);
   color: var(--start-on-primary, #fafafa);
   padding: 0 24px;
-}
-.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])
-  form
-  footer
-  button:disabled {
-  opacity: 0.5;
-}
-.drama-prompt-editor footer button:last-child {
-  padding-inline: 20px;
-  color: var(--start-on-primary, #fafafa);
-  background: var(--start-primary, #171717);
 }
 .drama-field-menu {
   --menu-bg: oklch(1 0 0);
@@ -1502,9 +1274,6 @@
   padding: 12px 8px;
   color: var(--start-muted);
 }
-.drama-field-menu .drama-menu-row:disabled {
-  opacity: 0.4;
-}
 .drama-field-trigger .model-avatar,
 .drama-menu-row .model-avatar {
   width: 20px;
@@ -1513,70 +1282,14 @@
   border: 0;
   box-shadow: none;
 }
-.drama-field-trigger .model-avatar img,
-.drama-menu-row .model-avatar img {
-  width: 68%;
-  height: 68%;
-}
 .drama-field-menu[data-kind="seconds"] {
   width: 220px;
 }
 .drama-field-menu[data-kind="source"] {
   width: min(224px, 92vw);
 }
-.drama-field-menu[data-kind="source"] small {
-  display: block;
-  color: var(--start-muted);
-  font-size: 12px;
-  line-height: 16px;
-}
 .drama-field-menu[data-kind="range"] {
   width: min(256px, 92vw);
-}
-.drama-field-menu[data-kind="range"] label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  font-size: 13px;
-}
-.drama-field-menu[data-kind="range"] input {
-  width: 96px;
-  height: 32px;
-}
-.drama-field-menu:is([data-kind="source"], [data-kind="range"]) .drama-menu-row {
-  min-height: 32px;
-  padding-block: 0;
-}
-.drama-field-menu[data-kind="range"] input {
-  border: 1px solid var(--start-line);
-  border-radius: 8px;
-  background: transparent;
-  padding: 4px 12px;
-  color: inherit;
-  font: inherit;
-  font-size: 14px;
-}
-.drama-field-menu[data-kind="range"] input {
-  border-color: oklch(0.922 0 0);
-  border-radius: 10px;
-  font-variant-numeric: tabular-nums;
-  outline: none;
-}
-@media (prefers-color-scheme: dark) {
-  .drama-field-menu[data-kind="range"] input {
-    border-color: oklch(1 0 0 / 0.15);
-    background: oklab(1 0 0 / 0.045);
-  }
-}
-.drama-field-menu[data-kind="range"] input:focus-visible {
-  border-color: var(--start-ring, oklch(0.708 0 0));
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
-}
-.drama-start-dialog .drama-field-trigger:focus-visible,
-.drama-field-menu .drama-menu-row:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   .drama-start-dialog {
@@ -1625,10 +1338,6 @@
     --param-selected: oklch(0.145 0 0);
   }
 }
-.drama-start-dialog .drama-field-trigger > svg {
-  width: 16px;
-  height: 16px;
-}
 .drama-param-row {
   display: grid;
   gap: 4px;
@@ -1649,45 +1358,6 @@
   padding: 2px;
   border-radius: 10px;
   background: var(--menu-muted);
-}
-.drama-param-row [data-param] button {
-  color: var(--start-muted);
-}
-.drama-param-row [role="radio"]:focus-visible {
-  outline: 1px auto color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
-  outline-offset: 0;
-}
-.drama-param-row [data-param="aspectRatio"] button {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 4px;
-  border: 1px solid var(--param-border);
-  border-radius: 10px;
-  font-size: 11px;
-  line-height: 1.42857143;
-}
-.drama-param-row [data-param="resolution"] button {
-  flex: 1;
-  min-width: 0;
-  border-radius: 8px;
-  padding: 4px 8px;
-  font-size: 12px;
-  line-height: 16px;
-}
-.drama-param-row [data-param] button:is(:hover, [aria-checked="true"]) {
-  color: inherit;
-}
-.drama-param-row [data-param="aspectRatio"] button[aria-checked="true"] {
-  background: var(--menu-muted);
-  border-color: color-mix(in oklab, currentColor 60%, transparent);
-}
-.drama-param-row [data-param="resolution"] button[aria-checked="true"] {
-  background: var(--param-selected);
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 0.1),
-    0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 .drama-field-menu[data-kind="style"] {
   width: min(736px, 92vw);
@@ -1745,34 +1415,6 @@
   padding: 4px 8px;
   border-radius: 8px;
   text-align: left;
-}
-.drama-field-menu[data-kind="agent"] .drama-menu-row {
-  min-height: 32px;
-  padding-block: 0;
-}
-.drama-field-menu .drama-menu-row[aria-pressed="true"] {
-  font-weight: 500;
-}
-.drama-field-menu .drama-menu-row:is(:hover, [aria-pressed="true"]) {
-  background: var(--menu-muted);
-}
-.drama-field-menu .drama-style-grid button {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
-  text-align: left;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 400;
-}
-.drama-style-grid button:hover {
-  background: color-mix(in oklab, var(--menu-muted) 60%, transparent);
-}
-.drama-field-menu .drama-style-grid button[aria-pressed="true"] {
-  background: var(--menu-muted);
 }
 .drama-style-poster,
 .drama-style-grid i {
@@ -1852,44 +1494,15 @@
   font-size: 13.5px;
   font-variant-numeric: tabular-nums;
 }
-.drama-start-dialog .drama-ratio legend {
-  color: var(--start-muted);
-  font-size: 13px;
-  padding: 0;
-}
 .drama-start-field > span,
-.drama-start-dialog .drama-ratio legend,
 .drama-start-file small {
-  line-height: 1.42857143;
-}
-.drama-start-dialog .drama-ratio > div {
-  display: flex;
-  gap: 8px;
-}
-.drama-start-dialog .drama-ratio button {
-  flex: 0 0 112px;
-  margin: 0;
-  border-radius: 18px;
   line-height: 1.42857143;
 }
 .drama-start-dialog .drama-ratio {
   padding-inline: 12px;
 }
-.drama-start-dialog .drama-ratio button {
-  color: inherit;
-  background: color-mix(in oklab, var(--start-hover) 50%, transparent);
-  box-shadow: 0 0 0 1px var(--start-line);
-}
-.drama-start-dialog .drama-ratio button[aria-pressed="true"] {
-  background: var(--start-hover);
-  box-shadow: 0 0 0 1.5px color-mix(in oklab, currentColor 60%, transparent);
-}
 .drama-start-dialog .drama-ratio button[aria-pressed="false"]:hover {
   background: var(--start-hover);
-}
-.drama-start-dialog .drama-ratio button:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   .drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) {
@@ -1908,10 +1521,6 @@
   .drama-prompt-editor textarea {
     background: oklab(1 0 0 / 0.045);
   }
-}
-.drama-studio form > label {
-  flex-direction: column;
-  margin-bottom: 12px;
 }
 .drama-columns {
   display: grid;
@@ -1942,9 +1551,6 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-}
-.drama-script-frame:has(.drama-script-next) .drama-script-area {
-  padding-bottom: 100px;
 }
 .drama-script-next {
   --pill: oklch(0.95 0.007 85 / 0.78);
@@ -1979,10 +1585,6 @@
   text-rendering: auto;
   -webkit-font-smoothing: antialiased;
 }
-.drama-script-next[data-step="scripts"] > span,
-.drama-script-next[data-step="scripts"] > small:not(.drama-script-blocked) {
-  font-variant-numeric: tabular-nums;
-}
 .drama-script-next small {
   font-size: 12px;
   line-height: 16px;
@@ -2006,18 +1608,6 @@
   font: inherit;
   font-weight: 500;
   white-space: nowrap;
-}
-.drama-script-next button:hover {
-  background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
-}
-.drama-script-next button:focus-visible {
-  outline: none;
-  border-color: var(--rail-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 50%, transparent);
-}
-.drama-script-next button:disabled {
-  opacity: 0.5;
-  pointer-events: none;
 }
 .drama-script-blocked {
   max-width: 192px;
@@ -2099,43 +1689,10 @@
   font-size: 11px;
   line-height: 1;
 }
-.drama-episode-rail button:hover:not(:disabled),
-.drama-episode-tabs button:hover {
-  background: color-mix(in oklab, var(--rail-muted) 60%, transparent);
-  color: var(--rail-ink);
-}
-.drama-episode-rail button[aria-current="true"],
-.drama-episode-tabs button[aria-current="true"] {
-  color: var(--rail-ink);
-  background: var(--rail-muted);
-}
-.drama-episode-rail button[aria-current="true"]::before {
-  content: "";
-  position: absolute;
-  left: -8px;
-  width: 3px;
-  top: 10px;
-  bottom: 10px;
-  background: var(--rail-primary);
-  border-radius: 0 3px 3px 0;
-}
-.drama-episode-rail button:is([title="仅资产管理可按全集筛选"], [title="全集"]) {
-  font-size: 13px;
-  line-height: 1.42857143;
-  font-weight: 600;
-}
-.drama-episode-rail > .episode-rows ~ button {
-  gap: 4px;
-  line-height: 1.42857143;
-}
 .drama-episode-rail hr {
   border: 0;
   border-top: 1px solid var(--rail-line);
   margin: 4px 8px;
-}
-.drama-episode-rail button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .episode-rows {
   flex: 1;
@@ -2162,6 +1719,106 @@
 .episode-rows b {
   font: 600 15px / 1 var(--rail-mono);
   letter-spacing: -0.025em;
+}
+.script-estimate small b {
+  color: var(--credit);
+  font-size: 14px;
+}
+.drama-scripts-dialog footer button {
+  height: 36px;
+  font-weight: 500;
+  border-radius: 10px;
+}
+.drama-scripts-dialog footer button {
+  background-clip: padding-box;
+}
+.drama-scripts-dialog .script-estimate small b {
+  line-height: 20px;
+}
+.drama-continue-dialog footer button:last-child {
+  background-clip: padding-box;
+}
+.continue-estimate small span {
+  color: var(--soft);
+}
+.drama-ref-bar > div > :is(span, button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 8px 0 3px;
+  background: var(--muted, #ededed);
+  font: inherit;
+  color: inherit;
+}
+.drama-ref-bar i img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drama-ref-bar > div > span > span {
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-source fieldset > label {
+  display: grid;
+  gap: 6px;
+}
+.drama-source fieldset footer {
+  justify-content: space-between;
+  font-size: 13px;
+}
+.drama-source > fieldset button {
+  padding: 6px 14px;
+  border: 1px solid var(--desk-border);
+  border-radius: 999px;
+  color: var(--desk-text);
+  background: var(--desk-inset);
+}
+.drama-source > fieldset footer {
+  color: var(--desk-muted);
+}
+.drama-skill-choice > span > small {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--start-muted);
+  font-weight: 400;
+}
+.drama-prompt-editor header strong {
+  font-size: 16px;
+}
+.drama-prompt-editor footer button {
+  height: 36px;
+}
+.drama-prompt-editor header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.drama-source fieldset footer button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #171717;
+  color: white;
+}
+.drama-source > fieldset footer button {
+  color: var(--desk-card);
+  background: var(--desk-text);
+  padding: 0;
+}
+.drama-studio form > label {
+  flex-direction: column;
+  margin-bottom: 12px;
 }
 .drama-episode-menu-position {
   isolation: isolate;
@@ -2230,11 +1887,93 @@
   color: var(--destructive);
   margin-top: 12px;
 }
-.shot-confirm.drama-delete-confirm > div {
-  margin: 20px -24px -24px;
-  padding: 16px 24px;
-  border-color: var(--delete-edge);
-  background: transparent;
+.drama-scripts-dialog[data-breakdown] [role="alert"] {
+  color: var(--quote-error, oklch(0.577 0.245 27.325));
+}
+.drama-scripts-dialog[data-breakdown] [role="alert"] {
+  margin: 0;
+}
+.drama-continue-dialog [role="tab"][aria-selected="true"] {
+  background: var(--continue-bg, white);
+  color: var(--ink);
+  font-weight: 500;
+  --tab-shadow: 0 1px 3px #0000001a, 0 1px 2px -1px #0000001a;
+  box-shadow: var(--tab-shadow);
+}
+.drama-continue-dialog [role="tab"]:hover {
+  color: var(--ink);
+}
+.drama-continue-dialog [role="tab"]:focus-visible {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent),
+    var(--tab-shadow, 0 0 transparent);
+}
+.drama-ref-bar .drama-board-chip:is([data-state="off"], [data-state="unsupported"]) {
+  opacity: 0.6;
+  box-shadow: none;
+}
+.drama-start-dialog[aria-label="开拍设置"] .drama-ratio {
+  min-width: min-content;
+}
+.drama-start-file .drama-field-trigger[data-unconfirmed="true"] {
+  color: var(--start-warning, oklch(0.7 0.16 70));
+  box-shadow: 0 0 0 1px currentColor;
+}
+.drama-field-trigger:not(:disabled):hover {
+  background: color-mix(in oklab, var(--start-hover) 70%, transparent);
+}
+.drama-start-dialog.drama-project-settings[aria-label="项目设置"] {
+  width: min(512px, calc(100vw - 32px));
+  max-height: min(88svh, 760px);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--start-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow:
+    0 0 0 1px var(--start-line),
+    0 24px 48px -12px #0003;
+}
+.drama-prompt-row[data-missing] .drama-field-trigger {
+  color: var(--destructive, #b42318);
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row {
+  justify-content: flex-start;
+  padding: 0 10px;
+  min-width: 0;
+  border-radius: 10px;
+}
+.drama-field-menu .drama-menu-row:disabled {
+  opacity: 0.4;
+}
+.drama-field-menu:is([data-kind="source"], [data-kind="range"]) .drama-menu-row {
+  min-height: 32px;
+  padding-block: 0;
+}
+.drama-start-dialog .drama-field-trigger:focus-visible,
+.drama-field-menu .drama-menu-row:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--start-muted) 50%, transparent);
+  outline-offset: 0;
+}
+.drama-param-row [role="radio"]:focus-visible {
+  outline: 1px auto color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+  outline-offset: 0;
+}
+.drama-field-menu[data-kind="agent"] .drama-menu-row {
+  min-height: 32px;
+  padding-block: 0;
+}
+.drama-field-menu .drama-menu-row[aria-pressed="true"] {
+  font-weight: 500;
+}
+.drama-field-menu .drama-menu-row:is(:hover, [aria-pressed="true"]) {
+  background: var(--menu-muted);
+}
+.drama-script-frame:has(.drama-script-next) .drama-script-area {
+  padding-bottom: 100px;
 }
 @media (max-width: 639px) {
   .shot-confirm.drama-delete-confirm {
@@ -2247,14 +1986,348 @@
     --delete-edge: oklch(1 0 0 / 0.08);
   }
 }
+.drama-delete-confirm button svg {
+  animation: drama-delete-spin 1s linear infinite;
+}
+.drama-scripts-dialog [role="note"] svg {
+  color: var(--warning);
+  flex: none;
+}
+.continue-end input:focus-visible {
+  border-color: var(--focus-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--focus-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.continue-estimate small [data-error="true"] {
+  color: oklch(0.577 0.245 27.325);
+}
+.drama-ref-bar [data-dead="true"] > span {
+  text-decoration: line-through;
+}
+.drama-preview-switch button[aria-pressed] {
+  padding: 0 12px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  background: transparent;
+}
+.drama-preview-switch button[aria-pressed="true"] {
+  background: var(--background);
+  color: var(--foreground);
+}
+.drama-board-strip button[aria-current="true"] {
+  outline: 2px solid var(--primary);
+  opacity: 1;
+}
+.drama-ref-bar .drama-board-chip button {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.drama-take-play > span:last-child {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.drama-take-dots button.focused {
+  width: 20px;
+}
+.drama-take-dots button.failed {
+  background: #c94747;
+}
+.drama-take-dots button.chosen {
+  background: var(--primary, #171717);
+}
+.drama-ratio button[aria-pressed="true"] {
+  font-weight: 500;
+  background: #0000000d;
+  box-shadow: 0 0 0 1.5px #17171799;
+}
+.drama-source > fieldset > [data-ui-group] {
+  width: fit-content;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: var(--desk-inset);
+}
+.drama-source [data-ui-group] button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--desk-muted);
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::backdrop {
+  background: rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(4px);
+}
+.drama-start-dialog[aria-label="开拍设置"]::before {
+  display: none;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) h2 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  padding-inline: 12px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--start-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  z-index: -1;
+  pointer-events: none;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form {
+  padding: 20px;
+  max-height: 86vh;
+  overflow: auto;
+  overflow-x: hidden;
+  border-radius: inherit;
+}
+.drama-start-dialog[aria-label="开拍设置"] form {
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+.drama-start-field p[role="alert"] {
+  color: var(--error-ink, oklch(0.577 0.245 27.325));
+  font-size: 13px;
+}
+.drama-field-trigger > span:not(.model-avatar) {
+  max-width: 288px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drama-field-trigger > svg:last-child {
+  opacity: 0.5;
+}
+.drama-start-dialog.drama-project-settings::before {
+  display: none;
+}
+.project-settings-heading button:hover {
+  background: var(--start-hover);
+}
+.drama-field-menu[data-kind="prompt"] > small {
+  color: var(--start-muted);
+  padding: 8px 8px 2px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-prompt-choice > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.drama-prompt-choice > button:not(:first-child) {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+}
+.drama-prompt-editor button:hover {
+  background: var(--start-hover);
+}
+.drama-prompt-editor [data-slot="placeholder-toolbar"] button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  border: 1px solid var(--start-line);
+  font-size: 12.5px;
+}
+.drama-field-trigger .model-avatar img,
+.drama-menu-row .model-avatar img {
+  width: 68%;
+  height: 68%;
+}
+.drama-field-menu[data-kind="source"] small {
+  display: block;
+  color: var(--start-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-field-menu[data-kind="range"] label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.drama-field-menu[data-kind="range"] input {
+  width: 96px;
+  height: 32px;
+}
+.drama-field-menu[data-kind="range"] input {
+  border: 1px solid var(--start-line);
+  border-radius: 8px;
+  background: transparent;
+  padding: 4px 12px;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+.drama-field-menu[data-kind="range"] input {
+  border-color: oklch(0.922 0 0);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+@media (prefers-color-scheme: dark) {
+  .drama-field-menu[data-kind="range"] input {
+    border-color: oklch(1 0 0 / 0.15);
+    background: oklab(1 0 0 / 0.045);
+  }
+}
+.drama-start-dialog .drama-field-trigger > svg {
+  width: 16px;
+  height: 16px;
+}
+.drama-scripts-dialog[data-breakdown] footer button svg {
+  animation: breakdown-submit-spin 1s linear infinite;
+}
+.drama-param-row [data-param] button {
+  color: var(--start-muted);
+}
+.drama-param-row [data-param="aspectRatio"] button {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--param-border);
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.42857143;
+}
+.drama-param-row [data-param="resolution"] button {
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.drama-field-menu .drama-style-grid button {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.drama-style-grid button:hover {
+  background: color-mix(in oklab, var(--menu-muted) 60%, transparent);
+}
+.drama-start-dialog .drama-ratio legend {
+  color: var(--start-muted);
+  font-size: 13px;
+  padding: 0;
+}
+.drama-start-dialog .drama-ratio legend {
+  line-height: 1.42857143;
+}
+.drama-start-dialog .drama-ratio > div {
+  display: flex;
+  gap: 8px;
+}
+.drama-start-dialog .drama-ratio button {
+  flex: 0 0 112px;
+  margin: 0;
+  border-radius: 18px;
+  line-height: 1.42857143;
+}
+.drama-start-dialog .drama-ratio button {
+  color: inherit;
+  background: color-mix(in oklab, var(--start-hover) 50%, transparent);
+  box-shadow: 0 0 0 1px var(--start-line);
+}
+.drama-script-next[data-step="scripts"] > span {
+  font-variant-numeric: tabular-nums;
+}
+.drama-script-next button:hover {
+  background-color: color-mix(in oklab, var(--rail-primary) 80%, transparent);
+}
+.drama-script-next button:focus-visible {
+  outline: none;
+  border-color: var(--rail-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 50%, transparent);
+}
+.drama-script-next button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.drama-episode-tabs button:hover {
+  background: color-mix(in oklab, var(--rail-muted) 60%, transparent);
+  color: var(--rail-ink);
+}
+.drama-episode-rail button[aria-current="true"],
+.drama-episode-tabs button[aria-current="true"] {
+  color: var(--rail-ink);
+  background: var(--rail-muted);
+}
+.drama-episode-rail button:is([title="仅资产管理可按全集筛选"], [title="全集"]) {
+  font-size: 13px;
+  line-height: 1.42857143;
+  font-weight: 600;
+}
+.drama-episode-rail > .episode-rows ~ button {
+  gap: 4px;
+  line-height: 1.42857143;
+}
+.drama-episode-rail button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.shot-confirm.drama-delete-confirm > div {
+  margin: 20px -24px -24px;
+  padding: 16px 24px;
+  border-color: var(--delete-edge);
+  background: transparent;
+}
 .drama-delete-confirm button[data-destructive] {
   gap: 8px;
 }
 .drama-delete-confirm button:disabled {
   opacity: 0.5;
 }
-.drama-delete-confirm button svg {
-  animation: drama-delete-spin 1s linear infinite;
+.drama-source fieldset footer button:disabled {
+  background: #eee;
+  color: #777;
+}
+.drama-source > fieldset footer button:disabled {
+  background: var(--desk-inset);
+  color: var(--desk-muted);
+}
+.drama-scripts-dialog .script-episodes button:disabled {
+  opacity: 0.45;
+}
+.drama-scripts-dialog[data-breakdown] .script-selection small {
+  margin-left: 0;
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate > svg {
+  flex: none;
+  color: var(--warning);
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate > span {
+  flex: 1;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"])
+  form
+  footer
+  button:disabled {
+  opacity: 0.5;
 }
 @keyframes drama-delete-spin {
   to {
@@ -2331,6 +2404,150 @@
   border-radius: 8px;
   background: transparent;
   color: inherit;
+}
+.drama-studio:has(.drama-source) > header button {
+  padding: 6px 14px;
+  border: 1px solid var(--desk-border);
+  border-radius: 999px;
+  color: var(--desk-text);
+  background: var(--desk-inset);
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.drama-start-dialog[aria-label="开拍设置"] form::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--start-muted) 40%, transparent);
+  border-radius: 999px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
+  height: 36px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer {
+  padding: 0 4px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form footer button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 500;
+}
+.drama-scripts-dialog[data-breakdown] .script-range button {
+  background-clip: padding-box;
+}
+@media (prefers-color-scheme: light) {
+  .drama-scripts-dialog[data-breakdown] .script-range button {
+    background-color: var(--paper);
+  }
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate small {
+  flex: none;
+}
+.drama-ref-bar .drama-board-chip button:hover {
+  background: var(--background);
+}
+.drama-source [data-ui-group] button[aria-pressed="true"] {
+  color: var(--desk-text);
+  background: var(--desk-card);
+  box-shadow: 0 1px 4px #0002;
+}
+.drama-start-dialog[aria-label="开拍设置"] .drama-ratio button {
+  width: 112px;
+}
+.drama-start-dialog:is([aria-label="开拍设置"], [aria-label="项目设置"]) form[hidden] {
+  display: none;
+}
+.drama-start-dialog.drama-project-settings .project-settings-heading h2 {
+  padding: 0;
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row > small {
+  color: var(--start-muted);
+  background: var(--menu-muted);
+  border-radius: 999px;
+  padding-inline: 6px;
+  font-size: 10px;
+  line-height: 16px;
+}
+.drama-prompt-editor footer button:last-child {
+  padding-inline: 20px;
+  color: var(--start-on-primary, #fafafa);
+  background: var(--start-primary, #171717);
+}
+.drama-scripts-dialog[data-breakdown] footer button:last-child {
+  background-clip: padding-box;
+}
+.drama-scripts-dialog[data-breakdown] .script-estimate small span {
+  color: var(--soft);
+}
+.drama-scripts-dialog[data-breakdown] footer button:last-child {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.drama-start-dialog.drama-project-settings[aria-label="项目设置"] form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  padding: 0 20px 20px;
+}
+.drama-field-menu[data-kind="range"] input:focus-visible {
+  border-color: var(--start-ring, oklch(0.708 0 0));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.drama-param-row [data-param] button:is(:hover, [aria-checked="true"]) {
+  color: inherit;
+}
+.drama-param-row [data-param="aspectRatio"] button[aria-checked="true"] {
+  background: var(--menu-muted);
+  border-color: color-mix(in oklab, currentColor 60%, transparent);
+}
+.drama-param-row [data-param="resolution"] button[aria-checked="true"] {
+  background: var(--param-selected);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+.drama-field-menu .drama-style-grid button[aria-pressed="true"] {
+  background: var(--menu-muted);
+}
+.drama-start-dialog .drama-ratio button[aria-pressed="true"] {
+  background: var(--start-hover);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, currentColor 60%, transparent);
+}
+.drama-start-dialog .drama-ratio button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--start-ring, oklch(0.708 0 0)) 50%, transparent);
+}
+.drama-script-next[data-step="scripts"] > small:not(.drama-script-blocked) {
+  font-variant-numeric: tabular-nums;
+}
+.drama-episode-rail button:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--rail-muted) 60%, transparent);
+  color: var(--rail-ink);
+}
+.drama-scripts-dialog[data-breakdown] .script-selection button:hover:not(:disabled) {
+  background: var(--muted);
+}
+.drama-field-menu[data-kind="prompt"] .drama-menu-row svg:last-child:not(:first-child) {
+  margin-left: auto;
+}
+.drama-episode-rail button[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  width: 3px;
+  top: 10px;
+  bottom: 10px;
+  background: var(--rail-primary);
+  border-radius: 0 3px 3px 0;
 }
 .drama-episode-paper .text-format-bar button:is(:hover, [aria-pressed="true"]) {
   background: var(--rail-muted);

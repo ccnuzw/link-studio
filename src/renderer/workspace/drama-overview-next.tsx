@@ -1,4 +1,5 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { ArrowRight, Clapperboard, ScanSearch, ScrollText } from "lucide-react";
 import { scriptNextStep } from "./drama-script-next";
 import type { Stage } from "./drama-workspace-nav";
@@ -68,7 +69,7 @@ export function DramaOverviewNext({
             kind="scripts"
             title={`${step.episodes.length} 集还没有剧本`}
             hint={`第 ${step.episodes.join("、")} 集`}
-            activate={() => go("script", step.episodes[0]!)}
+            activate={() => go("script", requirePresent(step.episodes[0], "step.episodes[0]"))}
           />
         ) : (
           step.kind === "breakdown" && (
@@ -86,7 +87,7 @@ export function DramaOverviewNext({
             kind="shoot"
             title={`${toShoot.length} 集等着出片`}
             hint={`第 ${toShoot.join("、")} 集`}
-            activate={() => go("studio", toShoot[0]!)}
+            activate={() => go("studio", requirePresent(toShoot[0], "toShoot[0]"))}
           />
         )}
         {step.kind === "none" && !toShoot.length && (

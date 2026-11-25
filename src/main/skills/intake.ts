@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { lstat, open, opendir } from "node:fs/promises";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { crc32 } from "node:zlib";
-import { skillLimits } from "@link-studio/core";
+import { requirePresent, skillLimits } from "@link-studio/core";
 import { isMap, parseDocument } from "yaml";
 import { fromBufferPromise } from "yauzl";
 import { isSkillScript } from "./drama-body";
@@ -228,9 +228,9 @@ function parseManifest(bytes: Buffer, files: Map<string, Buffer>) {
   for (const ref of body.matchAll(
     /(?:^|[^\w/.:-])((?:references|scripts|assets)\/[\p{L}\p{N}_./-]+)/gu,
   ))
-    refs.add(ref[1]!.replace(/\.+$/, ""));
+    refs.add(requirePresent(ref[1], "ref[1]").replace(/\.+$/, ""));
   for (const link of body.matchAll(/\]\(([^\s)]+)\)/g)) {
-    const path = link[1]!.split("#")[0]?.replace(/^\.\//, "");
+    const path = requirePresent(link[1], "link[1]").split("#")[0]?.replace(/^\.\//, "");
     if (path && !/[:]|^\//.test(path)) refs.add(path);
   }
   for (const ref of refs)

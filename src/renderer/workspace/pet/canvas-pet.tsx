@@ -42,7 +42,7 @@ export function CanvasPet({
   pending?: SettingsApproval;
   available: boolean;
   jobs: GenerationJob[];
-  ended?: { runId: string; status: string };
+  ended?: import("./assistant-notice").PetRunEnd;
   locateResults: (ids: string[]) => void;
   onBounds: (value: PetBounds) => void;
 }) {

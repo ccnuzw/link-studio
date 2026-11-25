@@ -7,7 +7,8 @@ import {
   type ProjectCanvasView,
 } from "@link-studio/core";
 import { expect, test } from "vitest";
-import { BOARD_LINE, dramaVideoInput } from "../../src/renderer/workspace/drama-video-input";
+import { dramaVideoInput } from "../../src/renderer/workspace/drama-video-input";
+import { requireTestValue } from "../require-test-value";
 
 const options = modelGenerationOptions("video", "doubao-video", "doubao-seedance-2-0");
 test("开拍和片段禁用不收参考图的视频模型，保留同一适配器的图生视频模型", () => {
@@ -62,6 +63,28 @@ const prompt = "@[林川](role)走进@[村口](scene)，@[旁白](audio)，回�
 const plan = (overrides: Partial<typeof options> = {}, jobs: GenerationJob[] = []) =>
   dramaVideoInput(prompt, 40, "4:3", { ...options, ...overrides }, graph, assets, jobs);
 
+test("切换模型后只提交开放且仍可选的分辨率", () => {
+  const render = (open: boolean, values: string[], selected: string) => {
+    const profile = modelGenerationOptions(
+      "video",
+      "doubao-video",
+      "doubao-seedance-2-0",
+      {},
+      {
+        kind: "video",
+        name: "片场",
+        description: "",
+        sort: 1,
+        params: { resolution: { values, default: requireTestValue(values[0]), open } },
+      },
+    );
+    return dramaVideoInput(prompt, 6, "4:3", profile, graph, assets, [], undefined, selected).input;
+  };
+  expect(render(true, ["720p", "1080p"], "1080p").resolution).toBe("1080p");
+  expect(render(true, ["720p"], "1080p")).not.toHaveProperty("resolution");
+  expect(render(false, ["720p", "1080p"], "1080p")).not.toHaveProperty("resolution");
+});
+
 test("故事板沿用采用版，只在全能模式占图片1，关闭后恢复原编号", () => {
   const board = node("board", {
     drama: {
@@ -71,35 +94,43 @@ test("故事板沿用采用版，只在全能模式占图片1，关闭后恢复�
     assetId: "board-image",
   });
   const boardGraph = { ...graph, nodes: [...graph.nodes, board] };
-  const available = [...assets, { ...assets[0]!, assetId: "board-image" }];
-  const build = (off: boolean, overrides: Partial<typeof options> = {}) =>
-    dramaVideoInput(
-      "@[村口](scene)",
-      6,
-      "4:3",
-      { ...options, ...overrides },
-      boardGraph,
-      available,
-      [],
-      { segmentId: "seg", sourceHash: "new", off },
-    );
+  const available = [...assets, { ...requireTestValue(assets[0]), assetId: "board-image" }];
+  const build = (
+    off: boolean,
+    overrides: Partial<typeof options> = {},
+    prompt = "@[村口](scene)",
+  ) =>
+    dramaVideoInput(prompt, 6, "4:3", { ...options, ...overrides }, boardGraph, available, [], {
+      segmentId: "seg",
+      sourceHash: "new",
+      off,
+    });
+  const { boardLine } = build(false);
+  expect(boardLine).toContain("第1到第2格");
+  expect(boardLine).toContain("第3到第4格不用");
+  expect(boardLine).toContain("4:3 画幅重新构图");
   expect(build(false)).toMatchObject({
     board: { state: "stale" },
     input: {
       op: "omni",
-      prompt: `${BOARD_LINE}\n图片2`,
+      prompt: `${boardLine}\n图片2`,
       referenceAssetIds: ["board-image", "village"],
     },
     notices: ["故事板已过期，原稿在出图之后改过"],
   });
   expect(build(true)).toMatchObject({
+    boardLine: "",
     board: { state: "off" },
     input: { prompt: "图片1", referenceAssetIds: ["village"] },
   });
   expect(build(false, { modes: ["i2v"] })).toMatchObject({
+    boardLine: "",
     board: { state: "unsupported", reason: "当前模型把第一张图当首帧，故事板未带入" },
     input: { op: "i2v", prompt: "图片1", referenceAssetIds: ["village"] },
   });
+  const english = build(false, {}, "Track slowly past @[村口](scene). <d>你在哪里？</d>");
+  expect(english.boardLine).toMatch(/^Image 1 is the storyboard grid/);
+  expect(english.input.prompt.startsWith(`${english.boardLine}\n`)).toBe(true);
   expect(build(false, { references: { image: 1 } }).errors.join("")).toContain("含故事板 1 张");
 });
 

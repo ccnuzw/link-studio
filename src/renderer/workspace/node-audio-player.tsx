@@ -1,4 +1,4 @@
-import { Pause, Play } from "lucide-react";
+import { Loader2, Pause, Play } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   type KeyboardEvent,
@@ -23,20 +23,34 @@ const KEY_STEP = 1;
 
 type AudioPlayerProps = {
   src: string;
-  projectHandle: string;
+  projectHandle?: string;
+  waveform?: number[];
+  autoPlay?: boolean;
+  onPlayingChange?: (playing: boolean) => void;
   assetId: string;
 
   active?: boolean;
 };
 
-export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: AudioPlayerProps) {
+export function NodeAudioPlayer({
+  src,
+  projectHandle,
+  assetId,
+  active = true,
+  waveform,
+  autoPlay,
+  onPlayingChange,
+}: AudioPlayerProps) {
   const reduce = useReducedMotion();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const headRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ wasPlaying: boolean } | null>(null);
-  const { peaks, duration: decoded } = useAudioPeaks(projectHandle, assetId, src, BARS);
+  const wave = useAudioPeaks(projectHandle, assetId, src, BARS);
+  const peaks = waveform ?? wave.peaks,
+    decoded = wave.duration;
 
   const [playing, setPlaying] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [failed, setFailed] = useState(false);
   const [metaDuration, setMetaDuration] = useState(0);
 
@@ -110,17 +124,33 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
         ref={audioRef}
         src={src}
         preload="metadata"
+        autoPlay={autoPlay}
         onLoadedMetadata={(event) => {
           const value = event.currentTarget.duration;
           setMetaDuration(Number.isFinite(value) ? value : 0);
         }}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
+        onWaiting={() => setWaiting(true)}
+        onCanPlay={() => setWaiting(false)}
+        onPlaying={() => setWaiting(false)}
+        onPlay={() => {
+          setPlaying(true);
+          onPlayingChange?.(true);
+        }}
+        onPause={() => {
+          setWaiting(false);
           setPlaying(false);
+          onPlayingChange?.(false);
+        }}
+        onEnded={() => {
+          setWaiting(false);
+          setPlaying(false);
+          onPlayingChange?.(false);
           seekTo(0);
         }}
-        onError={() => setFailed(true)}
+        onError={() => {
+          setWaiting(false);
+          setFailed(true);
+        }}
       />
 
       <div
@@ -161,7 +191,10 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
                 className="node-audio-bar"
                 data-played={index < playedBars}
                 data-pending={peaks === undefined}
-                style={{ height: peak < SILENT_PEAK ? 2 : `${Math.max(peak, 0.08) * 100}%` }}
+                style={{
+                  animationDelay: `${index * 25}ms`,
+                  height: peak < SILENT_PEAK ? 2 : `${Math.max(peak, 0.08) * 100}%`,
+                }}
               />
             );
           })}
@@ -183,6 +216,7 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
         </div>
       </div>
       <div className="node-audio-footer">
+        {failed && <span role="alert">音频无法播放</span>}
         <span className="node-audio-time" aria-live="off">
           {failed ? (
             <span className="node-audio-dim">--:--:--</span>
@@ -195,13 +229,20 @@ export function NodeAudioPlayer({ src, projectHandle, assetId, active = true }: 
         </span>
         <motion.button
           type="button"
-          aria-label={playing ? "暂停" : "播放"}
+          aria-label={waiting ? "加载中" : playing ? "暂停" : "播放"}
+          aria-busy={waiting}
           disabled={failed}
           whileTap={{ scale: 0.96 }}
           onClick={toggle}
           className="nodrag node-audio-toggle"
         >
-          {playing ? <Pause className="audio-pause-icon" /> : <Play className="audio-play-icon" />}
+          {waiting ? (
+            <Loader2 className="audio-wait" />
+          ) : playing ? (
+            <Pause className="audio-pause-icon" />
+          ) : (
+            <Play className="audio-play-icon" />
+          )}
         </motion.button>
       </div>
     </div>

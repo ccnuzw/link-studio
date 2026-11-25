@@ -91,8 +91,7 @@ export async function auditVideoReference({ page, origin, media, capture, zoom, 
       await page.locator('[data-slot="media-skeleton"] > div').evaluateAll((elements) => {
         for (const element of elements) {
           const [sweep] = element.getAnimations();
-          if (!sweep || sweep.effect.getTiming().duration !== 1600)
-            throw Error("缺少 1.6 秒扫光动画");
+          if (sweep?.effect.getTiming().duration !== 1600) throw Error("缺少 1.6 秒扫光动画");
           sweep.pause();
           sweep.currentTime = 800;
         }

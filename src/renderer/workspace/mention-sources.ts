@@ -37,6 +37,10 @@ export function mentionSources(
     if (node.type !== "creative") continue;
     const { character, text, assetId, label } = node.data;
     const kind = linkKind(node.data);
+    if (kind === "storyboard") {
+      linked.delete(node.id);
+      continue;
+    }
     byId.set(node.id, {
       id: node.id,
       kind,

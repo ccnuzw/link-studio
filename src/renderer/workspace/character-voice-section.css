@@ -38,17 +38,8 @@
   position: static;
   margin-left: auto;
 }
-.voice-panel-heading .character-image-actions svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
 .voice-panel-heading button:not(:disabled):hover {
   background: var(--gallery-hover);
-}
-.voice-panel-heading button:disabled {
-  opacity: 0.4;
-  pointer-events: none;
 }
 .voice-version-card {
   border-radius: 18px;
@@ -132,11 +123,6 @@
 .character-voice-section .voice-chrome-button[data-primary]:hover {
   background: color-mix(in oklab, var(--gallery-ink) 90%, transparent);
 }
-.voice-chrome-button[data-primary] svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 2.25;
-}
 .voice-chrome-button[data-primary] .lucide-play {
   translate: 1px;
 }
@@ -168,10 +154,6 @@
   border-radius: 18px;
   corner-shape: squircle;
   padding: 4px 6px;
-}
-.voice-version-card li[data-current] {
-  background: var(--gallery-hover);
-  box-shadow: 0 0 0 1px var(--gallery-edge);
 }
 .voice-history-info {
   min-width: 0;
@@ -212,6 +194,24 @@
 .voice-current-mark svg {
   width: 14px;
   height: 14px;
+}
+.voice-panel-heading .character-image-actions svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.voice-panel-heading button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.voice-chrome-button[data-primary] svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.25;
+}
+.voice-version-card li[data-current] {
+  background: var(--gallery-hover);
+  box-shadow: 0 0 0 1px var(--gallery-edge);
 }
 .character-voice-section .lucide-loader-circle {
   animation: character-gallery-spin 1s linear infinite;

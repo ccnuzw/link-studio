@@ -9,6 +9,7 @@ import { _electron as electron, expect, test } from "@playwright/test";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { AssetService } from "../../src/main/project/assets";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { chooseAssistantModel } from "./assistant-theme";
 import { projectAction } from "./workspace-actions";
 
@@ -295,7 +296,7 @@ test("画布小灵：角色音色不能静默丢弃，改用全能参考后由�
           ...alternatives.map((label, index) => ({
             type: "putNode" as const,
             node: {
-              id: alternativeIds[index]!,
+              id: requireTestValue(alternativeIds[index]),
               type: "creative" as const,
               position: { x: 660 + index * 420, y: 500 },
               data: {
@@ -387,12 +388,12 @@ test("画布小灵：角色音色不能静默丢弃，改用全能参考后由�
         )
         .all();
       expect(approvals).toHaveLength(1);
-      expect(approvals[0]!.status).toBe("executed");
+      expect(requireTestValue(approvals[0]).status).toBe("executed");
       expect(approvals[0]).toMatchObject({ quote_credits: 30, spent_credits: 30 });
-      expect(JSON.parse(String(approvals[0]!.decision)).items).toEqual([
+      expect(JSON.parse(String(requireTestValue(approvals[0]).decision)).items).toEqual([
         { index: 3, approve: true, count: 1 },
       ]);
-      expect(JSON.parse(String(approvals[0]!.result)).tasks).toEqual([
+      expect(JSON.parse(String(requireTestValue(approvals[0]).result)).tasks).toEqual([
         { node_id: "shot", task_id: modelTaskId },
       ]);
     } finally {
@@ -410,7 +411,10 @@ test("画布小灵：角色音色不能静默丢弃，改用全能参考后由�
           .digest("hex"),
       });
       expect(shot.data.outputs).toHaveLength(1);
-      expect(shot.data.outputs![0]).toMatchObject({ assetId: asset!.assetId, kind: "video" });
+      expect(requireTestValue(shot.data.outputs)[0]).toMatchObject({
+        assetId: requireTestValue(asset).assetId,
+        kind: "video",
+      });
       for (const node of reopened
         .getCanvas()
         .canvas.nodes.filter((node) => alternativeIds.includes(node.id)))

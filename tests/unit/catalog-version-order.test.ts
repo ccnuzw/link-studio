@@ -5,6 +5,7 @@ import {
   olderCatalogVersions,
 } from "../../src/renderer/settings/catalog-version-order";
 import { decodeModelBody } from "../../src/renderer/settings/model-document";
+import { requireTestValue } from "../require-test-value";
 
 function plugin(key: string, version: string): PluginView {
   return {
@@ -35,7 +36,9 @@ it("按 key 排列目录，核心版本相同取最近安装的版本，只统�
   const groups = groupAdapters(installed);
   expect(groups.map(([head]) => head?.key)).toEqual(["demo", "other"]);
   expect(groups[0]?.map(({ version }) => version)).toEqual(["1.10.0-rc.1", "1.10.0", "1.9.0"]);
-  expect(olderCatalogVersions(groups[0]!).map(({ version }) => version)).toEqual(["1.9.0"]);
+  expect(olderCatalogVersions(requireTestValue(groups[0])).map(({ version }) => version)).toEqual([
+    "1.9.0",
+  ]);
 });
 
 it.each([

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   type CanvasOperation,
@@ -8,6 +9,7 @@ import {
   AddDramaEpisode,
   AddDramaSegment,
   DeleteDramaEpisode,
+  DeleteDramaSegment,
   DramaDocument,
   DramaEdits,
   DramaRead,
@@ -15,7 +17,12 @@ import {
   defaultDramaStyle,
   dramaDeleteBlocked,
   dramaStyles,
+  EditDramaField,
+  episodeScriptPhase,
+  ReorderDramaSegments,
   SaveDramaScript,
+  SetDramaSegmentPrompt,
+  SetDramaSegmentSeconds,
   UpdateDramaBoardSettings,
 } from "../../../packages/link-studio-core/src/drama.ts";
 import { boardTemplateError } from "../../../packages/link-studio-core/src/drama-board.ts";
@@ -114,7 +121,10 @@ export function segmentTakes(state: ProjectState, segment: DramaSegment) {
       {
         task_id: taskId,
         status: statuses[status] ?? status,
-        error_message: job.error ?? "",
+        error_message:
+          (job.status === "failed" && typeof job.errorMessage === "string" && job.errorMessage) ||
+          job.error ||
+          "",
         created_at: job.createdAt,
         asset: dramaAssetView(asset),
       },
@@ -125,6 +135,113 @@ export function segmentTakes(state: ProjectState, segment: DramaSegment) {
 export function bumpSegmentVersion(doc: DramaDocument, episodeNo: number) {
   const episode = doc.episodes.find((entry) => entry.episode_no === episodeNo);
   if (episode) episode.segment_version = (episode.segment_version ?? 0) + 1;
+}
+
+export async function setDramaSegmentSeconds(store: ProjectStore, input: unknown) {
+  if (!Value.Check(SetDramaSegmentSeconds, input)) return invalid();
+  return updateSegmentField(store, input);
+}
+
+export async function setDramaSegmentPrompt(store: ProjectStore, input: unknown) {
+  if (!Value.Check(SetDramaSegmentPrompt, input)) return invalid();
+  return updateSegmentField(store, input);
+}
+
+export async function deleteDramaSegment(store: ProjectStore, input: unknown) {
+  if (!Value.Check(DeleteDramaSegment, input)) return invalid();
+  return store.updateGeneration((state) => {
+    const doc = dramaDocument(state);
+    const target = doc?.segments?.find((segment) => segment.id === input.segmentId);
+    if (
+      !doc?.segments ||
+      !target ||
+      target.episode_no !== input.episodeNo ||
+      (doc.episode_order ?? 0) !== input.episodeOrder
+    )
+      return stale();
+    doc.segments = doc.segments.filter((segment) => segment.id !== target.id);
+    bumpSegmentVersion(doc, input.episodeNo);
+    for (const segment of doc.segments) {
+      if (segment.episode_no !== input.episodeNo || segment.seq <= target.seq) continue;
+      segment.seq--;
+      segment.revision++;
+      bumpSegmentVersion(doc, input.episodeNo);
+    }
+    doc.overview_revision ??= doc.revision;
+    doc.revision++;
+    return { changed: true, result: doc };
+  });
+}
+
+export async function reorderDramaSegments(store: ProjectStore, input: unknown) {
+  if (!Value.Check(ReorderDramaSegments, input)) return invalid();
+  return store.updateGeneration((state) => {
+    const doc = dramaDocument(state);
+    if (!doc?.segments || (doc.episode_order ?? 0) !== input.episodeOrder) return stale();
+    const ordered = doc.segments
+      .filter((segment) => segment.episode_no === input.episodeNo)
+      .sort((left, right) => left.seq - right.seq);
+    if (
+      ordered.length !== input.previous.length ||
+      ordered.some((segment, index) => segment.id !== input.previous[index])
+    )
+      return stale();
+    const byId = new Map(ordered.map((segment) => [segment.id, segment]));
+    if (input.ids.length !== ordered.length || input.ids.some((id) => !byId.has(id)))
+      return invalid();
+    if (input.ids.every((id, index) => id === ordered[index]?.id))
+      return { changed: false, result: doc };
+    const next = input.ids.map((id, seq) => {
+      const segment = requirePresent(byId.get(id), "byId.get(id)");
+      if (segment.seq === seq) return segment;
+      bumpSegmentVersion(doc, input.episodeNo);
+      return { ...segment, seq, revision: segment.revision + 1 };
+    });
+    let index = 0;
+    doc.segments = doc.segments.map((segment) =>
+      segment.episode_no === input.episodeNo
+        ? requirePresent(next[index++], "next[index++]")
+        : segment,
+    );
+    doc.overview_revision ??= doc.revision;
+    doc.revision++;
+    return { changed: true, result: doc };
+  });
+}
+
+function updateSegmentField(
+  store: ProjectStore,
+  input: typeof SetDramaSegmentPrompt.static | typeof SetDramaSegmentSeconds.static,
+) {
+  return store.updateGeneration((state) => {
+    const doc = dramaDocument(state);
+    const segment = doc?.segments?.find((entry) => entry.id === input.segmentId);
+    if (
+      !doc ||
+      !segment ||
+      segment.episode_no !== input.episodeNo ||
+      (doc.episode_order ?? 0) !== input.episodeOrder ||
+      segment.revision !== input.revision
+    )
+      return stale();
+    if ("prompt" in input && input.format) {
+      const adaptation = segment.adaptations?.[input.format];
+      if (!adaptation) throw new ProjectError("VALIDATION_FAILED", "还没有这个格式的转写稿");
+      adaptation.prompt = input.prompt;
+      adaptation.edited = true;
+      adaptation.updated_at = new Date().toISOString();
+    } else if ("prompt" in input) {
+      if (segment.prompt === input.prompt) return { changed: false, result: doc };
+      segment.prompt = input.prompt;
+    } else {
+      if (segment.seconds === input.seconds) return { changed: false, result: doc };
+      segment.seconds = input.seconds;
+    }
+    segment.revision++;
+    doc.overview_revision ??= doc.revision;
+    doc.revision++;
+    return { changed: true, result: doc };
+  });
 }
 
 export async function chooseDramaTake(
@@ -296,6 +413,39 @@ export async function addDramaEpisode(store: ProjectStore, input: unknown) {
     return { result: doc, changed: true };
   });
 }
+export async function editDramaField(store: ProjectStore, input: unknown) {
+  if (!Value.Check(EditDramaField, input)) return invalid();
+  return store.updateGeneration((state) => {
+    const doc = dramaDocument(state);
+    if (!doc) return stale();
+    if ("episode_no" in input) {
+      const episode = doc.episodes.find((item) => item.episode_no === input.episode_no);
+      if (
+        !episode ||
+        input.episodeOrder !== (doc.episode_order ?? 0) ||
+        (episode[input.field] ?? "") !== input.previous
+      )
+        return stale();
+      const writing = doc.jobs?.some((job) => episodeScriptPhase(job, episode.episode_no));
+      if (episode.locked || writing)
+        throw new ProjectError("DRAMA_STEP_NOT_READY", "本集已锁定或正在生成");
+      episode[input.field] = input.value;
+      episode.revision = (episode.revision ?? 1) + 1;
+      episode.updated_at = new Date().toISOString();
+    } else {
+      if (doc[input.field] !== input.previous) return stale();
+      if (input.field !== "title" && doc.planning && doc.planning.phase !== "done")
+        throw new ProjectError("DRAMA_STEP_NOT_READY", "请先完成小说规划");
+      doc[input.field] = input.value;
+    }
+    doc.overview_revision =
+      (doc.overview_revision ?? doc.revision) + ("episode_no" in input ? 0 : 1);
+    doc.revision++;
+    state.extensions[key] = doc;
+    return { changed: true, result: doc };
+  });
+}
+
 export async function saveDramaScript(store: ProjectStore, input: unknown) {
   if (!Value.Check(SaveDramaScript, input)) return invalid();
   return store.updateGeneration((state) => {
@@ -309,14 +459,7 @@ export async function saveDramaScript(store: ProjectStore, input: unknown) {
     )
       return stale();
     checkEpisodeLock(episode, { script_md: input.script_md });
-    if (
-      doc.jobs?.some(
-        (job) =>
-          job.step === "scripts" &&
-          ["queued", "running"].includes(job.status) &&
-          job.episodes.includes(input.episode_no),
-      )
-    )
+    if (doc.jobs?.some((job) => episodeScriptPhase(job, input.episode_no)))
       throw new ProjectError("VALIDATION_FAILED", "正在生成这一集的剧本");
     episode.revision = input.revision + 1;
     episode.script_md = input.script_md;
@@ -503,7 +646,7 @@ export class DramaTools {
           return {
             ...fields,
             status,
-            adaptations: {},
+            adaptations: segment.adaptations ?? {},
             takes,
             chosen_task_id: segment.chosen_task_id ?? "",
           };
@@ -773,7 +916,7 @@ export class DramaTools {
 }
 
 export async function addDramaSegment(store: ProjectStore, input: unknown) {
-  if (!Value.Check(AddDramaSegment, input) || !input.prompt.trim()) return invalid();
+  if (!Value.Check(AddDramaSegment, input)) return invalid();
   return store.updateGeneration((state) => {
     const doc = dramaDocument(state);
     if (!doc || doc.revision !== input.revision) return stale();
@@ -788,7 +931,7 @@ export async function addDramaSegment(store: ProjectStore, input: unknown) {
       episode_no: input.episode_no,
       seq: segments.filter((item) => item.episode_no === input.episode_no).length,
       seconds: input.seconds,
-      prompt: input.prompt.trim(),
+      prompt: input.prompt?.trim() ?? "",
       revision: 1,
     });
     doc.segments = segments;

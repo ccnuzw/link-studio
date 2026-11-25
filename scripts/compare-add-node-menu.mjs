@@ -76,10 +76,10 @@ try {
           deviceScaleFactor: dpr,
           colorScheme: theme,
         });
-        await page.route(origin + "assets/**", (route) =>
+        await page.route(`${origin}assets/**`, (route) =>
           route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
         );
-        await page.route(origin + "fixture*", (route) =>
+        await page.route(`${origin}fixture*`, (route) =>
           route.fulfill({
             contentType: "text/html",
             body: `<!doctype html><html class="${theme}"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${stylesheet}"><style>main{background:${theme === "light" ? "#f7f7f7" : "#171717"}}</style><div id="root" class="${original ? "" : "canvas-workspace"}"></div><script type="module" src="${entry}"></script></html>`,
@@ -87,7 +87,7 @@ try {
         );
         for (const scenario of ["blank", "link", "fan", "edge", "toolbar"]) {
           const key = `${theme}-${scenario}`;
-          await page.goto(origin + "fixture?" + scenario);
+          await page.goto(`${origin}fixture?${scenario}`);
           const trigger = page.getByRole("button", { name: "添加节点", exact: true });
           await trigger.waitFor();
           if (scenario === "toolbar") await trigger.click();
@@ -113,8 +113,8 @@ try {
                 item.getAttribute("aria-disabled"),
               ]),
             }));
-          states[side + "-" + key] = [await snapshot()];
-          const result = states[side + "-" + key];
+          states[`${side}-${key}`] = [await snapshot()];
+          const result = states[`${side}-${key}`];
           const rect = await menu.boundingBox();
           assert(rect);
           if (scenario === "blank")
@@ -169,8 +169,8 @@ try {
               image.equals(await page.screenshot({ clip })),
               `${side}-${key}-${stage} unstable`,
             );
-            images[key + "-" + stage] ??= [];
-            images[key + "-" + stage].push(image.toString("base64"));
+            images[`${key}-${stage}`] ??= [];
+            images[`${key}-${stage}`].push(image.toString("base64"));
           }
           await capture("opened");
           for (const input of ["Home", "ArrowDown", "ArrowDown", "End", "ArrowDown"]) {
@@ -214,7 +214,7 @@ try {
       const pixels = await Promise.all(
         sources.map(async (src) => {
           const image = new Image();
-          image.src = "data:image/png;base64," + src;
+          image.src = `data:image/png;base64,${src}`;
           await image.decode();
           const canvas = document.createElement("canvas");
           canvas.width = image.width;
@@ -231,7 +231,7 @@ try {
   await writeFile(join(output, "results.json"), JSON.stringify({ states, differences }, null, 2));
   console.table(differences);
   for (const key of Object.keys(states).filter((key) => key.startsWith("original-")))
-    assert.deepEqual(states[key], states["desktop-" + key.slice(9)], key);
+    assert.deepEqual(states[key], states[`desktop-${key.slice(9)}`], key);
   if (process.argv.includes("--strict"))
     assert(Object.values(differences).every((value) => value === 0));
 } finally {

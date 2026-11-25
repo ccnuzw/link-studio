@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import type {
   CanvasOperation,
   CreativeData,
@@ -47,7 +48,7 @@ export function mergeDramaAssets(state: ProjectState, assets: DramaAsset[]) {
       .find(Boolean);
     if (match) {
       const node = structuredClone(changes.get(match.id) ?? match);
-      const meta = dramaAssetMeta(node.data)!;
+      const meta = requirePresent(dramaAssetMeta(node.data), "dramaAssetMeta(node.data)");
       const aliases = [...meta.aliases, ...asset.aliases];
       if (normalize(meta.name) !== normalize(asset.name)) aliases.push(asset.name);
       const seen = new Set<string>();

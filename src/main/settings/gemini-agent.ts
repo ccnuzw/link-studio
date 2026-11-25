@@ -87,8 +87,8 @@ function contentParts(content: unknown, allowVideo: boolean): Fields[] {
       )
         throw invalid();
       if (typeof video.url === "string" && video.url) {
-        const url = URL.canParse(video.url) && new URL(video.url);
-        if (!url || url.protocol !== "https:" || url.username || url.password) throw invalid();
+        const url = URL.canParse(video.url) ? new URL(video.url) : undefined;
+        if (url?.protocol !== "https:" || url.username || url.password) throw invalid();
         return { fileData: { mimeType: video.mime_type, fileUri: video.url } };
       }
       if (
@@ -104,8 +104,8 @@ function contentParts(content: unknown, allowVideo: boolean): Fields[] {
     if (typeof address !== "string") throw invalid();
     const inline = /^data:(image\/[\w.+-]+);base64,([A-Za-z0-9+/]+=*)$/.exec(address);
     if (inline) return { inlineData: { mimeType: inline[1], data: inline[2] } };
-    const url = URL.canParse(address) && new URL(address);
-    if (!url || url.protocol !== "https:" || url.username || url.password) throw invalid();
+    const url = URL.canParse(address) ? new URL(address) : undefined;
+    if (url?.protocol !== "https:" || url.username || url.password) throw invalid();
     const extension =
       /\.(png|webp|gif|heic|heif)$/i.exec(url.pathname)?.[1]?.toLowerCase() ?? "jpeg";
     return { fileData: { mimeType: `image/${extension}`, fileUri: address } };
@@ -151,16 +151,16 @@ export function geminiRequest(payload: Fields, allowVideo = false) {
     if (previous?.role === role) previous.parts.push(...parts);
     else contents.push({ role, parts });
   }
-  const functions =
-    Array.isArray(payload.tools) &&
-    payload.tools.map((tool) => {
-      const fn = object(object(tool).function);
-      return {
-        name: fn.name,
-        description: fn.description ?? "",
-        parameters: cleanToolSchema(fn.parameters ?? { type: "object", properties: {} }),
-      };
-    });
+  const functions = Array.isArray(payload.tools)
+    ? payload.tools.map((tool) => {
+        const fn = object(object(tool).function);
+        return {
+          name: fn.name,
+          description: fn.description ?? "",
+          parameters: cleanToolSchema(fn.parameters ?? { type: "object", properties: {} }),
+        };
+      })
+    : undefined;
   let functionCallingConfig: Fields | undefined;
   if (payload.tool_choice === "none") functionCallingConfig = { mode: "NONE" };
   else if (payload.tool_choice && typeof payload.tool_choice === "object") {
@@ -177,7 +177,7 @@ export function geminiRequest(payload: Fields, allowVideo = false) {
   return {
     contents,
     ...(system.length && { systemInstruction: { parts: system } }),
-    ...(functions && functions.length && { tools: [{ functionDeclarations: functions }] }),
+    ...(functions?.length && { tools: [{ functionDeclarations: functions }] }),
     ...(functionCallingConfig && { toolConfig: { functionCallingConfig } }),
     generationConfig: config,
   };

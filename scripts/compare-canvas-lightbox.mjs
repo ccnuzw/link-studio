@@ -212,7 +212,7 @@ try {
       }
       const capture = async (key) => {
         const frame = await stableFrame(page, `${name}-${key}`);
-        await writeFile(join(output, `${name}${key === "initial" ? "" : "-" + key}.png`), frame);
+        await writeFile(join(output, `${name}${key === "initial" ? "" : `-${key}`}.png`), frame);
         states[key] ??= [];
         states[key].push(PNG.sync.read(frame));
         return frame;

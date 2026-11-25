@@ -1,5 +1,6 @@
 import type { GroupHue } from "@link-studio/core";
 import { type Node, type NodeProps, NodeResizer, useReactFlow } from "@xyflow/react";
+import type { CSSProperties } from "react";
 import { useAgentMark } from "./agent-marks";
 import { GroupTitle } from "./node-title";
 
@@ -46,12 +47,14 @@ export function GroupNodeCard({
       />
       <div
         className="canvas-group-frame"
-        style={{
-          backgroundColor:
-            data.color && `color-mix(in oklch,var(--group-${data.color}) 16%,transparent)`,
-          borderColor:
-            data.color && `color-mix(in oklch,var(--group-${data.color}) 40%,transparent)`,
-        }}
+        style={
+          data.color
+            ? ({
+                backgroundColor: `color-mix(in oklch,var(--group-${data.color}) 16%,transparent)`,
+                "--group-frame-color": `color-mix(in oklch,var(--group-${data.color}) 40%,transparent)`,
+              } as CSSProperties)
+            : undefined
+        }
       />
       <GroupTitle
         id={id}

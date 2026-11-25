@@ -76,6 +76,7 @@ try {
   });
   for (const side of ["reference", "desktop"]) {
     const upstream = side === "reference",
+      libraryLabel = upstream ? "素材库" : "资产库",
       root = upstream ? pinned : process.cwd(),
       entry = path.join(root, toolbar ? "asset-fixture.tsx" : "asset-fixture.jsx"),
       outDir = path.join(temp, side);
@@ -286,7 +287,7 @@ try {
                 if (["upload", "library"].includes(state))
                   await card
                     .getByRole("button", {
-                      name: state === "upload" ? "上传" : "素材库",
+                      name: state === "upload" ? "上传" : libraryLabel,
                       exact: true,
                     })
                     .hover();
@@ -386,7 +387,7 @@ try {
                   observed.focus,
                   {
                     "tab-upload": "上传",
-                    "tab-library": "素材库",
+                    "tab-library": libraryLabel,
                     "tab-locate": "在画布中打开 来客的信封",
                     "multi-cover-focus": "待生成",
                     "multi-focus": "取消选择",
@@ -403,7 +404,7 @@ try {
                     name: {
                       cover: "在画布中打开 来客的信封",
                       upload: "上传",
-                      library: "素材库",
+                      library: libraryLabel,
                       "multi-hover": "选择",
                     }[state],
                     exact: true,
@@ -588,7 +589,7 @@ try {
         const [left, right] = await Promise.all(
           images.map(async (data) => {
             const image = new Image();
-            image.src = "data:image/png;base64," + data;
+            image.src = `data:image/png;base64,${data}`;
             await image.decode();
             const canvas = document.createElement("canvas");
             canvas.width = image.width;

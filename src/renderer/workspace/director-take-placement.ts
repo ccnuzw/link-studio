@@ -1,4 +1,5 @@
 import type { ProjectAsset } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import type { Rect } from "./alignment";
 import { imageFrameSize } from "./grid-placement";
 
@@ -27,7 +28,7 @@ export function positionDirectorTakes(
       let label = base;
       for (let index = 2; labels.has(label); index++) label = `${base} ${index}`;
       labels.add(label);
-      const size = imageFrameSize(take.aspect, 1)!;
+      const size = requirePresent(imageFrameSize(take.aspect, 1), "imageFrameSize(take.aspect, 1)");
       const x = origin.x + origin.width + 80;
       let y = origin.y + (origin.height - size.height) / 2;
       for (

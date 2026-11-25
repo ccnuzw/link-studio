@@ -2,6 +2,24 @@
   "说明": "生成时提示词怎么合成：节点自己的提示词展开 @ 引用，没被 @ 的文本上游按连线顺序追加在后面，提示词为空时就只用文本上游。前端 web/src/tests/utils/tasks/prompt-compose-fixture.test.ts 与后端 internal/tests/agent/canvasgraph 读同一份，防止画布上点生成和 Agent 生成的规则漂移。nodes 是连到目标节点的上游，按连线顺序；引用写成 @[名字](节点id)；素材编号是它在同类素材里的位置（从 1 起）。",
   "cases": [
     {
+      "name": "同一素材在画面用编号，在旁白内保留原名",
+      "nodes": [
+        { "id": "i1", "kind": "image", "label": "夜草原", "assetId": "11" },
+        { "id": "i2", "kind": "image", "label": "一盏灯", "assetId": "12" }
+      ],
+      "prompt": "画面：@[夜草原](i1)，门侧是@[一盏灯](i2)。旁白：“毡房亮起@[一盏灯](i2)。”",
+      "expect": "画面：图片1，门侧是图片2。旁白：“毡房亮起一盏灯。”"
+    },
+    {
+      "name": "独立字幕上游整段不编媒体序号",
+      "nodes": [
+        { "id": "i1", "kind": "image", "label": "一盏灯", "assetId": "12" },
+        { "id": "t1", "kind": "script", "label": "字幕", "text": "毡房亮起@[一盏灯](i1)。" }
+      ],
+      "prompt": "",
+      "expect": "毡房亮起一盏灯。"
+    },
+    {
       "name": "提示词为空：文本上游按连线顺序拼接",
       "nodes": [
         { "id": "t1", "kind": "script", "label": "剧本", "text": "男主走进便利店" },

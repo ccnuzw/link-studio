@@ -1,7 +1,16 @@
-import type { SettingsValues } from "@link-studio/core";
-import { ArrowLeft, Layers3, Puzzle, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { CanvasViewPreferences, SettingsValues } from "@link-studio/core";
+import { ArrowLeft, Moon, Sparkles, Sun } from "lucide-react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { CardJump } from "../assistant/info-card";
+import { ChoiceButton } from "../choice-button";
+import { SkillsPage } from "../skills/skills-page";
 import { AdapterManager } from "./adapter-manager";
 import { ChannelWorkspace } from "./channel-workspace";
 import type { RenderFilingPicker } from "./filing-library";
@@ -9,6 +18,13 @@ import { reportPluginAction } from "./plugin-notice";
 import { SettingsAssistant } from "./settings-assistant";
 import { SettingsDrawer } from "./settings-drawer";
 import { settingsRequests } from "./settings-request-log";
+
+const darkScheme = () => window.matchMedia("(prefers-color-scheme: dark)");
+function subscribeScheme(change: () => void) {
+  const query = darkScheme();
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
 
 const errors: Record<string, string> = {
   DRAMA_EPISODE_LOCKED: "本集已拆解，剧本和梗概已锁定。",
@@ -110,11 +126,19 @@ export function settingsError(code: string) {
 
 export function SettingsPage({
   close,
-  openSkills,
+  returnLabel,
+  preferences,
+  changePreferences,
+  preferenceError,
+  diagnostic,
   renderFilingPicker,
 }: {
   close: () => void;
-  openSkills: () => void;
+  returnLabel: string;
+  preferences: CanvasViewPreferences;
+  changePreferences: (patch: Partial<CanvasViewPreferences>) => void;
+  preferenceError: boolean;
+  diagnostic: ReactNode;
   renderFilingPicker?: RenderFilingPicker;
 }) {
   const [data, setData] = useState<SettingsValues["list"]>({ providers: [], plugins: [] });
@@ -123,7 +147,15 @@ export function SettingsPage({
   const [hasCatalog, setHasCatalog] = useState(false);
   const revision = useRef(0);
   const modelNavigation = useRef(0);
-  const [managing, setManaging] = useState(false);
+  const [section, setSection] = useState<
+    "channels" | "appearance" | "adapters" | "skills" | "diagnostic"
+  >("channels");
+  const managing = section === "adapters";
+  const systemDark = useSyncExternalStore(subscribeScheme, () => darkScheme().matches);
+  const dark = preferences.theme === "dark" || (preferences.theme === "system" && systemDark);
+  const [skillsVisit, setSkillsVisit] = useState(0);
+  const setManaging = (value: boolean) => setSection(value ? "adapters" : "channels");
+  const trigger = useRef<HTMLButtonElement>(null);
   const [targetModel, setTargetModel] = useState("");
   const [targetChannel, setTargetChannel] = useState("");
   const [navigation, setNavigation] = useState(0);
@@ -167,10 +199,22 @@ export function SettingsPage({
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (
+        trigger.current?.closest("[hidden]") ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      if (event.key === "Escape" && assistant) {
+        if (document.querySelector(".settings-drawer :popover-open,select:open")) return;
+        setAssistant(false);
+        trigger.current?.focus();
+        return;
+      }
+      if (
         !(event.metaKey || event.ctrlKey) ||
         event.shiftKey ||
         event.altKey ||
-        event.isComposing ||
         event.repeat ||
         event.key.toLowerCase() !== "j" ||
         document.querySelector("dialog[open]")
@@ -181,7 +225,7 @@ export function SettingsPage({
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [toggle]);
+  }, [toggle, assistant]);
   const refresh = useCallback(async () => {
     const current = ++revision.current;
     setCatalogState("loading");
@@ -204,52 +248,108 @@ export function SettingsPage({
     void refresh();
   }, [refresh]);
 
+  const assistantButton = (
+    <button
+      ref={trigger}
+      type="button"
+      className="desk-assistant-trigger"
+      aria-label="设置助手"
+      aria-keyshortcuts="Control+J Meta+J"
+      aria-expanded={assistant}
+      onClick={toggle}
+    >
+      <Sparkles size={16} /> 设置助手{" "}
+      <kbd>{navigator.platform.includes("Mac") ? "⌘J" : "Ctrl J"}</kbd>
+    </button>
+  );
+
   return (
-    <main className="model-settings" aria-label="模型设置" data-assistant-open={assistant}>
+    <main
+      className="model-settings desk-settings"
+      aria-label="应用设置"
+      data-assistant-open={assistant}
+    >
       <div className="settings-page-content">
-        <header className="model-settings-top">
-          <button type="button" onClick={close}>
-            <ArrowLeft size={17} /> 返回工作区
+        <nav className="desk-settings-nav" aria-label="设置分类">
+          <button
+            type="button"
+            className="desk-return"
+            onClick={close}
+            title={returnLabel}
+            aria-label={returnLabel}
+          >
+            <ArrowLeft size={17} /> <span>{returnLabel}</span>
           </button>
-          <h1>{managing ? "适配器管理" : "模型渠道"}</h1>
-          <div className="settings-actions">
-            {managing && (
-              <button type="submit" form="local-plugin-draft" disabled={catalogState !== "ready"}>
-                插件草稿
-              </button>
-            )}
-            <button type="button" onClick={openSkills}>
-              <Layers3 size={16} /> 技能管理
-            </button>
+          {(
+            [
+              ["channels", "模型与渠道"],
+              ["appearance", "通用与外观"],
+              ["adapters", "适配器管理"],
+              ["skills", "技能管理"],
+              ["diagnostic", "诊断"],
+            ] as const
+          ).map(([id, label]) => (
             <button
               type="button"
+              key={id}
+              aria-current={section === id ? "page" : undefined}
+              aria-label={label}
+              title={label}
               onClick={() => {
-                setManaging(!managing);
-                setTargetModel("");
-                setTargetChannel("");
+                if (id === "skills" && section === "skills") setSkillsVisit((visit) => visit + 1);
+                setSection(id);
               }}
             >
-              <Puzzle size={16} /> {managing ? "返回模型渠道" : "适配器管理"}
+              {label}
             </button>
-            <button
-              type="button"
-              aria-label="设置助手"
-              aria-keyshortcuts="Control+J Meta+J"
-              aria-expanded={assistant}
-              onClick={toggle}
-            >
-              <Sparkles size={16} /> 设置助手{" "}
-              <kbd>{navigator.platform.includes("Mac") ? "⌘J" : "Ctrl J"}</kbd>
-            </button>
-          </div>
-        </header>
+          ))}
+          {assistantButton}
+          <button
+            type="button"
+            title={dark ? "切换到浅色" : "切换到深色"}
+            aria-label={dark ? "切换到浅色" : "切换到深色"}
+            onClick={() => changePreferences({ theme: dark ? "light" : "dark" })}
+          >
+            {dark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </nav>
         {error && !managing && (
           <p className="model-notice" role="alert">
             {error}
           </p>
         )}
         <div className="channel-settings-body" data-assistant-open={assistant}>
-          {managing ? (
+          {section === "appearance" ? (
+            <section className="desk-settings-pane">
+              <h2>通用与外观</h2>
+              <div className="home-heading">
+                <span>应用主题</span>
+                <div className="desk-segments" role="radiogroup" aria-label="应用主题">
+                  {(
+                    [
+                      ["system", "跟随系统"],
+                      ["light", "浅色"],
+                      ["dark", "深色"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <ChoiceButton
+                      key={value}
+                      aria-checked={preferences.theme === value}
+                      tabIndex={preferences.theme === value ? 0 : -1}
+                      onClick={() => changePreferences({ theme: value })}
+                    >
+                      {label}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              </div>
+              {preferenceError && <p role="alert">主题偏好保存失败，请重试。</p>}
+            </section>
+          ) : section === "skills" ? (
+            <SkillsPage visit={skillsVisit} />
+          ) : section === "diagnostic" ? (
+            <div className="desk-settings-pane">{diagnostic}</div>
+          ) : managing ? (
             <AdapterManager
               catalogState={catalogState}
               data={data}
@@ -298,20 +398,43 @@ export function SettingsPage({
         </div>
       </div>
       <SettingsDrawer open={assistant}>
+        <button
+          className="drawer-return"
+          type="button"
+          onClick={() => {
+            setAssistant(false);
+            trigger.current?.focus();
+          }}
+        >
+          <ArrowLeft size={16} />
+          收起设置助手
+        </button>
         <SettingsAssistant
           loadingModels={!hasCatalog && catalogState === "loading"}
           close={toggle}
           resolveJump={resolveJump}
-          route={managing ? "adapters" : "providers"}
+          route={
+            section === "channels"
+              ? "providers"
+              : managing
+                ? "adapters"
+                : section === "skills"
+                  ? "skills"
+                  : undefined
+          }
           context={
-            managing ? undefined : data.providers.find((item) => item.id === selection.modelId)
+            section === "channels"
+              ? data.providers.find((item) => item.id === selection.modelId)
+              : undefined
           }
           resource={
             managing
               ? plugin
                 ? { id: plugin.hash, key: plugin.key }
                 : undefined
-              : selection.channel
+              : section === "channels"
+                ? selection.channel
+                : undefined
           }
           providers={data.providers}
           plugins={data.plugins}

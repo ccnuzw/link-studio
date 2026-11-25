@@ -1,4 +1,5 @@
 import type { DirectorScene } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { loadDirectorFigures } from "./director-figures";
 import { directorFrameSize } from "./director-frame-size";
 import { createDirectorRenderer } from "./director-renderer";
@@ -11,7 +12,7 @@ export async function directorThumbnail(scene: DirectorScene) {
   const { canvas } = renderer;
   try {
     const [width, height] = camera.aspect.split(":").map(Number);
-    const ratio = width! / height!;
+    const ratio = requirePresent(width, "width") / requirePresent(height, "height");
     renderer.renderShot(
       { ...scene, activeCameraId: camera.id },
       0,

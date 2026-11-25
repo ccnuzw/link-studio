@@ -32,7 +32,7 @@ type Sample struct{Step, Body string;Variables map[string]any};func main(){var s
     .flatMap((step) => [
       { Step: step, Body: "" },
       { Step: step, Body: "只保留蜡印\n## 另起一段\n拍摄 {{画面}}。" },
-      { Step: step + "_format", Body: "" },
+      { Step: `${step}_format`, Body: "" },
     ])
     .map((sample) => ({
       ...sample,
@@ -69,7 +69,7 @@ type Sample struct{Step, Body string;Variables map[string]any};func main(){var s
     assert.equal(result.result, expected[index], sample.Step);
   }
   for (const step of steps)
-    assert.equal(render([step + "_format", {}, "不能替换"]).code, "AGENT_ARGUMENT_INVALID");
+    assert.equal(render([`${step}_format`, {}, "不能替换"]).code, "AGENT_ARGUMENT_INVALID");
   function validate(episodes) {
     const args = [
       "plan_format",

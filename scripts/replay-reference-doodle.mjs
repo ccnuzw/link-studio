@@ -55,20 +55,20 @@ try {
     colorScheme: "light",
   });
   page.on("pageerror", (error) => console.error(error.message));
-  await page.route(origin + "assets/**", (route) =>
+  await page.route(`${origin}assets/**`, (route) =>
     route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
   );
-  await page.route(origin + "input.png", (route) =>
+  await page.route(`${origin}input.png`, (route) =>
     route.fulfill({
       path: composition ? join(output, "input.png") : resolve("resources/icons/icon-32.png"),
     }),
   );
-  await page.route(origin + "api/**", (route) =>
+  await page.route(`${origin}api/**`, (route) =>
     route.fulfill({ json: { code: 0, msg: "ok", data: [] } }),
   );
   let uploads = 0;
   let originalPng;
-  await page.route(origin + "derived.png", (route) =>
+  await page.route(`${origin}derived.png`, (route) =>
     route.fulfill({ contentType: "image/png", body: originalPng }),
   );
   await page.route("**/api/v1/assets", async (route) => {
@@ -102,13 +102,13 @@ try {
       },
     });
   });
-  await page.route(origin + "audit", (route) =>
+  await page.route(`${origin}audit`, (route) =>
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><html lang="zh-CN"><meta charset=utf-8><link rel="stylesheet" href="/assets/${css}"><main></main><script type="module" src="${entry}"></script>`,
     }),
   );
-  await page.goto(origin + "audit");
+  await page.goto(`${origin}audit`);
   const source = page.getByTestId("rf__node-source"),
     toolbar = page.getByRole("toolbar", { name: "图片标注工具栏" }),
     save = toolbar.getByRole("button", { name: "保存", exact: true });
@@ -187,7 +187,7 @@ try {
     await expect(cards).toHaveCount(1);
     await release(false);
     await page.keyboard.press("ControlOrMeta+z");
-    const shell = page.getByTestId("rf__node-" + deleted);
+    const shell = page.getByTestId(`rf__node-${deleted}`);
     await expect(shell).toContainText("上传已中断，请删除后重新上传");
     await expect(shell.getByRole("button", { name: "重试" })).toHaveCount(0);
     await page.keyboard.press("ControlOrMeta+Shift+z");
@@ -198,12 +198,7 @@ try {
     await release(false);
     await expect(retry).toContainText("上传失败，请重试");
     await retry.getByRole("button", { name: "重试" }).click();
-    await expect(
-      page
-        .getByTestId("rf__node-" + retryId)
-        .locator("img")
-        .first(),
-    ).toBeVisible();
+    await expect(page.getByTestId(`rf__node-${retryId}`).locator("img").first()).toBeVisible();
     await expect(edges).toHaveCount(1);
     assert.equal(uploads, 2);
     report = {

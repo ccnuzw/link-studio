@@ -8,6 +8,7 @@ import { applyCanvas, projectCanvas } from "../../src/main/project/canvas";
 import { createDrama } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { projectAction } from "./workspace-actions";
 
 test("短剧资产：框选不提交，全集预选跨集，失败重试不重复成功项，形象完成后生成音色", async () => {
@@ -47,7 +48,7 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
             : [
                 {
                   type: "putNode" as const,
-                  node: { ...node, data: { ...node.data, text: node.data.label + "的特写" } },
+                  node: { ...node, data: { ...node.data, text: `${node.data.label}的特写` } },
                 },
               ],
         ),
@@ -152,13 +153,18 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
     });
     const page = await app.firstWindow();
     await page.evaluate(async (endpoint) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const list = await window.desktop.settings.list({});
       if (!list.ok) throw Error(list.code);
       for (const [key, model] of [
         ["openai-image", "gpt-image-1"],
         ["doubao-audio", "seed-audio-1.0"],
       ] as const) {
-        const plugin = list.value.plugins.find((item) => item.key === key)!;
+        const plugin = requireTestValue(list.value.plugins.find((item) => item.key === key));
         if (key === "openai-image") {
           const api = window.desktop.settings,
             channel = await api.channelSave({
@@ -225,7 +231,7 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
     const assets = page.getByRole("tab", { name: "资产管理", exact: true }),
       list = page.getByRole("region", { name: "资产列表" }),
       rail = page.getByRole("navigation", { name: "分集" });
-    const type = (name: string) => list.getByRole("tab", { name: new RegExp("^" + name) }),
+    const type = (name: string) => list.getByRole("tab", { name: new RegExp(`^${name}`) }),
       card = (name: string) => list.getByRole("listitem", { name, exact: true }),
       ep = (no: number) => rail.getByRole("button", { name: new RegExp(`^第 ${no} 集 ·`) });
     const all = list.getByRole("button", { name: "全部生成" }),
@@ -293,7 +299,7 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
     await expect(card("守门人")).toHaveAttribute("data-status", "running");
     await expect.poll(() => typeof release).toBe("function");
     expect(voices).toEqual([]);
-    release!();
+    requireTestValue(release)();
     release = undefined;
     await expect(card("访客")).toHaveAttribute("data-status", "done");
     await expect(card("守门人").getByLabel("已设定音色")).toBeVisible();

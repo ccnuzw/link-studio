@@ -7,6 +7,8 @@ type Entry = {
   time: number;
   elapsed: number;
   result: string;
+  request?: { dry: boolean; referenceCount: number };
+  response?: { status: string; outputCount: number; stepCount: number };
 };
 let entries: Entry[] = [];
 let sequence = 0;
@@ -27,6 +29,8 @@ function loggedMethod<Method extends SettingsMethod>(method: Method) {
   return async (input: SettingsInput<Method>) => {
     const time = Date.now();
     let result = "SETTINGS_ACTION_FAILED";
+    const trial = method === "modelTrial" ? (input as SettingsInput<"modelTrial">) : undefined;
+    let summary: Entry["response"];
     let modelId =
       method.startsWith("model") && "id" in input && typeof input.id === "string"
         ? input.id
@@ -39,12 +43,24 @@ function loggedMethod<Method extends SettingsMethod>(method: Method) {
       result = response.ok ? "成功" : response.code;
       if (response.ok && method === "modelSave")
         modelId = (response.value as SettingsValues["modelSave"]).id;
-      if (response.ok && method === "modelTrial")
-        result = (response.value as SettingsValues["modelTrial"]).status;
+      if (response.ok && trial) {
+        const { status, outputs, trace } = response.value as SettingsValues["modelTrial"];
+        result = status;
+        summary = { status, outputCount: outputs?.length ?? 0, stepCount: trace.length };
+      }
       return response;
     } finally {
       entries = [
-        { key: ++sequence, method, modelId, time, elapsed: Date.now() - time, result },
+        {
+          key: ++sequence,
+          method,
+          modelId,
+          time,
+          elapsed: Date.now() - time,
+          result,
+          request: trial && { dry: trial.dry, referenceCount: trial.references?.length ?? 0 },
+          response: summary,
+        },
         ...entries,
       ].slice(0, 200);
       for (const listener of listeners) listener();

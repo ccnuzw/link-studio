@@ -9,13 +9,15 @@ import {
   type LucideIcon,
   Maximize2,
   PenLine,
+  Replace,
   Scissors,
   Sparkle,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useState } from "react";
 import { type FrameChoice, FrameMenu } from "./frame-menu";
 import { GridSplitMenu } from "./grid-split-menu";
+import { canvasControlsInset, nodeActionStripHeight } from "./media-panel-layout";
 import "./node-action-strip.css";
 
 export type StripKind = "script" | "storyboard" | "image" | "video" | "audio";
@@ -28,16 +30,48 @@ export function NodeActionAnchor({
   moving: boolean;
   children: ReactNode;
 }) {
-  const zoom = useStore((state) => state.transform[2]);
+  const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!toolbar) return;
+    const measure = () => setWidth(toolbar.offsetWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [toolbar]);
+  const offset = useStore((state) => {
+    const node = state.nodeLookup.get(id);
+    const [, translateY, zoom] = state.transform;
+    const ideal = 28 * zoom + 16;
+    if (!node) return ideal;
+    const top = node.internals.positionAbsolute.y * zoom + translateY;
+    const bottom = top + (node.measured.height ?? 0) * zoom;
+    if (bottom <= canvasControlsInset || top >= state.height) return ideal;
+    return Math.min(ideal, top - canvasControlsInset - nodeActionStripHeight);
+  });
+  const shift = useStore((state) => {
+    const node = state.nodeLookup.get(id);
+    if (!node || !width) return 0;
+    const [translateX, , zoom] = state.transform;
+    const nodeWidth = (node.measured.width ?? 0) * zoom;
+    const left = node.internals.positionAbsolute.x * zoom + translateX;
+    if (left + nodeWidth <= 0 || left >= state.width) return 0;
+    const center = left + nodeWidth / 2;
+    const inset = width / 2 + 12;
+    return Math.max(inset, Math.min(center, state.width - inset)) - center;
+  });
   return (
     <NodeToolbar
       isVisible
       nodeId={id}
       position={Position.Top}
       align="center"
-      offset={28 * zoom + 16}
+      offset={offset}
+      style={{ translate: `${shift}px 0` }}
     >
       <motion.div
+        ref={setToolbar}
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: moving ? 0.35 : 1, y: 0 }}
         transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
@@ -53,6 +87,7 @@ export type StripAction =
   | "zoom"
   | "download"
   | "library"
+  | "replace"
   | "edit"
   | "outpaint"
   | "trim"
@@ -158,6 +193,7 @@ export function NodeActionStrip({
         {kind !== "script" && kind !== "storyboard" && (
           <>
             {tail("download", "下载", Download)}
+            {kind === "image" && ready && !running && tail("replace", "从资产库替换", Replace)}
             {ready && !running && tail("library", "加入资产库", FolderPlus)}
           </>
         )}

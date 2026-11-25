@@ -1,5 +1,78 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { readRenderedText } from "./read-rendered-text.mjs";
+
+export async function auditDenseDirectorKeys(page, snapshot) {
+  const panel = page.getByTitle("回到开头").locator("xpath=ancestor::section[1]");
+  const ruler = panel.getByText("0s", { exact: true }).locator("..");
+  const states = {};
+  async function capture(name, expected) {
+    await page.waitForFunction(
+      (expected) => {
+        const keys = window.auditScene().characters[0].keys;
+        return (
+          JSON.stringify(keys.map(({ t, x, ease }) => [t, x, ease])) === JSON.stringify(expected)
+        );
+      },
+      expected,
+      { timeout: 7000 },
+    );
+    states[name] = await page.evaluate(() => {
+      const scene = window.auditScene();
+      return {
+        duration: scene.duration,
+        actor: scene.characters[0].keys,
+        camera: scene.cameras[0].keys,
+      };
+    });
+    await snapshot(name, ruler.locator(".."));
+  }
+  const retimed = [
+    [0, 1, "linear"],
+    [0, 2, "smooth"],
+    [0.5, 3, "smooth"],
+  ];
+  const toggled = [[0, 1, "smooth"], ...retimed.slice(1)];
+  const moved = [[0.5, 1, "smooth"]];
+  const cameraSlot = panel.locator('[title*="2.50s"][title*="右键切换"]').nth(1);
+  await cameraSlot.click();
+  await panel.getByTitle("删除选中的关键帧（Delete）").click();
+  async function captureCamera(name, count) {
+    await page.waitForFunction(
+      (count) => window.auditScene().cameras[0].keys.length === count,
+      count,
+      { timeout: 7000 },
+    );
+    states[name] = await page.evaluate(() => window.auditScene().cameras[0].keys);
+    await snapshot(name, ruler.locator(".."));
+  }
+  await captureCamera("deletedLegacySlot", 2);
+  await page.getByTitle("撤销（Ctrl+Z）").click();
+  await captureCamera("restoredLegacySlot", 4);
+  await panel.locator("select").first().selectOption("1");
+  await capture("retimed", retimed);
+  assert.deepEqual(
+    states.retimed.camera.map(({ t, x, ease }) => [t, x, ease]),
+    [...retimed, [0.5, 4, "smooth"]],
+  );
+  const actorKey = panel.locator('[title*="0.00s"][title*="右键切换"]').last();
+  const box = await actorKey.boundingBox(),
+    axis = await ruler.boundingBox();
+  const start = axis.x + 1,
+    y = box.y + box.height / 2;
+  await page.mouse.click(start, y, { button: "right" });
+  await capture("toggled", toggled);
+  await page.mouse.move(start, y);
+  await page.mouse.down();
+  await page.mouse.move(axis.x + axis.width / 2, y, { steps: 6 });
+  await page.mouse.up();
+  await capture("moved", moved);
+  await page.getByTitle("撤销（Ctrl+Z）").click();
+  await capture("undone", toggled);
+  await page.getByTitle("重做（Ctrl+Shift+Z）").click();
+  await capture("redone", moved);
+  return states;
+}
 
 export async function auditDirectorTimeline(page, side, output) {
   const panel = page.getByTitle("回到开头").locator("xpath=ancestor::section[1]");
@@ -21,7 +94,7 @@ export async function auditDirectorTimeline(page, side, output) {
     }
     await page.waitForTimeout(100);
     states[name] = {
-      clock: await clock.innerText(),
+      clock: await readRenderedText(clock),
       keys: await marker.evaluateAll((nodes) => nodes.map((node) => node.title)),
       canPreset: await panel.getByRole("button", { name: "套用" }).isEnabled(),
       deletable: await panel.getByTitle("删除选中的关键帧（Delete）").count(),
@@ -111,7 +184,7 @@ export async function auditDirectorTimeline(page, side, output) {
         (node) => node === document.activeElement && node.matches(":focus-visible"),
       ),
     );
-    await capture("focus-" + name, true);
+    await capture(`focus-${name}`, true);
   }
   return { images, states, rectangles };
 }

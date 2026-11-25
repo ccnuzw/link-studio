@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
-import { confirmDramaScript, projectAction } from "./workspace-actions";
+import { requireTestValue } from "../require-test-value";
+import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 for (const scope of ["设置", "画布", "短剧"] as const)
   test(`${scope}小灵：重启打开长会话，加载失败可重试，翻页保留阅读位置并独立追更`, async () => {
@@ -87,14 +88,13 @@ for (const scope of ["设置", "画布", "短剧"] as const)
             });
       const open = async (reopen = false) => {
         if (scope === "设置") {
-          await page.getByRole("button", { name: "模型设置" }).click();
+          await page.getByRole("button", { name: "应用设置" }).click();
           await page.getByRole("button", { name: "设置助手" }).click();
           return;
         }
         if (reopen) await page.getByRole("button", { name: /^翻页验收项目/ }).click();
         else {
-          await page.getByRole("textbox", { name: "新项目名称" }).fill("翻页验收项目");
-          await page.getByRole("button", { name: "新建项目" }).click();
+          await createCanvasProject(page, "翻页验收项目");
         }
         const action = async (name: string) => {
           await projectAction(page, name);
@@ -137,7 +137,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
             )
             .all();
           expect(rows).toHaveLength(1);
-          return String(rows[0]!.id);
+          return String(requireTestValue(rows[0]).id);
         } finally {
           db.close();
         }
@@ -183,10 +183,14 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(users).toHaveCount(33);
         await expect(users.first()).toHaveText("验收问题 58");
         await expect(users.last()).toHaveText("验收问题 90");
+        await expect(log).toHaveAttribute("data-scrolled", "true");
+        const scrollToTop = () =>
+          log.evaluate((element) => {
+            element.scrollTop = 0;
+            element.dispatchEvent(new Event("scroll"));
+          });
         hide();
-        await log.evaluate((el) => {
-          el.scrollTop = 0;
-        });
+        await scrollToTop();
         const retry = panel.getByRole("button", { name: "加载失败，点击重试" });
         await expect(retry).toBeVisible();
         await expect(users).toHaveCount(33);
@@ -201,9 +205,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await retry.click();
         await expect(users).toHaveCount(67);
         expect(Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
-        await log.evaluate((el) => {
-          el.scrollTop = 0;
-        });
+        await scrollToTop();
         await expect(users).toHaveCount(91);
         await expect(users.first()).toHaveText("验收问题 1");
         expect(new Set(await users.allTextContents()).size).toBe(91);

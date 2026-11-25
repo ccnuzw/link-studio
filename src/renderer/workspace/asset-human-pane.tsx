@@ -1,4 +1,5 @@
 import type { ChannelView, ProjectAsset, SettingsValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -105,7 +106,7 @@ export function AssetHumanPane({
   return (
     <div className="asset-human-groups">
       {visibleGroups.map(([id, members]) => {
-        const name = members[0]!.humanName;
+        const name = requirePresent(members[0], "members[0]").humanName;
         const groupStatus = members.some((item) => item.status === "active")
           ? "可用"
           : members.some((item) => item.status === "processing")

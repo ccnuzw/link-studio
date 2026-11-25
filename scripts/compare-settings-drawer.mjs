@@ -50,7 +50,19 @@ const states = contexts
     : executed
       ? ["executed", "partial-result", "expanded-result", "revert-result", "plugin-result"]
       : changes
-        ? ["pending", "reverse-pending", "partial", "explain", "expanded", "rejected", "explained"]
+        ? [
+            "pending",
+            "reverse-pending",
+            "partial",
+            "explain",
+            "expanded",
+            "rejected",
+            "explained",
+            "reverse-rejected",
+            "reverse-explained",
+            "reverse-expired",
+            "reverse-failed",
+          ]
         : results
           ? [
               "secret-executed",
@@ -62,6 +74,9 @@ const states = contexts
               "trial-rejected",
               "trial-expired",
               "trial-failed",
+              "trial-executed-zero",
+              "trial-executed-short",
+              "trial-failed-long",
             ]
           : ["closed", "loading", "no-model"];
 const contextRefs = [
@@ -86,7 +101,7 @@ const pluginData = `const label='分镜适配器',key='storyboard',meta={name:la
   const detail={plugin_key:key,version_before:fresh?null:'1.0.0',version_after:version,code_lines:3,code_diff:fresh?'':'--- before\\n+++ after\\n@@ -1,2 +1,3 @@\\n-exports.mode="sync";\\n-exports.name="分镜";\\n+exports.mode="sync";\\n+exports.name="分镜";\\n+exports.vendor="studio";\\n',meta,check:{ok:true,request,issues:[]}};
   const diff=Object.entries({'meta.auth':meta.auth,'meta.endpoints':meta.endpoints,'meta.name':label,'meta.vendor':meta.vendor,plugin_key:key,version}).map(([field,after])=>({field,before:null,after}));
   approval.payload={orderNo:order,kind:'plugin',items:[{field:'插件草稿',before:null,after:'draft-hash'}],review:{label,key,versionBefore:detail.version_before,versionAfter:version,lines:detail.code_lines,codeDiff:detail.code_diff,meta:Object.values(meta).join(' · '),request,diff}};`;
-const changeData = `const items=${JSON.stringify(items)},order='CO-260102-AB29EF',priorOrder='CO-260101-028ACE',phase=location.hash.slice(1),rejected=['rejected','explained'].includes(phase),answer=phase==='explained'?'只改显示名称，保留模型标识。':undefined;const approval={id:'1',kind:'admin_change',status:rejected?'rejected':'pending',decision:{answer},payload:{orderNo:order,revertOf:phase==='reverse-pending'?priorOrder:undefined,expectedRevision:3,items}};${reviews ? pluginData : ""}`;
+const changeData = `const items=${JSON.stringify(items)},order='CO-260102-AB29EF',priorOrder='CO-260101-028ACE',phase=location.hash.slice(1),action=phase.replace(/^reverse-/,''),rejected=['rejected','explained','failed','expired'].includes(action),answer=action==='explained'?'只改显示名称，保留模型标识。':undefined;const approval={id:'1',kind:'admin_change',status:rejected?(action==='explained'?'rejected':action):'pending',decision:{answer},payload:{orderNo:order,revertOf:phase.startsWith('reverse-')?priorOrder:undefined,expectedRevision:3,items}};${reviews ? pluginData : ""}`;
 const receiptData = `${changeData}const appliedAt='2026-01-02T16:28:00Z',reverse=phase==='revert-result',plugin=phase==='plugin-result';
   const pluginDiff=Object.entries({'meta.auth':'bearer','meta.endpoints':'{"text":{"mode":"sync","method":"POST","path":"/v1/responses"}}','meta.name':'分镜适配器','meta.vendor':'渠道工作室',plugin_key:'storyboard',version:'2.0.1'}).map(([field,after])=>({field,before:null,after}));
   const entries=(plugin?[{field:'插件草稿',label:'分镜适配器',diff:pluginDiff,before:null,after:'2.0.1'}]:reverse?[items[3],items[0]]:items).map((item,index)=>({...item,...(reverse?{before:item.after,after:item.before}:{}),status:phase==='partial-result'&&index%2?'rejected':'applied'}));const applied=entries.filter(item=>item.status==='applied').length;const receipt={order,appliedAt,items:entries,applied,skipped:entries.length-applied,target:plugin?'plugin':'model',key:'test',navigable:true,reversible:!reverse&&!plugin};`;
@@ -100,8 +115,12 @@ const textByState = [
   "未试跑",
   "试跑请求已失效",
   "试跑失败",
+  "试跑成功",
+  "试跑成功",
+  "试跑失败",
 ];
-const rowData = `const [kind,status]=location.hash.slice(1).split('-');const trial=kind==='trial',label='分镜助手 Storyboard 02',approval={id:'1',kind:trial?'admin_test_run':'admin_secret',status,payload:{model_label:label,channel_label:label},result:trial?{status:status==='executed'?'succeeded':status==='failed'?'failed':undefined}:{configured:status==='executed'?true:undefined}};`;
+const trialDurations = { zero: 0, short: 325, long: 61250 };
+const rowData = `const [kind,status,sample]=location.hash.slice(1).split('-');const trial=kind==='trial',label='分镜助手 Storyboard 02',approval={id:'1',kind:trial?'admin_test_run':'admin_secret',status,payload:{model_label:label,channel_label:label},result:trial?{status:status==='executed'?'succeeded':status==='failed'?'failed':undefined,duration_ms:(${JSON.stringify(trialDurations)})[sample]}:{configured:status==='executed'?true:undefined}};`;
 try {
   await mkdir(output, { recursive: true });
   execFileSync("git", [
@@ -133,12 +152,12 @@ try {
       : executed
         ? `import {SettingsDrawer} from './src/renderer/settings/settings-drawer';import {SettingsChangeResult} from './src/renderer/settings/settings-change-result';${receiptData}const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><div className="row-fixture"><SettingsChangeResult receipt={receipt} resolveJump={()=>()=>{}} rollback={()=>{}}/></div></section></SettingsDrawer>;`
         : changes
-          ? `import {SettingsDrawer} from './src/renderer/settings/settings-drawer';import {ApprovalCard} from './src/renderer/settings/settings-change-card';import {RejectedChange} from './src/renderer/settings/settings-action-result';${changeData}const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><div className="row-fixture">{rejected?<RejectedChange answer={answer}/>:<ApprovalCard approval={approval} disabled={false} decide={async()=>{}}/>}</div></section></SettingsDrawer>;`
+          ? `import {SettingsDrawer} from './src/renderer/settings/settings-drawer';import {ApprovalCard} from './src/renderer/settings/settings-change-card';import {Activity} from './src/renderer/settings/settings-assistant';${changeData}const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><div className="row-fixture">{rejected?<Activity event={{type:'approval.decided',payload:approval}}/>:<ApprovalCard approval={approval} disabled={false} decide={async()=>{}}/>}</div></section></SettingsDrawer>;`
           : contexts
             ? `import {SettingsDrawer} from './src/renderer/settings/settings-drawer';${contextFixture(false)}const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><AdminAssistantPanel/></section></SettingsDrawer>;`
             : results
               ? `import {SettingsDrawer} from './src/renderer/settings/settings-drawer';import {SettingsActionResult} from './src/renderer/settings/settings-action-result';${rowData}
-      const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><div className="row-fixture"><SettingsActionResult kind={approval.kind} status={status} result={trial?{tested:status==='executed'}:approval.result} label={label}/></div></section></SettingsDrawer>;`
+      const drawer=<SettingsDrawer open><section className="settings-assistant assistant-surface"><div className="row-fixture"><SettingsActionResult kind={approval.kind} status={status} result={trial?{tested:status==='executed',duration_ms:approval.result.duration_ms}:approval.result} label={label}/></div></section></SettingsDrawer>;`
               : `import {SettingsDrawer} from './src/renderer/settings/settings-drawer'; import {AssistantModelState} from './src/renderer/assistant/assistant-model-state';
       const drawer=<SettingsDrawer open={open}><AssistantModelState settings loading={state==='loading'}/></SettingsDrawer>;`;
     const script = `import {createRoot} from 'react-dom/client';const state=location.hash.slice(1), open=state!=='closed';${component}
@@ -178,8 +197,8 @@ try {
           enforce: "pre",
           resolveId(id) {
             if (id === entry) return entry;
-            const key = upstream && Object.keys(stubs).find((name) => id.endsWith("/" + name));
-            if (key) return "\0stub:" + key;
+            const key = upstream && Object.keys(stubs).find((name) => id.endsWith(`/${name}`));
+            if (key) return `\0stub:${key}`;
           },
           load(id) {
             if (id === entry) return script;
@@ -208,7 +227,7 @@ try {
         if (url.pathname !== "/") return route.abort();
         return route.fulfill({
           contentType: "text/html",
-          body: `<!doctype html><html class="${upstream ? "admin-theme" : ""} ${upstream && url.searchParams.has("dark") ? "dark" : ""}"><meta charset=utf-8><link rel=stylesheet href=/index.css><style>body{margin:0}main{display:flex;height:100vh;background:repeating-linear-gradient(32deg,#888 0 13px,#556 13px 29px)!important}.row-fixture{position:absolute;top:24px;left:12px;right:12px}</style><main class="${upstream ? "" : "model-settings"}"></main><script type=module src=/fixture.js></script>`,
+          body: `<!doctype html><html class="${upstream ? "admin-theme" : ""} ${upstream && url.searchParams.has("dark") ? "dark" : ""}"><meta charset=utf-8><link rel=stylesheet href=/index.css><style>body{margin:0}main{display:flex;height:100vh;background:repeating-linear-gradient(32deg,#888 0 13px,#556 13px 29px)!important}.row-fixture{position:absolute;top:24px;left:12px;right:12px}</style><main class="${upstream ? "" : "model-settings desk-settings"}"></main><script type=module src=/fixture.js></script>`,
         });
       });
       for (const width of rowMode ? [320, 1080] : [767, 768, 1080])
@@ -231,6 +250,11 @@ try {
             if (state === "no-model")
               await page.getByText("请先在模型渠道发布 Agent 模型").waitFor();
             const row = wrapper.locator(".row-fixture > :first-child");
+            if (state !== "closed" && !upstream) {
+              const content = await page.locator(".settings-page-content").boundingBox();
+              if (!content || content.width !== (width < 768 ? width : width - 468))
+                throw Error(`设置正文宽度不符: ${key} ${JSON.stringify(content)}`);
+            }
             if (contexts) {
               await row.getByText("模型渠道", { exact: true }).waitFor();
               if (state === "dismissed")
@@ -247,12 +271,25 @@ try {
               if (state === "expanded-result")
                 await row.getByRole("button", { name: "还有 1 项" }).click();
               await page.mouse.move(0, 410);
-            } else if (changes && ["rejected", "explained"].includes(state))
+            } else if (
+              changes &&
+              ["rejected", "explained", "failed", "expired"].includes(
+                state.replace(/^reverse-/, ""),
+              )
+            )
               await row
                 .getByText(
-                  state === "explained"
-                    ? "已拒绝：配置变更单 · 你的说明：只改显示名称，保留模型标识。"
-                    : "已拒绝：配置变更单",
+                  (state.endsWith("failed")
+                    ? "已批准，但执行失败"
+                    : state.endsWith("expired")
+                      ? "已失效"
+                      : "已拒绝") +
+                    (state.startsWith("reverse-")
+                      ? "：回滚变更单 CO-260101-028ACE"
+                      : "：配置变更单") +
+                    (state.endsWith("explained")
+                      ? " · 你的说明：只改显示名称，保留模型标识。"
+                      : ""),
                   { exact: true },
                 )
                 .waitFor();
@@ -288,7 +325,10 @@ try {
               await row
                 .getByText(
                   textByState[states.indexOf(state)] +
-                    (state.startsWith("trial") ? " · 分镜助手 Storyboard 02" : ""),
+                    (state.startsWith("trial") ? " · 分镜助手 Storyboard 02" : "") +
+                    ({ zero: " · 耗时 0s", short: " · 耗时 0.325s", long: " · 耗时 1m 1.25s" }[
+                      state.split("-")[2]
+                    ] ?? ""),
                   { exact: true },
                 )
                 .waitFor();
@@ -350,7 +390,7 @@ try {
                   const [left, right] = await Promise.all(
                     images.map(async (data) => {
                       const img = new Image();
-                      img.src = "data:image/png;base64," + data;
+                      img.src = `data:image/png;base64,${data}`;
                       await img.decode();
                       const canvas = document.createElement("canvas");
                       canvas.width = img.width;

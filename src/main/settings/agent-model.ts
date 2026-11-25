@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
+import { setTimeout as delay } from "node:timers/promises";
 import type { Model } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
-import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
+import { requirePresent } from "@link-studio/core";
+import {
+  DramaOutputTruncatedError,
+  ProviderError,
+} from "../../../packages/provider-runtime/src/runner.ts";
 import { readTokenUsage, type TokenUsage } from "../generation-credits.ts";
 import { type GatewayPurpose, gatewayDiagnostic } from "./gateway-diagnostic.ts";
 import { geminiEndpoint, geminiRequest, geminiStream } from "./gemini-agent.ts";
@@ -129,7 +134,7 @@ async function agentAttempt(
     gatewayDiagnostic(
       {
         ...attempt,
-        channel: profile.channelId!,
+        channel: requirePresent(profile.channelId, "profile.channelId"),
         upstream_model: redactor.redact(profile.model),
         format: gemini ? "gemini" : responses ? "responses" : "openai",
         request_bytes: bodyBytes.length,
@@ -182,29 +187,39 @@ async function agentAttempt(
           : status === 200
             ? "AGENT_TEST_INVALID_STREAM"
             : "AGENT_TEST_HTTP_FAILED",
+      status && status >= 500 ? [{ path: "status", message: String(status) }] : undefined,
     );
   }
 
   async function* frames() {
     let finished = false;
-    const clean = cleanModelStream(redactor, responses, (data) => {
-      diagnostic?.frame(data);
-      if (observeUsage && data && typeof data === "object") {
-        const frame = data as { usage?: unknown; response?: { usage?: unknown } };
-        const usage = readTokenUsage(frame.usage ?? frame.response?.usage);
-        if (usage) observeUsage(usage);
-      }
-      if (!hosted || gemini || !data || typeof data !== "object") return;
-      if ("error" in data && data.error) throw new ProviderError("AGENT_TEST_HTTP_FAILED");
-      if (
-        "choices" in data &&
-        Array.isArray(data.choices) &&
-        data.choices.some(
-          (choice) => typeof choice?.finish_reason === "string" && choice.finish_reason,
+    const offeredTools = new Set<string>();
+    if (Array.isArray(payload.tools))
+      for (const tool of payload.tools)
+        if (typeof tool?.function?.name === "string") offeredTools.add(tool.function.name);
+    const clean = cleanModelStream(
+      redactor,
+      responses,
+      (data) => {
+        diagnostic?.frame(data);
+        if (observeUsage && data && typeof data === "object") {
+          const frame = data as { usage?: unknown; response?: { usage?: unknown } };
+          const usage = readTokenUsage(frame.usage ?? frame.response?.usage);
+          if (usage) observeUsage(usage);
+        }
+        if (!hosted || gemini || !data || typeof data !== "object") return;
+        if ("error" in data && data.error) throw new ProviderError("AGENT_TEST_HTTP_FAILED");
+        if (
+          "choices" in data &&
+          Array.isArray(data.choices) &&
+          data.choices.some(
+            (choice) => typeof choice?.finish_reason === "string" && choice.finish_reason,
+          )
         )
-      )
-        finished = true;
-    });
+          finished = true;
+      },
+      offeredTools,
+    );
     const translator = gemini ? geminiStream() : undefined;
     remote.setEncoding("utf8");
     let bytes = 0;
@@ -232,7 +247,7 @@ async function agentAttempt(
             markDelivered?.();
             yield Buffer.from(frame);
           }
-          if (frame === "data: [DONE]\n\n") return;
+          if (frame.endsWith("data: [DONE]\n\n")) return;
         }
       }
     }
@@ -281,7 +296,7 @@ async function agentAttempt(
         if (!(error instanceof SyntaxError)) throw error;
       }
       if (frame) yield Buffer.from(frame);
-      if (frame === "data: [DONE]\n\n") return;
+      if (frame?.endsWith("data: [DONE]\n\n")) return;
     }
     if (hosted && !translator && !whole && !finished)
       throw new ProviderError("AGENT_TEST_INVALID_STREAM");
@@ -289,7 +304,8 @@ async function agentAttempt(
   async function* guardedFrames() {
     try {
       for await (const frame of frames()) {
-        if (diagnostic && frame.equals(doneFrame)) diagnostic.finish(requestSignal, "done");
+        if (diagnostic && frame.subarray(-doneFrame.length).equals(doneFrame))
+          diagnostic.finish(requestSignal, "done");
         yield frame;
       }
       diagnostic?.finish(requestSignal, "end");
@@ -319,6 +335,7 @@ export async function probeAgentStream(
     video?: { mime_type: string; data: string };
     signal?: AbortSignal;
     generation?: boolean;
+    drama?: boolean;
   },
 ) {
   const api = modelApi(binding.profile);
@@ -349,7 +366,8 @@ export async function probeAgentStream(
     .streamSimple(
       model,
       normalizeContext({
-        ...(trial?.generation && { systemPrompt: binding.profile.config?.systemPrompt }),
+        ...(trial?.generation &&
+          !trial.drama && { systemPrompt: binding.profile.config?.systemPrompt }),
         messages: [
           {
             role: "user",
@@ -360,7 +378,11 @@ export async function probeAgentStream(
                     const match =
                       /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(url);
                     if (!match) throw new ProviderError("无效的本机图片输入");
-                    return { type: "image" as const, mimeType: match[1]!, data: match[2]! };
+                    return {
+                      type: "image" as const,
+                      mimeType: requirePresent(match[1], "match[1]"),
+                      data: requirePresent(match[2], "match[2]"),
+                    };
                   }),
                 ]
               : (trial?.prompt ?? "Reply with OK."),
@@ -377,6 +399,11 @@ export async function probeAgentStream(
         fetch: async (_input, init) => {
           try {
             const payload = JSON.parse(String(init?.body));
+            if (trial?.drama && !binding.profile.config?.maxOutputTokens) {
+              delete payload.max_tokens;
+              delete payload.max_output_tokens;
+              delete payload.max_completion_tokens;
+            }
             if (trial?.video) {
               payload.messages = [
                 {
@@ -395,21 +422,43 @@ export async function probeAgentStream(
                 : trial
                   ? "model_trial"
                   : "connection_test";
-            const stream = await openAgentStream(
-              trial?.generation
-                ? {
-                    ...binding,
-                    observeUsage: (value) => {
-                      usage = value;
-                    },
-                  }
-                : binding,
-              payload,
-              redactor,
-              timeoutMs,
-              signal,
-              purpose,
-            );
+            const open = () =>
+              openAgentStream(
+                trial?.generation
+                  ? {
+                      ...binding,
+                      observeUsage: (value) => {
+                        usage = value;
+                      },
+                    }
+                  : binding,
+                payload,
+                redactor,
+                timeoutMs,
+                signal,
+                purpose,
+              );
+            let stream: Readable;
+            for (let attempt = 0; ; attempt++) {
+              try {
+                stream = await open();
+                break;
+              } catch (error) {
+                if (
+                  !trial?.drama ||
+                  attempt >= 3 ||
+                  !(error instanceof ProviderError) ||
+                  !(
+                    error.code === "AGENT_TEST_RATE_LIMITED" ||
+                    error.issues?.some(
+                      (issue) => issue.path === "status" && /^5\d\d$/.test(issue.message),
+                    )
+                  )
+                )
+                  throw error;
+                await delay([2000, 5000, 10000][attempt], undefined, { signal });
+              }
+            }
             stream.once("error", (error) => {
               transportError = error;
             });
@@ -427,6 +476,7 @@ export async function probeAgentStream(
   if (signal.aborted) throw new ProviderError("AGENT_TEST_TIMEOUT");
   if (transportError instanceof ProviderError) throw transportError;
   if (transportError) throw new ProviderError("AGENT_TEST_NETWORK_FAILED");
+  if (trial?.drama && result.stopReason === "length") throw new DramaOutputTruncatedError();
   if (
     result.stopReason !== "stop" ||
     !result.content.some((part) => part.type === "text" && part.text.trim())

@@ -53,7 +53,7 @@ export function useDirectorPanels() {
       Object.fromEntries(
         Object.entries(DEFAULT_PANELS).map(([key, value]) => [
           key,
-          readNumber("panel-" + key, value),
+          readNumber(`panel-${key}`, value),
         ]),
       ) as PanelSizes,
   );
@@ -72,7 +72,7 @@ export function useDirectorPanels() {
     setPreferences(latest.current);
   }
   function save() {
-    for (const [key, value] of Object.entries(latest.current)) writeNumber("panel-" + key, value);
+    for (const [key, value] of Object.entries(latest.current)) writeNumber(`panel-${key}`, value);
   }
   function reset(kind: PanelKind) {
     latest.current = { ...latest.current, [kind]: DEFAULT_PANELS[kind] };
@@ -151,7 +151,7 @@ export function DirectorMonitor({
   return (
     <section
       aria-label="机位画面"
-      className={"director-monitor " + (split ? "split" : "floating")}
+      className={`director-monitor ${split ? "split" : "floating"}`}
       style={split ? { width: `${share * 100}%` } : undefined}
     >
       <div className="director-monitor-tabs">

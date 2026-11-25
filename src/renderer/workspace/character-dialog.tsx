@@ -1,6 +1,7 @@
 import {
   type CanvasCharacter,
   type ChannelView,
+  characterVoice,
   type GenerationJob,
   jobIsTerminal,
   type ProjectAsset,
@@ -87,6 +88,16 @@ export function CharacterDialog({
   const voiceJobs = jobs.filter(({ purpose }) => purpose === "character-voice");
   const latestJob = voiceJobs[0];
   const voicePrompt = character.voicePrompt ?? "";
+  useEffect(() => {
+    const voice = character.voice;
+    if (!voice || voice.name?.trim()) return;
+    const asset = assets.find((item) => item.assetId === voice.assetId);
+    if (asset?.displayName.trim())
+      changeVoice({
+        ...voice,
+        name: characterVoice(voice.assetId, voice.origin ?? "library", asset.displayName).name,
+      });
+  }, [assets, character.voice, changeVoice]);
   const voiceBusy = submitting || voiceJobs.some(({ status }) => !jobIsTerminal(status));
   const dependency = jobs.find(({ id }) => id === latestJob?.afterImageJobId);
   const source = dependency?.outputs[0];
@@ -193,7 +204,15 @@ export function CharacterDialog({
               uploading={uploadingVoice}
               upload={() => voiceInput.current?.click()}
               library={() => setPurpose("voice")}
-              adopt={(assetId) => changeVoice({ assetId, origin: "generated" })}
+              adopt={(assetId) =>
+                changeVoice(
+                  characterVoice(
+                    assetId,
+                    "generated",
+                    assets.find((asset) => asset.assetId === assetId)?.displayName,
+                  ),
+                )
+              }
             >
               <div className="voice-composer">
                 <label htmlFor="character-voice-prompt">AI 生成</label>

@@ -1,5 +1,7 @@
 import type { ProjectAsset } from "@link-studio/core";
 import { useEffect, useRef, useState } from "react";
+import { trimAllowed } from "./trim-range";
+import { TrimTrack } from "./trim-track";
 
 export function VideoTrimDialog({
   asset,
@@ -27,14 +29,13 @@ export function VideoTrimDialog({
   const [previewError, setPreviewError] = useState(false);
   const startMs = Math.round(Number(start) * 1000);
   const endMs = Math.round(Number(end) * 1000);
-  const valid =
-    start !== "" &&
-    end !== "" &&
-    Number.isSafeInteger(startMs) &&
-    Number.isSafeInteger(endMs) &&
-    startMs >= 0 &&
-    endMs > startMs &&
-    (!duration || endMs <= duration);
+  const valid = start !== "" && end !== "" && trimAllowed(startMs, endMs, duration, removeAudio);
+  const seek = (time: number) => {
+    if (video.current && !previewError) {
+      video.current.pause();
+      video.current.currentTime = time;
+    }
+  };
   useEffect(() => dialog.current?.showModal(), []);
 
   return (
@@ -71,6 +72,17 @@ export function VideoTrimDialog({
       />
       <fieldset className="video-trim-fields" disabled={busy}>
         <legend>保留片段</legend>
+        {duration > 0 && (
+          <TrimTrack
+            busy={busy}
+            url={url}
+            start={Math.max(0, Math.min(Number(start) || 0, duration / 1000))}
+            end={Math.max(0, Math.min(Number(end) || 0, duration / 1000))}
+            duration={duration / 1000}
+            seek={seek}
+            change={(which, time) => (which === "start" ? setStart : setEnd)(time.toFixed(2))}
+          />
+        )}
         <div className="video-trim-grid">
           {(
             [
@@ -85,28 +97,11 @@ export function VideoTrimDialog({
                   type="number"
                   min="0"
                   max={duration ? duration / 1000 : undefined}
-                  step="0.001"
+                  step="0.01"
                   value={value}
                   onChange={(event) => change(event.target.value)}
                 />
               </label>
-              {duration > 0 && (
-                <input
-                  type="range"
-                  aria-label={`拖动${label}`}
-                  min="0"
-                  max={duration / 1000}
-                  step="0.001"
-                  value={Number(value) || 0}
-                  onChange={(event) => {
-                    change(event.target.value);
-                    if (video.current && !previewError) {
-                      video.current.pause();
-                      video.current.currentTime = Number(event.target.value);
-                    }
-                  }}
-                />
-              )}
             </div>
           ))}
         </div>
@@ -130,7 +125,11 @@ export function VideoTrimDialog({
         >
           预览选区
         </button>
-        <span>{valid ? `片段时长 ${(endMs - startMs) / 1000} 秒` : "请选择有效的入点和出点"}</span>
+        <span>
+          {valid
+            ? `片段时长 ${(endMs - startMs) / 1000} 秒`
+            : "请保留至少 0.50 秒，并裁去一部分或移除音轨"}
+        </span>
       </fieldset>
       {previewError && <p>当前视频无法预览，可输入起止时间裁切。</p>}
       {error && <p role="alert">{error}</p>}

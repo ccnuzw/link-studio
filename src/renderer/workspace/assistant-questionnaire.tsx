@@ -76,7 +76,11 @@ export function QuestionRecord({
   return (
     <section className="agent-question-record" aria-label="小灵提问记录">
       {keyedItems(entries, (entry) => entry.label).map(({ item: { label, answer }, key }) => (
-        <section key={key} aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}>
+        <section
+          key={key}
+          className="agent-question-record-row"
+          aria-label={skipped ? answer : `你的回答：${answer || "没回答"}`}
+        >
           <CornerDownRight size={14} aria-hidden />
           {label && <span title={label}>{label}</span>}
           <strong
@@ -280,12 +284,12 @@ export function AssistantQuestionnaire({
                   required={required !== false}
                   maxLength={2048}
                   aria-invalid={!empty && !valid}
-                  aria-describedby={!empty && !valid ? control + "-error" : undefined}
+                  aria-describedby={!empty && !valid ? `${control}-error` : undefined}
                   onChange={(event) => edit(id, event.target.value)}
                 />
               )}
               {!empty && !valid && !items && (
-                <small id={control + "-error"} role="alert">
+                <small id={`${control}-error`} role="alert">
                   {kind === "number"
                     ? "请输入有效数字。"
                     : "请输入不含登录凭据的 HTTP 或 HTTPS 链接。"}

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { expectDraft } from "./assistant-theme";
+import { createCanvasProject } from "./workspace-actions";
 
 test("技能导入需要确认，重启后可筛选和管理已保存版本", async () => {
   const directory = await mkdtemp(join(tmpdir(), "link-studio-skills-e2e-"));
@@ -20,7 +21,7 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
     electron.launch({ ...(executablePath ? { executablePath, args: [] } : { args: ["."] }), env });
   const openSkills = async (app: Awaited<ReturnType<typeof launch>>) => {
     const page = await app.firstWindow();
-    await page.getByRole("button", { name: "模型设置", exact: true }).click();
+    await page.getByRole("button", { name: "应用设置", exact: true }).click();
     await page.getByRole("button", { name: "技能管理" }).click();
     return page;
   };
@@ -35,7 +36,7 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
         dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       }, source);
       const page = await openSkills(first);
-      await expect(page.getByText("技能库为空")).toBeVisible();
+      await expect(page.getByText("没有符合条件的技能")).toBeVisible();
       await page.getByRole("button", { name: "环节技能" }).click();
       const methods = page.getByRole("dialog", { name: "环节技能" });
       await expect(methods.getByLabel("环节", { exact: true }).locator("option")).toHaveCount(4);
@@ -48,7 +49,7 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
       await modal.getByRole("button", { name: "选择 SKILL.md" }).click();
       await expect(modal.getByText("# 镜头顺序", { exact: false })).toBeVisible();
       await modal.getByRole("button", { name: "取消", exact: true }).click();
-      await expect(page.getByText("技能库为空")).toBeVisible();
+      await expect(page.getByText("没有符合条件的技能")).toBeVisible();
 
       const session = await page.context().newCDPSession(page);
       const drop = { x: 180, y: 235, data: { items: [], files: [source], dragOperationsMask: 1 } };
@@ -66,7 +67,7 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
     const canvas = await launch();
     try {
       const page = await canvas.firstWindow();
-      await page.getByRole("button", { name: "新建项目" }).click();
+      await createCanvasProject(page);
       await page.getByRole("button", { name: "打开小灵" }).click();
       const panel = page.getByRole("region", { name: "画布小灵" });
       const editor = panel.getByLabel("画布消息");
@@ -74,8 +75,16 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
       const trigger = panel.getByRole("button", { name: "插入技能" });
       await editor.fill("请整理");
       await editor.evaluate((element) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         element.focus();
-        window.getSelection()!.collapse(element.querySelector("p")!.firstChild, 1);
+        requireTestValue(window.getSelection()).collapse(
+          requireTestValue(element.querySelector("p")).firstChild,
+          1,
+        );
       });
       await expect.poll(() => editor.evaluate(() => window.getSelection()?.anchorOffset)).toBe(1);
       await trigger.click();
@@ -92,7 +101,16 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
       const anchor = await trigger.boundingBox(),
         popup = await picker.boundingBox();
       if (!anchor || !popup) throw new Error("技能弹层或按钮未显示");
-      expect(Math.abs(anchor.y - popup.y - popup.height - 8)).toBeLessThan(1);
+      await expect
+        .poll(async () => {
+          const [currentAnchor, currentPopup] = await Promise.all([
+            trigger.boundingBox(),
+            picker.boundingBox(),
+          ]);
+          if (!currentAnchor || !currentPopup) return Infinity;
+          return Math.abs(currentAnchor.y - currentPopup.y - currentPopup.height - 8);
+        })
+        .toBeLessThan(1);
       expect(popup.width).toBe(372);
       await page.screenshot({
         path: test.info().outputPath("skill-menu.png"),
@@ -141,11 +159,11 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
     try {
       const page = await openSkills(second);
       await page.getByRole("button", { name: "画布 Agent", exact: true }).click();
-      await expect(page.getByRole("button", { name: "镜头清单" })).toBeVisible();
+      await expect(page.getByRole("row", { name: /镜头清单/ })).toBeVisible();
       await page.getByRole("searchbox").fill("不存在");
       await expect(page.getByText("没有符合条件的技能")).toBeVisible();
       await page.getByRole("searchbox").fill("整理镜头");
-      await page.getByRole("button", { name: "镜头清单" }).click();
+      await page.getByRole("row", { name: /镜头清单/ }).click();
       const detail = page.getByRole("dialog", { name: "技能详情" });
       await expect(detail.getByText("生效版本 · v1")).toBeVisible();
       await detail.getByRole("textbox", { name: "显示名称" }).fill("拍摄清单");
@@ -244,7 +262,7 @@ test("同模型对照试跑经确认后才能绑定，通过的结果可追溯",
       const saved = await skills.confirm({ id: picked.value.id, scopes: ["agent"], enabled: true });
       if (!saved.ok) throw Error(saved.message);
     }, address.port);
-    await page.getByRole("button", { name: "模型设置", exact: true }).click();
+    await page.getByRole("button", { name: "应用设置", exact: true }).click();
     await page.getByRole("button", { name: "技能管理" }).click();
     await page.getByRole("button", { name: "环节技能" }).click();
     const dialog = page.getByRole("dialog", { name: "环节技能" });

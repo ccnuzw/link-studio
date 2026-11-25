@@ -89,6 +89,10 @@ export function exportVideoCanvas(
       if (source.textStatus) data.status = source.textStatus;
       if (source.textStatus === "error" && source.textError !== undefined)
         data.error = source.textError;
+      if (source.textStatus === "error" && source.textFailureTask) {
+        data.taskId = source.textFailureTask.id;
+        data.errorTaskRef = source.textFailureTask.reference;
+      }
     } else if (kind === "image" || kind === "video" || kind === "audio") {
       const refs: Record<string, string[]> = {};
       const paramAssets: Record<string, unknown> = {};
@@ -118,7 +122,12 @@ export function exportVideoCanvas(
           return asset ? [{ assetHash: asset.sha256 }] : [];
         }),
         voice: voiceAsset
-          ? { mode: "audio", assetHash: voiceAsset.sha256, origin: voice?.origin ?? "upload" }
+          ? {
+              mode: "audio",
+              assetHash: voiceAsset.sha256,
+              origin: voice?.origin ?? "upload",
+              ...(voice?.name && { name: voice.name }),
+            }
           : null,
       };
     }
@@ -261,6 +270,7 @@ export function prepareVideoCanvasExchange(value: unknown, assets: readonly Proj
           voice: {
             assetId: voice.mode === "audio" ? voice.assetHash : undefined,
             origin: voice.origin,
+            ...(typeof voice.name === "string" && voice.name.length <= 255 && { name: voice.name }),
           },
         },
       },

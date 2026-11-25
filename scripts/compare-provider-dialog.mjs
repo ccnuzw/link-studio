@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { runInNewContext } from "node:vm";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const root = process.cwd(),
   web = resolve(process.env.VIDEO_CANVAS_WEB ?? "../video-canvas/web");
@@ -630,7 +631,7 @@ const catalogItems =
     : [];
 let server, browser, app;
 const providerCalls = [];
-comparison: try {
+async function compare() {
   process.chdir(web);
   server = await createServer({
     root: web,
@@ -1191,7 +1192,7 @@ comparison: try {
       { names: historyNames, hash: fixture.versions[0].sha256 },
     );
   }
-  if (!enroll && !humanDetail) await studio.getByRole("button", { name: "模型设置" }).click();
+  if (!enroll && !humanDetail) await studio.getByRole("button", { name: "应用设置" }).click();
   if (
     !kindConfirm &&
     !channelOverview &&
@@ -1364,12 +1365,15 @@ comparison: try {
           db.close();
         }
       }
-      await studio.getByRole("button", { name: "模型设置" }).click();
+      await studio.getByRole("button", { name: "应用设置" }).click();
       await studio.getByRole("button", { name: "虚拟人像库" }).click();
       await studio.getByRole("button", { name: "查看详情" }).click();
     } else {
-      await studio.getByRole("button", { name: "新建项目" }).click();
-      await studio.getByRole("button", { name: "素材库", exact: true }).click();
+      await studio.getByRole("button", { name: /^新建画布项目/ }).click();
+      await studio.getByRole("button", { name: "选择保存位置…" }).click();
+      await studio.getByRole("button", { name: "画布菜单", exact: true }).click();
+      await studio.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
+      await studio.getByRole("menuitem", { name: "项目文件", exact: true }).click();
       await studio.getByRole("button", { name: "导入素材", exact: true }).click();
       await studio.getByRole("button", { name: "加入真人库", exact: true }).click();
     }
@@ -1435,6 +1439,7 @@ comparison: try {
       .click();
     await studio.getByRole("menuitem", { name: "删除插件", exact: true }).click();
   } else if (deleteChannel) {
+    await studio.locator(".channel-more summary").click();
     await studio
       .getByRole("region", { name: "渠道详情" })
       .getByRole("button", { name: "删除", exact: true })
@@ -1604,7 +1609,7 @@ comparison: try {
       await studio.evaluate(() =>
         Object.defineProperty(navigator, "clipboard", {
           configurable: true,
-          value: { writeText: async (text) => console.log("audit-trace:" + text) },
+          value: { writeText: async (text) => console.log(`audit-trace:${text}`) },
         }),
       );
       await dialog.getByRole("button", { name: "复制全部（JSON）" }).click();
@@ -1641,9 +1646,9 @@ comparison: try {
       .click();
     if (trialRun) {
       await studio.getByText(trialFailed ? failureReason : trialText, { exact: true }).waitFor();
-      trialTask = (await studio.getByRole("heading", { name: /试跑任务 #/ }).innerText()).split(
-        "#",
-      )[1];
+      trialTask = (
+        await readRenderedText(studio.getByRole("heading", { name: /试跑任务 #/ }))
+      ).split("#")[1];
       if (trialTimeline) await studio.getByRole("tab", { name: "追踪", exact: true }).click();
     }
   } else if (dirtyTrial) {
@@ -2119,7 +2124,7 @@ comparison: try {
       size,
       "脏草稿未触发试跑；手动保存校验失败后聚焦名称；还原后可进入试跑，零供应商请求",
     );
-    break comparison;
+    return;
   }
   if (history)
     for (const page of [studio, upstream]) {
@@ -2345,9 +2350,12 @@ comparison: try {
         .getByText(message, { exact: true })
         .waitFor({ timeout: 10000 })
         .catch(async (error) => {
-          throw new Error(`${page === studio ? "studio" : "upstream"}: ${await form.innerText()}`, {
-            cause: error,
-          });
+          throw new Error(
+            `${page === studio ? "studio" : "upstream"}: ${await readRenderedText(form)}`,
+            {
+              cause: error,
+            },
+          );
         });
       assert.equal(await form.getByRole("button", { name: "复制修复信息" }).count(), 0);
       await form.getByRole("button", { name: "复制路径" }).waitFor();
@@ -2672,7 +2680,7 @@ comparison: try {
             assert.equal(await panel.getByRole("button", { name: "复制全部（JSON）" }).count(), 0);
             const badge = page.getByRole("tab", { name: /追踪/ });
             assert.equal(
-              (await badge.innerText()).replace(/\s/g, ""),
+              (await readRenderedText(badge)).replace(/\s/g, ""),
               timelineState === "empty" ? "追踪0" : "追踪",
             );
             if (timelineState === "error") {
@@ -3059,20 +3067,20 @@ comparison: try {
     if (dryView) {
       const current = dialog.getByRole("tabpanel", { name: "请求描述" }),
         code = current.locator("pre"),
-        text = await code.innerText();
+        text = await readRenderedText(code);
       assert.deepEqual(JSON.parse(text), dryDescriptor, `${label} 应显示同一份脱敏请求描述`);
       const hide = current.getByRole("button", { name: "收起", exact: true });
       if (dryView === "short") assert.equal(await hide.count(), 0);
       else {
         await hide.press("Enter");
         assert.equal(
-          await code.innerText(),
-          text.split("\n").slice(0, 12).join("\n").slice(0, 1500) + "\n…",
+          await readRenderedText(code),
+          `${text.split("\n").slice(0, 12).join("\n").slice(0, 1500)}\n…`,
         );
         const show = current.getByRole("button", { name: `展开全部（${text.length} 字符）` });
         if (dryView === "long") {
           await show.press("Space");
-          assert.equal(await code.innerText(), text);
+          assert.equal(await readRenderedText(code), text);
         }
       }
       await page.evaluate(() => document.activeElement?.blur());
@@ -4584,7 +4592,7 @@ comparison: try {
         popup.width,
         popup.height,
         Math.round(gap),
-        await list.getByRole("option", { selected: true }).innerText(),
+        await readRenderedText(list.getByRole("option", { selected: true })),
       ];
       console.log("select", label, JSON.stringify(dimensions));
       if (selectGeometry)
@@ -4645,7 +4653,7 @@ comparison: try {
           popup.y - anchor.y - anchor.height,
           popup.width,
           popup.height,
-          await list.getByRole("option", { selected: true }).innerText(),
+          await readRenderedText(list.getByRole("option", { selected: true })),
         );
         assert.ok(
           batchChannel === "long"
@@ -4716,7 +4724,7 @@ comparison: try {
         await search.fill("通义");
         await panel.locator('button[title="通义千问"]').press("Enter");
         await panel.waitFor({ state: "hidden" });
-        assert.match(await trigger.innerText(), /通义千问/);
+        assert.match(await readRenderedText(trigger), /通义千问/);
         await trigger.press("Enter");
         await search.waitFor();
         assert.equal(await search.inputValue(), "通义");
@@ -4789,7 +4797,7 @@ comparison: try {
         .filter({ has: page.getByRole("heading", { name: "上下文能力", exact: true }) });
       const apply = section.getByRole("button", { name: "应用识别值" });
       await apply.waitFor({ timeout: 6000 }).catch(async (error) => {
-        throw new Error(`${label}: ${await section.innerText()}`, { cause: error });
+        throw new Error(`${label}: ${await readRenderedText(section)}`, { cause: error });
       });
       assert.equal(await section.getByLabel("最大输出", { exact: true }).inputValue(), "8192");
       await section.evaluate((el) => el.scrollIntoView({ block: "center" }));
@@ -4858,7 +4866,7 @@ comparison: try {
         .getByRole("tab", { name: "基本信息" })
         .waitFor({ timeout: 5000 })
         .catch(async (error) => {
-          throw new Error(`${label}: ${await dialog.innerText()}`, { cause: error });
+          throw new Error(`${label}: ${await readRenderedText(dialog)}`, { cause: error });
         });
       assert.equal(await dialog.getByRole("alert").filter({ hasText: "无法切回表单" }).count(), 0);
       if (repaired) {
@@ -4880,7 +4888,7 @@ comparison: try {
     }
     if (modelTab === "json" && !jsonInvalidReturn && !jsonExtension) {
       const input = dialog.getByRole("textbox", { name: "配置 JSON" });
-      const raw = (await input.inputValue()) + "  ";
+      const raw = `${await input.inputValue()}  `;
       await input.fill(raw);
       await dialog.getByText("有未保存修改", { exact: true }).waitFor();
       await dialog.getByRole("button", { name: "格式化" }).press("Enter");
@@ -5443,7 +5451,7 @@ comparison: try {
                                                             : trialTab
                                                               ? `模型试跑-${dryView ? `请求描述-${dryView}` : voiceMenu ? "官方音色菜单首屏" : trialRefMenu ? "画布素材菜单" : timelineState ? `追踪刷新-${timelineState}` : expandedTimeline ? "HTTP追踪展开" : trialTimeline ? "钩子追踪" : trialFailed ? "业务失败" : trialSuccess ? "文本成功" : trialTab}${compact ? "-窄窗口" : ""}.png`
                                                               : modelTab
-                                                                ? `新增模型-${modelTab}${contextAgent ? "-Agent输入能力" : contextHint ? "-上下文识别" : jsonExtension ? "-离线扩展草稿" : jsonNonObject ? "-正文非对象" : jsonInvalidReturn ? "-返回表单错误" : ""}${logoMenu ? "-Logo-" + logoMenu : ""}${priceState ? "-" + priceState : ""}${compact ? "-窄窗口" : ""}.png`
+                                                                ? `新增模型-${modelTab}${contextAgent ? "-Agent输入能力" : contextHint ? "-上下文识别" : jsonExtension ? "-离线扩展草稿" : jsonNonObject ? "-正文非对象" : jsonInvalidReturn ? "-返回表单错误" : ""}${logoMenu ? `-Logo-${logoMenu}` : ""}${priceState ? `-${priceState}` : ""}${compact ? "-窄窗口" : ""}.png`
                                                                 : channel
                                                                   ? `新增渠道对照${compact ? "-窄窗口" : ""}.png`
                                                                   : keys
@@ -5470,6 +5478,10 @@ comparison: try {
       upgradeModels.map(() => fixture.versions.at(-1).sha256),
     );
   }
+}
+
+try {
+  await compare();
 } finally {
   await app?.close();
   await browser?.close();

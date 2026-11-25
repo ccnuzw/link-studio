@@ -1,8 +1,14 @@
 export const settingsPaths = {
   providers: "/admin/ai/channels",
   adapters: "/admin/ai/plugins",
+  skills: "/admin/agent/skills",
 } as const;
 export type SettingsPage = keyof typeof settingsPaths;
+const pageLabels = {
+  [settingsPaths.providers]: "模型渠道",
+  [settingsPaths.adapters]: "插件",
+  [settingsPaths.skills]: "技能",
+} as const;
 export type SettingsPageContext = {
   route: (typeof settingsPaths)[SettingsPage];
   channel_key?: string;
@@ -16,7 +22,7 @@ export function settingsRefs(context: SettingsPageContext): SettingsRef[] {
   const refs: SettingsRef[] = [
     {
       id: "page",
-      label: context.route === settingsPaths.adapters ? "插件" : "模型渠道",
+      label: pageLabels[context.route],
       title: context.route,
     },
   ];
@@ -46,7 +52,9 @@ export function historyPageContext(raw: unknown): SettingsPageContext | undefine
           data.route === settingsPaths.providers ||
           (!data.route && (channel || model))
         ? settingsPaths.providers
-        : undefined;
+        : data.route === settingsPaths.skills || data.route === "skills"
+          ? settingsPaths.skills
+          : undefined;
   if (!route) return;
   return {
     route,

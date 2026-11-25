@@ -1,5 +1,10 @@
+import { modelGenerationOptions } from "@link-studio/core";
 import { expect, it } from "vitest";
-import { decodeModelBody, inspectOfflineBody } from "../../src/renderer/settings/model-document";
+import {
+  decodeModelBody,
+  inspectOfflineBody,
+  modelCapabilities,
+} from "../../src/renderer/settings/model-document";
 import {
   editedModelText,
   isLegacyModelDraft,
@@ -12,6 +17,20 @@ const body = {
   sort: 10,
   channels: [{ channel: "channel", upstream_model: "upstream" }],
 };
+it("参考素材关闭后仍可回读原数量和大小，并且不能作为试跑输入", () => {
+  const audio = { on: false, max: 4, max_mb: 15 };
+  const raw = { ...body, kind: "video", capabilities: { refs: { audio } } };
+  const config = decodeModelBody(raw, []).config;
+  const options = modelGenerationOptions(
+    "video",
+    "doubao-video",
+    "doubao-seedance-2-5-flash",
+    {},
+    config,
+  );
+  expect(modelCapabilities(config).refs?.audio).toEqual(audio);
+  expect(options.references.audio).toBe(0);
+});
 const merge = (raw: unknown, before: unknown, after: unknown) =>
   JSON.parse(
     editedModelText(

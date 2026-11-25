@@ -202,19 +202,19 @@ try {
         page = await browser.newPage();
       try {
         page.on("pageerror", (error) => console.error(side, error));
-        await page.route(origin + "audit", (route) =>
+        await page.route(`${origin}audit`, (route) =>
           route.fulfill({
             contentType: "text/html",
             body: `<script type="module" src="${entry}"></script>`,
           }),
         );
-        await page.goto(origin + "audit");
+        await page.goto(`${origin}audit`);
         await page.waitForFunction(() => typeof window.render === "function");
         const variants = await page.evaluate((input) => window.presetScenes(input), scene);
         tracks[side] = variants;
         const frames = [
           ...cases,
-          ...variants.map(({ meta, scene: input }) => ["preset-" + meta.id, input, 1.25]),
+          ...variants.map(({ meta, scene: input }) => [`preset-${meta.id}`, input, 1.25]),
         ];
         for (const model of ["male", "female"])
           for (const pose of [
@@ -275,7 +275,7 @@ try {
         for (const aspect of ["16:9", "9:16", "1:1", "4:3", "21:9"]) {
           const input = { ...scene, cameras: [{ ...scene.cameras[0], aspect }] };
           const url = await page.evaluate((input) => window.thumbnail(input), input);
-          await store("thumbnail-" + aspect.replace(":", "x"), url, "jpg");
+          await store(`thumbnail-${aspect.replace(":", "x")}`, url, "jpg");
         }
         if (process.argv.includes("--video")) {
           const result = await page.evaluate((input) => window.take(input), {
@@ -343,7 +343,7 @@ try {
           0,
         );
       },
-      [pictures["upstream" + name], pictures["desktop" + name]],
+      [pictures[`upstream${name}`], pictures[`desktop${name}`]],
     );
   console.table(differences);
   await writeFile(join(output, "tracks.json"), JSON.stringify(tracks, null, 2));

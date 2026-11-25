@@ -15,6 +15,11 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
   try {
     const page = await app.firstWindow();
     const target = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const channels = [];
       for (const name of ["迁出", "迁入"]) {
@@ -43,7 +48,7 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
       if (!catalog.ok) throw Error(catalog.code);
       const plugin = catalog.value.plugins.find((item) => item.key === "openai");
       if (!plugin) throw Error("缺少测试协议");
-      const source = channels[0]!;
+      const source = requireTestValue(channels[0]);
       const saved = await api.modelSave({
         channelId: source.id,
         channelRevision: source.revision,
@@ -55,9 +60,9 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
         enabled: false,
       });
       if (!saved.ok) throw Error(saved.code);
-      return channels[1]!.id;
+      return requireTestValue(channels[1]).id;
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: /^JSON 迁移/ }).click();
     const editor = page.getByRole("dialog", { name: "编辑模型" });
     await editor.getByRole("button", { name: "配置 JSON" }).click();
@@ -73,6 +78,7 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
       channelId: target,
       config: { name: "JSON 迁移" },
     });
+    await page.locator(".channel-more summary").click();
     await page
       .getByRole("region", { name: "渠道详情" })
       .getByRole("button", { name: "删除", exact: true })
@@ -117,10 +123,15 @@ test("删除渠道前迁移，部分失败可重试，名称确认后删除", as
     await expect(remove).toBeDisabled();
     await confirm.getByLabel("输入名称确认删除").fill(" 迁出 ");
     await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         listing = await api.channelList({});
       if (!listing.ok) throw Error(listing.code);
-      const source = listing.value.find((item) => item.name === "迁出")!;
+      const source = requireTestValue(listing.value.find((item) => item.name === "迁出"));
       const imported = await api.modelImport({
         id: source.id,
         expectedRevision: source.revision,

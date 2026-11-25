@@ -16,24 +16,6 @@
   height: 38px;
   padding: 0 6px 0 12px;
 }
-.assistant-surface .agent-run-plan button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 0;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  line-height: 16px;
-}
-.agent-run-plan button:first-child {
-  flex: 1;
-  text-align: left;
-}
 .agent-run-plan button > span {
   flex: 1;
 }
@@ -43,34 +25,14 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.agent-run-plan button > svg {
-  flex: none;
-}
 .agent-run-plan button > svg:first-child {
   transform: rotate(-90deg);
 }
-.agent-run-plan circle:first-child {
-  stroke: color-mix(in oklab, var(--shell-ink) 15%, transparent);
-}
-.agent-run-plan circle:last-child {
-  stroke: var(--plan-color);
-  transition: stroke-dashoffset 240ms;
-}
-.agent-run-plan button > small,
 .agent-run-plan button > svg:last-child {
   color: var(--shell-muted);
 }
-.agent-run-plan button > small {
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-}
 .agent-run-plan button[aria-expanded="true"] > svg:last-child {
   transform: rotate(180deg);
-}
-.agent-run-plan button + button {
-  width: 26px;
-  height: 26px;
-  justify-content: center;
 }
 .agent-run-plan button + button:hover {
   background: var(--assistant-hover);
@@ -92,9 +54,6 @@
   margin: 0;
   padding: 8px 12px 0;
 }
-.agent-run-plan ul::-webkit-scrollbar {
-  width: 8px;
-}
 .agent-run-plan li {
   height: 26px;
   display: flex;
@@ -106,6 +65,56 @@
   width: 14px;
   display: grid;
   place-items: center;
+}
+.agent-run-plan li[data-state="done"] > span:last-child {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--shell-ink) 20%, transparent);
+}
+.assistant-plan-done svg {
+  color: light-dark(oklch(0.6 0.15 155), oklch(0.75 0.15 155));
+}
+.agent-run-plan button > svg {
+  flex: none;
+}
+.agent-run-plan button > small {
+  color: var(--shell-muted);
+}
+.agent-run-plan button > small {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.agent-run-plan button + button {
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+}
+.assistant-surface .agent-run-plan button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: 16px;
+}
+.agent-run-plan button:first-child {
+  flex: 1;
+  text-align: left;
+}
+.agent-run-plan circle:first-child {
+  stroke: color-mix(in oklab, var(--shell-ink) 15%, transparent);
+}
+.agent-run-plan circle:last-child {
+  stroke: var(--plan-color);
+  transition: stroke-dashoffset 240ms;
+}
+.agent-run-plan ul::-webkit-scrollbar {
+  width: 8px;
 }
 .agent-run-plan li i {
   width: 7px;
@@ -123,12 +132,7 @@
   background: currentColor;
   opacity: 1;
 }
-.agent-run-plan li[data-state="done"] > span:last-child {
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in oklab, var(--shell-ink) 20%, transparent);
-}
-.agent-run-plan li svg,
-.assistant-plan-done svg {
+.agent-run-plan li svg {
   color: light-dark(oklch(0.6 0.15 155), oklch(0.75 0.15 155));
 }
 .assistant-plan-done {

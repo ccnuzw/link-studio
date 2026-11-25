@@ -166,6 +166,8 @@ export function mapVideoCanvas(input: unknown, resolveAsset: ResolveAsset): Proj
                 ? {
                     voice: {
                       assetId: voiceId,
+                      ...(typeof voice.name === "string" &&
+                        voice.name.length <= 255 && { name: voice.name }),
                       ...(voice.origin === "library" ||
                       voice.origin === "generated" ||
                       voice.origin === "upload"
@@ -241,6 +243,16 @@ export function mapVideoCanvas(input: unknown, resolveAsset: ResolveAsset): Proj
           ...(kind === "script" &&
             textStatus === "error" &&
             typeof data.error === "string" && { textError: data.error.slice(0, 32768) }),
+          ...(kind === "script" &&
+            textStatus === "error" &&
+            typeof data.taskId === "string" &&
+            data.taskId.length > 0 &&
+            data.taskId.length <= 32768 &&
+            typeof data.errorTaskRef === "string" &&
+            data.errorTaskRef.length > 0 &&
+            data.errorTaskRef.length <= 32768 && {
+              textFailureTask: { id: data.taskId, reference: data.errorTaskRef },
+            }),
           ...(data.uploaded === true && mediaKinds.has(kind) ? { uploaded: true } : {}),
           ...(data.uploaded === true &&
             mediaKinds.has(kind) &&

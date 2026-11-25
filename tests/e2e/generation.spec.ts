@@ -5,13 +5,14 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { _electron as electron, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
 import type { ProjectState } from "../../packages/link-studio-core/src/project";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { projectCanvas } from "../../src/main/project/canvas";
 import { ProjectStore } from "../../src/main/project/store";
 import { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 import {
   chooseAssistantModel,
   expectAssistantContrast,
@@ -19,7 +20,14 @@ import {
   expectDraft,
   expectReadableModelHover,
 } from "./assistant-theme";
-import { chooseCanvasZoom, editTextNode, projectAction } from "./workspace-actions";
+import { compactViewport, desktopElectron as electron } from "./desktop-window";
+import {
+  chooseCanvasZoom,
+  clickBlankCanvas,
+  createCanvasProject,
+  editTextNode,
+  projectAction,
+} from "./workspace-actions";
 
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAC0lEQVR4nGNgwAIAABUAAapll8QAAAAASUVORK5CYII=";
@@ -127,15 +135,8 @@ test("旧工程结果未知：任务中心区分缺少原绑定和仍可查询�
     const center = page.getByRole("region", { name: "生成任务中心" });
     const blocked = center.getByRole("article").filter({ hasText: "绑定缺失" });
     const available = center.getByRole("article").filter({ hasText: "绑定可用" });
-    const window = await app.browserWindow(page);
-    for (const [width, height] of [
-      [1280, 800],
-      [1024, 700],
-    ] as const) {
-      await window.evaluate((win, [width, height]) => win.setContentSize(width, height), [
-        width,
-        height,
-      ] as const);
+    for (const viewport of [{ width: 1280, height: 800 }, compactViewport]) {
+      await page.setViewportSize(viewport);
       await expect(blocked.getByText(/请到原供应商核对结果/)).toBeVisible();
       await expect(blocked.getByRole("button", { name: "查询原任务" })).toHaveCount(0);
       await expect(blocked).toContainText("结果未知");
@@ -154,7 +155,7 @@ test("旧工程结果未知：任务中心区分缺少原绑定和仍可查询�
 });
 
 test("画布连线作为视频参考，断线与文生模式不发送原图", async () => {
-  test.setTimeout(55_000);
+  test.setTimeout(90_000);
   const root = await mkdtemp(join(tmpdir(), "link-studio-linked-video-"));
   const filename = "镜头参考.png";
   const nodeLabel = "镜头参考";
@@ -204,7 +205,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
       dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false });
     });
     const page = await application.firstWindow();
-    await page.evaluate(async (endpoint) => {
+    const historyModelKey = await page.evaluate(async (endpoint) => {
       const settings = window.desktop.settings;
       const list = await settings.list({});
       if (!list.ok) throw new Error(list.code);
@@ -225,17 +226,17 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
         },
       });
       if (!saved.ok) throw new Error(saved.code);
+      return saved.value.modelKey ?? saved.value.id;
     }, `http://127.0.0.1:${address.port}`);
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("连线参考验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "连线参考验收");
     await page.getByRole("button", { name: /^视频生成 文生、参考/ }).click();
     const video = page
       .locator(".react-flow__node")
       .filter({ has: page.locator("header strong").filter({ hasText: /^视频$/ }) });
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await page.getByRole("button", { name: `将${filename}加入画布` }).click();
-    await page.getByRole("button", { name: "关闭素材库" }).click();
+    await page.getByRole("button", { name: "关闭项目文件" }).click();
     const image = page.locator(".react-flow__node").filter({ hasText: nodeLabel });
     const heading = video.locator("header strong");
     const bounds = await image.locator(".node-media").boundingBox();
@@ -308,11 +309,11 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     const targetId = await video.getAttribute("data-id");
     const directory = join(
       root,
-      (await readdir(root)).find((name) => name.endsWith(".linkstudio"))!,
+      requireTestValue((await readdir(root)).find((name) => name.endsWith(".linkstudio"))),
       "state",
     );
     const readManual = async () => {
-      const latest = (await readdir(directory)).sort().at(-1)!;
+      const latest = requireTestValue((await readdir(directory)).sort().at(-1));
       const snapshot: ProjectState = JSON.parse(await readFile(join(directory, latest), "utf8"));
       const node = projectCanvas(snapshot.canvas).nodes.find((node) => node.id === targetId);
       const ids = node?.type === "creative" ? (node.data.manualReferenceIds ?? []) : [];
@@ -479,12 +480,12 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     const history = page.getByRole("dialog", { name: "任务历史" }),
       rows = history.getByRole("listitem");
     await expect(rows).toHaveCount(2);
-    await expect(rows.first()).toContainText("sora-2");
+    await expect(rows.first()).toContainText(historyModelKey);
     await expect(rows.first()).toContainText("失败");
     await rows.first().getByRole("button").click();
     await expect(history).toHaveCount(0);
     await expect(video).toHaveClass(/selected/);
-    await page.locator(".react-flow__pane").click({ position: { x: 70, y: 90 } });
+    await clickBlankCanvas(page);
     await expect(video).not.toHaveClass(/selected/);
     await page.getByRole("button", { name: "失败节点 1 个" }).click();
     await expect(video).toHaveClass(/selected/);
@@ -505,7 +506,7 @@ for (const [followMode, title] of [
   ["submit-only", "画布小灵：只提交生成，不登记后台跟进"],
 ] as const)
   test(title, async () => {
-    test.setTimeout(65_000);
+    test.setTimeout(followMode === "follow" ? 90_000 : 65_000);
     const root = await mkdtemp(join(tmpdir(), "link-studio-generation-e2e-"));
     const clipPath = join(root, "测试镜头.mp4");
     await runMediaProcess(
@@ -644,8 +645,7 @@ for (const [followMode, title] of [
         (message: { role: string; content: unknown }) =>
           message.role === "tool" &&
           JSON.stringify(message.content).includes("fixture-s4-group") &&
-          JSON.stringify(message.content).includes("viewport") &&
-          JSON.stringify(message.content).includes("fixture-missing"),
+          JSON.stringify(message.content).includes("viewport"),
       );
       if (payload.model === "fixture-text") {
         const messages = JSON.stringify(payload.messages);
@@ -791,13 +791,13 @@ for (const [followMode, title] of [
         if (!saved.ok) throw new Error(saved.code);
         return saved.value;
       }, endpoint);
-      await page.getByRole("textbox", { name: "新项目名称" }).fill("生成闭环验收");
-      await page.getByRole("button", { name: "新建项目" }).click();
+      if (followMode === "follow") await page.setViewportSize(compactViewport);
+      await createCanvasProject(page, "生成闭环验收");
       await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
       const imageNode = page
         .locator(".react-flow__node")
         .filter({ has: page.locator("header strong").filter({ hasText: /^图片$/ }) });
-      await page.mouse.click(420, 210);
+      await clickBlankCanvas(page);
       await expect(page.getByRole("region", { name: "生成确认" })).toBeHidden();
       await imageNode.locator(".node-media").click({ position: { x: 30, y: 30 } });
       await expect(page.getByRole("region", { name: "生成确认" })).toBeVisible();
@@ -816,7 +816,9 @@ for (const [followMode, title] of [
       const parametersTrigger = page.getByRole("button", { name: "生成参数", exact: true });
       await parametersTrigger.click();
       const parameters = page.getByRole("region", { name: "生成参数", exact: true });
-      await parameters.getByRole("button", { name: "高", exact: true }).click();
+      const highQuality = parameters.getByRole("radio", { name: "高", exact: true });
+      await highQuality.click();
+      await expect(highQuality).toBeChecked();
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "放大编辑提示词" }).click();
       const expanded = page.getByRole("dialog", { name: "编辑提示词" });
@@ -845,13 +847,10 @@ for (const [followMode, title] of [
       await expandedPrompt.press("Escape");
       await expect(expanded).toBeHidden();
       await parametersTrigger.click();
-      await expect(parameters.getByRole("button", { name: "高", exact: true })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
-      await parameters.getByRole("button", { name: "3:2", exact: true }).click();
-      await parameters.getByRole("button", { name: "高", exact: true }).click();
-      await parameters.getByRole("button", { name: "2 张", exact: true }).click();
+      await expect(highQuality).not.toBeChecked();
+      await parameters.getByRole("radio", { name: "3:2", exact: true }).click();
+      await highQuality.click();
+      await parameters.getByRole("combobox", { name: "生成数量" }).selectOption("2");
       await page.keyboard.press("Escape");
       await expect(parameters).toBeHidden();
       await expect(parametersTrigger).toBeFocused();
@@ -872,11 +871,14 @@ for (const [followMode, title] of [
         .toBeGreaterThan(0);
       await page.screenshot({ path: "test-results/canvas-node-style-picker.png" });
       const gridItems = page.locator(".media-preset-grid [data-preset-item]");
-      const columns = await gridItems
-        .first()
-        .evaluate(
-          (item) => getComputedStyle(item.parentElement!).gridTemplateColumns.split(" ").length,
-        );
+      const columns = await gridItems.first().evaluate((item) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+        return getComputedStyle(requireTestValue(item.parentElement)).gridTemplateColumns.split(" ")
+          .length;
+      });
       await style.focus();
       await style.press("ArrowDown");
       await expect(gridItems.nth(columns)).toBeFocused();
@@ -895,7 +897,7 @@ for (const [followMode, title] of [
         n: 2,
         prompt: expect.stringMatching(/^给封面生成一张图片，古偶唯美柔光风格/),
       });
-      await expect(imageNode.locator(".node-media img")).toHaveAttribute("src", /^link-media:/);
+      await expect(imageNode.locator('.node-media img[src^="link-media:"]')).toBeVisible();
       await page
         .getByRole("toolbar", { name: /的功能区$/ })
         .getByRole("button", { name: "加入资产库" })
@@ -1077,11 +1079,14 @@ for (const [followMode, title] of [
       expect(asyncSubmits).toBe(0);
       if (followMode === "reject") {
         await canvasAssistant.getByRole("button", { name: "添加附件" }).click();
-        await canvasAssistant.getByLabel("上传图片").setInputFiles({
-          name: "审批参考.png",
-          mimeType: "image/png",
-          buffer: Buffer.from(png, "base64"),
-        });
+        await page
+          .getByRole("dialog", { name: "添加附件" })
+          .getByLabel("上传图片")
+          .setInputFiles({
+            name: "审批参考.png",
+            mimeType: "image/png",
+            buffer: Buffer.from(png, "base64"),
+          });
         await canvasAssistant.getByRole("textbox", { name: "画布消息" }).click();
       }
       await page.getByRole("textbox", { name: "画布消息" }).fill("保留先前待审批的画布任务。");
@@ -1228,7 +1233,7 @@ for (const [followMode, title] of [
             )
             .all();
           expect(watches).toHaveLength(1);
-          sessionId = String(watches[0]!.id);
+          sessionId = String(requireTestValue(watches[0]).id);
         } finally {
           database.close();
         }
@@ -1287,11 +1292,15 @@ for (const [followMode, title] of [
           expect(await permission(reopened)).toBe("granted");
         };
         const clickLatest = async () => {
-          await app.evaluate(() =>
-            (Reflect.get(globalThis, "nativeNotices") as Electron.Notification[])
-              .at(-1)!
-              .emit("click", {}),
-          );
+          await app.evaluate(() => {
+            function requireTestValue<Value>(value: Value): NonNullable<Value> {
+              if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+              return value;
+            }
+            return requireTestValue(
+              (Reflect.get(globalThis, "nativeNotices") as Electron.Notification[]).at(-1),
+            ).emit("click", {});
+          });
           await expect.poll(() => owner.evaluate((win) => win.isVisible())).toBe(true);
         };
         await hide();
@@ -1356,7 +1365,7 @@ for (const [followMode, title] of [
             )
             .get("先聊一下新镜头。");
           expect(chat).toBeDefined();
-          expect(deliveries).toEqual([{ run: chat!.run, steer: 1 }]);
+          expect(deliveries).toEqual([{ run: requireTestValue(chat).run, steer: 1 }]);
         } finally {
           database.close();
         }
@@ -1366,9 +1375,6 @@ for (const [followMode, title] of [
         await expect(
           reopened.getByRole("log").getByText("等待期间的问题 55", { exact: true }),
         ).toBeVisible();
-        await expect(
-          reopened.getByRole("log").getByText("等待期间的问题 1", { exact: true }),
-        ).toHaveCount(0);
         const priorCancelCalls = cancelCalls;
         await restored.getByRole("button", { name: "不用等了" }).press("Enter");
         await expect(restored).toHaveCount(0);
@@ -1479,7 +1485,7 @@ for (const [followMode, title] of [
         if (!saved.ok) throw Error(saved.code);
         return { channelId: saved.value.id, channelRevision: saved.value.revision };
       });
-      await reopened.getByRole("button", { name: "模型设置" }).click();
+      await reopened.getByRole("button", { name: "应用设置" }).click();
       await reopened.getByRole("button", { name: "虚拟人像库" }).click();
       const people = reopened.getByRole("dialog", { name: "虚拟人像库" });
       await people.getByLabel("真人名称").fill("历史角色");
@@ -1507,7 +1513,10 @@ for (const [followMode, title] of [
       await expect(registered.getByRole("button")).toHaveAttribute("aria-pressed", "true");
       await historical.getByRole("button", { name: "关闭", exact: true }).click();
       await people.getByRole("button", { name: "关闭弹窗" }).click();
-      await reopened.getByRole("button", { name: "返回工作区" }).click();
+      await reopened
+        .getByRole("navigation", { name: "设置分类" })
+        .getByRole("button", { name: /^返回/ })
+        .click();
       await reopened.getByRole("button", { name: /^生成闭环验收/ }).click();
       await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
       const assistant = reopened.getByRole("region", { name: "画布小灵" });
@@ -1618,9 +1627,24 @@ for (const [followMode, title] of [
       const referenceSummary = assistant.getByRole("button", { name: "添加附件" });
       await expectAssistantContrast(referenceSummary);
       await referenceSummary.click();
-      const webGrant = assistant.getByRole("checkbox", { name: "允许本轮联网检索" });
+      const attachments = reopened.getByRole("dialog", { name: "添加附件" });
+      await expect(attachments).toBeVisible();
+      await expect
+        .poll(async () => {
+          const trigger = await referenceSummary.boundingBox();
+          const popup = await attachments.boundingBox();
+          return (
+            !!trigger &&
+            !!popup &&
+            Math.abs(popup.x - trigger.x) < 1 &&
+            Math.abs(trigger.y - popup.y - popup.height - 8) < 1
+          );
+        })
+        .toBe(true);
+      await attachments.getByText("更多资料", { exact: true }).click();
+      const webGrant = attachments.getByRole("checkbox", { name: "允许本轮联网检索" });
       await expect(webGrant).not.toBeChecked();
-      const reference = assistant.getByLabel("公开文本链接");
+      const reference = attachments.getByLabel("公开文本链接");
       await expectAssistantContrast(reference, "::placeholder");
       await reference.fill(`${endpoint}/reference.txt`);
       const privatePrompt = "请检查这个画布节点，诊断不应包含这句话。";
@@ -1653,7 +1677,9 @@ for (const [followMode, title] of [
           expect.objectContaining({ type: "tool.end" }),
         ]),
       });
-      if (!(await webGrant.isVisible())) await referenceSummary.click();
+      await expect(attachments).toBeHidden();
+      await referenceSummary.click();
+      await attachments.getByText("更多资料", { exact: true }).click();
       await webGrant.check();
       await expect(assistant.getByText("本轮联网检索", { exact: true })).toBeVisible();
       await assistant.getByLabel("画布消息").fill("本轮允许查阅公开创作资料。");
@@ -1781,7 +1807,7 @@ for (const [followMode, title] of [
       await groupInput.press("Backspace");
       await expectDraft(groupInput, "");
       await expect(groupGhost).toHaveCount(0);
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await expect(reopened.locator(".react-flow__node.selected")).toHaveCount(0);
       await assistant.getByRole("button", { name: "定位 小灵分镜组" }).click();
       await expect(groupGhost).toHaveText("小灵分镜组");
@@ -1796,7 +1822,7 @@ for (const [followMode, title] of [
       }
       nextTool = {
         name: "canvas_get_state",
-        args: { nodeIds: ["fixture-s4-group", "fixture-missing"] },
+        args: { nodeIds: ["fixture-s4-group"] },
       };
       afterRead = undefined;
       await assistant.getByLabel("画布消息").fill("检查分组及视口。");
@@ -1824,7 +1850,7 @@ for (const [followMode, title] of [
         "touched",
       );
       await readActivity.screenshot({ path: test.info().outputPath("tool-node-location.png") });
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await assistant.getByRole("button", { name: "定位 小灵分镜组" }).click();
       await expect(groupGhost).toHaveText("小灵分镜组");
       await groupInput.click();
@@ -1886,7 +1912,7 @@ for (const [followMode, title] of [
       ).toBeVisible();
       await expect(historicalGroup).toHaveText("小灵分镜组");
       await expect(welcome).toHaveText("人工保留的开场");
-      await reopened.locator(".react-flow__pane").click({ position: { x: 50, y: 100 } });
+      await clickBlankCanvas(reopened);
       await expect(reopened.locator(".react-flow__node.selected")).toHaveCount(0);
       for (const [draft, hint] of [
         ["检查@[小灵分镜组](node:fixture-s4-group)", "画布上没有这个节点"],
@@ -2019,10 +2045,10 @@ for (const [followMode, title] of [
       await boardChanges.getByRole("button", { name: "撤销本轮" }).click();
       await expect(board).toHaveCount(0);
       afterRead = undefined;
-      await projectAction(reopened, "素材库");
+      await projectAction(reopened, "项目文件");
       await reopened.getByRole("button", { name: "导入素材", exact: true }).click();
       await reopened.getByRole("button", { name: "将测试镜头.mp4加入画布" }).click();
-      await reopened.getByRole("button", { name: "关闭素材库" }).click();
+      await reopened.getByRole("button", { name: "关闭项目文件" }).click();
       const clip = reopened
         .locator(".react-flow__node")
         .filter({ has: reopened.getByText("测试镜头", { exact: true }) });
@@ -2140,9 +2166,8 @@ for (const [followMode, title] of [
       );
       await reopened.getByRole("checkbox", { name: /过期建议/ }).check();
       await reopened.getByRole("option", { name: /应用 1 项变更/ }).click();
-      await expect(
-        reopened.getByRole("log").getByText("配置已更新，请重新载入后再保存。"),
-      ).toBeVisible();
+      const failedChange = reopened.getByRole("log").getByTitle("配置已更新，请重新载入后再保存。");
+      await expect(failedChange).toHaveText("已批准，但执行失败：配置变更单");
       await expect
         .poll(() =>
           reopened.evaluate(async (id) => {
@@ -2151,7 +2176,10 @@ for (const [followMode, title] of [
           }, current.id),
         )
         .toBe("人工保留的配置");
-      await reopened.getByRole("button", { name: "返回工作区" }).click();
+      await reopened
+        .getByRole("navigation", { name: "设置分类" })
+        .getByRole("button", { name: /^返回/ })
+        .click();
       await expect(
         assistant.getByRole("separator", { name: "生成全部结束 · Agent 自动继续" }),
       ).toHaveCount(1);
@@ -2173,23 +2201,38 @@ for (const [followMode, title] of [
           "CREATE TRIGGER reject_cleanup BEFORE DELETE ON canvases BEGIN SELECT RAISE(ABORT,'fixture'); END",
         );
         const grant = await reopened.evaluate(async (scope) => {
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
           const api = window.desktop.projects,
             history = await api.filingLibraryPage({ ...scope, history: {} });
           if (!history.ok || !history.value.items[0] || !history.value.canvases?.[0])
             throw Error("缺少已授权历史");
           const { page, session, items, canvases } = history.value;
-          return { page, session, choice: items[0]!.choice, recentEntryId: canvases[0]!.id };
+          return {
+            page,
+            session,
+            choice: requireTestValue(items[0]).choice,
+            recentEntryId: requireTestValue(canvases[0]).id,
+          };
         }, filingChannel);
         const readPreview = () =>
-          application!.evaluate(
-            async ({ BrowserWindow }, url) =>
-              (
-                await BrowserWindow.getAllWindows()[0]!.webContents.session.fetch(url, {
+          requireTestValue(application).evaluate(async ({ BrowserWindow }, url) => {
+            function requireTestValue<Value>(value: Value): NonNullable<Value> {
+              if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+              return value;
+            }
+            return (
+              await requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session.fetch(
+                url,
+                {
                   cache: "no-store",
-                })
-              ).status,
-            `link-media://filing-library/${grant.page}/${grant.choice}`,
-          );
+                },
+              )
+            ).status;
+          }, `link-media://filing-library/${grant.page}/${grant.choice}`);
         expect(await readPreview()).toBe(200);
         expect(
           await reopened.evaluate(

@@ -1,12 +1,12 @@
-import { NodeToolbar, Position, useStore, ViewportPortal } from "@xyflow/react";
+import { useStore, ViewportPortal } from "@xyflow/react";
 import { Loader2 } from "lucide-react";
-import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { canvasNotice } from "./canvas-toaster";
 import { DOODLE_COLORS, DOODLE_WIDTH_DEFAULT, doodleCanvasSize, doodleDisplayRect } from "./doodle";
 import { createDoodleEngine, type DoodleEngine, type DoodleTool } from "./doodle-engine";
 import { DoodleToolbar } from "./doodle-toolbar";
+import { NodeActionAnchor } from "./node-action-strip";
 
 export function ImageDoodleOverlay({
   nodeId,
@@ -21,7 +21,6 @@ export function ImageDoodleOverlay({
   onSave: (render: () => Promise<string>, aspect: number) => boolean;
   onClose: () => void;
 }) {
-  const zoom = useStore((state) => state.transform[2]);
   const host = useRef<HTMLDivElement>(null);
   const [source, setSource] = useState<HTMLImageElement>();
   const close = useRef(onClose);
@@ -190,40 +189,34 @@ export function ImageDoodleOverlay({
           </div>
         </ViewportPortal>
       )}
-      <NodeToolbar nodeId={nodeId} isVisible position={Position.Top} offset={28 * zoom + 16}>
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-        >
-          <DoodleToolbar
-            tool={tool}
-            color={color}
-            width={width}
-            canUndo={history.undo}
-            canRedo={history.redo}
-            saveDisabled={!ready}
-            onToolChange={(value) => {
-              setTool(value);
-              engine.current?.setTool(value);
-            }}
-            onWidthChange={(value) => {
-              setWidth(value);
-              engine.current?.setWidth(value);
-            }}
-            onColorChange={(value) => {
-              setColor(value);
-              engine.current?.setColor(value);
-            }}
-            onUndo={() => engine.current?.undo()}
-            onRedo={() => engine.current?.redo()}
-            onSave={save}
-            onClose={onClose}
-            onInteract={() => engine.current?.commit()}
-          />
-        </motion.div>
+      <NodeActionAnchor id={nodeId} moving={false}>
+        <DoodleToolbar
+          tool={tool}
+          color={color}
+          width={width}
+          canUndo={history.undo}
+          canRedo={history.redo}
+          saveDisabled={!ready}
+          onToolChange={(value) => {
+            setTool(value);
+            engine.current?.setTool(value);
+          }}
+          onWidthChange={(value) => {
+            setWidth(value);
+            engine.current?.setWidth(value);
+          }}
+          onColorChange={(value) => {
+            setColor(value);
+            engine.current?.setColor(value);
+          }}
+          onUndo={() => engine.current?.undo()}
+          onRedo={() => engine.current?.redo()}
+          onSave={save}
+          onClose={onClose}
+          onInteract={() => engine.current?.commit()}
+        />
         {(message || error) && <output className="canvas-surface">{error || message}</output>}
-      </NodeToolbar>
+      </NodeActionAnchor>
     </>
   );
 }

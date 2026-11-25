@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-
 import {
   type BubbleContext,
   type BubbleInput,
@@ -12,6 +11,7 @@ import {
   MAX_QUEUE,
   MERGE_WINDOW_MS,
 } from "../../src/renderer/workspace/pet/bubble-queue";
+import { requireTestValue } from "../require-test-value";
 
 let seq = 0;
 const make = (patch: Partial<BubbleInput> = {}): BubbleInput => ({
@@ -101,7 +101,7 @@ describe("基本显示", () => {
       push(make({ id: "x", key: "k", text: "{n} 个视频好了" }), 0),
       push(make({ id: "y", key: "k", text: "{n} 个视频好了" }), 100),
     );
-    expect(bubbleText(s.current!)).toBe("2 个视频好了");
+    expect(bubbleText(requireTestValue(s.current))).toBe("2 个视频好了");
   });
 });
 
@@ -187,13 +187,13 @@ describe("合并与去重", () => {
       push(make({ key: "k" }), 500),
     );
     expect(s.queue.length).toBe(1);
-    expect(s.queue[0]!.count).toBe(2);
+    expect(requireTestValue(s.queue[0]).count).toBe(2);
   });
 
   test("合并会让显示中的气泡版本号加一（界面据此重新计时）", () => {
     const s1 = run(initialBubbleQueue(), push(make({ key: "k" }), 0));
     const s2 = run(s1, push(make({ key: "k" }), 100));
-    expect(s2.current!.version).toBe(s1.current!.version + 1);
+    expect(requireTestValue(s2.current).version).toBe(requireTestValue(s1.current).version + 1);
   });
 
   test("同一个 id 去重：不重复入队，内容更新", () => {
@@ -215,7 +215,7 @@ describe("合并与去重", () => {
       push(make({ id: "same", text: "新" }), 10_000),
     );
     expect(s.queue.length).toBe(1);
-    expect(s.queue[0]!.text).toBe("新");
+    expect(requireTestValue(s.queue[0]).text).toBe("新");
   });
 });
 

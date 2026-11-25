@@ -171,7 +171,7 @@ try {
                       const pixels = await Promise.all(
                         images.map(async (url) => {
                           const image = new Image();
-                          image.src = "data:image/png;base64," + url;
+                          image.src = `data:image/png;base64,${url}`;
                           await image.decode();
                           const canvas = document.createElement("canvas");
                           canvas.width = image.width;
@@ -213,7 +213,7 @@ try {
                 for (const width of [272, 176]) {
                   await page
                     .locator("#strip")
-                    .evaluate((element, width) => (element.style.width = width + "px"), width);
+                    .evaluate((element, width) => (element.style.width = `${width}px`), width);
                   await capture(`warnings-${width}`, {
                     x: 32,
                     y: 32,

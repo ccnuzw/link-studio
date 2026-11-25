@@ -1,40 +1,8 @@
 import type { ProviderView, SettingsEvent } from "@link-studio/core";
-import { ArrowUp, Plus, Square } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { ArrowUp, Square } from "lucide-react";
+import type { ReactNode } from "react";
 import { AgentModelMenu } from "./agent-model-menu";
 import { AssistantContextRing } from "./assistant-context-ring";
-
-export function ComposerTool({
-  label,
-  icon,
-  children,
-  disabled,
-}: {
-  label: string;
-  icon: ReactNode;
-  children: ReactNode;
-  disabled?: boolean;
-}) {
-  const id = useId();
-  return (
-    <>
-      <button
-        type="button"
-        className="composer-tool"
-        aria-label={label}
-        title={label}
-        popoverTarget={id}
-        disabled={disabled}
-      >
-        {icon}
-      </button>
-      <div id={id} className="composer-popover" popover="auto">
-        <strong>{label}</strong>
-        {children}
-      </div>
-    </>
-  );
-}
 
 export function ComposerTools({
   attachments,
@@ -46,7 +14,6 @@ export function ComposerTools({
   openSettings,
   events,
   locked,
-  attachmentsLocked = locked,
   canSend,
   active,
   stop,
@@ -61,7 +28,6 @@ export function ComposerTools({
   openSettings?: () => void;
   events: SettingsEvent[];
   locked: boolean;
-  attachmentsLocked?: boolean;
   canSend: boolean;
   active: boolean;
   stop?: () => void;
@@ -70,15 +36,7 @@ export function ComposerTools({
   const current = models.find((model) => model.id === modelId) ?? models[0];
   return (
     <div className="composer-toolbar">
-      {attachments && (
-        <ComposerTool
-          label="添加附件"
-          icon={<Plus size={17} aria-hidden="true" />}
-          disabled={attachmentsLocked}
-        >
-          {attachments}
-        </ComposerTool>
-      )}
+      {attachments}
       {attachments && <span className="composer-divider" aria-hidden="true" />}
       {media}
       {skills}

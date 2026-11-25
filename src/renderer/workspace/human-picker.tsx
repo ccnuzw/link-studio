@@ -1,4 +1,5 @@
 import type { ChannelView, SettingsValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { useEffect, useState } from "react";
 import { ModelModal } from "../settings/model-editor";
 import { useFilingPoll } from "../settings/use-filing-poll";
@@ -82,7 +83,8 @@ export function HumanPicker({
               const ready = members.filter(
                 (image) => image.status === "active" && image.hasSource,
               ).length;
-              const cover = members.find((image) => image.cover) ?? members[0]!;
+              const cover =
+                members.find((image) => image.cover) ?? requirePresent(members[0], "members[0]");
               return (
                 <li key={id}>
                   <button

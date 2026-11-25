@@ -6,7 +6,13 @@ import type { SettingsRegistry } from "../settings/registry.ts";
 import { dramaDocument } from "./drama.ts";
 import { dramaKnownCast } from "./drama-cast.ts";
 import { quoteDramaContinuation } from "./drama-estimate.ts";
-import { nextNovelBatch, novelAnalysisSample, preflightDramaSource } from "./drama-source.ts";
+import {
+  dramaPromptLimit,
+  nextNovelBatch,
+  novelAnalysisSample,
+  preflightDramaSource,
+  runeCount,
+} from "./drama-source.ts";
 import { readDramaText } from "./drama-source-blob.ts";
 import { ProjectError } from "./errors.ts";
 import type { ProjectStore } from "./store.ts";
@@ -16,7 +22,8 @@ type Task = NonNullable<Planning["pending"]>;
 type Runtime = Pick<
   SettingsRegistry,
   "agentBinding" | "dramaAssetStage" | "dramaPromptText" | "recordDramaDuration"
->;
+> &
+  Partial<Pick<SettingsRegistry, "dramaObservedSeconds">>;
 type Analysis = { summary: string; characters_md: string; outline_md: string };
 type Episode = Pick<
   DramaDocument["episodes"][number],
@@ -60,9 +67,7 @@ async function pendingTask(store: ProjectStore, registry: Runtime, signal: Abort
         result: { task: plan.pending, model: plan.pending.model ?? plan.model },
       };
     const config = registry.agentBinding(plan.model.id, plan.model.revision).profile.config;
-    const limit = config?.contextWindow
-      ? Math.max(1, Math.floor(config.contextWindow * 0.6))
-      : 12000;
+    const limit = dramaPromptLimit(config?.contextWindow);
     const units = preflightDramaSource(
       await readDramaText(doc.source, store.directory),
       "novel",
@@ -92,16 +97,38 @@ async function pendingTask(store: ProjectStore, registry: Runtime, signal: Abort
         next_episode_no: (last?.episode_no ?? 0) + 1,
         previous_cliffhanger: last?.cliffhanger ?? "",
       };
-      const prompt = await registry.dramaPromptText(
-        "plan",
-        context,
-        signal,
-        doc.prompt_snapshots?.plan?.body,
-      );
-      const batch = nextNovelBatch(units, plan.cursor, plan.end, limit - Array.from(prompt).length);
-      input = { ...context, source: batch.source };
-      to = batch.to;
-    } else input = { ...variables, known_cast: [], source: novelAnalysisSample(units, limit) };
+      const body = doc.prompt_snapshots?.plan?.body;
+      const overhead = runeCount(await registry.dramaPromptText("plan", context, signal, body));
+      let end = plan.end;
+      while (true) {
+        const batch = nextNovelBatch(units, plan.cursor, end, limit - overhead);
+        input = { ...context, source: batch.source };
+        if (runeCount(await registry.dramaPromptText("plan", input, signal, body)) <= limit) {
+          to = batch.to;
+          break;
+        }
+        end = batch.to - 1;
+      }
+    } else {
+      const context = { ...variables, known_cast: dramaKnownCast(state, doc), source: "" };
+      const overhead = runeCount(await registry.dramaPromptText("analyze", context, signal));
+      let budget = Math.min(40000, limit - overhead);
+      while (true) {
+        if (budget < 1)
+          throw new ProjectError(
+            "DRAMA_CONTEXT",
+            "研读提示词超过输入预算，请在项目设置中选择上下文更大的模型",
+          );
+        const source = novelAnalysisSample(units, budget);
+        input = { ...context, source };
+        const size = runeCount(await registry.dramaPromptText("analyze", input, signal));
+        if (size <= limit) break;
+        budget = Math.max(
+          budget === 1 ? 0 : 1,
+          Math.floor((budget * (limit - overhead)) / (size - overhead)) - 1,
+        );
+      }
+    }
     const task: Task = {
       id: randomBytes(16).toString("hex"),
       step: plan.summary ? "plan" : "analyze",
@@ -111,6 +138,8 @@ async function pendingTask(store: ProjectStore, registry: Runtime, signal: Abort
       created_at: new Date().toISOString(),
       model: plan.model,
     };
+    const expected = registry.dramaObservedSeconds?.(plan.model, task.step);
+    if (expected) task.expected_seconds = expected;
     plan.pending = task;
     if (task.step === "plan" && doc.prompt_snapshots?.plan)
       task.body = doc.prompt_snapshots.plan.body;
@@ -250,7 +279,10 @@ export async function runDramaPlanning(
             error instanceof ProjectError ? error.message : "完整提示词超过模型上下文预算";
         } else {
           plan.pause_code = "failed";
-          plan.pause_reason = "模型任务失败，请检查模型后重试";
+          plan.pause_reason =
+            error instanceof ProviderError
+              ? `模型任务失败 · ${error.code}`
+              : "模型任务失败，请检查模型后重试";
         }
         delete plan.pending;
         doc.overview_revision = (doc.overview_revision ?? doc.revision) + 1;

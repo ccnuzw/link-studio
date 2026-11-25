@@ -11,5 +11,5 @@
     "packages/**/*.ts",
     "tests/**/*.ts"
   ],
-  "exclude": ["packages/agent-runtime/upstream"]
+  "exclude": ["packages/agent-runtime/upstream", "tests/unit/**/*.renderer.test.ts"]
 }

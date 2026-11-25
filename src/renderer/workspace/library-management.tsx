@@ -75,7 +75,7 @@ export function LibraryLocationDialog({
   confirm,
 }: {
   currentFolder?: string | null;
-  handle: string;
+  handle?: string;
   close: () => void;
   confirm: (folderId: string | null) => Promise<void>;
 }) {
@@ -88,7 +88,7 @@ export function LibraryLocationDialog({
     const refresh = () => reload((value) => value + 1);
     const unsubscribe = window.desktop.projectEvents?.onLibraryChanged?.(refresh);
     void window.desktop.projects
-      .listLibraryFolders({ projectHandle: handle })
+      .listLibraryFolders(handle ? { projectHandle: handle } : {})
       .then((result) => {
         if (!active) return;
         if (result.ok) {
@@ -187,7 +187,7 @@ export function LibraryLocationDialog({
             setCreating(true);
             try {
               const result = await window.desktop.projects.createLibraryFolder({
-                projectHandle: handle,
+                ...(handle && { projectHandle: handle }),
                 name,
               });
               if (!result.ok) throw Error(result.error.message);

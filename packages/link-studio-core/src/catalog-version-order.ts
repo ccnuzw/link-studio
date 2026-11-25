@@ -1,8 +1,6 @@
 function numericCore(version: string): number[] {
-  return version
-    .split("-", 1)[0]!
-    .split(".")
-    .map((part) => Number.parseInt(part, 10) || 0);
+  const [core = ""] = version.split("-", 1);
+  return core.split(".").map((part) => Number.parseInt(part, 10) || 0);
 }
 
 export function compareCore(left: string, right: string) {
@@ -35,5 +33,7 @@ export function groupAdapters<Entry extends { key: string; version: string }>(
     if (group) group.push(plugin);
     else groups.set(plugin.key, [plugin]);
   }
-  return [...groups.keys()].sort().map((key) => newestCatalogVersions(groups.get(key)!));
+  return [...groups]
+    .sort(([left], [right]) => (left > right ? 1 : left < right ? -1 : 0))
+    .map(([, group]) => newestCatalogVersions(group));
 }

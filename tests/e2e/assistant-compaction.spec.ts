@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { confirmDramaScript, projectAction } from "./workspace-actions";
+import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 function gate() {
   let resolve!: () => void;
@@ -88,7 +88,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
           `data: ${JSON.stringify({ id: "fixture", object: "chat.completion.chunk", choices: [{ index: 0, delta: fields, finish_reason: finish }], ...(finish && { usage: { prompt_tokens: input, completion_tokens: 20, total_tokens: input + 20 } }) })}\n\n`;
         response
           .writeHead(200, { "content-type": "text/event-stream" })
-          .end(frame(delta, null) + frame({}, tool ? "tool_calls" : "stop") + "data: [DONE]\n\n");
+          .end(`${frame(delta, null) + frame({}, tool ? "tool_calls" : "stop")}data: [DONE]\n\n`);
       });
       server.listen(0, "127.0.0.1");
       await once(server, "listening");
@@ -159,14 +159,13 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         };
         const open = async (reopen = false) => {
           if (scope === "设置") {
-            await page.getByRole("button", { name: "模型设置" }).click();
+            await page.getByRole("button", { name: "应用设置" }).click();
             await page.getByRole("button", { name: "设置助手" }).click();
             return;
           }
           if (reopen) await page.getByRole("button", { name: /^自动整理验收项目/ }).click();
           else {
-            await page.getByRole("textbox", { name: "新项目名称" }).fill("自动整理验收项目");
-            await page.getByRole("button", { name: "新建项目" }).click();
+            await createCanvasProject(page, "自动整理验收项目");
           }
           if (scope === "画布") {
             await page.getByRole("button", { name: "打开小灵", exact: true }).click();
@@ -189,6 +188,10 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         const divider = () =>
           panel().getByRole("separator", {
             name: fails ? "较早的对话没能整理" : "已整理较早的对话",
+          });
+        const tooltip = () =>
+          page.getByRole("tooltip", {
+            name: fails ? /这一轮不会再自动整理/ : /聊天记录没有变/,
           });
         await open();
         await expect(panel().getByRole("status")).toHaveText("就绪");
@@ -227,11 +230,9 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await page.keyboard.press("Shift+Tab");
         await page.keyboard.press("Tab");
         await expect(divider()).toBeFocused();
-        await expect(page.getByRole("tooltip")).toContainText(
-          fails ? "这一轮不会再自动整理" : "聊天记录没有变",
-        );
+        await expect(tooltip()).toBeVisible();
         await page.keyboard.press("Escape");
-        await expect(page.getByRole("tooltip")).toHaveCount(0);
+        await expect(tooltip()).toHaveCount(0);
         await panel().getByRole("button", { name: "新对话", exact: true }).click();
         await expect(divider()).toHaveCount(0);
         await expect(panel().getByRole("button", { name: /^上下文用量 0 \// })).toBeVisible();

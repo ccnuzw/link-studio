@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { fakeGo } from "../../packages/agent-runtime/upstream/test/fake-go";
-import { projectAction } from "./workspace-actions";
+import { createCanvasProject, projectAction } from "./workspace-actions";
 
 test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/IPC 可响应", async () => {
   const directory = await mkdtemp(join(tmpdir(), "link-studio-agent-e2e-"));
@@ -41,7 +41,7 @@ test("M0 Agent spike：包内 SQLite/QuickJS 可运行，模型等待期间 UI/I
   });
   try {
     const page = await application.firstWindow();
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page);
     await expect(page.getByRole("heading", { name: "从一个节点开始" })).toBeVisible();
     await application.evaluate(
       async ({ app }, input) => {

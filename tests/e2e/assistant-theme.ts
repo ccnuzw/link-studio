@@ -15,7 +15,7 @@ export async function expectDraft(editor: Locator, expected: string | RegExp) {
             item.replaceWith("\n");
           });
           copy.querySelectorAll(".agent-editor-chip").forEach((item) => {
-            item.replaceWith("@" + item.textContent);
+            item.replaceWith(`@${item.textContent}`);
           });
           return copy.textContent;
         })
@@ -36,6 +36,11 @@ function luminance(channels: number[]) {
 
 export async function expectAssistantContrast(target: Locator, pseudo?: string) {
   const { foreground, background, opacity } = await target.evaluate((element, pseudo) => {
+    function requireTestValue<Value>(value: Value): NonNullable<Value> {
+      if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+      return value;
+    }
+
     const style = getComputedStyle(element, pseudo);
     const layers = [style.backgroundColor];
     for (
@@ -47,7 +52,7 @@ export async function expectAssistantContrast(target: Locator, pseudo?: string) 
     }
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = requireTestValue(canvas.getContext("2d"));
     const paint = (color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, 1, 1);

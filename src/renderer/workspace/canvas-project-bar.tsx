@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import brandIcon from "../../../resources/brand/icon.svg";
 import { fixedMenuSide } from "./canvas-account-pill";
 import { CanvasControlTip } from "./canvas-control-tip";
-import { PickerEmptyLogo } from "./picker-empty-logo";
 import "./canvas-project-bar.css";
 
 const saveLabels = {
@@ -110,7 +110,7 @@ export function CanvasProjectBar({
                 className="canvas-brand-trigger"
                 render={<motion.button type="button" whileTap={{ scale: 0.96 }} />}
               >
-                <PickerEmptyLogo size={30} className="canvas-brand-logo" />
+                <img src={brandIcon} width={30} height={30} alt="" />
                 <ChevronDown size={12} />
               </Menu.Trigger>
             </CanvasControlTip>
@@ -132,7 +132,7 @@ export function CanvasProjectBar({
                 <Menu.Separator />
                 <Menu.Item disabled={locked} onClick={create}>
                   <Plus size={16} />
-                  新建画布
+                  新建画布项目
                 </Menu.Item>
                 <Menu.Separator />
                 <Menu.Item disabled={locked} onClick={exportGraph}>

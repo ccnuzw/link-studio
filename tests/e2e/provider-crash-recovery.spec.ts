@@ -5,7 +5,7 @@ import { createServer, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type ElectronApplication, _electron as electron, expect, test } from "@playwright/test";
-import { projectAction } from "./workspace-actions";
+import { createCanvasProject, projectAction } from "./workspace-actions";
 
 const source = `module.exports={
   meta:{key:'crash-image',name:'Crash image',apiVersion:1,auth:{type:'bearer'},endpoints:{image:{mode:'async'}},poll:{firstDelay:0.1,interval:0.1}},
@@ -95,7 +95,7 @@ for (const flow of ["模型试跑", "工程任务"] as const) {
         { port: address.port, source },
       );
       const openTrial = async () => {
-        await page.getByRole("button", { name: "模型设置" }).click();
+        await page.getByRole("button", { name: "应用设置" }).click();
         await page.getByRole("button", { name: "测试 恢复测试", exact: true }).click();
         return page.getByRole("dialog", { name: "测试 恢复测试" });
       };
@@ -104,11 +104,9 @@ for (const flow of ["模型试跑", "工程任务"] as const) {
         await dialog.getByLabel("测试提示词").fill("恢复测试");
         await dialog.getByRole("button", { name: "开始测试" }).click();
       } else {
-        await page.getByRole("textbox", { name: "新项目名称" }).fill("原回执验收");
-        await page.getByRole("button", { name: "新建项目" }).click();
+        await createCanvasProject(page, "原回执验收");
         await page.getByRole("button", { name: /^图片生成 文字或参考图/ }).click();
-        await page.mouse.click(420, 210);
-        await page.locator(".react-flow__node .node-media").click({ position: { x: 30, y: 30 } });
+        await page.locator('.react-flow__node.selected article[data-card-kind="image"]').click();
         await page.getByRole("textbox", { name: "生成提示词" }).fill("恢复测试");
         await page.getByRole("button", { name: "开始生成" }).click();
       }
@@ -147,7 +145,7 @@ for (const flow of ["模型试跑", "工程任务"] as const) {
       } else {
         await page.getByRole("button", { name: /^原回执验收/ }).click();
         await finishQuery();
-        const image = page.locator(".react-flow__node .node-media img");
+        const image = page.locator('.react-flow__node .node-media img[src^="link-media:"]');
         await expect(image).toHaveCount(1);
         await expect
           .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))

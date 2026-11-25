@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isLocalApfs } from "../../packages/media-runtime/src/local-filesystem";
 import { canonicalJson, contentHash } from "../../src/main/project/encoding";
 import { type CommitStage, ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 
 let parent: string;
 const stores: ProjectStore[] = [];
@@ -105,7 +106,11 @@ describe.skipIf(process.platform !== "darwin")("M0-03 本机 APFS 项目存储",
     expect(await inspect()).toBeUndefined();
     expect(await readFile(manifestPath)).toEqual(previous);
     await writeFile(manifestPath, latest);
-    const path = join(directory, "state", (await readdir(join(directory, "state"))).sort().at(-1)!);
+    const path = join(
+      directory,
+      "state",
+      requireTestValue((await readdir(join(directory, "state"))).sort().at(-1)),
+    );
     const corrupt = { ...store.snapshot, name: "哈希未更新" };
     await writeFile(path, JSON.stringify(corrupt));
     expect(await inspect()).toBeUndefined();

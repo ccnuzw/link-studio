@@ -7,12 +7,17 @@ import { chromium } from "@playwright/test";
 import { createServer } from "vite";
 import { auditDirectorChrome } from "./audit-director-chrome.mjs";
 import { auditDirectorSidebar } from "./audit-director-sidebar.mjs";
-import { auditDirectorTimeline } from "./audit-director-timeline.mjs";
+import { auditDenseDirectorKeys, auditDirectorTimeline } from "./audit-director-timeline.mjs";
 import { auditDirectorViewMenu } from "./audit-director-view-menu.mjs";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 assert(process.env.VIDEO_CANVAS_WEB);
 const dpr = Number(process.env.DIRECTOR_DPR ?? 1);
-const output = resolve("test-results/director-workbench-parity" + (dpr === 1 ? "" : `-dpr${dpr}`)),
+const denseKeys = process.argv.includes("--dense-keys");
+const output = resolve(
+    `test-results/director-workbench-${denseKeys ? "dense-keys" : "parity"}` +
+      (dpr === 1 ? "" : `-dpr${dpr}`),
+  ),
   scratch = await mkdtemp(join(tmpdir(), "director-layout-"));
 const fixture = {
   version: 1,
@@ -48,6 +53,19 @@ const fixture = {
     },
   ],
 };
+if (denseKeys) {
+  const poses = [0.01, 0.02, 2.5].map((t, index) => ({
+    t,
+    x: index + 1,
+    z: 0,
+    yaw: 0,
+    ease: index ? "smooth" : "linear",
+  }));
+  fixture.characters[0].keys = poses;
+  fixture.cameras[0].keys = poses.map((pose) => ({ ...pose, y: 1.6, pitch: -4, fov: 50 }));
+  fixture.cameras[0].keys[2].t = 2.501;
+  fixture.cameras[0].keys.push({ ...fixture.cameras[0].keys[2], t: 2.503, x: 4 });
+}
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome" }),
   records = {},
@@ -68,6 +86,12 @@ const timeline = {},
   chrome = {},
   view = {};
 try {
+  await compareWorkbench();
+} finally {
+  await browser.close();
+  await rm(scratch, { recursive: true, force: true });
+}
+async function compareWorkbench() {
   for (const upstream of [true, false]) {
     const side = upstream ? "upstream" : "desktop",
       root = upstream ? resolve(process.env.VIDEO_CANVAS_WEB) : process.cwd(),
@@ -75,7 +99,7 @@ try {
     const css = (await readdir(assets)).find((name) => /^index-.*\.css$/.test(name));
     assert(css);
     const entry = "/src/__audit_workbench.tsx";
-    const code = `import {createRoot} from 'react-dom/client';const scene=${JSON.stringify(fixture)};const noop=()=>{};${upstream ? `import {ReactFlowProvider} from '@xyflow/react';import Editor from '@/components/director/director-editor';import {useDirectorStore} from '@/store/director';useDirectorStore.getState().open('example',scene);createRoot(document.querySelector('#root')).render(<ReactFlowProvider><Editor/></ReactFlowProvider>);` : `import {DirectorDialog} from '/src/renderer/workspace/director-dialog';createRoot(document.querySelector('#root')).render(<DirectorDialog initial={scene} label="导演台" projectHandle="local" place={noop} checkCapacity={noop} write={noop} finish={noop}/>);`}`;
+    const code = `import {createRoot} from 'react-dom/client';const scene=${JSON.stringify(fixture)};const noop=()=>{};let saved=scene;${upstream ? `import {ReactFlowProvider} from '@xyflow/react';import Editor from '@/components/director/director-editor';import {useDirectorStore} from '@/store/director';useDirectorStore.getState().open('example',scene);window.auditScene=()=>useDirectorStore.getState().scene;createRoot(document.querySelector('#root')).render(<ReactFlowProvider><Editor/></ReactFlowProvider>);` : `import {DirectorDialog} from '/src/renderer/workspace/director-dialog';window.auditScene=()=>saved;createRoot(document.querySelector('#root')).render(<DirectorDialog initial={scene} label="导演台" projectHandle="local" place={noop} checkCapacity={noop} write={next=>{saved=next}} finish={noop}/>);`}`;
     const mocks = upstream
       ? {
           "@/api/asset":
@@ -97,7 +121,7 @@ try {
           enforce: "pre",
           resolveId(id) {
             if (id === entry) return id;
-            if (id in mocks) return "\0" + id;
+            if (id in mocks) return `\0${id}`;
           },
           load(id) {
             return id === entry ? code : mocks[id.slice(1)];
@@ -115,17 +139,39 @@ try {
       });
       try {
         page.on("pageerror", (e) => console.error(side, e));
-        await page.route(origin + "assets/**", (route) =>
+        await page.route(`${origin}assets/**`, (route) =>
           route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
         );
-        await page.route(origin + "audit", (route) =>
+        await page.route(`${origin}audit`, (route) =>
           route.fulfill({
             contentType: "text/html",
             body: `<!doctype html><html><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><div id="root" class="${upstream ? "" : "canvas-workspace"}"></div><script type="module" src="${entry}"></script></html>`,
           }),
         );
-        await page.goto(origin + "audit");
+        await page.goto(`${origin}audit`);
         await page.getByTitle("切换视角").waitFor();
+        if (denseKeys) {
+          records[side] = await auditDenseDirectorKeys(page, async (name, lanes) => {
+            const key = `${side}-${name}`;
+            const styles = await lanes.evaluate((el) =>
+              [el.firstElementChild, ...el.querySelectorAll('[title*="右键切换"]')].map((node) => {
+                const style = getComputedStyle(node);
+                return {
+                  title: node.title,
+                  left: node.style.left,
+                  box: node.getBoundingClientRect().toJSON(),
+                  color: style.color,
+                  background: style.backgroundColor,
+                  border: style.borderBottomColor,
+                  font: style.font,
+                };
+              }),
+            );
+            await writeFile(join(output, `${key}.json`), JSON.stringify(styles, null, 2));
+            images[key] = await lanes.screenshot({ path: join(output, `${key}.png`) });
+          });
+          continue;
+        }
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(1200);
         const main = page.getByRole("dialog").locator("main"),
@@ -157,7 +203,7 @@ try {
             assetsPanel.locator("img").first(),
             assetsPanel.locator("section button").first().getByText("预设"),
           ];
-          records[side + "-asset-" + phase] = await Promise.all(
+          records[`${side}-asset-${phase}`] = await Promise.all(
             items.map((item) => item.boundingBox()),
           );
         }
@@ -166,7 +212,7 @@ try {
           await page.mouse.move(4, 4);
           await page.evaluate(() => document.activeElement?.blur?.());
           await page.waitForTimeout(150);
-          const key = side + "-" + name;
+          const key = `${side}-${name}`;
           const boxes = await Promise.all(
             [
               page.getByRole("dialog").locator("header").first(),
@@ -180,7 +226,7 @@ try {
             ].map((loc) => loc.boundingBox()),
           );
           records[key] = boxes;
-          images[key] = await page.screenshot({ path: join(output, key + ".png") });
+          images[key] = await page.screenshot({ path: join(output, `${key}.png`) });
         }
         await capture("floating");
         await main.getByRole("button", { name: "左右分栏" }).click();
@@ -193,7 +239,7 @@ try {
         await page.setViewportSize({ width: 1024, height: 700 });
         await capture("compact");
         view[side] = await auditDirectorViewMenu(page, side, output);
-        assert.match(await page.getByTitle("切换视角").innerText(), /机位视角/);
+        assert.match(await readRenderedText(page.getByTitle("切换视角")), /机位视角/);
         await page.setViewportSize({ width: 1280, height: 800 });
         await assetsPanel.getByRole("tab", { name: "物体" }).click();
         await collectThumbs(14);
@@ -220,14 +266,28 @@ try {
       await server.close();
     }
   }
+  if (denseKeys) {
+    await writeFile(join(output, "results.json"), JSON.stringify(records, null, 2));
+    assert.deepEqual(records.desktop, records.upstream);
+    console.log("Matched dense-key states:", Object.keys(records.desktop).join(", "));
+    const page = await browser.newPage();
+    const pixels = {};
+    for (const phase of Object.keys(records.desktop))
+      pixels[phase] = await countPixels(page, phase);
+    await writeFile(join(output, "pixels.json"), JSON.stringify(pixels, null, 2));
+    console.table(pixels);
+    if (process.argv.includes("--strict"))
+      assert.ok(Object.values(pixels).every((count) => count === 0));
+    return;
+  }
   const page = await browser.newPage(),
     results = {};
   for (const name of Object.keys(timeline.upstream.images)) {
-    const phase = "timeline-" + name;
+    const phase = `timeline-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = timeline[side].images[name];
-      records[side + "-" + phase] = timeline[side].rectangles[name];
+      images[`${side}-${phase}`] = timeline[side].images[name];
+      records[`${side}-${phase}`] = timeline[side].rectangles[name];
     }
   }
   await writeFile(
@@ -259,11 +319,11 @@ try {
   );
   assert.deepEqual(view.desktop.states, view.upstream.states);
   for (const name of Object.keys(view.upstream.images)) {
-    const phase = "view-" + name;
+    const phase = `view-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = view[side].images[name];
-      records[side + "-" + phase] = view[side].rectangles[name];
+      images[`${side}-${phase}`] = view[side].images[name];
+      records[`${side}-${phase}`] = view[side].rectangles[name];
     }
   }
   await writeFile(
@@ -281,11 +341,11 @@ try {
   );
   assert.deepEqual(sidebar.desktop.states, sidebar.upstream.states);
   for (const name of Object.keys(sidebar.upstream.images)) {
-    const phase = "sidebar-" + name;
+    const phase = `sidebar-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = sidebar[side].images[name];
-      records[side + "-" + phase] = sidebar[side].rectangles[name];
+      images[`${side}-${phase}`] = sidebar[side].images[name];
+      records[`${side}-${phase}`] = sidebar[side].rectangles[name];
     }
   }
   await writeFile(
@@ -303,29 +363,35 @@ try {
   );
   assert.deepEqual(chrome.desktop.states, chrome.upstream.states);
   for (const name of Object.keys(chrome.upstream.images)) {
-    const phase = "chrome-" + name;
+    const phase = `chrome-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = chrome[side].images[name];
-      records[side + "-" + phase] = chrome[side].rectangles[name];
+      images[`${side}-${phase}`] = chrome[side].images[name];
+      records[`${side}-${phase}`] = chrome[side].rectangles[name];
     }
   }
   for (const phase of phases) {
-    const left = records["upstream-" + phase],
-      right = records["desktop-" + phase];
-    const [reference, candidate] = ["upstream", "desktop"].map(
-      (side) => images[side + "-" + phase],
-    );
+    const left = records[`upstream-${phase}`],
+      right = records[`desktop-${phase}`];
+    const pixelDiff = await countPixels(page, phase);
+    results[phase] = {
+      differentPixels: pixelDiff,
+      rectanglesMatched: left.filter((box, i) => JSON.stringify(box) === JSON.stringify(right[i]))
+        .length,
+    };
+  }
+  function countPixels(page, phase) {
+    const pair = ["upstream", "desktop"].map((side) => images[`${side}-${phase}`]);
     assert.ok(
-      reference.subarray(16, 24).equals(candidate.subarray(16, 24)),
+      pair[0].subarray(16, 24).equals(pair[1].subarray(16, 24)),
       `Screenshot dimensions differ: ${phase}`,
     );
-    const pixelDiff = await page.evaluate(
+    return page.evaluate(
       async (pair) => {
         const imgs = await Promise.all(
           pair.map(async (data) => {
             const img = new Image();
-            img.src = "data:image/png;base64," + data;
+            img.src = `data:image/png;base64,${data}`;
             await img.decode();
             const cv = document.createElement("canvas");
             cv.width = img.width;
@@ -337,13 +403,8 @@ try {
         );
         return imgs[0].reduce((n, v, i) => n + Number(v !== imgs[1][i]), 0);
       },
-      ["upstream", "desktop"].map((side) => images[side + "-" + phase].toString("base64")),
+      pair.map((image) => image.toString("base64")),
     );
-    results[phase] = {
-      differentPixels: pixelDiff,
-      rectanglesMatched: left.filter((box, i) => JSON.stringify(box) === JSON.stringify(right[i]))
-        .length,
-    };
   }
   for (const phase of phases.filter(
     (phase) =>
@@ -362,11 +423,8 @@ try {
   if (process.argv.includes("--strict") || process.argv.includes("--strict-geometry")) {
     assert.deepEqual(records["desktop-asset-people"], records["upstream-asset-people"]);
     for (const [phase, record] of Object.entries(results)) {
-      assert.equal(record.rectanglesMatched, records["upstream-" + phase].length, phase);
+      assert.equal(record.rectanglesMatched, records[`upstream-${phase}`].length, phase);
       if (process.argv.includes("--strict")) assert.equal(record.differentPixels, 0);
     }
   }
-} finally {
-  await browser.close();
-  await rm(scratch, { recursive: true, force: true });
 }

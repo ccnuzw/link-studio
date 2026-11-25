@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -70,7 +71,7 @@ export function usePetDrag(options: Options) {
     dirTimer.current = window.setTimeout(function check() {
       const s = session.current;
       dirTimer.current = null;
-      if (!s || !s.dragging || s.dir === null) return;
+      if (!s?.dragging || s.dir === null) return;
       const rest = DIR_WINDOW_MS - (performance.now() - s.lastMoveAt);
       if (rest > 0) {
         dirTimer.current = window.setTimeout(check, rest);
@@ -121,8 +122,12 @@ export function usePetDrag(options: Options) {
     const now = performance.now();
     s.lastMoveAt = now;
     s.samples.push({ t: now, x: pos.x });
-    while (s.samples.length > 1 && now - s.samples[0]!.t > DIR_WINDOW_MS) s.samples.shift();
-    const moved = pos.x - s.samples[0]!.x;
+    while (
+      s.samples.length > 1 &&
+      now - requirePresent(s.samples[0], "s.samples[0]").t > DIR_WINDOW_MS
+    )
+      s.samples.shift();
+    const moved = pos.x - requirePresent(s.samples[0], "s.samples[0]").x;
     const dir: DragDir = moved > 1 ? "right" : moved < -1 ? "left" : null;
     if (dir !== s.dir) {
       s.dir = dir;

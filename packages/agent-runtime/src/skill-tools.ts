@@ -94,7 +94,7 @@ export function createSkillTools(call: Call) {
           (file !== undefined && (typeof file !== "string" || !file.length || file.length > 512))
         )
           throw invalid();
-        const name = id.split("@")[0]!;
+        const [name = ""] = id.split("@");
         const runKey = key(context),
           pins = runs.get(runKey) ?? new Map<string, string>();
         runs.set(runKey, pins);
@@ -107,7 +107,7 @@ export function createSkillTools(call: Call) {
         if (page.hash) pins.set(name, page.hash);
         const { hash: _, ...visible } = page;
         result = visible;
-        summary = `读取技能${file ? "文件" : ""} ${page.id.replace("@", "@v")}${file ? "/" + file : ""}`;
+        summary = `读取技能${file ? "文件" : ""} ${page.id.replace("@", "@v")}${file ? `/${file}` : ""}`;
       }
       return {
         content: JSON.stringify(result),

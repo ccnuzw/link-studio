@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { Node } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import HardBreak from "@tiptap/extension-hard-break";
@@ -200,6 +201,9 @@ export function CanvasPromptEditor({
   disabled,
   expanded,
   placeholder,
+  studio,
+  editorLabel,
+  acceptDrop,
 }: {
   ref?: Ref<CanvasPromptHandle>;
   openPreset?: (kind: PresetKind, index: number, anchor: HTMLElement) => void;
@@ -211,6 +215,9 @@ export function CanvasPromptEditor({
   disabled: boolean;
   expanded: boolean;
   placeholder: string;
+  studio?: boolean;
+  editorLabel?: string;
+  acceptDrop?: (data: DataTransfer) => { id: string; label: string } | null;
 }) {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [active, setActive] = useState(0);
@@ -265,10 +272,29 @@ export function CanvasPromptEditor({
     editorProps: {
       attributes: {
         role: "textbox",
-        "aria-label": "生成提示词",
+        "aria-label": editorLabel ?? (studio ? "片段原稿" : "生成提示词"),
         "aria-multiline": "true",
         "data-node-prompt": "",
         class: "canvas-prompt-content nowheel nodrag nopan",
+      },
+      handleDrop: (view, event) => {
+        const hit = !disabled && event.dataTransfer && acceptDrop?.(event.dataTransfer);
+        if (!hit) return false;
+        const at =
+          view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
+          view.state.selection.to;
+        const { schema } = view.state;
+        view.dispatch(
+          view.state.tr.insert(at, [
+            requirePresent(schema.nodes.mention, "schema.nodes.mention").create({
+              id: hit.id,
+              label: hit.label,
+            }),
+            schema.text(" "),
+          ]),
+        );
+        view.focus();
+        return true;
       },
       handleKeyDown: (view, event) => {
         if (event.isComposing || view.composing) return false;
@@ -296,6 +322,7 @@ export function CanvasPromptEditor({
           (expanded && !event.metaKey && !event.ctrlKey)
         )
           return false;
+        if (event.repeat && studio) return true;
         view.dom.closest("form")?.requestSubmit();
         return true;
       },
@@ -369,7 +396,7 @@ export function CanvasPromptEditor({
             <motion.div
               ref={list}
               role="listbox"
-              aria-label="引用画布里的素材"
+              aria-label={studio ? "引用短剧资产" : "引用画布里的素材"}
               className="canvas-mention-list nowheel"
               onMouseDown={(event) => event.preventDefault()}
               initial={{ opacity: 0, scale: reduce ? 1 : 0.96, y: reduce ? 0 : up ? 4 : -4 }}
@@ -393,7 +420,15 @@ export function CanvasPromptEditor({
                 (linked) =>
                   entries.some((entry) => entry.linked === linked) && (
                     <section key={String(linked)}>
-                      <p>{linked ? "已引用" : "画布中 · 选中后自动连线"}</p>
+                      <p>
+                        {studio
+                          ? linked
+                            ? "本集资产"
+                            : "其他集"
+                          : linked
+                            ? "已引用"
+                            : "画布中 · 选中后自动连线"}
+                      </p>
                       {entries.map(
                         (entry, index) =>
                           entry.linked === linked && (
@@ -407,7 +442,7 @@ export function CanvasPromptEditor({
                             >
                               <MenuThumb source={entry.source} />
                               <span>{entry.source.label}</span>
-                              {!linked && (
+                              {!studio && !linked && (
                                 <small>
                                   <Link2 size={12} />
                                   连线
@@ -420,7 +455,13 @@ export function CanvasPromptEditor({
                   ),
               )}
               {!entries.length && (
-                <p>{query ? `没有匹配「${menu.query}」的素材` : "画布里还没有能引用的素材"}</p>
+                <p>
+                  {query
+                    ? `没有匹配「${menu.query}」的素材`
+                    : studio
+                      ? "还没有可引用的资产"
+                      : "画布里还没有能引用的素材"}
+                </p>
               )}
             </motion.div>
           )}

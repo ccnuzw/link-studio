@@ -12,6 +12,7 @@ import {
   type CanvasShot,
   type CreativeData,
   type CreativeOutput,
+  characterVoice,
   isPlainGeneratedMedia,
   maxStoryboardShots,
   restoreMediaVersion,
@@ -135,6 +136,10 @@ function jobs(state: ProjectState): StoredJob[] {
   );
 }
 
+export function activeMediaJobCount(state: ProjectState) {
+  return jobs(state).filter((job) => !jobIsTerminal(job.status)).length;
+}
+
 function view(job: StoredJob): GenerationJob {
   const {
     id,
@@ -158,6 +163,7 @@ function view(job: StoredJob): GenerationJob {
     nodeId,
     providerId: job.input.providerId,
     providerRevision: job.input.expectedProviderRevision,
+    ...(job.modelKey !== undefined && { modelKey: job.modelKey }),
     ...(job.quotedCredits !== undefined && { quotedCredits: job.quotedCredits }),
     ...(job.settledCredits !== undefined && { settledCredits: job.settledCredits }),
     ...(job.batchRoot || job.batchIds ? { batchId: job.batchRoot ?? id } : {}),
@@ -465,7 +471,8 @@ export class GenerationService {
     let binding: ReturnType<SettingsRegistry["agentBinding"]>;
     try {
       binding =
-        input.purpose === "storyboard-split"
+        input.purpose === "storyboard-split" ||
+        (kind === "text" && registry.provider(input.providerId).config?.kind === "agent")
           ? registry.agentBinding(input.providerId, input.expectedProviderRevision)
           : registry.binding(input.providerId, input.expectedProviderRevision);
     } catch {
@@ -474,9 +481,7 @@ export class GenerationService {
     if (
       (binding.plugin?.kind ?? "text") !== kind ||
       (binding.origin === "gateway" && input.referenceAssetIds.length !== 0) ||
-      (input.purpose === "storyboard-split"
-        ? !binding.profile.agentEnabled
-        : binding.profile.config?.kind === "agent") ||
+      (input.purpose === "storyboard-split" && !binding.profile.agentEnabled) ||
       (input.duration !== undefined && kind !== "video") ||
       (input.size !== undefined && kind !== "image" && kind !== "video")
     )
@@ -599,7 +604,7 @@ export class GenerationService {
       (input.generateAudio !== undefined && !options.audio) ||
       (input.aspectRatio !== undefined && input.size !== undefined) ||
       (input.size !== undefined &&
-        !options.manualSize &&
+        (!options.manualSize || input.size === "auto") &&
         ![...options.sizes, ...options.largeSizes].includes(input.size)) ||
       durationInvalid ||
       input.referenceAssetIds.length > options.referenceLimit
@@ -763,6 +768,7 @@ export class GenerationService {
         ) {
           stagedVersion = { ...node.data, text: "", textStatus: "idle" };
           delete stagedVersion.textError;
+          delete stagedVersion.textFailureTask;
           delete stagedVersion.activeOutputId;
         }
         if (node && stagedVersion)
@@ -791,6 +797,7 @@ export class GenerationService {
           pluginHash: binding.profile.pluginHash,
           channelId: binding.profile.channelId,
           providerLabel: binding.profile.label,
+          modelKey: binding.profile.modelKey ?? configured.providerId,
           quotedCredits,
           ...(quotedCredits !== undefined &&
             pricing?.unit === "token" && {
@@ -989,6 +996,9 @@ export class GenerationService {
             textError: next.errorMessage || next.error || "生成失败",
           };
           delete data.activeOutputId;
+          if (next.providerTaskId && next.providerTaskId.length <= 32768)
+            data.textFailureTask = { id: next.id, reference: next.providerTaskId };
+          else delete data.textFailureTask;
           state.canvas = applyCanvas(state, [{ type: "putNode", node: { ...node, data } }]);
         }
       }
@@ -1307,7 +1317,11 @@ export class GenerationService {
         if (latest?.id === job.id) {
           const character = {
             ...node.data.character,
-            voice: { assetId: first.assetId, origin: "generated" as const },
+            voice: characterVoice(
+              first.assetId,
+              "generated",
+              state.assets[first.assetId]?.displayName,
+            ),
           };
           state.canvas = applyCanvas(state, [
             { type: "putNode", node: { ...node, data: { ...node.data, character } } },
@@ -1320,6 +1334,7 @@ export class GenerationService {
         if (unchanged && first?.kind === "text") {
           delete data.assetId;
           delete data.textError;
+          delete data.textFailureTask;
         }
         const history = outputs.map((output, index) => ({
           id: `${job.id}:${index}`,
@@ -1397,7 +1412,7 @@ export class GenerationService {
       const resolved = (() => {
         try {
           const binding =
-            job.pluginHash === "" && job.input.purpose === "storyboard-split"
+            job.pluginHash === "" && job.kind === "text"
               ? registry.agentJobBinding(
                   job.input.providerId,
                   job.input.expectedProviderRevision,

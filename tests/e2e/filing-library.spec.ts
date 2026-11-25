@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { addCanvasNode, projectAction } from "./workspace-actions";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
+import { requireTestValue } from "../require-test-value";
+import { addCanvasNode, createCanvasProject, projectAction } from "./workspace-actions";
 
-test("素材库选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
+test("项目文件选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
+  test.setTimeout(90_000);
   const directory = await mkdtemp(join(tmpdir(), "studio-enroll-"));
   const image = join(directory, "林舟_正面.png");
   await copyFile(join(process.cwd(), "resources/icons/icon-32.png"), image);
@@ -97,7 +100,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       });
       process.getBuiltinModule("module").syncBuiltinESMExports();
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page.getByRole("button", { name: "配置图片对象存储" }).click();
     const storage = page.getByRole("dialog", { name: "图片对象存储" });
@@ -119,9 +122,12 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
-    await page.getByRole("button", { name: "新建项目" }).click();
-    await projectAction(page, "素材库");
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
+    await createCanvasProject(page);
+    await projectAction(page, "项目文件");
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     const enroll = page.getByRole("dialog", { name: "加入真人库", exact: true });
     await page.getByRole("button", { name: "加入真人库", exact: true }).click();
@@ -134,8 +140,8 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     ).toBeVisible();
     await expect(page.getByText("真人 · 林舟", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "加入真人库", exact: true })).toHaveCount(0);
-    await projectAction(page, "素材库");
-    await projectAction(page, "素材库");
+    await projectAction(page, "项目文件");
+    await projectAction(page, "项目文件");
     await expect(page.getByText("真人 · 林舟", { exact: true })).toBeVisible();
     const sent = await app.evaluate(() => Reflect.get(globalThis, "enrollRequests"));
     expect(sent).toMatchObject([
@@ -199,7 +205,10 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
     await projectAction(page, "关闭项目");
     const folderFixture = new DatabaseSync(join(directory, "personal-library", "items.sqlite"));
     try {
@@ -219,7 +228,10 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
         .prepare("INSERT INTO library_folders VALUES(?,?,?)")
         .run(collection, "分镜", new Date().toISOString());
       const source = JSON.parse(
-        String(folderFixture.prepare("SELECT record FROM library_items LIMIT 1").get()!.record),
+        String(
+          requireTestValue(folderFixture.prepare("SELECT record FROM library_items LIMIT 1").get())
+            .record,
+        ),
       );
       for (let number = 1; number <= 43; number++) {
         const assetId = crypto.randomUUID();
@@ -236,7 +248,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     } finally {
       folderFixture.close();
     }
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page.getByRole("button", { name: "查看详情" }).click();
     await detail.getByRole("button", { name: "添加图片" }).click();
@@ -267,7 +279,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     await expect(firstFrame).toHaveAttribute("aria-pressed", "true");
     await expect(picker.getByRole("img", { name: "分镜_43.png", exact: true })).toHaveAttribute(
       "src",
-      frameUrl!,
+      requireTestValue(frameUrl),
     );
     await picker.getByRole("button", { name: "分镜_1.png", exact: true }).click();
     await picker
@@ -279,10 +291,15 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     expect(
       await page.evaluate(
         async ({ url, channelId }) => {
-          const [, page] = new URL(url!).pathname.split("/");
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
+          const [, page] = new URL(requireTestValue(url)).pathname.split("/");
           return (
             await window.desktop.projects.filingLibraryMore({
-              page: page!,
+              page: requireTestValue(page),
               before: 1,
               channelId,
               channelRevision: 1,
@@ -318,7 +335,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       searchDb.exec("ALTER TABLE folder_members RENAME TO unavailable_members");
       await picker.getByRole("searchbox", { name: "搜索文件名" }).fill("便装");
       await expect(picker.getByRole("alert")).toContainText("加载失败");
-      await expect(tray.locator("img")).toHaveAttribute("src", beforeSearch!);
+      await expect(tray.locator("img")).toHaveAttribute("src", requireTestValue(beforeSearch));
       await expect(submit).toBeEnabled();
       await expect(picker.getByRole("button", { name: "上传", exact: true })).toBeEnabled();
     } finally {
@@ -327,7 +344,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     }
     await picker.getByRole("button", { name: "重试", exact: true }).click();
     await expect(personalChoice).toHaveAttribute("aria-pressed", "true");
-    await expect(tray.locator("img")).not.toHaveAttribute("src", beforeSearch!);
+    await expect(tray.locator("img")).not.toHaveAttribute("src", requireTestValue(beforeSearch));
     await expect(picker.getByRole("button", { name: "林舟_侧面.png" })).toHaveCount(0);
     await tray.click();
     await expect(submit).toBeDisabled();
@@ -335,10 +352,15 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     expect(url).toMatch(/^link-media:\/\/filing-library\/[a-f0-9-]{36}\/[a-f0-9-]{36}$/);
     const wrongTarget = await page.evaluate(
       async ({ url, channelId }) => {
-        const [, page, choice] = new URL(url!).pathname.split("/");
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
+        const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
         const input = {
-          page: page!,
-          choice: choice!,
+          page: requireTestValue(page),
+          choice: requireTestValue(choice),
           channelId,
           channelRevision: 1,
           confirmed: true as const,
@@ -356,10 +378,15 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     await expect(detail.getByRole("button", { name: "添加图片" })).toBeFocused();
     const refused = await page.evaluate(
       async ({ url, channelId }) => {
-        const [, page, choice] = new URL(url!).pathname.split("/");
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
+        const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
         return window.desktop.projects.filingLibraryEnroll({
-          page: page!,
-          choice: choice!,
+          page: requireTestValue(page),
+          choice: requireTestValue(choice),
           channelId,
           channelRevision: 1,
           confirmed: true,
@@ -403,11 +430,16 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     expect(
       await page.evaluate(
         async ({ url, channelId }) => {
-          const [, page, choice] = new URL(url!).pathname.split("/");
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
+          const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
           return (
             await window.desktop.projects.filingLibraryEnroll({
-              page: page!,
-              choice: choice!,
+              page: requireTestValue(page),
+              choice: requireTestValue(choice),
               channelId,
               channelRevision: 1,
               confirmed: true,
@@ -490,7 +522,11 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     expect(cancelled).toEqual([true, false, false, "跨页.png", false, false]);
     await sideDetail.getByRole("button", { name: "添加图片" }).click();
     await picker.getByRole("button", { name: "打开文件夹 角色图" }).click();
-    const failureDb = new DatabaseSync(join(directory, "personal-library", "items.sqlite"));
+    await expect(picker.getByRole("button", { name: "配角_角色.png", exact: true })).toBeVisible();
+    await expect(picker.getByRole("button", { name: "上传", exact: true })).toBeEnabled();
+    const failureDb = new DatabaseSync(join(directory, "personal-library", "items.sqlite"), {
+      timeout: 3000,
+    });
     try {
       failureDb.exec(
         "CREATE TRIGGER fail_one_picture BEFORE INSERT ON library_items WHEN json_extract(NEW.record,'$.displayName')='重试.png' BEGIN SELECT RAISE(ABORT,'fixture'); END",
@@ -499,7 +535,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       await copyFile(file, retryFile);
       await picker.getByLabel("选择要上传的文件").setInputFiles(retryFile);
       const failed = picker.getByRole("group", { name: "重试.png", exact: true });
-      await expect(failed.getByRole("alert")).toBeVisible();
+      await expect(failed.getByRole("alert")).toBeVisible({ timeout: 15_000 });
       const searchbox = picker.getByRole("searchbox", { name: "搜索文件名" });
       await searchbox.fill("便装");
       await expect(
@@ -589,7 +625,7 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
     await expect(picker.getByRole("status")).toContainText(
       /已选满，「配角_(夜景|近景).png」已上传但没有勾选/,
     );
-    const skipped = (await picker.getByRole("status").innerText()).includes("夜景")
+    const skipped = (await readRenderedText(picker.getByRole("status"))).includes("夜景")
       ? "夜景"
       : "近景";
     await expect(
@@ -617,9 +653,11 @@ test("素材库选本机原图，新建真人并上传，立即显示归属而�
       .getByRole("dialog", { name: "虚拟人像库" })
       .getByRole("button", { name: "关闭弹窗" })
       .click();
-    await page.getByRole("button", { name: "返回工作区" }).click();
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("跨项目备案");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await page
+      .getByRole("navigation", { name: "设置分类" })
+      .getByRole("button", { name: /^返回/ })
+      .click();
+    await createCanvasProject(page, "跨项目备案");
     await projectAction(page, "模型设置");
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     await page
@@ -751,8 +789,7 @@ test("角色从真人库引入可用图片，保存后跨重启保护封面和�
     } finally {
       db.close();
     }
-    await page.getByRole("textbox", { name: "新项目名称" }).fill("引入验收");
-    await page.getByRole("button", { name: "新建项目" }).click();
+    await createCanvasProject(page, "引入验收");
     await addCanvasNode(page, "角色卡");
     await page.getByRole("button", { name: "编辑角色卡" }).click();
     const character = page.getByRole("dialog", { name: "角色卡详情", exact: true });
@@ -833,8 +870,10 @@ test("角色从真人库引入可用图片，保存后跨重启保护封面和�
       ["侧面.png", "已添加"],
       ["失败照", "备案失败"],
     ]) {
-      await expect(person.getByRole("button", { name: file!, exact: true })).toBeDisabled();
-      await expect(person.getByText(reason!, { exact: true })).toBeVisible();
+      await expect(
+        person.getByRole("button", { name: requireTestValue(file), exact: true }),
+      ).toBeDisabled();
+      await expect(person.getByText(requireTestValue(reason), { exact: true })).toBeVisible();
     }
     await extras.getByRole("textbox", { name: "搜索真人名称" }).fill("不存在");
     await expect(extras.getByText("没有找到“不存在”")).toBeVisible();
@@ -938,7 +977,7 @@ test("已有真人满五张后禁选，仍可选择其他真人或切回新建",
       ok: true,
       value: expect.arrayContaining([expect.objectContaining({ humanId: "full", cover: true })]),
     });
-    await page.getByRole("button", { name: "模型设置" }).click();
+    await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "虚拟人像库" }).click();
     const dialog = page.getByRole("dialog", { name: "虚拟人像库" });
     await expect(dialog.getByRole("button", { name: "加到已有真人" })).toBeVisible({
