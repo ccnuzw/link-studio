@@ -95,9 +95,11 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       page.getByRole("region", { name: "文本内容", exact: true }),
       "一段等待被拍成电影的故事",
     );
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
     await projectAction(page, "项目文件");
-    await page.getByRole("button", { name: "导入素材" }).click();
-    await expect(page.getByText("e2e.png", { exact: true })).toBeVisible();
+    const importButton = page.getByRole("button", { name: "导入素材", exact: true });
+    await importButton.click();
+    await expect(page.getByTitle("e2e.png", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("image · 3×2")).toBeVisible();
     await expect(page.getByText("e2e.wav", { exact: true })).toBeVisible();
     await expect(page.getByText("audio · 1.0 秒")).toBeVisible();

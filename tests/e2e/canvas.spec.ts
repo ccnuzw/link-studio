@@ -2918,14 +2918,21 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
       )
       .toBe(1);
     const edge = page.locator(".react-flow__edge");
-    const point = await edge.locator(".react-flow__edge-path").evaluate((element) => {
-      const path = element as SVGPathElement;
-      const { x, y } = path
-        .getPointAtLength(path.getTotalLength() * 0.37)
-        .matrixTransform(path.getScreenCTM()!);
-      return { x, y };
+    const point = await page.waitForFunction(() => {
+      const path = document.querySelector<SVGPathElement>(".react-flow__edge-path");
+      const matrix = path?.getScreenCTM();
+      if (!path || !matrix) return false;
+      for (const ratio of [0.37, 0.63, 0.28, 0.72]) {
+        const { x, y } = path
+          .getPointAtLength(path.getTotalLength() * ratio)
+          .matrixTransform(matrix);
+        if (document.elementFromPoint(x, y)?.closest(".react-flow__edge")) return { x, y };
+      }
+      return false;
     });
-    await page.mouse.click(point.x, point.y);
+    const hit = await point.jsonValue();
+    if (!hit) throw new Error("缺少可操作的连线区域");
+    await page.mouse.click(hit.x, hit.y);
     const scissors = page.getByRole("button", { name: "断开连接", exact: true });
     await expect(edge).toHaveClass(/selected/);
     await expect(scissors).toBeVisible();
@@ -2948,8 +2955,8 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await writeFile(test.info().outputPath("linked-text-prompts.json"), JSON.stringify(prompts));
   } finally {
     finish?.();
-    server.closeAllConnections();
     server.close();
+    server.closeAllConnections();
     await app.close();
     await rm(root, { recursive: true, force: true });
   }
@@ -3431,30 +3438,30 @@ test("图片节点宫格拆图、批量撤销与重开恢复", async () => {
     await reopened.getByRole("button", { name: /^宫格验收/ }).click();
     await expect(reopened.locator(".react-flow__node")).toHaveCount(5);
     await expect(reopened.locator(".react-flow__edge")).toHaveCount(4);
-    await expect(reopened.locator(".react-flow__node img")).toHaveCount(5);
+    const previews = reopened.locator('.react-flow__node .canvas-image-layers img:not([alt=""])');
+    await expect(previews).toHaveCount(5);
     const saved = await latestSnapshot(root);
     const restored = projectCanvas(saved.canvas).nodes.filter((node) => node.type === "creative");
     const source = restored.find((node) => node.data.label === "grid");
     if (!source) throw new Error("缺少源图片");
-    const positions = await reopened
-      .locator(".react-flow__node img")
-      .evaluateAll(async (images) => {
-        return Promise.all(
-          images.map(async (element) => {
-            const image = element as HTMLImageElement;
-            image.loading = "eager";
-            await image.decode();
-            const card = image.closest("article");
-            return {
-              name: image.alt,
-              label: card?.querySelector("strong")?.textContent,
-              width: image.naturalWidth,
-              height: image.naturalHeight,
-              frame: [card?.offsetWidth, card?.offsetHeight],
-            };
-          }),
-        );
-      });
+    const positions = await previews.evaluateAll(async (images) => {
+      return Promise.all(
+        images.map(async (element) => {
+          const image = element as HTMLImageElement;
+          const { alt: name } = image;
+          image.loading = "eager";
+          await image.decode();
+          const card = image.closest("article");
+          return {
+            name,
+            label: card?.querySelector("strong")?.textContent,
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            frame: [card?.offsetWidth, card?.offsetHeight],
+          };
+        }),
+      );
+    });
     for (const part of positions) {
       const match = part.name.match(/^grid-([12])-([12])\.png$/);
       const row = Number(match?.[1] ?? 1) - 1;
@@ -8631,6 +8638,7 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
     await page.keyboard.press("Escape");
     await expect(trigger).toBeFocused();
     await addCanvasNode(page, "文本");
+    await expect(page.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
     const point = await page.evaluate(() => ({ x: innerWidth - 23, y: innerHeight - 93 }));
     await page.mouse.dblclick(point.x, point.y);
     const menu = page.getByRole("menu", { name: "画布菜单" });
@@ -8644,8 +8652,10 @@ test("添加节点菜单保留指针锚点，工具按钮可用键盘打开并�
     await expect(menu.getByRole("menuitem").last()).toBeFocused();
     await expect.poll(() => menu.evaluate((element) => element.scrollTop)).toBeGreaterThan(300);
     await page.keyboard.press("Home");
-    await expect(menu.getByRole("menuitem", { name: "图片生成", exact: true })).toBeFocused();
-    await page.keyboard.press("Enter");
+    const imageItem = menu.getByRole("menuitem", { name: "图片生成", exact: true });
+    await expect(imageItem).toBeEnabled();
+    await expect(imageItem).toBeFocused();
+    await imageItem.press("Enter");
     const image = page.locator(".react-flow__node.selected");
     await expect(image.locator("header strong")).toHaveText("图片");
     const bounds = await image.boundingBox();
