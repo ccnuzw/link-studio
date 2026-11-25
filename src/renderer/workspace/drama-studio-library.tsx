@@ -1,4 +1,4 @@
-import { jobIsTerminal } from "@link-studio/core";
+import { jobIsTerminal, requirePresent } from "@link-studio/core";
 import { AudioLines, Box, GripVertical, Image, User } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
@@ -24,7 +24,10 @@ function LibraryItem({
   projectHandle: string;
   running: boolean;
 }) {
-  const Icon = categories.find(([type]) => type === asset.type)![2];
+  const Icon = requirePresent(
+    categories.find(([type]) => type === asset.type),
+    "categories.find(([type]) => type === asset.type)",
+  )[2];
   const preview = useThumbURL(asset.source, projectHandle);
   return (
     <li

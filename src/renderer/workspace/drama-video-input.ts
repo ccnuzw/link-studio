@@ -9,6 +9,7 @@ import {
   type ProjectAsset,
   type ProjectCanvasView,
   promptLang,
+  requirePresent,
 } from "@link-studio/core";
 import { composeLinkedPrompt } from "./compose-canvas-prompt";
 import { parsePrompt } from "./prompt-tokens";
@@ -141,7 +142,7 @@ export function dramaVideoInput(
     op === "i2v" ? options.frameLimit : op === "omni" ? (options.references.image ?? 0) : 0;
   const audioLimit = op === "omni" ? (options.references.audio ?? 0) : 0;
   for (const id of new Set([...required, ...extras])) {
-    const asset = ready.get(id)!;
+    const asset = requirePresent(ready.get(id), "ready.get(id)");
     const limit = asset.mediaType === "audio" ? audioLimit : imageLimit;
     if (
       chosen.length >= options.referenceLimit ||

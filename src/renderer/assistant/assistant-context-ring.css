@@ -36,9 +36,6 @@
 .assistant-surface .agent-context > button:hover {
   background: var(--chrome-hover);
 }
-.assistant-surface .agent-context:has(:popover-open) > button {
-  background: color-mix(in oklab, var(--context-ink) 10%, transparent);
-}
 .agent-context svg {
   width: 16px;
   height: 16px;
@@ -92,6 +89,9 @@
 .drama-assistant .agent-context > button {
   --context-ink: oklch(0.22 0.01 85);
   --context-tone: oklch(0.5 0.015 85);
+}
+.assistant-surface .agent-context:has(:popover-open) > button {
+  background: color-mix(in oklab, var(--context-ink) 10%, transparent);
 }
 .drama-assistant .agent-context[data-tone="warn"] > button {
   --context-tone: oklch(0.67 0.14 78);

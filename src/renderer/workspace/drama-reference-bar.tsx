@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { AudioLines, Box, Grid2x2, Image as ImageIcon, User, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { dramaVideoInput } from "./drama-video-input";
@@ -148,7 +149,7 @@ export function DramaReferenceBar({
                 type="button"
                 aria-label={`试听${item.label} · 音色`}
                 title="点一下试听音色"
-                onClick={() => void listen(item.voiceId!)}
+                onClick={() => void listen(requirePresent(item.voiceId, "item.voiceId"))}
               >
                 <i aria-hidden="true">
                   <AudioLines size={14} />

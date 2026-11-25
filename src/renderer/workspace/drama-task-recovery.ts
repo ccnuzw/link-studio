@@ -1,4 +1,9 @@
-import { type DramaDocument, type DramaJobRecord, pendingDramaPromptIds } from "@link-studio/core";
+import {
+  type DramaDocument,
+  type DramaJobRecord,
+  pendingDramaPromptIds,
+  requirePresent,
+} from "@link-studio/core";
 
 export function failureRecovery(
   doc: DramaDocument,
@@ -50,6 +55,8 @@ export function failureRecovery(
 
 export function episodeScope(episodes: number[]) {
   if (!episodes.length) return;
-  const consecutive = episodes.every((no, index) => !index || no === episodes[index - 1]! + 1);
+  const consecutive = episodes.every(
+    (no, index) => !index || no === requirePresent(episodes[index - 1], "episodes[index - 1]") + 1,
+  );
   return `第 ${consecutive && episodes.length > 1 ? `${episodes[0]}–${episodes.at(-1)}` : episodes.join("、")} 集`;
 }

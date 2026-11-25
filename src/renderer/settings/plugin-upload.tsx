@@ -196,19 +196,17 @@ export function PluginUpload({
             )}
           </div>
           {issues.length > 0 && (
-            <>
-              <ul>
-                {issues.map((issue) => (
-                  <li key={`${issue.path}-${issue.message}`}>
-                    <div>
-                      <code>{issue.path || "（整个文件）"}</code>
-                      <p>{issue.message}</p>
-                    </div>
-                    {issue.path && <PluginCopy iconOnly label="复制路径" text={issue.path} />}
-                  </li>
-                ))}
-              </ul>
-            </>
+            <ul>
+              {issues.map((issue) => (
+                <li key={`${issue.path}-${issue.message}`}>
+                  <div>
+                    <code>{issue.path || "（整个文件）"}</code>
+                    <p>{issue.message}</p>
+                  </div>
+                  {issue.path && <PluginCopy iconOnly label="复制路径" text={issue.path} />}
+                </li>
+              ))}
+            </ul>
           )}
           {copyError && <p role="status">复制失败：无法写入剪贴板，请检查剪贴板权限后重试。</p>}
         </section>

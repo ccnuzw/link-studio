@@ -227,7 +227,7 @@ export function CanvasShortcuts({
           const prompt = surface.current?.querySelector<HTMLElement>(
             '[data-node-prompt][contenteditable="true"]',
           );
-          if (!prompt || !prompt.getClientRects().length) return;
+          if (!prompt?.getClientRects().length) return;
           prompt.focus();
           const selection = window.getSelection();
           selection?.selectAllChildren(prompt);

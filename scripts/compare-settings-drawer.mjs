@@ -197,8 +197,8 @@ try {
           enforce: "pre",
           resolveId(id) {
             if (id === entry) return entry;
-            const key = upstream && Object.keys(stubs).find((name) => id.endsWith("/" + name));
-            if (key) return "\0stub:" + key;
+            const key = upstream && Object.keys(stubs).find((name) => id.endsWith(`/${name}`));
+            if (key) return `\0stub:${key}`;
           },
           load(id) {
             if (id === entry) return script;
@@ -390,7 +390,7 @@ try {
                   const [left, right] = await Promise.all(
                     images.map(async (data) => {
                       const img = new Image();
-                      img.src = "data:image/png;base64," + data;
+                      img.src = `data:image/png;base64,${data}`;
                       await img.decode();
                       const canvas = document.createElement("canvas");
                       canvas.width = img.width;

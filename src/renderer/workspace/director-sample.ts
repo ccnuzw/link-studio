@@ -1,4 +1,5 @@
 import type { DirectorCamera, DirectorScene } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 
 type DirectorCharacter = DirectorScene["characters"][number];
 export type CharacterPose = Pick<DirectorCharacter, "x" | "z" | "yaw">;
@@ -30,13 +31,13 @@ function sampleKeys<P extends object, K extends P & { t: number; ease: KeyEase }
   const pick = (source: P) =>
     Object.fromEntries(fields.map((field) => [field, source[field]])) as P;
   if (keys.length === 0) return pick(fallback);
-  if (t <= keys[0]!.t) return pick(keys[0]!);
-  const lastKey = keys[keys.length - 1]!;
+  if (t <= requirePresent(keys[0], "keys[0]").t) return pick(requirePresent(keys[0], "keys[0]"));
+  const lastKey = requirePresent(keys[keys.length - 1], "keys[keys.length - 1]");
   if (t >= lastKey.t) return pick(lastKey);
   let index = 0;
-  while (keys[index + 1]!.t < t) index++;
-  const from = keys[index]!;
-  const to = keys[index + 1]!;
+  while (requirePresent(keys[index + 1], "keys[index + 1]").t < t) index++;
+  const from = requirePresent(keys[index], "keys[index]");
+  const to = requirePresent(keys[index + 1], "keys[index + 1]");
   const u = eased(from.ease, (t - from.t) / (to.t - from.t));
   const result = {} as Record<keyof P, number>;
   for (const field of fields) {

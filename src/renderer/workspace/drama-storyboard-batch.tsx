@@ -1,4 +1,4 @@
-import { type DramaDocument, dramaBusyReason } from "@link-studio/core";
+import { type DramaDocument, dramaBusyReason, requirePresent } from "@link-studio/core";
 import { Loader2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
@@ -97,7 +97,7 @@ export function DramaStoryboardBatch({
         await Promise.all(
           Array.from({ length: Math.min(6, queue.length) }, async () => {
             while (active && queue.length) {
-              const no = queue.shift()!;
+              const no = requirePresent(queue.shift(), "queue.shift()");
               try {
                 const price = await estimate(no);
                 credits += price;
@@ -128,7 +128,7 @@ export function DramaStoryboardBatch({
     await Promise.all(
       Array.from({ length: Math.min(6, count) }, async () => {
         while (queue.length && dialog.current?.open) {
-          const no = queue.shift()!;
+          const no = requirePresent(queue.shift(), "queue.shift()");
           try {
             const price = await estimate(no);
             if (!dialog.current?.open) return;
@@ -164,7 +164,9 @@ export function DramaStoryboardBatch({
       }),
     );
     if (!dialog.current?.open) return;
-    const details = selection.flatMap((no) => (failures.has(no) ? [failures.get(no)!] : []));
+    const details = selection.flatMap((no) =>
+      failures.has(no) ? [requirePresent(failures.get(no), "failures.get(no)")] : [],
+    );
     if (submitted) {
       started(details.length ? `有 ${details.length} 集没能提交：${details[0]}` : "");
       return;

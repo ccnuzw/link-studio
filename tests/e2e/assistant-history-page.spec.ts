@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
+import { requireTestValue } from "../require-test-value";
 import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
 
 for (const scope of ["设置", "画布", "短剧"] as const)
@@ -136,7 +137,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
             )
             .all();
           expect(rows).toHaveLength(1);
-          return String(rows[0]!.id);
+          return String(requireTestValue(rows[0]).id);
         } finally {
           db.close();
         }

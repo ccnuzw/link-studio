@@ -138,7 +138,7 @@ export async function replayVideo(page, origin, clip, capture) {
   await expect(menu).toBeHidden();
   await page.mouse.move(5, 5);
   await capture("muted-loop");
-  await slider.click({ position: { x: Math.floor(rects["滑块"].width / 2), y: 1 } });
+  await slider.click({ position: { x: Math.floor(rects.滑块.width / 2), y: 1 } });
   await expect.poll(() => player.evaluate((video) => Math.round(video.currentTime))).toBe(6);
   await page.keyboard.press("Space");
   await expect(player).toHaveJSProperty("paused", false);

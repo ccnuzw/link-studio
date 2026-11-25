@@ -72,7 +72,7 @@ try {
         planBackfill(node.data, {
           id,
           status: "succeeded",
-          outputs: [{ asset_id: id, url: "/files/" + id + ".png", media_type: "image/png" }],
+          outputs: [{ asset_id: id, url: `/files/${id}.png`, media_type: "image/png" }],
         }),
       );
     const record = (step) => {

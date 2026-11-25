@@ -12,6 +12,7 @@ import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { projectCanvas } from "../../src/main/project/canvas";
 import { ProjectStore } from "../../src/main/project/store";
 import { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 import {
   chooseAssistantModel,
   expectAssistantContrast,
@@ -308,11 +309,11 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     const targetId = await video.getAttribute("data-id");
     const directory = join(
       root,
-      (await readdir(root)).find((name) => name.endsWith(".linkstudio"))!,
+      requireTestValue((await readdir(root)).find((name) => name.endsWith(".linkstudio"))),
       "state",
     );
     const readManual = async () => {
-      const latest = (await readdir(directory)).sort().at(-1)!;
+      const latest = requireTestValue((await readdir(directory)).sort().at(-1));
       const snapshot: ProjectState = JSON.parse(await readFile(join(directory, latest), "utf8"));
       const node = projectCanvas(snapshot.canvas).nodes.find((node) => node.id === targetId);
       const ids = node?.type === "creative" ? (node.data.manualReferenceIds ?? []) : [];
@@ -870,11 +871,14 @@ for (const [followMode, title] of [
         .toBeGreaterThan(0);
       await page.screenshot({ path: "test-results/canvas-node-style-picker.png" });
       const gridItems = page.locator(".media-preset-grid [data-preset-item]");
-      const columns = await gridItems
-        .first()
-        .evaluate(
-          (item) => getComputedStyle(item.parentElement!).gridTemplateColumns.split(" ").length,
-        );
+      const columns = await gridItems.first().evaluate((item) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+        return getComputedStyle(requireTestValue(item.parentElement)).gridTemplateColumns.split(" ")
+          .length;
+      });
       await style.focus();
       await style.press("ArrowDown");
       await expect(gridItems.nth(columns)).toBeFocused();
@@ -1229,7 +1233,7 @@ for (const [followMode, title] of [
             )
             .all();
           expect(watches).toHaveLength(1);
-          sessionId = String(watches[0]!.id);
+          sessionId = String(requireTestValue(watches[0]).id);
         } finally {
           database.close();
         }
@@ -1288,11 +1292,15 @@ for (const [followMode, title] of [
           expect(await permission(reopened)).toBe("granted");
         };
         const clickLatest = async () => {
-          await app.evaluate(() =>
-            (Reflect.get(globalThis, "nativeNotices") as Electron.Notification[])
-              .at(-1)!
-              .emit("click", {}),
-          );
+          await app.evaluate(() => {
+            function requireTestValue<Value>(value: Value): NonNullable<Value> {
+              if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+              return value;
+            }
+            return requireTestValue(
+              (Reflect.get(globalThis, "nativeNotices") as Electron.Notification[]).at(-1),
+            ).emit("click", {});
+          });
           await expect.poll(() => owner.evaluate((win) => win.isVisible())).toBe(true);
         };
         await hide();
@@ -1357,7 +1365,7 @@ for (const [followMode, title] of [
             )
             .get("先聊一下新镜头。");
           expect(chat).toBeDefined();
-          expect(deliveries).toEqual([{ run: chat!.run, steer: 1 }]);
+          expect(deliveries).toEqual([{ run: requireTestValue(chat).run, steer: 1 }]);
         } finally {
           database.close();
         }
@@ -2193,23 +2201,38 @@ for (const [followMode, title] of [
           "CREATE TRIGGER reject_cleanup BEFORE DELETE ON canvases BEGIN SELECT RAISE(ABORT,'fixture'); END",
         );
         const grant = await reopened.evaluate(async (scope) => {
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
           const api = window.desktop.projects,
             history = await api.filingLibraryPage({ ...scope, history: {} });
           if (!history.ok || !history.value.items[0] || !history.value.canvases?.[0])
             throw Error("缺少已授权历史");
           const { page, session, items, canvases } = history.value;
-          return { page, session, choice: items[0]!.choice, recentEntryId: canvases[0]!.id };
+          return {
+            page,
+            session,
+            choice: requireTestValue(items[0]).choice,
+            recentEntryId: requireTestValue(canvases[0]).id,
+          };
         }, filingChannel);
         const readPreview = () =>
-          application!.evaluate(
-            async ({ BrowserWindow }, url) =>
-              (
-                await BrowserWindow.getAllWindows()[0]!.webContents.session.fetch(url, {
+          requireTestValue(application).evaluate(async ({ BrowserWindow }, url) => {
+            function requireTestValue<Value>(value: Value): NonNullable<Value> {
+              if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+              return value;
+            }
+            return (
+              await requireTestValue(BrowserWindow.getAllWindows()[0]).webContents.session.fetch(
+                url,
+                {
                   cache: "no-store",
-                })
-              ).status,
-            `link-media://filing-library/${grant.page}/${grant.choice}`,
-          );
+                },
+              )
+            ).status;
+          }, `link-media://filing-library/${grant.page}/${grant.choice}`);
         expect(await readPreview()).toBe(200);
         expect(
           await reopened.evaluate(

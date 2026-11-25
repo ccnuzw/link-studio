@@ -166,7 +166,7 @@ export function isCanvasAgentAnswerValue(
       question.allowCustom ||
       options?.includes(text) ||
       follows.some(
-        ({ label }) => text.startsWith(label + "：") && !!text.slice(label.length + 1).trim(),
+        ({ label }) => text.startsWith(`${label}：`) && !!text.slice(label.length + 1).trim(),
       )
     );
   };

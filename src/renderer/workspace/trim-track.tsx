@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { useRef } from "react";
 import { useFrameFilmstrip } from "./frame-filmstrip";
 import { trimBoundary } from "./trim-range";
@@ -22,7 +23,7 @@ export function TrimTrack({
   const frames = useFrameFilmstrip(url);
   const track = useRef<HTMLDivElement>(null);
   const timeAt = (clientX: number) => {
-    const rect = track.current!.getBoundingClientRect();
+    const rect = requirePresent(track.current, "track.current").getBoundingClientRect();
     return ((clientX - rect.left) * duration) / Math.max(1, rect.width);
   };
   const move = (which: "start" | "end", time: number) => {

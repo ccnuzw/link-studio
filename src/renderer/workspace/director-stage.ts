@@ -1,4 +1,5 @@
 import type { DirectorScene } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import {
   BoxGeometry,
   BufferAttribute,
@@ -106,11 +107,11 @@ function updateFrustum(frustum: LineSegments, fov: number, aspect: number, lengt
   };
   for (let k = 0; k < 4; k++) {
     put([0, 0, 0]);
-    put(corners[k]!);
+    put(requirePresent(corners[k], "corners[k]"));
   }
   for (let k = 0; k < 4; k++) {
-    put(corners[k]!);
-    put(corners[(k + 1) % 4]!);
+    put(requirePresent(corners[k], "corners[k]"));
+    put(requirePresent(corners[(k + 1) % 4], "corners[(k + 1) % 4]"));
   }
   position.needsUpdate = true;
   frustum.geometry.computeBoundingSphere();
@@ -265,7 +266,7 @@ export function createStage(options: { helpers: boolean }): DirectorStage {
       });
       entry.group.position.set(prop.x, 0, prop.z);
       entry.group.rotation.set(0, -prop.yaw * DEG, 0);
-      entry.body!.scale.set(prop.w, prop.h, prop.d);
+      requirePresent(entry.body, "entry.body").scale.set(prop.w, prop.h, prop.d);
       entry.group.visible = !prop.hidden;
     }
     if (options.helpers) {
@@ -275,11 +276,19 @@ export function createStage(options: { helpers: boolean }): DirectorStage {
         const pose = (poseOf(camera.id) ?? camera) as CameraPose;
         entry.group.position.set(pose.x, pose.y, pose.z);
         entry.group.rotation.set(pose.pitch * DEG, -pose.yaw * DEG, 0);
-        updateFrustum(entry.frustum!, pose.fov, directorAspectRatio(camera.aspect));
+        updateFrustum(
+          requirePresent(entry.frustum, "entry.frustum"),
+          pose.fov,
+          directorAspectRatio(camera.aspect),
+        );
         const active = camera.id === scene.activeCameraId;
         const color = opts.selectedId === camera.id ? SELECTED : active ? ACTIVE : IDLE;
-        (entry.frustum!.material as LineBasicMaterial).color.setHex(color);
-        entry.materials[0]!.color.setHex(active ? 0xe4e4e7 : 0x8a8a94);
+        (requirePresent(entry.frustum, "entry.frustum").material as LineBasicMaterial).color.setHex(
+          color,
+        );
+        requirePresent(entry.materials[0], "entry.materials[0]").color.setHex(
+          active ? 0xe4e4e7 : 0x8a8a94,
+        );
       }
       syncTrails(scene);
     }

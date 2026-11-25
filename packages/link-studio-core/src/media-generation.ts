@@ -687,10 +687,11 @@ export function configuredGenerationInput<Input extends Partial<GenerationInput>
   config: ModelConfig | undefined,
   input: Input,
 ): Input & Partial<GenerationInput> {
+  const parameterOrder = config?.parameterOrder;
   const params: ModelConfig["params"] =
-    config?.parameterOrder && config.params
+    parameterOrder && config.params
       ? Object.fromEntries(
-          Object.entries(config.params).filter(([key]) => config.parameterOrder!.includes(key)),
+          Object.entries(config.params).filter(([key]) => parameterOrder.includes(key)),
         )
       : config?.params;
   const next = { ...input };

@@ -19,7 +19,7 @@ test("长篇剧本随整个项目搬移，删掉原项目仍可读取；损坏�
       const doc = await createDrama(created, { script, title: "来信", sourceKind: "script" });
       expect(doc.source).toMatchObject({ text: "", textBlob: hash });
       expect(doc.episodes.map((item) => item.script_md)).toEqual(
-        script.split("\n第二集").map((body, index) => (index ? "第二集" + body : body)),
+        script.split("\n第二集").map((body, index) => (index ? `第二集${body}` : body)),
       );
     } finally {
       await created.close();

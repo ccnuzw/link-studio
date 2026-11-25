@@ -1,4 +1,5 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
@@ -15,8 +16,8 @@ export function DramaContinueDialog({
   saved: (doc: DramaDocument) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const { end: previousEnd } = doc.planning!;
-  const { total, chars, kind } = doc.source!;
+  const { end: previousEnd } = requirePresent(doc.planning, "doc.planning");
+  const { total, chars, kind } = requirePresent(doc.source, "doc.source");
   const word =
     ({ chapter: "章", episode: "集", scene: "场" } as Record<string, string>)[kind] ?? "段";
   const from = previousEnd + 1;

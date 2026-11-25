@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 /** 人物卡片上的一项资料，如「身份：蓝星大学班长」 */
 export type CharacterField = {
   /** 标签，如 身份、动机、能力/根基；原文写什么就是什么，不限定取值 */
@@ -48,14 +49,18 @@ function startsRoster(lines: Line[], start: number) {
   let people = 0;
   let indent: number | undefined;
   for (let index = start; index < lines.length; index++) {
-    const line = lines[index]!;
+    const line = requirePresent(lines[index], "lines[index]");
     if (line.kind === "heading") break;
     if (line.kind !== "item") continue;
     indent ??= line.indent;
     if (line.indent !== indent) continue;
     const match = INTRO_RE.exec(line.text);
-    if (!match || BIO_FIELD.test(match[1]!)) return false;
-    if (/^\*\*[^*]+\*\*\s*[—–-]/.test(line.text) || ALIAS_RE.test(match[1]!)) return true;
+    if (!match || BIO_FIELD.test(requirePresent(match[1], "match[1]"))) return false;
+    if (
+      /^\*\*[^*]+\*\*\s*[—–-]/.test(line.text) ||
+      ALIAS_RE.test(requirePresent(match[1], "match[1]"))
+    )
+      return true;
     people++;
   }
   return people > 1;
@@ -72,10 +77,19 @@ function plain(text: string) {
 /** 拆「标签：内容」；不是这种写法时为 null */
 function fieldOf(text: string): CharacterField | null {
   const bold = BOLD_FIELD_RE.exec(text);
-  if (bold) return { label: plain(bold[1]!), value: plain(bold[2]!) };
+  if (bold)
+    return {
+      label: plain(requirePresent(bold[1], "bold[1]")),
+      value: plain(requirePresent(bold[2], "bold[2]")),
+    };
   const cleaned = plain(text);
   const match = PLAIN_FIELD_RE.exec(cleaned);
-  return match ? { label: match[1]!, value: match[2]!.trim() } : null;
+  return match
+    ? {
+        label: requirePresent(match[1], "match[1]"),
+        value: requirePresent(match[2], "match[2]").trim(),
+      }
+    : null;
 }
 
 /** 按行分类；空行丢掉 */
@@ -85,11 +99,16 @@ function lex(markdown: string): Line[] {
     if (!raw.trim()) continue;
     const heading = HEADING_RE.exec(raw.trim()) ?? BOLD_LINE_RE.exec(raw.trim());
     if (heading) {
-      lines.push({ kind: "heading", text: plain(heading[1]!) });
+      lines.push({ kind: "heading", text: plain(requirePresent(heading[1], "heading[1]")) });
       continue;
     }
     const item = ITEM_RE.exec(raw);
-    if (item) lines.push({ kind: "item", indent: item[1]!.length, text: item[2]!.trim() });
+    if (item)
+      lines.push({
+        kind: "item",
+        indent: requirePresent(item[1], "item[1]").length,
+        text: requirePresent(item[2], "item[2]").trim(),
+      });
     else lines.push({ kind: "text", text: raw.trim() });
   }
   return lines;
@@ -100,8 +119,8 @@ function newCard(group: string, title: string): CharacterCard {
   const match = ALIAS_RE.exec(title);
   return {
     group,
-    name: match ? match[1]!.trim() : title,
-    alias: match ? match[2]!.trim() : "",
+    name: match ? requirePresent(match[1], "match[1]").trim() : title,
+    alias: match ? requirePresent(match[2], "match[2]").trim() : "",
     fields: [],
     notes: [],
   };
@@ -164,7 +183,8 @@ export function parseCharacters(markdown: string): CharacterCard[] {
       continue;
     }
     if (line.kind === "text") {
-      if (card && card.fields.at(-1)?.value === "") card.fields.at(-1)!.value = plain(line.text);
+      if (card && card.fields.at(-1)?.value === "")
+        requirePresent(card.fields.at(-1), "card.fields.at(-1)").value = plain(line.text);
       else if (card) addLine(card, line.text);
       continue;
     }
@@ -175,8 +195,9 @@ export function parseCharacters(markdown: string): CharacterCard[] {
     if (topIndent === null || line.indent <= topIndent) {
       topIndent = line.indent;
       const intro = INTRO_RE.exec(line.text);
-      card = newCard(group, plain(intro ? intro[1]! : line.text));
-      if (intro && plain(intro[2]!)) card.notes.push(plain(intro[2]!));
+      card = newCard(group, plain(intro ? requirePresent(intro[1], "intro[1]") : line.text));
+      if (intro && plain(requirePresent(intro[2], "intro[2]")))
+        card.notes.push(plain(requirePresent(intro[2], "intro[2]")));
       cards.push(card);
       continue;
     }

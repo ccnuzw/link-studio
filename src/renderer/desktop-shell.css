@@ -118,18 +118,12 @@
   border-radius: 99px;
   background: var(--desk-inset);
 }
-.desk-segments button,
-.desk-settings .desk-segments button {
+.desk-segments button {
   padding: 5px 15px;
   border: 0;
   border-radius: 99px;
   color: var(--desk-muted);
   background: transparent;
-}
-.desk-segments button[aria-checked="true"] {
-  background: var(--desk-card);
-  color: var(--desk-text);
-  box-shadow: 0 1px 3px #0002;
 }
 .home-create .home-new {
   margin-top: 12px;
@@ -143,8 +137,7 @@
   border: 1px solid var(--desk-border);
   background: radial-gradient(circle, var(--desk-border) 1px, transparent 1.3px) 0 0 / 14px 14px;
 }
-.home-new:hover,
-.home-record button:hover {
+.home-new:hover {
   background-color: var(--desk-inset);
 }
 .home-create .home-import {
@@ -193,7 +186,6 @@
   height: 48px;
   border-radius: 14px;
 }
-.home-new > svg:last-child,
 .home-record button > svg:last-child:not(:only-child) {
   margin-left: auto;
 }
@@ -280,6 +272,24 @@
 .home-create-dialog button {
   border-radius: 8px;
   padding: 8px 12px;
+}
+.desk-settings .desk-segments button {
+  padding: 5px 15px;
+  border: 0;
+  border-radius: 99px;
+  color: var(--desk-muted);
+  background: transparent;
+}
+.desk-segments button[aria-checked="true"] {
+  background: var(--desk-card);
+  color: var(--desk-text);
+  box-shadow: 0 1px 3px #0002;
+}
+.home-record button:hover {
+  background-color: var(--desk-inset);
+}
+.home-new > svg:last-child {
+  margin-left: auto;
 }
 .home-create-dialog .desk-primary {
   background: var(--desk-text);

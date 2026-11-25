@@ -32,7 +32,7 @@ test("保留画面、站位和素材引用，过滤对白与音效，超过九�
 
 test("五镜与六镜用三列两行，缺时间轴按四格并保留整段原稿", () => {
   for (const count of [5, 6])
-    expect(boardPrompt("【时间轴】\n" + "0–1.5秒：回头。\n".repeat(count))).toMatchObject({
+    expect(boardPrompt(`【时间轴】\n${"0–1.5秒：回头。\n".repeat(count)}`)).toMatchObject({
       layout: "3x2",
       shotCount: count,
     });

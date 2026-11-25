@@ -53,9 +53,6 @@
 .studio-lib header button[aria-pressed="true"] {
   color: var(--rail-ink);
 }
-.studio-lib header button > span {
-  position: relative;
-}
 .studio-lib header button > .studio-lib-selection {
   position: absolute;
   inset: 0;
@@ -104,6 +101,9 @@
 }
 .studio-lib-group span {
   font-variant-numeric: tabular-nums;
+}
+.studio-lib header button > span {
+  position: relative;
 }
 .studio-lib-items {
   margin: 0;

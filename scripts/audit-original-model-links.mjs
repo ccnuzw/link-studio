@@ -55,7 +55,7 @@ try {
       json: { code: 0, msg: "ok", data: { id: ++uploads, url: "/fixture.png", kind: "image" } },
     }),
   );
-  await page.route(origin + "audit*", (route) =>
+  await page.route(`${origin}audit*`, (route) =>
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><meta charset="utf-8"><main style="position:fixed;inset:0"></main><script type="module" src="${entry}"></script>`,
@@ -104,14 +104,14 @@ try {
     ["t2v,i2v", "i2v", ["image"]],
     ["t2v,i2v,omni", "omni", ["audio", "image"]],
   ]) {
-    await page.goto(origin + "audit?" + new URLSearchParams({ ops, fan: "1" }));
+    await page.goto(`${origin}audit?${new URLSearchParams({ ops, fan: "1" })}`);
     await page.locator('[data-id="audio"]').waitFor();
     await page.evaluate(() => window.fan());
     await expect.poll(() => page.evaluate(() => window.sampleFanReady())).toBe(true);
     await page.evaluate(() => window.createVideo());
     const expected = { model: "test", mode, sources, position: { x: 600, y: 208 } };
     await expect.poll(() => page.evaluate(() => window.fanResult())).toEqual(expected);
-    results["fan-" + mode] = expected;
+    results[`fan-${mode}`] = expected;
   }
   for (const count of [1, 4]) {
     await open("t2v,i2v,omni", "t2v");
@@ -140,7 +140,7 @@ try {
         y: 352 - 162 + Math.floor(i / 3) * 380,
       })),
     );
-    results["upload-" + count] = { notice, ...final };
+    results[`upload-${count}`] = { notice, ...final };
   }
   assert.equal(uploads, 5);
   await writeFile(join(output, "original.json"), JSON.stringify(results, null, 2));

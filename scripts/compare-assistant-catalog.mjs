@@ -19,7 +19,7 @@ const nodes = Array.from({ length: 210 }, (_, index) => ({
   id: `node-${index}`,
   type: "creative",
   parentId: "g",
-  data: { kind: "script", label: `镜头 ${index}`, text: "🎞".repeat(60) + "夜" },
+  data: { kind: "script", label: `镜头 ${index}`, text: `${"🎞".repeat(60)}夜` },
 }));
 nodes[0].data = {
   kind: "script",

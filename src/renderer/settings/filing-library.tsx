@@ -1,4 +1,5 @@
 import type { ChannelView, SettingsValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { ImagePlus, RotateCw, Star, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { focusOnMount } from "../focus-on-mount";
@@ -388,7 +389,9 @@ export function FilingLibrary({
               >
                 <FilingPreview
                   channel={channel}
-                  asset={members.find((asset) => asset.cover) ?? members[0]!}
+                  asset={
+                    members.find((asset) => asset.cover) ?? requirePresent(members[0], "members[0]")
+                  }
                 />
                 <FilingStatus status={status} />
                 <span>
@@ -560,7 +563,7 @@ export function FilingLibrary({
                 renderFilingPicker({
                   channel,
                   humanId: id,
-                  name: members[0]!.humanName,
+                  name: requirePresent(members[0], "members[0]").humanName,
                   close: () => setPicking(false),
                   done: personalDone,
                 })
@@ -568,7 +571,7 @@ export function FilingLibrary({
                 <FilingPersonalPicker
                   channel={channel}
                   humanId={id}
-                  name={members[0]!.humanName}
+                  name={requirePresent(members[0], "members[0]").humanName}
                   close={() => setPicking(false)}
                   done={personalDone}
                 />

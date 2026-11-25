@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type { DramaJobRecord } from "../../../packages/link-studio-core/src/drama.ts";
 import { dramaStyles } from "../../../packages/link-studio-core/src/drama.ts";
 import type { SettingsRegistry } from "../settings/registry.ts";
@@ -18,7 +19,7 @@ export async function writeDramaScripts(
   if (!model) throw Error("缺少任务模型版本");
   const context = registry.agentBinding(model.id, model.revision).profile.config?.contextWindow;
   const limit = context ? Math.max(1, Math.floor(context * 0.6)) : 12000;
-  const doc = dramaDocument(store.snapshot)!;
+  const doc = requirePresent(dramaDocument(store.snapshot), "dramaDocument(store.snapshot)");
   const units = doc.source
     ? preflightDramaSource(await readDramaText(doc.source, store.directory), "novel").units
     : [];

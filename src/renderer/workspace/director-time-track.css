@@ -132,14 +132,6 @@
 .dt-row-names {
   border-right: 1px solid oklch(1 0 0 / 10%);
 }
-.dt-timeline .dt-name {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 6px;
-  padding: 0 10px;
-  color: var(--director-dim);
-}
 .dt-timeline .dt-name:is(.dt-selected, :hover) {
   color: oklch(0.985 0 0);
 }
@@ -148,6 +140,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.dt-timeline .dt-name {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--director-dim);
 }
 .dt-lanes {
   position: relative;

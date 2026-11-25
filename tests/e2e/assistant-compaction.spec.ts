@@ -88,7 +88,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
           `data: ${JSON.stringify({ id: "fixture", object: "chat.completion.chunk", choices: [{ index: 0, delta: fields, finish_reason: finish }], ...(finish && { usage: { prompt_tokens: input, completion_tokens: 20, total_tokens: input + 20 } }) })}\n\n`;
         response
           .writeHead(200, { "content-type": "text/event-stream" })
-          .end(frame(delta, null) + frame({}, tool ? "tool_calls" : "stop") + "data: [DONE]\n\n");
+          .end(`${frame(delta, null) + frame({}, tool ? "tool_calls" : "stop")}data: [DONE]\n\n`);
       });
       server.listen(0, "127.0.0.1");
       await once(server, "listening");

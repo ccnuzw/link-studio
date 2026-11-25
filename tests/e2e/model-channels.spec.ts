@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, type Page, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
+import { requireTestValue } from "../require-test-value";
 
 async function chooseFilter(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label, exact: true }).click();
@@ -24,10 +26,17 @@ test("协议升降版保留兼容设置、补默认值并列出丢弃字段", as
     const page = await app.firstWindow();
     await page.getByRole("button", { name: "应用设置" }).waitFor();
     await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const catalog = await api.list({});
       if (!catalog.ok) throw Error(catalog.code);
-      const builtin = catalog.value.plugins.find((entry) => entry.key === "openai")!;
+      const builtin = requireTestValue(
+        catalog.value.plugins.find((entry) => entry.key === "openai"),
+      );
       const source =
         builtin.source +
         `\nObject.assign(module.exports.meta, {key:'version-test',name:'版本夹具',version:'1.0.0'}); module.exports.meta.channelSettings.flag={type:'boolean',label:'兼容模式'};`;
@@ -145,11 +154,16 @@ test("协议鉴权变化：升级失败后手动取消或授权，试跑只使�
     });
     const page = await app.firstWindow();
     const fixture = await page.evaluate(async (port) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const list = await api.list({});
       if (!list.ok) throw Error(list.code);
       const source =
-        list.value.plugins.find((plugin) => plugin.key === "openai")!.source +
+        requireTestValue(list.value.plugins.find((plugin) => plugin.key === "openai")).source +
         "\nObject.assign(module.exports.meta,{key:'reauth',name:'授权对照',version:'1.0.0'});";
       const first = await api.draft({ source });
       if (!first.ok) throw Error(first.code);
@@ -582,8 +596,8 @@ test("渠道表单在首次保存后逐字段报错，修正后保留授权并�
       ["https://fixture.invalid/#", "Base URL 不能带查询参数或片段"],
       ["https://name@fixture.invalid", "Base URL 不能包含用户名或密码"],
     ]) {
-      await url.fill(input!);
-      await expect(url).toHaveAccessibleDescription(message!);
+      await url.fill(requireTestValue(input));
+      await expect(url).toHaveAccessibleDescription(requireTestValue(message));
     }
     await url.fill("https://fixture.invalid");
     await editor.getByRole("button", { name: "添加 User-Agent" }).click();
@@ -1328,7 +1342,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
       });
     const submissions = requests.filter((request) => request.path !== "/v1/models");
     expect(submissions.map((request) => request.path)).toEqual(["/v1/responses"]);
-    expect(JSON.parse(submissions[0]!.body)).toMatchObject({
+    expect(JSON.parse(requireTestValue(submissions[0]).body)).toMatchObject({
       model: "gpt-fixture",
       instructions: "只回复 OK。",
       max_output_tokens: 256,
@@ -1738,7 +1752,7 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await protocolBatch.getByRole("button", { name: "文本", exact: true }).click();
     await expect(protocolBatch.getByRole("status")).toHaveCount(0);
     await protocolBatch.getByRole("radio", { name: /^OpenAI/ }).click();
-    const pinned = await protocolBatch.getByLabel("协议版本").innerText();
+    const pinned = await readRenderedText(protocolBatch.getByLabel("协议版本"));
     await chooseFilter(finalPage, "接口", "（不设置）");
     await chooseFilter(finalPage, "参考图传输格式", "请选择");
     await expect(applyProtocol).toBeDisabled();
@@ -1766,10 +1780,17 @@ test("新建渠道、拉取模型、保存能力与参数并试跑", async () =>
     await table.getByLabel("选择 剧本助手模型", { exact: true }).check();
     await finalPage.getByRole("button", { name: "批量删除", exact: true }).click();
     const conflict = await finalPage.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const listing = await api.list({});
       if (!listing.ok) throw Error(listing.code);
-      const stale = listing.value.providers.find((model) => model.model === "page-model-1")!;
+      const stale = requireTestValue(
+        listing.value.providers.find((model) => model.model === "page-model-1"),
+      );
       return api.modelRemove({ id: stale.id, expectedRevision: stale.revision });
     });
     expect(conflict.ok).toBe(true);

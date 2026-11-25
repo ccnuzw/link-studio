@@ -1,4 +1,5 @@
 import type { CreativeData, GenerationInput, ProviderView } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { characterVoiceModel } from "./character-voice-model";
 import { mediaGenerationDraft, type ProviderSettings } from "./media-generation-draft";
 import { promptPresets } from "./prompt-tokens";
@@ -50,7 +51,10 @@ export function assetImageInput(
 export function assetVoiceInput(data: CreativeData, settings: ProviderSettings) {
   const prompt = data.character?.voicePrompt?.trim();
   if (!prompt) return { error: "还没有音色描述" } as const;
-  const { voiceModel: provider, requiresImageURL } = characterVoiceModel(data.character!, settings);
+  const { voiceModel: provider, requiresImageURL } = characterVoiceModel(
+    requirePresent(data.character, "data.character"),
+    settings,
+  );
   if (!provider) return { error: "暂无可用音频模型" } as const;
   if (requiresImageURL) return { error: "音色模型需要公网参考图地址" } as const;
   return { provider, prompt } as const;

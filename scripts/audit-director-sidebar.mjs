@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 export async function auditDirectorSidebar(page, side, output) {
   const panel = page
@@ -22,7 +23,7 @@ export async function auditDirectorSidebar(page, side, output) {
       ...(await Promise.all((await controls.all()).map((item) => item.boundingBox()))),
     ];
     states[name] = [
-      await panel.innerText(),
+      await readRenderedText(panel),
       await panel
         .locator("input,select")
         .evaluateAll((fields) => fields.map((field) => field.value)),

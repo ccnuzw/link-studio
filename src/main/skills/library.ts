@@ -17,6 +17,7 @@ import type {
   SkillsInput,
   SkillVersion,
 } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { zipSync } from "fflate";
 import { isSkillScript, skillMethodText } from "./drama-body";
 import { SkillError, type SkillPackage } from "./intake";
@@ -426,7 +427,12 @@ export class SkillLibrary {
       )
       .get(offset + 1, name, row.version, path)?.bytes as Uint8Array;
     let length = Math.min(bytes.length, 65536);
-    while (length && length < bytes.length && (bytes[length]! & 192) === 128) length--;
+    while (
+      length &&
+      length < bytes.length &&
+      (requirePresent(bytes[length], "bytes[length]") & 192) === 128
+    )
+      length--;
     try {
       const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, length));
       const resources = files.filter((item) => item.path !== "SKILL.md");
@@ -559,11 +565,14 @@ export class SkillLibrary {
 
   methodTelemetry(step: MethodStep) {
     const week = Date.now() - 7 * 86400000;
-    const counts = this.db
-      .prepare(
-        "SELECT COUNT(*) AS total, COUNT(*) FILTER(WHERE passed=0) AS failed FROM step_runs WHERE step=? AND finished>=?",
-      )
-      .get(step, week)!;
+    const counts = requirePresent(
+      this.db
+        .prepare(
+          "SELECT COUNT(*) AS total, COUNT(*) FILTER(WHERE passed=0) AS failed FROM step_runs WHERE step=? AND finished>=?",
+        )
+        .get(step, week),
+      'this.db .prepare( "SELECT COUNT(*) AS total, COUNT(*) FILTER(WHERE passed=0) AS failed FROM step_runs WHERE step=? AND finished>=?", ) .get(step, week)',
+    );
     const history = this.db
       .prepare(
         "SELECT rowid,created,candidate,trial FROM step_binding_history WHERE step=? ORDER BY rowid DESC LIMIT 50",

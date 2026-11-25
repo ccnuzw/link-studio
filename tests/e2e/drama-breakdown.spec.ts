@@ -4,8 +4,10 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { addDramaEpisode, createDrama, dramaDocument } from "../../src/main/project/drama";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { projectAction } from "./workspace-actions";
 
 test("资产管理直接拆解：选集不出站，取消中断，重新确认后只锁定所选集并保留道具", async () => {
@@ -48,7 +50,9 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     const prompt = JSON.parse(Buffer.concat(chunks).toString()).messages.at(-1).content as string;
     const stage = prompt.match(/\n# ((?:资产|单集分镜)[^\n]+)/)?.[1] ?? "";
     stages.push(stage);
-    const variables = JSON.parse(prompt.split("```json\n")[1]!.split("\n```")[0]!);
+    const variables = JSON.parse(
+      requireTestValue(requireTestValue(prompt.split("```json\n")[1]).split("\n```")[0]),
+    );
     if (stage.startsWith("单集分镜") && !stage.includes("格式化")) {
       storyRuns++;
       limits.push(variables.max_seconds);
@@ -178,7 +182,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await open.click();
     const quoted = dialog.getByText(/约\s*\d+\s*积分/);
     await expect(quoted).toBeVisible();
-    const firstPrice = Number((await quoted.innerText()).match(/\d+/)?.[0]);
+    const firstPrice = Number((await readRenderedText(quoted)).match(/\d+/)?.[0]);
     expect(firstPrice).toBeGreaterThan(0);
     await submit.click();
     await expect(list.getByRole("heading", { name: "资产管理 · 全集" })).toBeAttached();
@@ -275,7 +279,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     expect(stages).toHaveLength(5);
     await breakdown.click();
     await expect(quoted).toBeVisible();
-    expect(Number((await quoted.innerText()).match(/\d+/)?.[0])).toBe(firstPrice);
+    expect(Number((await readRenderedText(quoted)).match(/\d+/)?.[0])).toBe(firstPrice);
     const raised = await page.evaluate(async (fields) => {
       const updated = await window.desktop.settings.modelSave({
         ...fields,
@@ -287,7 +291,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await submit.click();
     await expect(dialog.getByRole("alert")).toContainText("估价已改变");
     expect(stages).toHaveLength(5);
-    const newPrice = Number((await quoted.innerText()).match(/\d+/)?.[0]);
+    const newPrice = Number((await readRenderedText(quoted)).match(/\d+/)?.[0]);
     expect(newPrice).toBeGreaterThan(firstPrice);
     await dialog.press("Escape");
     await breakdown.click();
@@ -376,7 +380,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     const story = page.getByRole("region", { name: "分镜脚本" }),
       generate = story.getByRole("button", { name: /^生成脚本/ });
     await expect(generate).toContainText(/·\d+/);
-    const credits = Number(await generate.locator("b").innerText());
+    const credits = Number(await readRenderedText(generate.locator("b")));
     await generate.dblclick();
     await expect.poll(() => storyRuns).toBe(1);
     await expect(story.getByRole("status")).toContainText("正在生成分镜初稿");
@@ -420,7 +424,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     );
     const price = batch.locator(".script-estimate small b");
     await expect(price).toBeVisible();
-    const oldPrice = Number(await price.innerText());
+    const oldPrice = Number(await readRenderedText(price));
     await page.evaluate(
       async ({ fields, expectedRevision }) => {
         const result = await window.desktop.settings.modelSave({
@@ -436,14 +440,14 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await batch.getByLabel("结束集").fill("1");
     await batch.getByRole("button", { name: "选中", exact: true }).click();
     await expect(price).toBeVisible();
-    const thirdPrice = Number(await price.innerText()) - oldPrice;
+    const thirdPrice = Number(await readRenderedText(price)) - oldPrice;
     await batch.getByRole("button", { name: "生成 2 集脚本" }).dblclick();
     await expect(batch).toHaveCount(0);
     await expect(page.getByText(/^有 1 集没能提交：第 1 集/)).toBeVisible();
     await expect.poll(() => storyRuns).toBe(5);
     await batchOpen.click();
     await expect(price).toBeVisible();
-    const retryPrice = Number(await price.innerText());
+    const retryPrice = Number(await readRenderedText(price));
     expect(retryPrice).toBeGreaterThan(oldPrice);
     const batchPrice = retryPrice + thirdPrice;
     await batch.getByRole("button", { name: "生成 1 集脚本" }).click();
@@ -457,7 +461,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await projectAction(page, "关闭项目");
     const reopened = await ProjectStore.open(directory);
     try {
-      const doc = dramaDocument(reopened.snapshot)!;
+      const doc = requireTestValue(dramaDocument(reopened.snapshot));
       expect(
         doc.jobs
           ?.filter((job) => job.step === "breakdown")
@@ -478,7 +482,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
       ).toEqual(
         ["canceled", "failed", "succeeded", "canceled"].map((status) => [status, [2], credits]),
       );
-      const batchJobs = doc.jobs!.filter(
+      const batchJobs = requireTestValue(doc.jobs).filter(
         (job) => job.step === "storyboard" && !job.episodes.includes(2),
       );
       expect(batchJobs.map((job) => job.episodes[0]).sort()).toEqual([1, 3]);
@@ -514,8 +518,8 @@ test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消�
     try {
       await createDrama(store, { title: "末班车", script: "站台钟响了。" });
       await store.updateGeneration((state) => {
-        const doc = dramaDocument(state)!,
-          first = doc.episodes[0]!;
+        const doc = requireTestValue(dramaDocument(state)),
+          first = requireTestValue(doc.episodes[0]);
         doc.episodes = Array.from({ length: 52 }, (_, index) => ({
           ...first,
           episode_no: index + 1,
@@ -562,7 +566,7 @@ test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消�
     await projectAction(page, "关闭项目");
     const reopened = await ProjectStore.open(directory);
     try {
-      expect(dramaDocument(reopened.snapshot)!.jobs ?? []).toEqual([]);
+      expect(requireTestValue(dramaDocument(reopened.snapshot)).jobs ?? []).toEqual([]);
     } finally {
       await reopened.close();
     }

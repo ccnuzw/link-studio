@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type {
   DramaDocument,
   DramaSourcePreview,
@@ -17,15 +18,15 @@ function trimSpace(text: string) {
   const space = /\p{White_Space}/u;
   let start = 0,
     end = text.length;
-  while (start < end && space.test(text[start]!)) start++;
-  while (start < end && space.test(text[end - 1]!)) end--;
+  while (start < end && space.test(requirePresent(text[start], "text[start]"))) start++;
+  while (start < end && space.test(requirePresent(text[end - 1], "text[end - 1]"))) end--;
   return text.slice(start, end);
 }
 
 export function runeCount(text: string) {
   let count = 0;
   for (let index = 0; index < text.length; count++)
-    index += text.codePointAt(index)! > 0xffff ? 2 : 1;
+    index += requirePresent(text.codePointAt(index), "text.codePointAt(index)") > 0xffff ? 2 : 1;
   return count;
 }
 
@@ -41,7 +42,8 @@ export function dramaKindSample(raw: string) {
     (first, second) => first - second,
   )) {
     while (position < target) {
-      offset += text.codePointAt(offset)! > 0xffff ? 2 : 1;
+      offset +=
+        requirePresent(text.codePointAt(offset), "text.codePointAt(offset)") > 0xffff ? 2 : 1;
       position++;
     }
     bounds.set(target, offset);
@@ -68,7 +70,8 @@ function paragraphUnits(text: string, kind: string, title = ""): Unit[] {
     function take(count: number) {
       const from = start;
       for (let index = 0; index < count; index++)
-        start += line.codePointAt(start)! > 0xffff ? 2 : 1;
+        start +=
+          requirePresent(line.codePointAt(start), "line.codePointAt(start)") > 0xffff ? 2 : 1;
       remaining -= count;
       return line.slice(from, start);
     }
@@ -255,12 +258,15 @@ export function novelAnalysisSample(units: Unit[], contextBudget: number) {
   let used = 0;
   let index = 0;
   const openingBudget = Math.floor((budget * 3) / 4);
-  while (index < parts.length && used + sizes[index]! <= openingBudget) {
-    text += parts[index]!;
-    used += sizes[index++]!;
+  while (
+    index < parts.length &&
+    used + requirePresent(sizes[index], "sizes[index]") <= openingBudget
+  ) {
+    text += requirePresent(parts[index], "parts[index]");
+    used += requirePresent(sizes[index++], "sizes[index++]");
   }
   if (!index && parts.length) {
-    text = Array.from(parts[0]!).slice(0, openingBudget).join("");
+    text = Array.from(requirePresent(parts[0], "parts[0]")).slice(0, openingBudget).join("");
     used = Array.from(text).length;
     index++;
   }
@@ -268,7 +274,7 @@ export function novelAnalysisSample(units: Unit[], contextBudget: number) {
   for (let offset = 0; offset < count; offset++) {
     const position =
       index + (count > 1 ? Math.floor((offset * (parts.length - index - 1)) / (count - 1)) : 0);
-    const runes = Array.from(parts[position]!).slice(
+    const runes = Array.from(requirePresent(parts[position], "parts[position]")).slice(
       0,
       Math.floor((budget - used) / (count - offset)),
     );

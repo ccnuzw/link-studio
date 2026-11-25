@@ -9,6 +9,7 @@ import { auditDirectorChrome } from "./audit-director-chrome.mjs";
 import { auditDirectorSidebar } from "./audit-director-sidebar.mjs";
 import { auditDenseDirectorKeys, auditDirectorTimeline } from "./audit-director-timeline.mjs";
 import { auditDirectorViewMenu } from "./audit-director-view-menu.mjs";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 assert(process.env.VIDEO_CANVAS_WEB);
 const dpr = Number(process.env.DIRECTOR_DPR ?? 1);
@@ -120,7 +121,7 @@ async function compareWorkbench() {
           enforce: "pre",
           resolveId(id) {
             if (id === entry) return id;
-            if (id in mocks) return "\0" + id;
+            if (id in mocks) return `\0${id}`;
           },
           load(id) {
             return id === entry ? code : mocks[id.slice(1)];
@@ -138,16 +139,16 @@ async function compareWorkbench() {
       });
       try {
         page.on("pageerror", (e) => console.error(side, e));
-        await page.route(origin + "assets/**", (route) =>
+        await page.route(`${origin}assets/**`, (route) =>
           route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
         );
-        await page.route(origin + "audit", (route) =>
+        await page.route(`${origin}audit`, (route) =>
           route.fulfill({
             contentType: "text/html",
             body: `<!doctype html><html><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><div id="root" class="${upstream ? "" : "canvas-workspace"}"></div><script type="module" src="${entry}"></script></html>`,
           }),
         );
-        await page.goto(origin + "audit");
+        await page.goto(`${origin}audit`);
         await page.getByTitle("切换视角").waitFor();
         if (denseKeys) {
           records[side] = await auditDenseDirectorKeys(page, async (name, lanes) => {
@@ -166,8 +167,8 @@ async function compareWorkbench() {
                 };
               }),
             );
-            await writeFile(join(output, key + ".json"), JSON.stringify(styles, null, 2));
-            images[key] = await lanes.screenshot({ path: join(output, key + ".png") });
+            await writeFile(join(output, `${key}.json`), JSON.stringify(styles, null, 2));
+            images[key] = await lanes.screenshot({ path: join(output, `${key}.png`) });
           });
           continue;
         }
@@ -202,7 +203,7 @@ async function compareWorkbench() {
             assetsPanel.locator("img").first(),
             assetsPanel.locator("section button").first().getByText("预设"),
           ];
-          records[side + "-asset-" + phase] = await Promise.all(
+          records[`${side}-asset-${phase}`] = await Promise.all(
             items.map((item) => item.boundingBox()),
           );
         }
@@ -211,7 +212,7 @@ async function compareWorkbench() {
           await page.mouse.move(4, 4);
           await page.evaluate(() => document.activeElement?.blur?.());
           await page.waitForTimeout(150);
-          const key = side + "-" + name;
+          const key = `${side}-${name}`;
           const boxes = await Promise.all(
             [
               page.getByRole("dialog").locator("header").first(),
@@ -225,7 +226,7 @@ async function compareWorkbench() {
             ].map((loc) => loc.boundingBox()),
           );
           records[key] = boxes;
-          images[key] = await page.screenshot({ path: join(output, key + ".png") });
+          images[key] = await page.screenshot({ path: join(output, `${key}.png`) });
         }
         await capture("floating");
         await main.getByRole("button", { name: "左右分栏" }).click();
@@ -238,7 +239,7 @@ async function compareWorkbench() {
         await page.setViewportSize({ width: 1024, height: 700 });
         await capture("compact");
         view[side] = await auditDirectorViewMenu(page, side, output);
-        assert.match(await page.getByTitle("切换视角").innerText(), /机位视角/);
+        assert.match(await readRenderedText(page.getByTitle("切换视角")), /机位视角/);
         await page.setViewportSize({ width: 1280, height: 800 });
         await assetsPanel.getByRole("tab", { name: "物体" }).click();
         await collectThumbs(14);
@@ -282,11 +283,11 @@ async function compareWorkbench() {
   const page = await browser.newPage(),
     results = {};
   for (const name of Object.keys(timeline.upstream.images)) {
-    const phase = "timeline-" + name;
+    const phase = `timeline-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = timeline[side].images[name];
-      records[side + "-" + phase] = timeline[side].rectangles[name];
+      images[`${side}-${phase}`] = timeline[side].images[name];
+      records[`${side}-${phase}`] = timeline[side].rectangles[name];
     }
   }
   await writeFile(
@@ -318,11 +319,11 @@ async function compareWorkbench() {
   );
   assert.deepEqual(view.desktop.states, view.upstream.states);
   for (const name of Object.keys(view.upstream.images)) {
-    const phase = "view-" + name;
+    const phase = `view-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = view[side].images[name];
-      records[side + "-" + phase] = view[side].rectangles[name];
+      images[`${side}-${phase}`] = view[side].images[name];
+      records[`${side}-${phase}`] = view[side].rectangles[name];
     }
   }
   await writeFile(
@@ -340,11 +341,11 @@ async function compareWorkbench() {
   );
   assert.deepEqual(sidebar.desktop.states, sidebar.upstream.states);
   for (const name of Object.keys(sidebar.upstream.images)) {
-    const phase = "sidebar-" + name;
+    const phase = `sidebar-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = sidebar[side].images[name];
-      records[side + "-" + phase] = sidebar[side].rectangles[name];
+      images[`${side}-${phase}`] = sidebar[side].images[name];
+      records[`${side}-${phase}`] = sidebar[side].rectangles[name];
     }
   }
   await writeFile(
@@ -362,16 +363,16 @@ async function compareWorkbench() {
   );
   assert.deepEqual(chrome.desktop.states, chrome.upstream.states);
   for (const name of Object.keys(chrome.upstream.images)) {
-    const phase = "chrome-" + name;
+    const phase = `chrome-${name}`;
     phases.push(phase);
     for (const side of ["upstream", "desktop"]) {
-      images[side + "-" + phase] = chrome[side].images[name];
-      records[side + "-" + phase] = chrome[side].rectangles[name];
+      images[`${side}-${phase}`] = chrome[side].images[name];
+      records[`${side}-${phase}`] = chrome[side].rectangles[name];
     }
   }
   for (const phase of phases) {
-    const left = records["upstream-" + phase],
-      right = records["desktop-" + phase];
+    const left = records[`upstream-${phase}`],
+      right = records[`desktop-${phase}`];
     const pixelDiff = await countPixels(page, phase);
     results[phase] = {
       differentPixels: pixelDiff,
@@ -380,7 +381,7 @@ async function compareWorkbench() {
     };
   }
   function countPixels(page, phase) {
-    const pair = ["upstream", "desktop"].map((side) => images[side + "-" + phase]);
+    const pair = ["upstream", "desktop"].map((side) => images[`${side}-${phase}`]);
     assert.ok(
       pair[0].subarray(16, 24).equals(pair[1].subarray(16, 24)),
       `Screenshot dimensions differ: ${phase}`,
@@ -390,7 +391,7 @@ async function compareWorkbench() {
         const imgs = await Promise.all(
           pair.map(async (data) => {
             const img = new Image();
-            img.src = "data:image/png;base64," + data;
+            img.src = `data:image/png;base64,${data}`;
             await img.decode();
             const cv = document.createElement("canvas");
             cv.width = img.width;
@@ -422,7 +423,7 @@ async function compareWorkbench() {
   if (process.argv.includes("--strict") || process.argv.includes("--strict-geometry")) {
     assert.deepEqual(records["desktop-asset-people"], records["upstream-asset-people"]);
     for (const [phase, record] of Object.entries(results)) {
-      assert.equal(record.rectanglesMatched, records["upstream-" + phase].length, phase);
+      assert.equal(record.rectanglesMatched, records[`upstream-${phase}`].length, phase);
       if (process.argv.includes("--strict")) assert.equal(record.differentPixels, 0);
     }
   }

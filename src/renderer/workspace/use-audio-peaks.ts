@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { useEffect, useState } from "react";
 import { computePeaks } from "./audio-peaks";
 
@@ -18,7 +19,10 @@ async function decode(
   const result = await window.desktop.projects.readAudioForWaveform(
     projectHandle
       ? { projectHandle, assetId }
-      : { library: library![1] === "history" ? "history" : "personal", assetId: library![2]! },
+      : {
+          library: requirePresent(library, "library")[1] === "history" ? "history" : "personal",
+          assetId: requirePresent(requirePresent(library, "library")[2], "library[2]"),
+        },
   );
   if (!result.ok) return { peaks: null, duration: 0 };
   context ??= new AudioContext();
@@ -46,7 +50,8 @@ export function useAudioPeaks(
       pending.set(key, task);
       decoding = task.then((wave) => {
         pending.delete(key);
-        if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+        if (cache.size >= 256)
+          cache.delete(requirePresent(cache.keys().next().value, "cache.keys().next().value"));
         cache.set(key, wave);
       });
     }

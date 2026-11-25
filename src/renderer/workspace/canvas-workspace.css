@@ -1372,7 +1372,8 @@ html:has(.canvas-workspace:not([hidden]))::-webkit-scrollbar-thumb:hover {
 .canvas-workspace .canvas-group-frame {
   height: 100%;
   width: 100%;
-  border: 1px dashed color-mix(in oklab, var(--group-ink) 20%, transparent);
+  border: 1px dashed
+    var(--group-frame-color, color-mix(in oklab, var(--group-ink) 20%, transparent));
   border-radius: 22px;
   background: color-mix(in oklab, var(--group-ink) 8%, transparent);
   cursor: grab;

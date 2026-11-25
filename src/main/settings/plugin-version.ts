@@ -6,14 +6,13 @@ const maxUint64 = (1n << 64n) - 1n;
 const maxInt64 = maxUint64 >> 1n;
 
 export function compareUpgradeCore(left: string, right: string) {
-  const core = (version: string) =>
-    version
-      .split("-", 1)[0]!
-      .split(".")
-      .map((part) => {
-        const value = /^\d+$/.test(part) ? BigInt(part) : 0n;
-        return value < maxInt64 ? value : maxInt64;
-      });
+  const core = (version: string) => {
+    const [base = ""] = version.split("-", 1);
+    return base.split(".").map((part) => {
+      const value = /^\d+$/.test(part) ? BigInt(part) : 0n;
+      return value < maxInt64 ? value : maxInt64;
+    });
+  };
   const first = core(left);
   const second = core(right);
   for (let index = 0; index < Math.max(first.length, second.length); index++) {

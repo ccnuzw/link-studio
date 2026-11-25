@@ -7,6 +7,7 @@ import { applyCanvas, projectCanvas } from "../../src/main/project/canvas";
 import { addDramaSegment, createDrama } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { projectAction } from "./workspace-actions";
 
 test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保存互不干扰", async () => {
@@ -199,7 +200,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await newProp.getByRole("button", { name: /在画布中打开/ }).click();
     await expect(canvasArea.locator(".react-flow__node.selected")).toHaveAttribute(
       "data-id",
-      propId!,
+      requireTestValue(propId),
     );
     await tab("片场").click();
     await expect(page.getByText("第2个片段 · 5 秒")).toBeVisible();
@@ -250,7 +251,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await props.click();
     await expect(assetList.locator("[data-asset-id]")).toHaveCount(0);
     await rail.getByRole("button", { name: /^第 2 集 ·/ }).click();
-    await expect(newProp).toHaveAttribute("data-asset-id", propId!);
+    await expect(newProp).toHaveAttribute("data-asset-id", requireTestValue(propId));
     await rail.getByRole("button", { name: "全集" }).click();
     await assetList.getByRole("tab", { name: /^文本/ }).click();
     await assetList.getByRole("button", { name: "新建文本 全集出现" }).click();
@@ -465,20 +466,25 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
           node.data.drama.type === "prop" &&
           node.id !== emptyId,
       );
-      expect(added.map((node) => snapshot.assets[node.data.assetId!]!.displayName)).toEqual([
-        "icon-48.png",
-        "icon-64.png",
-      ]);
-      expect(added[1]!.position).toEqual({
-        x: added[0]!.position.x + 440,
-        y: added[0]!.position.y,
+      expect(
+        added.map(
+          (node) =>
+            requireTestValue(snapshot.assets[requireTestValue(node.data.assetId)]).displayName,
+        ),
+      ).toEqual(["icon-48.png", "icon-64.png"]);
+      expect(requireTestValue(added[1]).position).toEqual({
+        x: requireTestValue(added[0]).position.x + 440,
+        y: requireTestValue(added[0]).position.y,
       });
       for (const [kind, file] of [
         ["audio", "环境.wav"],
         ["video", "外景.mp4"],
       ]) {
         const node = graph.find((item) => item.data.kind === kind);
-        expect(snapshot.assets[node!.data.assetId!]!.displayName).toBe(file);
+        expect(
+          requireTestValue(snapshot.assets[requireTestValue(requireTestValue(node).data.assetId)])
+            .displayName,
+        ).toBe(file);
       }
     } finally {
       await reopened.close();

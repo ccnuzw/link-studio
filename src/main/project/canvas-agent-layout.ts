@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type {
   CanvasOperation,
   EditableCanvasNode,
@@ -246,17 +247,24 @@ export function refitAndPushGroups(
       pairs.set(pair.join("\0"), pair);
     }
   }
-  const remaining = [...pairs.keys()].sort().map((key) => pairs.get(key)!);
+  const remaining = [...pairs]
+    .sort(([left], [right]) => (left > right ? 1 : left < right ? -1 : 0))
+    .map(([, pair]) => pair);
   const counts = new Map<string, number>();
   const score = ([left, right]: [string, string]) =>
     (counts.get(left) ?? 0) + (counts.get(right) ?? 0);
   const warnings: string[] = [];
   while (remaining.length && warnings.length < 5) {
     let best = 0;
-    for (let index = 1; index < remaining.length; index++) {
-      if (score(remaining[index]!) < score(remaining[best]!)) best = index;
+    let bestScore = Infinity;
+    for (const [index, pair] of remaining.entries()) {
+      const nextScore = score(pair);
+      if (nextScore < bestScore) {
+        best = index;
+        bestScore = nextScore;
+      }
     }
-    const [left, right] = remaining.splice(best, 1)[0]!;
+    const [left, right] = requirePresent(remaining.splice(best, 1)[0], "重叠节点对");
     warnings.push(
       `「${current(left).data.label}」（${left}）与「${current(right).data.label}」（${right}）重叠；节点可用 move 或 canvas_arrange 调整；组与组之间重叠要对组逐个 move（canvas_apply_ops），canvas_arrange 只重排组内成员，不会移动组本身`,
     );

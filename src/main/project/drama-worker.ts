@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import type { CanvasOperation } from "../../../packages/link-studio-core/src/canvas.ts";
 import { dramaAssetMeta } from "../../../packages/link-studio-core/src/canvas.ts";
 import {
@@ -82,7 +83,7 @@ export async function runDramaAssetJob(
     const model = job.model;
     const config = registry.agentBinding(model.id, model.revision).profile.config;
     const budget = dramaBatchBudget(config?.contextWindow);
-    const document = dramaDocument(store.snapshot)!;
+    const document = requirePresent(dramaDocument(store.snapshot), "dramaDocument(store.snapshot)");
     const variables = {
       source_kind: document.planning ? "novel" : "script",
       source: document.planning?.summary ?? "",
@@ -104,11 +105,15 @@ export async function runDramaAssetJob(
     let chars = 0;
     for (const episode of episodes) {
       const size = Array.from(episode.script_md).length;
-      if (!batches.length || batches.at(-1)!.length >= 12 || chars + size > budget) {
+      if (
+        !batches.length ||
+        requirePresent(batches.at(-1), "batches.at(-1)").length >= 12 ||
+        chars + size > budget
+      ) {
         batches.push([]);
         chars = 0;
       }
-      batches.at(-1)!.push(episode);
+      requirePresent(batches.at(-1), "batches.at(-1)").push(episode);
       chars += size;
     }
     const frozen = job.prompt_snapshots ?? document.prompt_snapshots;
@@ -214,7 +219,13 @@ export async function runDramaAssetJob(
     }
     async function promptBatch(): Promise<boolean> {
       const state = store.snapshot;
-      const checkpoint = dramaDocument(state)!.jobs!.find((entry) => entry.id === id)!;
+      const checkpoint = requirePresent(
+        requirePresent(
+          requirePresent(dramaDocument(state), "dramaDocument(state)").jobs,
+          "dramaDocument(state).jobs",
+        ).find((entry) => entry.id === id),
+        "dramaDocument(state).jobs.find((entry) => entry.id === id)",
+      );
       const remaining =
         checkpoint.new_nodes?.filter(
           (node) =>
@@ -287,7 +298,9 @@ export async function runDramaAssetJob(
               );
               if (
                 index >= 0 &&
-                batches[index]!.every((ep) => current.done_episodes?.includes(ep.episode_no))
+                requirePresent(batches[index], "batches[index]").every((ep) =>
+                  current.done_episodes?.includes(ep.episode_no),
+                )
               ) {
                 const start = progressBucket(((index + 2 / 3) * 90) / batches.length);
                 const end = progressBucket(((index + 1) * 90) / batches.length);
@@ -397,7 +410,7 @@ export async function runDramaAssetJob(
         async (batch, error) => {
           if (error instanceof DramaOutputTruncatedError && batch.length === 1)
             throw Error(
-              `第 ${batch[0]!.episode_no} 集单独拆解仍超过长度上限，请提高文本模型的最大输出后再继续`,
+              `第 ${requirePresent(batch[0], "batch[0]").episode_no} 集单独拆解仍超过长度上限，请提高文本模型的最大输出后再继续`,
             );
           throw error;
         },

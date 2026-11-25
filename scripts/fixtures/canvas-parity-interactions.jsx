@@ -94,7 +94,7 @@ export function Interactions() {
               mimeType: "audio/wav",
               displayName: file,
               sizeBytes: 100,
-              metadata: { officialVoice: "https://img.vbing.site/official-voices/" + file },
+              metadata: { officialVoice: `https://img.vbing.site/official-voices/${file}` },
             };
             setAssets([asset]);
             return asset;

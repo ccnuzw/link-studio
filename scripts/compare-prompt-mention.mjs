@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { chromium, expect } from "@playwright/test";
 import { createServer } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const desktop = process.cwd();
 const baseline = resolve(process.env.VIDEO_CANVAS_WEB ?? "../video-canvas/web");
@@ -109,7 +110,7 @@ try {
       });
       const options = await list.getByRole("option").allTextContents();
       await editor.press("ArrowUp");
-      const wrap = await list.locator('[aria-selected="true"]').innerText();
+      const wrap = await readRenderedText(list.locator('[aria-selected="true"]'));
       await page.screenshot({ path: join(output, `${name}-wrapped.png`), clip });
       await editor.press("ArrowDown");
       await page.keyboard.insertText("剧本");

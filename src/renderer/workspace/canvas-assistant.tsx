@@ -8,7 +8,7 @@ import type {
   ProviderView,
   SettingsApproval,
 } from "@link-studio/core";
-import { canvasAgentMediaModels, maxAgentImages } from "@link-studio/core";
+import { canvasAgentMediaModels, maxAgentImages, requirePresent } from "@link-studio/core";
 import { Download, SquarePen } from "lucide-react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { approvedQuoteHasMissing } from "../../../packages/link-studio-core/src/agent-generation-quote";
@@ -621,7 +621,7 @@ export function CanvasAssistant({
           <button
             type="button"
             disabled={blocked}
-            onClick={() => exportDiagnostics(state.activeRun!)}
+            onClick={() => exportDiagnostics(requirePresent(state.activeRun, "state.activeRun"))}
           >
             导出运行诊断
           </button>

@@ -75,8 +75,16 @@ test("技能导入需要确认，重启后可筛选和管理已保存版本", as
       const trigger = panel.getByRole("button", { name: "插入技能" });
       await editor.fill("请整理");
       await editor.evaluate((element) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         element.focus();
-        window.getSelection()!.collapse(element.querySelector("p")!.firstChild, 1);
+        requireTestValue(window.getSelection()).collapse(
+          requireTestValue(element.querySelector("p")).firstChild,
+          1,
+        );
       });
       await expect.poll(() => editor.evaluate(() => window.getSelection()?.anchorOffset)).toBe(1);
       await trigger.click();

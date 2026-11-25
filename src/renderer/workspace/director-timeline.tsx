@@ -1,4 +1,4 @@
-import { type DirectorScene, sameDirectorKeyTime } from "@link-studio/core";
+import { type DirectorScene, requirePresent, sameDirectorKeyTime } from "@link-studio/core";
 import { Diamond, Pause, Play, SkipBack, Trash2, UserRound, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { applyPreset, CAMERA_PRESETS, type CameraPresetId } from "./director-presets";
@@ -89,7 +89,10 @@ export function DirectorTimeline({
     stop.current = reset;
   }
   const [presetId, setPresetId] = useState<CameraPresetId>("dollyIn");
-  const preset = CAMERA_PRESETS.find((p) => p.id === presetId)!;
+  const preset = requirePresent(
+    CAMERA_PRESETS.find((p) => p.id === presetId),
+    "CAMERA_PRESETS.find((p) => p.id === presetId)",
+  );
   const [strength, setStrength] = useState(preset.defaultStrength);
   const lanesRef = useRef<HTMLDivElement>(null);
 
@@ -196,7 +199,10 @@ export function DirectorTimeline({
           disabled={!isCamera}
           title={isCamera ? preset.description : "先选中一台机位"}
           onChange={(event) => {
-            const next = CAMERA_PRESETS.find((p) => p.id === event.target.value)!;
+            const next = requirePresent(
+              CAMERA_PRESETS.find((p) => p.id === event.target.value),
+              "CAMERA_PRESETS.find((p) => p.id === event.target.value)",
+            );
             setPresetId(next.id);
             setStrength(next.defaultStrength);
           }}

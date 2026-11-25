@@ -117,3 +117,4 @@ export function isAppInfo(value: unknown): value is AppInfo {
 export * from "./agent-context-usage.ts";
 export * from "./drama.ts";
 export * from "./image-display-size.ts";
+export * from "./require-present.ts";

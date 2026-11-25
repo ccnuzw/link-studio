@@ -15,10 +15,6 @@
   border-radius: 10px;
   background: transparent;
 }
-.assistant-heading .agent-settings-trigger svg {
-  color: inherit;
-  stroke-width: 1.75;
-}
 .assistant-surface .agent-settings-menu {
   position: fixed;
   position-anchor: --agent-settings;
@@ -56,11 +52,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-.assistant-surface .agent-settings-menu label {
-  display: block;
-  font: inherit;
-  color: inherit;
 }
 .agent-settings-menu small,
 .agent-settings-menu p {
@@ -148,12 +139,6 @@
 .agent-reply-text :is(h3, h4, strong) {
   font-weight: 600;
 }
-.agent-reply-text p:first-child {
-  margin-top: 0;
-}
-.agent-reply-text p:last-child {
-  margin-bottom: 0;
-}
 .agent-reply-text li {
   padding-left: 2px;
 }
@@ -170,16 +155,6 @@
   overflow-x: auto;
   margin: 8px 0;
 }
-.assistant-surface .agent-reply-text pre {
-  margin: 8px 0;
-  padding: 8px 12px;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.625;
-  white-space: pre;
-  overflow-x: auto;
-}
 .agent-reply-text :is(pre, code) {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
@@ -187,11 +162,6 @@
 }
 .agent-reply-text code {
   font-size: 12.5px;
-}
-.agent-reply-text code:not([class]) {
-  padding: 2px 4px;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  border-radius: 4px;
 }
 .agent-reply-text table {
   width: 100%;
@@ -231,7 +201,6 @@
   font-size: 13px;
   line-height: 1.42857;
 }
-.assistant-surface .agent-thinking button,
 .agent-thinking-pending {
   display: inline-flex;
   align-items: center;
@@ -273,6 +242,49 @@
 }
 .agent-thinking button svg {
   transition: transform 120ms;
+}
+.assistant-heading .agent-settings-trigger svg {
+  color: inherit;
+  stroke-width: 1.75;
+}
+.assistant-surface .agent-settings-menu label {
+  display: block;
+  font: inherit;
+  color: inherit;
+}
+.agent-reply-text p:first-child {
+  margin-top: 0;
+}
+.agent-reply-text p:last-child {
+  margin-bottom: 0;
+}
+.assistant-surface .agent-reply-text pre {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.625;
+  white-space: pre;
+  overflow-x: auto;
+}
+.agent-reply-text code:not([class]) {
+  padding: 2px 4px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 4px;
+}
+.assistant-surface .agent-thinking button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  margin-left: -8px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
 .agent-thinking button[aria-expanded="true"] svg {
   transform: rotate(90deg);

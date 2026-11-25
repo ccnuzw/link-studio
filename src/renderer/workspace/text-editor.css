@@ -28,13 +28,6 @@
 .canvas-text-preview :is(h3, h4, strong) {
   font-weight: 600;
 }
-.canvas-workspace .creative-card .canvas-text-preview strong {
-  font-size: inherit;
-  font-weight: 600;
-  white-space: inherit;
-  overflow: visible;
-  text-overflow: clip;
-}
 .canvas-text-preview h3 {
   margin: 12px 0 6px;
   font-size: 15px;
@@ -350,6 +343,13 @@
 }
 .text-draft strong {
   font-weight: 600;
+}
+.canvas-workspace .creative-card .canvas-text-preview strong {
+  font-size: inherit;
+  font-weight: 600;
+  white-space: inherit;
+  overflow: visible;
+  text-overflow: clip;
 }
 .text-editor-dialog button svg {
   width: 16px;

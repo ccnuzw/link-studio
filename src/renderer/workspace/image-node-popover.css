@@ -247,6 +247,17 @@
     max-height: min(318px, 46vh);
     padding: 6px 10px 10px;
   }
+  & .media-template-groups button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: calc(20 / 14);
+    text-align: left;
+  }
   & .media-preset-grid button {
     position: relative;
     aspect-ratio: 16 / 9;
@@ -325,17 +336,6 @@
     line-height: 16px;
     font-weight: 400;
     color: var(--popup-secondary);
-  }
-  & .media-template-groups button {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: calc(20 / 14);
-    text-align: left;
   }
   & .media-template-groups button[aria-pressed] {
     justify-content: flex-start;

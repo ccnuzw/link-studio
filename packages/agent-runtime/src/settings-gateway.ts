@@ -435,7 +435,7 @@ export function createSettingsGateway(
         const reason = kind === "admin_change" && outcome.decision.answer;
         return {
           status: "rejected",
-          outcome_text: "用户已拒绝本次操作" + (reason ? `。用户说明：${reason}` : ""),
+          outcome_text: `用户已拒绝本次操作${reason ? `。用户说明：${reason}` : ""}`,
         };
       }
       if (kind === "admin_secret")

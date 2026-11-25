@@ -1,4 +1,5 @@
 import type { MethodCandidate, MethodStep, SkillItem, SkillsValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { useCallback, useEffect, useState } from "react";
 import { SkillDialog } from "./skill-dialog";
 
@@ -37,7 +38,9 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
         })),
       ),
   ];
-  const selected = candidates.find((entry) => label(entry) === choice) ?? candidates[0]!;
+  const selected =
+    candidates.find((entry) => label(entry) === choice) ??
+    requirePresent(candidates[0], "candidates[0]");
   const [compare, setCompare] = useState(false);
   const models =
     data?.models.filter(
@@ -74,8 +77,8 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
             step,
             candidate: selected,
             sample: sampleKey,
-            model: selectedModel!.id,
-            revision: selectedModel!.revision,
+            model: requirePresent(selectedModel, "selectedModel").id,
+            revision: requirePresent(selectedModel, "selectedModel").revision,
             compare,
           });
       if (!reply.ok) setError(reply.message);
@@ -136,13 +139,13 @@ export function MethodWorkbench({ items, close }: { items: SkillItem[]; close: (
                 <span>当前生效：</span>
                 <strong>
                   {binding?.fallback
-                    ? "内置方法（原绑定 " + label(binding.candidate) + " 不可用）"
+                    ? `内置方法（原绑定 ${label(binding.candidate)} 不可用）`
                     : label(binding?.candidate ?? { source: "builtin" })}
                 </strong>
               </p>
               <details>
                 <summary>查看输入和输出协议</summary>
-                <p>{protocol.inputs.map((input) => input.name + " · " + input.desc).join("；")}</p>
+                <p>{protocol.inputs.map((input) => `${input.name} · ${input.desc}`).join("；")}</p>
                 <pre>{JSON.stringify(protocol.schema, null, 2)}</pre>
                 <p>必须通过：{protocol.rules.hard.join("；")}</p>
                 <p>质量提示：{protocol.rules.soft?.join("；") || "无"}</p>

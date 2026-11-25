@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   CanvasAgentAnswers,
@@ -142,7 +143,8 @@ export async function proposeWorkspaceQuestions(raw: unknown, loadModels: () => 
       quote_credits: 0,
     };
   }
-  const first = questions[0]!;
+  const [first] = questions;
+  if (!first) throw new LocalAgentError("AGENT_ARGUMENT_INVALID");
   const multiple = questions.length > 1;
   const payload = {
     question: multiple ? `还差 ${questions.length} 件事要你定` : first.question,
@@ -218,7 +220,7 @@ export async function resolveQuestions(
   });
   const answer =
     ordered.length === 1
-      ? ordered[0]!.answer
+      ? requirePresent(ordered[0], "ordered[0]").answer
       : ordered
           .filter((entry) => entry.answer)
           .map((entry) => `${entry.question}：${entry.answer}`)
@@ -232,10 +234,11 @@ export async function resolveQuestions(
 
 export function questionResult(outcome: ApprovalOutcome) {
   const answers = outcome.decision.answers as { question?: string; answer?: string }[] | undefined;
+  const singleAnswer = answers?.length === 1 ? answers[0]?.answer : undefined;
   const text =
     answers?.length && answers.every((entry) => typeof entry.question === "string")
-      ? answers.length === 1 && answers[0]!.answer
-        ? `用户回答：${answers[0]!.answer}`
+      ? singleAnswer
+        ? `用户回答：${singleAnswer}`
         : "用户回答了你的提问：\n" +
           answers
             .map((entry, index) => `${index + 1}. ${entry.question} → ${entry.answer || "未回答"}`)

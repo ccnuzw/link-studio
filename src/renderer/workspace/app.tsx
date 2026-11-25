@@ -30,6 +30,7 @@ import {
   prepareCanvasExchange,
   prepareVideoCanvasExchange,
   queueFullMessage,
+  requirePresent,
 } from "@link-studio/core";
 import {
   type Connection,
@@ -2017,7 +2018,9 @@ export function App() {
           if (
             savedRows.length !== expectedIds.length ||
             !savedRows.every((shot, index) => shot.id === expectedIds[index]) ||
-            previousRows.some((shot) => job.storyboardShotIds!.includes(shot.id))
+            previousRows.some((shot) =>
+              requirePresent(job.storyboardShotIds, "job.storyboardShotIds").includes(shot.id),
+            )
           )
             return node;
           splitRestored = true;
@@ -2064,7 +2067,7 @@ export function App() {
             left.updatedAt.localeCompare(right.updatedAt),
           )) {
             if (!seenSplits.has(job.id)) {
-              incoming[job.nodeId] = job.storyboardShotIds!;
+              incoming[job.nodeId] = requirePresent(job.storyboardShotIds, "job.storyboardShotIds");
               pendingSplits.set(job.nodeId, job);
             }
           }
@@ -2455,7 +2458,9 @@ export function App() {
       try {
         const rejected: string[] = [];
         const summarize = () =>
-          rejected.length === 1 ? rejected[0]! : `${rejected.length} 个文件没收下：${rejected[0]}`;
+          rejected.length === 1
+            ? requirePresent(rejected[0], "rejected[0]")
+            : `${rejected.length} 个文件没收下：${rejected[0]}`;
         const drop = target.dramaDrop;
         const accepted = files.flatMap((file) => {
           if (drop && !file.type.startsWith(`${drop.kind}/`)) {
@@ -2582,7 +2587,7 @@ export function App() {
           );
         else if (done && target.pending)
           reportLinkNotice(
-            `${done === 1 ? NODE_LABELS[accepted[0]!.kind] : `${done} 个节点`}接不到刚才那根线上，已单独放下`,
+            `${done === 1 ? NODE_LABELS[requirePresent(accepted[0], "accepted[0]").kind] : `${done} 个节点`}接不到刚才那根线上，已单独放下`,
           );
       } catch {
         if (currentProjectHandle.current === projectHandle)
@@ -2929,7 +2934,8 @@ export function App() {
       </>
     );
   }
-  const busy = importing || writing || saving || dragging;
+  const generationEntryLocked = importing || writing || dragging;
+  const busy = generationEntryLocked || saving;
   const selected = nodes.filter((node) => node.selected);
   const inspected = selected.length === 1 ? selected[0] : undefined;
   const textNode = nodes.find((node) => node.id === textNodeId && node.type === "creative");
@@ -6506,7 +6512,7 @@ export function App() {
                                           !inspected.data.director && (
                                             <button
                                               type="button"
-                                              disabled={busy}
+                                              disabled={generationEntryLocked}
                                               onClick={() => revealGeneration(inspected.id)}
                                             >
                                               <Sparkles size={15} /> 生成内容
@@ -7476,7 +7482,7 @@ export function App() {
                       !inspected.data.uploaded && (
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={generationEntryLocked}
                           onClick={() => {
                             setSidePanel(null);
                             revealGeneration(inspected.id);

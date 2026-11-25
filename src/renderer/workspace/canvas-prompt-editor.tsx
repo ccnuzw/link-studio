@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { Node } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import HardBreak from "@tiptap/extension-hard-break";
@@ -285,7 +286,10 @@ export function CanvasPromptEditor({
         const { schema } = view.state;
         view.dispatch(
           view.state.tr.insert(at, [
-            schema.nodes.mention!.create({ id: hit.id, label: hit.label }),
+            requirePresent(schema.nodes.mention, "schema.nodes.mention").create({
+              id: hit.id,
+              label: hit.label,
+            }),
             schema.text(" "),
           ]),
         );

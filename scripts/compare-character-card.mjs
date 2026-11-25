@@ -45,8 +45,9 @@ const detail =
     join(original, "src/components/canvas-editor/character-detail-dialog.tsx"),
     "utf8",
   ));
-const voicePanel =
-  detail && detail.match(/(<section className="bg-chrome-hover[\s\S]*?)\{\/\* 生成新声音/)?.[1];
+const voicePanel = detail?.match(
+  /(<section className="bg-chrome-hover[\s\S]*?)\{\/\* 生成新声音/,
+)?.[1];
 const upstreamComposer =
   composer && detail.match(/\{\/\* 生成新声音[^\n]*\n\s*(<div[\s\S]*?)\s*<\/section>/)?.[1];
 const desktopComposer =
@@ -59,16 +60,14 @@ const chip =
   (await readFile(join(original, "src/components/canvas/node-prompt-input.tsx"), "utf8")).match(
     /const PANEL_CHIP_CLASS = cn\([\s\S]*?\);/,
   )?.[0];
-const player =
-  detail && detail.match(/const ORIGIN_LABEL[\s\S]*?function VoicePlayer[\s\S]*?\n}/)?.[0];
-const fields =
-  detail &&
-  detail.match(/(<div className="flex flex-col gap-3 pr-8">[\s\S]*?<\/div>)\s*<section/)?.[1];
-const tokens = detail && detail.match(/const LABEL =[\s\S]*?const FIELD_CLASS =[\s\S]*?;/)?.[0];
+const player = detail?.match(/const ORIGIN_LABEL[\s\S]*?function VoicePlayer[\s\S]*?\n}/)?.[0];
+const fields = detail?.match(
+  /(<div className="flex flex-col gap-3 pr-8">[\s\S]*?<\/div>)\s*<section/,
+)?.[1];
+const tokens = detail?.match(/const LABEL =[\s\S]*?const FIELD_CLASS =[\s\S]*?;/)?.[0];
 if (identity) assert(fields && tokens);
-const panel =
-  detail && detail.match(/\{\/\* 左：[^\n]*\n\s*(<div[\s\S]*?<\/div>)\s*\{\/\* 右：/)?.[1];
-const pill = detail && detail.match(/const SEGMENT_CLASS[\s\S]*?\n}\n/)?.[0];
+const panel = detail?.match(/\{\/\* 左：[^\n]*\n\s*(<div[\s\S]*?<\/div>)\s*\{\/\* 右：/)?.[1];
+const pill = detail?.match(/const SEGMENT_CLASS[\s\S]*?\n}\n/)?.[0];
 if (gallery) assert(panel && pill);
 try {
   for (const upstream of [true, false]) {
@@ -345,7 +344,7 @@ try {
       const pixels = await Promise.all(
         pictures.map(async (picture) => {
           const image = new Image();
-          image.src = "data:image/png;base64," + picture;
+          image.src = `data:image/png;base64,${picture}`;
           await image.decode();
           const canvas = document.createElement("canvas");
           canvas.width = image.width;

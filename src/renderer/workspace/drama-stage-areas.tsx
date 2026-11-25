@@ -1,4 +1,9 @@
-import { type DramaDocument, dramaAssetMeta, dramaBoardMeta } from "@link-studio/core";
+import {
+  type DramaDocument,
+  dramaAssetMeta,
+  dramaBoardMeta,
+  requirePresent,
+} from "@link-studio/core";
 import { Clapperboard, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalPreview } from "./character-card-body";
@@ -215,7 +220,7 @@ export function StageOverview({
               <button
                 className="dp-action dp-primary"
                 type="button"
-                onClick={() => go(resume.next!, resume.no)}
+                onClick={() => go(requirePresent(resume.next, "resume.next"), resume.no)}
               >
                 <Play size={15} />
                 继续制作第 {resume.no} 集
@@ -225,7 +230,7 @@ export function StageOverview({
                 <button
                   className="dp-action dp-primary"
                   type="button"
-                  onClick={() => go("final", rows[0]!.no)}
+                  onClick={() => go("final", requirePresent(rows[0], "rows[0]").no)}
                 >
                   全部完成，查看成片
                 </button>
@@ -312,7 +317,9 @@ export function StageOverview({
                 .sort((left, right) => left - right)
                 .map((number, position, numbers) => (
                   <span key={number}>
-                    {position > 0 && number - numbers[position - 1]! > 1 && "…"}
+                    {position > 0 &&
+                      number - requirePresent(numbers[position - 1], "numbers[position - 1]") > 1 &&
+                      "…"}
                     <button
                       type="button"
                       aria-current={number === page ? "page" : undefined}

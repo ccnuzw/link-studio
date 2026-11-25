@@ -589,7 +589,7 @@ try {
         const [left, right] = await Promise.all(
           images.map(async (data) => {
             const image = new Image();
-            image.src = "data:image/png;base64," + data;
+            image.src = `data:image/png;base64,${data}`;
             await image.decode();
             const canvas = document.createElement("canvas");
             canvas.width = image.width;

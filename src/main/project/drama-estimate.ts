@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { dramaAssetMeta } from "../../../packages/link-studio-core/src/canvas.ts";
 import { canvasAgentMediaModels } from "../../../packages/link-studio-core/src/canvas-agent.ts";
@@ -268,7 +269,7 @@ export async function estimateDramaJob(
     if (!nodes.length) notReady("没有待补写提示词的资产");
   }
   if (step === "compose") {
-    const episode = scope[0]!;
+    const episode = requirePresent(scope[0], "scope[0]");
     const segments = (doc.segments ?? [])
       .filter((segment) => segment.episode_no === episode.episode_no)
       .sort((left, right) => left.seq - right.seq);

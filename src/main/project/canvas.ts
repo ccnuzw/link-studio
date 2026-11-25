@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   CanvasEdge,
@@ -133,7 +134,7 @@ function applyRecords(
   const next = previous.flatMap((entry) => {
     const id = idOf(entry);
     const preceding = id === undefined ? [] : (insertions.get(id) ?? []);
-    for (const item of preceding) used.add(idOf(item)!);
+    for (const item of preceding) used.add(requirePresent(idOf(item), "idOf(item)"));
     if (id === undefined || !changes.has(id)) return [...preceding, entry];
     if (!editableIds.has(id)) invalid();
     used.add(id);

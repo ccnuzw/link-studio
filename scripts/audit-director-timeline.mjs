@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 export async function auditDenseDirectorKeys(page, snapshot) {
   const panel = page.getByTitle("回到开头").locator("xpath=ancestor::section[1]");
@@ -93,7 +94,7 @@ export async function auditDirectorTimeline(page, side, output) {
     }
     await page.waitForTimeout(100);
     states[name] = {
-      clock: await clock.innerText(),
+      clock: await readRenderedText(clock),
       keys: await marker.evaluateAll((nodes) => nodes.map((node) => node.title)),
       canPreset: await panel.getByRole("button", { name: "套用" }).isEnabled(),
       deletable: await panel.getByTitle("删除选中的关键帧（Delete）").count(),
@@ -183,7 +184,7 @@ export async function auditDirectorTimeline(page, side, output) {
         (node) => node === document.activeElement && node.matches(":focus-visible"),
       ),
     );
-    await capture("focus-" + name, true);
+    await capture(`focus-${name}`, true);
   }
   return { images, states, rectangles };
 }

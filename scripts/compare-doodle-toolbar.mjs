@@ -55,18 +55,18 @@ try {
             colorScheme: theme,
           });
           try {
-            await page.route(origin + "assets/**", (route) =>
+            await page.route(`${origin}assets/**`, (route) =>
               route.fulfill({
                 path: join(assets, basename(new URL(route.request().url()).pathname)),
               }),
             );
-            await page.route(origin + "audit", (route) =>
+            await page.route(`${origin}audit`, (route) =>
               route.fulfill({
                 contentType: "text/html",
                 body: `<!doctype html><html class="${theme}"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><main style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:${theme === "light" ? "#f7f7f7" : "#171717"}"></main><script type="module" src="${entry}"></script></html>`,
               }),
             );
-            await page.goto(origin + "audit");
+            await page.goto(`${origin}audit`);
             const toolbar = page.getByRole("toolbar");
             await toolbar.waitFor();
             await page.evaluate(() => document.fonts.ready);
@@ -158,7 +158,7 @@ try {
       const [source, actual] = await Promise.all(
         pair.map(async (value) => {
           const img = new Image();
-          img.src = "data:image/png;base64," + value;
+          img.src = `data:image/png;base64,${value}`;
           await img.decode();
           const ctx = new OffscreenCanvas(img.width, img.height).getContext("2d");
           ctx.drawImage(img, 0, 0);

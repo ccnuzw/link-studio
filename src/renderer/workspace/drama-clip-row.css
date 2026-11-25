@@ -189,17 +189,11 @@
   border-radius: 18px;
   font-weight: 400;
 }
-.studio-batch-choices button > span {
-  font-weight: 500;
-}
 .studio-batch-choices small {
   font-size: 12px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
   color: color-mix(in oklab, currentColor 70%, transparent);
-}
-.shot-confirm[data-batch-choice] .studio-batch-choices button {
-  border: 0;
 }
 .shot-confirm[data-batch-choice] .studio-batch-choices button:not([data-primary]) {
   background: transparent;
@@ -210,9 +204,6 @@
 }
 .shot-confirm[data-batch-choice] .studio-batch-choices button:focus-visible {
   box-shadow: 0 0 0 2px var(--choice-ring);
-}
-.studio-batch-choices button:not([data-primary]) small {
-  color: var(--choice-muted);
 }
 @media (prefers-color-scheme: dark) {
   .shot-confirm.drama-delete-confirm[data-batch-choice] {
@@ -236,6 +227,18 @@
     justify-items: center;
     text-align: center;
   }
+}
+.drama-playback-controls small {
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  color: var(--rail-primary);
+  background: color-mix(in oklch, var(--rail-primary) 15%, transparent);
+}
+.studio-batch-choices button:not([data-primary]) small {
+  color: var(--choice-muted);
+}
+@media (max-width: 639px) {
   .shot-confirm[data-batch-choice] footer button {
     width: 100%;
   }
@@ -245,12 +248,8 @@
   border-color: transparent;
   color: var(--choice-muted);
 }
-.drama-playback-controls small {
-  font-size: 10px;
-  padding: 1px 8px;
-  border-radius: 12px;
-  color: var(--rail-primary);
-  background: color-mix(in oklch, var(--rail-primary) 15%, transparent);
+.shot-confirm[data-batch-choice] .studio-batch-choices button {
+  border: 0;
 }
 .studio-panel-scroll:has(> .drama-playback-stage) > :not(.drama-playback-stage) {
   display: none;
@@ -367,6 +366,9 @@
   display: flex;
   align-items: center;
   gap: 2px;
+}
+.studio-batch-choices button > span {
+  font-weight: 500;
 }
 .drama-clip-label i {
   display: block;

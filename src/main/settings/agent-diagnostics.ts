@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type { SettingsValues } from "../../../packages/link-studio-core/src/settings-api.ts";
 import { ProviderError } from "../../../packages/provider-runtime/src/runner.ts";
 
@@ -53,7 +54,8 @@ export function diagnosticSteps(
       ...(step.status !== undefined && { http_status: step.status }),
       ...(excerpt && {
         response_excerpt: excerpt.slice(0, 1000).join(""),
-        response_truncated: step.responseBody!.truncated || excerpt.length > 1000,
+        response_truncated:
+          requirePresent(step.responseBody, "step.responseBody").truncated || excerpt.length > 1000,
       }),
       ...(step.error && { error: Array.from(redact(step.error)).slice(0, 300).join("") }),
     };

@@ -81,12 +81,12 @@ try {
             colorScheme: theme,
             deviceScaleFactor: dpr,
           });
-          await page.route(origin + "assets/**", (route) =>
+          await page.route(`${origin}assets/**`, (route) =>
             route.fulfill({
               path: join(assets, basename(new URL(route.request().url()).pathname)),
             }),
           );
-          await page.route(origin + "audit*", (route) =>
+          await page.route(`${origin}audit*`, (route) =>
             route.fulfill({
               contentType: "text/html",
               body: `<!doctype html><html class="${theme}"><meta charset=utf-8><link rel=stylesheet href="/assets/${css}"><main class="${original ? "" : "canvas-workspace"}" style="position:fixed;inset:0;display:block;background:${theme === "dark" ? "#232323" : "#fafafa"}"><div id="root" style="height:100%"></div></main><script type=module src="${entry}"></script></html>`,
@@ -157,7 +157,7 @@ try {
       const [left, right] = await Promise.all(
         pair.map(async ({ image }) => {
           const bitmap = new Image();
-          bitmap.src = "data:image/png;base64," + image;
+          bitmap.src = `data:image/png;base64,${image}`;
           await bitmap.decode();
           const ctx = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d");
           ctx.drawImage(bitmap, 0, 0);

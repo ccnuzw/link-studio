@@ -31,14 +31,16 @@ export function resolveModelLimits(
   id: string,
   upstream?: { window: number; output: number },
 ): SettingsValues["modelLimits"] {
-  const name = id.trim().toLowerCase().split("/").at(-1)!.split(/[:@]/)[0]!.trim();
+  const normalized = id.trim().toLowerCase();
+  const [base = ""] = normalized.slice(normalized.lastIndexOf("/") + 1).split(/[:@]/, 1);
+  const name = base.trim();
   const inputs = media(name);
   const suggestion = inputs ? { vision: inputs[0], video: inputs[1] } : {};
   const fromChannel =
     upstream && upstream.output < upstream.window && clamp(upstream.window, upstream.output);
   if (fromChannel) return { found: true, source: "upstream", ...fromChannel, ...suggestion };
-  const values = context(name);
-  const local = values && clamp(values[0]!, values[1]!);
+  const [window, output] = context(name) ?? [];
+  const local = window === undefined || output === undefined ? undefined : clamp(window, output);
   return local
     ? { found: true, source: "builtin", ...local, ...suggestion }
     : { found: false, ...suggestion };

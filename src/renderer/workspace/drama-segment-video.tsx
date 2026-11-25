@@ -11,6 +11,7 @@ import {
   type ProviderView,
   quoteModel,
   quoteQuantity,
+  requirePresent,
 } from "@link-studio/core";
 import {
   CircleX,
@@ -435,7 +436,10 @@ function SegmentWorkspace({
           }
         }
         original = latest.prompt;
-        prompt = latest.adaptations![format]!.prompt;
+        prompt = requirePresent(
+          requirePresent(latest.adaptations, "latest.adaptations")[format],
+          "latest.adaptations[format]",
+        ).prompt;
       }
       const current = await referenceContext(projectHandle, original);
       setContext(current);
@@ -844,7 +848,7 @@ function SegmentWorkspace({
               </>
             )}
           </>,
-          previewHost ?? batchHost!,
+          previewHost ?? requirePresent(batchHost, "batchHost"),
         )}
     </>
   );

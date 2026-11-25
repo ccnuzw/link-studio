@@ -77,8 +77,7 @@ export function nodeGenerationInput(
   const plugin =
     bound && settings.plugins.find((entry) => entry.hash === bound.provider.pluginHash);
   if (
-    !bound ||
-    !bound.provider.enabled ||
+    !bound?.provider.enabled ||
     bound.provider.pending ||
     bound.provider.channelEnabled === false ||
     bound.provider.config?.kind === "agent" ||

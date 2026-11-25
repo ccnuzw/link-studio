@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
+import { requireTestValue } from "../require-test-value";
 import { addCanvasNode, createCanvasProject, projectAction } from "./workspace-actions";
 
 test("项目文件选本机原图，新建真人并上传，立即显示归属而不再提供重复入口", async () => {
@@ -226,7 +228,10 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
         .prepare("INSERT INTO library_folders VALUES(?,?,?)")
         .run(collection, "分镜", new Date().toISOString());
       const source = JSON.parse(
-        String(folderFixture.prepare("SELECT record FROM library_items LIMIT 1").get()!.record),
+        String(
+          requireTestValue(folderFixture.prepare("SELECT record FROM library_items LIMIT 1").get())
+            .record,
+        ),
       );
       for (let number = 1; number <= 43; number++) {
         const assetId = crypto.randomUUID();
@@ -274,7 +279,7 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     await expect(firstFrame).toHaveAttribute("aria-pressed", "true");
     await expect(picker.getByRole("img", { name: "分镜_43.png", exact: true })).toHaveAttribute(
       "src",
-      frameUrl!,
+      requireTestValue(frameUrl),
     );
     await picker.getByRole("button", { name: "分镜_1.png", exact: true }).click();
     await picker
@@ -286,10 +291,15 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     expect(
       await page.evaluate(
         async ({ url, channelId }) => {
-          const [, page] = new URL(url!).pathname.split("/");
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
+          const [, page] = new URL(requireTestValue(url)).pathname.split("/");
           return (
             await window.desktop.projects.filingLibraryMore({
-              page: page!,
+              page: requireTestValue(page),
               before: 1,
               channelId,
               channelRevision: 1,
@@ -325,7 +335,7 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
       searchDb.exec("ALTER TABLE folder_members RENAME TO unavailable_members");
       await picker.getByRole("searchbox", { name: "搜索文件名" }).fill("便装");
       await expect(picker.getByRole("alert")).toContainText("加载失败");
-      await expect(tray.locator("img")).toHaveAttribute("src", beforeSearch!);
+      await expect(tray.locator("img")).toHaveAttribute("src", requireTestValue(beforeSearch));
       await expect(submit).toBeEnabled();
       await expect(picker.getByRole("button", { name: "上传", exact: true })).toBeEnabled();
     } finally {
@@ -334,7 +344,7 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     }
     await picker.getByRole("button", { name: "重试", exact: true }).click();
     await expect(personalChoice).toHaveAttribute("aria-pressed", "true");
-    await expect(tray.locator("img")).not.toHaveAttribute("src", beforeSearch!);
+    await expect(tray.locator("img")).not.toHaveAttribute("src", requireTestValue(beforeSearch));
     await expect(picker.getByRole("button", { name: "林舟_侧面.png" })).toHaveCount(0);
     await tray.click();
     await expect(submit).toBeDisabled();
@@ -342,10 +352,15 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     expect(url).toMatch(/^link-media:\/\/filing-library\/[a-f0-9-]{36}\/[a-f0-9-]{36}$/);
     const wrongTarget = await page.evaluate(
       async ({ url, channelId }) => {
-        const [, page, choice] = new URL(url!).pathname.split("/");
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
+        const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
         const input = {
-          page: page!,
-          choice: choice!,
+          page: requireTestValue(page),
+          choice: requireTestValue(choice),
           channelId,
           channelRevision: 1,
           confirmed: true as const,
@@ -363,10 +378,15 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     await expect(detail.getByRole("button", { name: "添加图片" })).toBeFocused();
     const refused = await page.evaluate(
       async ({ url, channelId }) => {
-        const [, page, choice] = new URL(url!).pathname.split("/");
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
+        const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
         return window.desktop.projects.filingLibraryEnroll({
-          page: page!,
-          choice: choice!,
+          page: requireTestValue(page),
+          choice: requireTestValue(choice),
           channelId,
           channelRevision: 1,
           confirmed: true,
@@ -410,11 +430,16 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     expect(
       await page.evaluate(
         async ({ url, channelId }) => {
-          const [, page, choice] = new URL(url!).pathname.split("/");
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
+          const [, page, choice] = new URL(requireTestValue(url)).pathname.split("/");
           return (
             await window.desktop.projects.filingLibraryEnroll({
-              page: page!,
-              choice: choice!,
+              page: requireTestValue(page),
+              choice: requireTestValue(choice),
               channelId,
               channelRevision: 1,
               confirmed: true,
@@ -600,7 +625,7 @@ test("项目文件选本机原图，新建真人并上传，立即显示归属�
     await expect(picker.getByRole("status")).toContainText(
       /已选满，「配角_(夜景|近景).png」已上传但没有勾选/,
     );
-    const skipped = (await picker.getByRole("status").innerText()).includes("夜景")
+    const skipped = (await readRenderedText(picker.getByRole("status"))).includes("夜景")
       ? "夜景"
       : "近景";
     await expect(
@@ -845,8 +870,10 @@ test("角色从真人库引入可用图片，保存后跨重启保护封面和�
       ["侧面.png", "已添加"],
       ["失败照", "备案失败"],
     ]) {
-      await expect(person.getByRole("button", { name: file!, exact: true })).toBeDisabled();
-      await expect(person.getByText(reason!, { exact: true })).toBeVisible();
+      await expect(
+        person.getByRole("button", { name: requireTestValue(file), exact: true }),
+      ).toBeDisabled();
+      await expect(person.getByText(requireTestValue(reason), { exact: true })).toBeVisible();
     }
     await extras.getByRole("textbox", { name: "搜索真人名称" }).fill("不存在");
     await expect(extras.getByText("没有找到“不存在”")).toBeVisible();

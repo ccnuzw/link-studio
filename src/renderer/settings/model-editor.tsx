@@ -24,6 +24,7 @@ import {
   type ProviderView,
   priceDimensions,
   pricingIssues,
+  requirePresent,
   type SettingsInput,
   validModelCapabilities,
 } from "@link-studio/core";
@@ -811,7 +812,8 @@ function ModelEditorForm({
   const [modeError, setModeError] = useState("");
   const beforeError = jsonError && json?.slice(0, jsonError.position).split("\n");
   const errorLocation =
-    beforeError && `第 ${beforeError.length} 行 第 ${beforeError.at(-1)!.length + 1} 列`;
+    beforeError &&
+    `第 ${beforeError.length} 行 第 ${requirePresent(beforeError.at(-1), "beforeError.at(-1)").length + 1} 列`;
   const jsonProblem =
     jsonError &&
     `${jsonError.syntax ? "JSON 语法错误" : "模型配置错误"}${json?.trim() ? `（${errorLocation}）` : ""}：${jsonError.message}`;
@@ -2232,11 +2234,14 @@ function ModelEditorForm({
                   pricing={
                     config.pricing ??
                     (kindSelected
-                      ? applyKindTemplate(config, config.kind, false, {
-                          model: upstreamModel,
-                          adapter: plugin?.origin === "builtin" ? plugin.key : undefined,
-                          settings,
-                        }).pricing!
+                      ? requirePresent(
+                          applyKindTemplate(config, config.kind, false, {
+                            model: upstreamModel,
+                            adapter: plugin?.origin === "builtin" ? plugin.key : undefined,
+                            settings,
+                          }).pricing,
+                          'applyKindTemplate(config, config.kind, false, { model: upstreamModel, adapter: plugin?.origin === "builtin" ? plugin.key : undefined, settings, }).pricing',
+                        )
                       : { unit: "request", input: 2 })
                   }
                   hint={hint("pricing")}

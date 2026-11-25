@@ -8,9 +8,11 @@ import { DatabaseSync } from "node:sqlite";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { runMediaProcess } from "../../packages/media-runtime/src/process";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { addDramaSegment, dramaDocument } from "../../src/main/project/drama";
 import { ProjectStore } from "../../src/main/project/store";
 import { quoteVideoModel } from "../fixtures/agent-quote";
+import { requireTestValue } from "../require-test-value";
 import {
   chooseAssistantModel,
   expectAssistantContrast,
@@ -23,14 +25,14 @@ import { confirmDramaScript, createCanvasProject, projectAction } from "./worksp
 async function seedLegacyClips(root: string, clips: Array<[number, string]>) {
   const projects = (await readdir(root)).filter((entry) => entry.endsWith(".linkstudio"));
   expect(projects).toHaveLength(1);
-  const store = await ProjectStore.open(join(root, projects[0]!));
+  const store = await ProjectStore.open(join(root, requireTestValue(projects[0])));
   try {
     for (const [episode_no, prompt] of clips)
       await addDramaSegment(store, {
         episode_no,
         prompt,
         seconds: 5,
-        revision: dramaDocument(store.snapshot)!.revision,
+        revision: requireTestValue(dramaDocument(store.snapshot)).revision,
       });
   } finally {
     await store.close();
@@ -148,7 +150,7 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
       `data: ${JSON.stringify({ id: "fixture", choices: [{ index: 0, delta: part, finish_reason: finish }] })}\n\n`;
     response
       .writeHead(200, { "content-type": "text/event-stream" })
-      .end(frame(delta, null) + frame({}, read ? "tool_calls" : "stop") + "data: [DONE]\n\n");
+      .end(`${frame(delta, null) + frame({}, read ? "tool_calls" : "stop")}data: [DONE]\n\n`);
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -341,7 +343,7 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
         await panel.getByLabel("短剧消息").fill("核对第 202 集的剧本");
         await panel.getByRole("button", { name: "发送", exact: true }).click();
         await expect.poll(() => toolResults.length).toBe(1);
-        expect(JSON.parse(toolResults[0]!)).toMatchObject({
+        expect(JSON.parse(requireTestValue(toolResults[0]))).toMatchObject({
           no: 202,
           title: "新的一集",
           script_md: "**尾声：灯亮了。**",
@@ -492,7 +494,9 @@ test("短剧：五百万码点 DOCX 建剧，仅规划首章，关闭重开后�
     expect(calls[1]).not.toContain("🌙");
     await page.getByRole("button", { name: "返回画布" }).click();
     await projectAction(page, "关闭项目");
-    const project = (await readdir(root)).find((name) => name.endsWith(".linkstudio"))!;
+    const project = requireTestValue(
+      (await readdir(root)).find((name) => name.endsWith(".linkstudio")),
+    );
     expect(
       createHash("sha256")
         .update(await readFile(join(root, project, "assets", `drama-${digest}.txt`)))
@@ -833,7 +837,7 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
         `data: ${JSON.stringify({ id: "fixture", choices: [{ index: 0, delta: value, finish_reason: finish }] })}\n\n`;
       response
         .writeHead(200, { "content-type": "text/event-stream" })
-        .end(frame(delta, null) + frame({}, tool ? "tool_calls" : "stop") + "data: [DONE]\n\n");
+        .end(`${frame(delta, null) + frame({}, tool ? "tool_calls" : "stop")}data: [DONE]\n\n`);
       return;
     }
     const content = body.messages.at(-1).content;
@@ -864,7 +868,9 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
         );
       return;
     }
-    const vars = JSON.parse(prompt.split("```json\n")[1]!.split("\n```")[0]!);
+    const vars = JSON.parse(
+      requireTestValue(requireTestValue(prompt.split("```json\n")[1]).split("\n```")[0]),
+    );
     let output: string;
     if (vars.episode) {
       scriptRequests.push({ prompt, source: vars.source, previous_ending: vars.previous_ending });
@@ -1172,12 +1178,16 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     await expect(episodes).not.toContainText("屋内。她拆开了湿信。");
     expect(scriptRequests).toHaveLength(3);
     expect(scriptRequests[2]).toMatchObject({
-      source: scriptRequests[1]!.source,
-      previous_ending: scriptRequests[1]!.previous_ending,
+      source: requireTestValue(scriptRequests[1]).source,
+      previous_ending: requireTestValue(scriptRequests[1]).previous_ending,
       prompt: expect.stringContaining("【写作方法：雨夜衔接】"),
     });
-    expect(scriptRequests[2]!.prompt).toContain("## references/letter.md\n每场核对信封折痕。");
-    expect(scriptRequests[2]!.prompt).not.toContain("只用门廊、湿信和对白描写这两集。");
+    expect(requireTestValue(scriptRequests[2]).prompt).toContain(
+      "## references/letter.md\n每场核对信封折痕。",
+    );
+    expect(requireTestValue(scriptRequests[2]).prompt).not.toContain(
+      "只用门廊、湿信和对白描写这两集。",
+    );
     const extend = page.getByRole("button", { name: "继续规划", exact: true });
     const continuation = page.getByRole("dialog", { name: "继续规划" });
     await extend.click();
@@ -1398,7 +1408,9 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       stagePrompts.push(prompt);
       await breakdownGate;
       if (stage.startsWith("资产图提示词创作")) await assetPromptGate;
-      const variables = JSON.parse(prompt.split("```json\n")[1]!.split("\n```")[0]!);
+      const variables = JSON.parse(
+        requireTestValue(requireTestValue(prompt.split("```json\n")[1]).split("\n```")[0]),
+      );
       if (!stage.includes("格式化"))
         creativeStyle.push({ genre: variables.genre, style: variables.style });
       if (stage.startsWith("资产图提示词"))
@@ -1418,7 +1430,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
             segments: [
               {
                 seconds: storyboardMode === "valid" && variables.validation_error ? 6 : 20,
-                prompt: `看见@[门外的人](absent)把@[来客的信封](${promptTargets[0]![0]})递进来。`,
+                prompt: `看见@[门外的人](absent)把@[来客的信封](${requireTestValue(promptTargets[0])[0]})递进来。`,
               },
             ],
           })
@@ -2261,7 +2273,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       const approval = assistant.locator("section.settings-confirm");
       await expect(approval.getByRole("heading")).toHaveText("运行短剧任务：资产拆解");
       await expect(approval.locator("del")).toHaveText('{"active_jobs":[]}');
-      expect(JSON.parse(await approval.locator("ins").innerText())).toEqual({
+      expect(JSON.parse(await readRenderedText(approval.locator("ins")))).toEqual({
         step: "breakdown",
         episodes: [1],
       });
@@ -2642,13 +2654,13 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await projectAction(page, "关闭项目");
     const savedProjects = (await readdir(root)).filter((name) => name.endsWith(".linkstudio"));
     expect(savedProjects).toHaveLength(1);
-    const reopened = await ProjectStore.open(join(root, savedProjects[0]!));
+    const reopened = await ProjectStore.open(join(root, requireTestValue(savedProjects[0])));
     try {
-      const doc = dramaDocument(reopened.snapshot)!;
+      const doc = requireTestValue(dramaDocument(reopened.snapshot));
       expect(doc.episodes[0]?.storyboard_status).toBe("ready");
       const rebuilt = doc.segments?.filter((segment) => segment.episode_no === 1);
       expect(rebuilt).toHaveLength(1);
-      expect(rebuilt![0]!.take_ids ?? []).toEqual([]);
+      expect(requireTestValue(requireTestValue(rebuilt)[0]).take_ids ?? []).toEqual([]);
       const bytes = await readFile(videoFile),
         hash = createHash("sha256").update(bytes).digest("hex");
       expect(
@@ -2829,6 +2841,11 @@ test("后台页面上下文：可移除引用、选中项生命周期及逐轮�
       secret: "context-secret",
     });
     const ids = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         channel = await api.channelSave({
           expectedRevision: 0,
@@ -2900,7 +2917,8 @@ test("后台页面上下文：可移除引用、选中项生命周期及逐轮�
         channel: channel.value.id,
         model: selected.value.id,
         wide: wide.value.id,
-        plugin: plugins.value.plugins.find((plugin) => plugin.key === "openai")!.hash,
+        plugin: requireTestValue(plugins.value.plugins.find((plugin) => plugin.key === "openai"))
+          .hash,
       };
     });
     const verify = async (text: string, expected: object | null) => {
@@ -2910,12 +2928,16 @@ test("后台页面上下文：可移除引用、选中项生命周期及逐轮�
       };
       await expect
         .poll(() => requests.map(userText))
-        .toContainEqual(expect.stringContaining(text + "\n\n<后台上下文>"));
-      const messages = requests.find((messages) =>
-        userText(messages).includes(text + "\n\n<后台上下文>"),
-      )!;
+        .toContainEqual(expect.stringContaining(`${text}\n\n<后台上下文>`));
+      const messages = requireTestValue(
+        requests.find((messages) => userText(messages).includes(`${text}\n\n<后台上下文>`)),
+      );
       const content = userText(messages);
-      expect(JSON.parse(content.match(/\npage_context: ([^\n]+)\n/)![1]!)).toEqual(expected);
+      expect(
+        JSON.parse(
+          requireTestValue(requireTestValue(content.match(/\npage_context: ([^\n]+)\n/))[1]),
+        ),
+      ).toEqual(expected);
       expect(
         messages
           .filter((item) => item.role === "system")
@@ -2960,10 +2982,18 @@ test("后台页面上下文：可移除引用、选中项生命周期及逐轮�
     await expect(contextPopup).toHaveCount(0);
     await expect(panel).toHaveAttribute("data-open", "true");
     const persisted = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         sessions = await api.agentList({});
       if (!sessions.ok) throw Error(sessions.code);
-      const page = await api.agentState({ sessionId: sessions.value[0]!.id, after: 0 });
+      const page = await api.agentState({
+        sessionId: requireTestValue(sessions.value[0]).id,
+        after: 0,
+      });
       if (!page.ok) throw Error(page.code);
       return page.value.events
         .filter((event) => event.type === "run.usage")
@@ -3237,9 +3267,9 @@ test("设置助手审批、试跑与重启恢复", async () => {
       const modelChange = page.getByRole("checkbox", { name: /跳过的模型/ });
       await expect(modelChange).toBeChecked();
       await modelChange.uncheck();
-      const pendingNumber = (await assistant.locator(".change-order-number").innerText()).split(
-        " ",
-      )[0];
+      const pendingNumber = (
+        await readRenderedText(assistant.locator(".change-order-number"))
+      ).split(" ")[0];
       expect(pendingNumber).toMatch(/^CO-\d{6}-[\dA-F]{6}$/);
       await page.getByRole("option", { name: /应用 1 项变更/ }).click();
       const receipt = assistant.getByRole("group", { name: /变更单 .* 结果/ });
@@ -3262,10 +3292,15 @@ test("设置助手审批、试跑与重启恢复", async () => {
       await footer.getByRole("button", { name: "复制", exact: true }).click();
       await expect(footer.getByRole("status")).toHaveText("已复制");
       const stored = await page.evaluate(async () => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         const list = await window.desktop.settings.agentList({});
         if (!list.ok) throw Error(list.code);
         const state = await window.desktop.settings.agentState({
-          sessionId: list.value[0]!.id,
+          sessionId: requireTestValue(list.value[0]).id,
           after: 0,
         });
         if (!state.ok) throw Error(state.code);
@@ -3363,22 +3398,29 @@ test("设置助手审批、试跑与重启恢复", async () => {
       await page.getByRole("button", { name: "发送", exact: true }).click();
       await expect(page.getByRole("heading", { name: "确认文本试跑" })).toBeVisible();
       const invalidReason = await page.evaluate(async () => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         const sessions = await window.desktop.settings.agentList({});
         if (!sessions.ok) throw Error(sessions.code);
-        const sessionId = sessions.value[0]!.id;
+        const sessionId = requireTestValue(sessions.value[0]).id;
         const state = await window.desktop.settings.agentState({ sessionId, after: 0 });
         if (!state.ok) throw Error(state.code);
         return window.desktop.settings.agentDecide({
           sessionId,
-          approvalId: state.value.approvals[0]!.id,
+          approvalId: requireTestValue(state.value.approvals[0]).id,
           selected: [],
           answer: "试跑不能附加变更说明",
         });
       });
       expect(invalidReason).toMatchObject({ ok: false, code: "SETTINGS_PROPOSAL_INVALID" });
-      priorUsage = (await assistant
-        .getByRole("button", { name: /^上下文用量 [1-9]/ })
-        .getAttribute("aria-label"))!;
+      priorUsage = requireTestValue(
+        await assistant
+          .getByRole("button", { name: /^上下文用量 [1-9]/ })
+          .getAttribute("aria-label"),
+      );
       expect(priorUsage).toMatch(/ \/ 33K$/);
       expect(trials).toBe(0);
     } finally {
@@ -3492,7 +3534,7 @@ test("设置助手审批、试跑与重启恢复", async () => {
       const competing = await page.evaluate(
         (source) =>
           window.desktop.settings.pluginUpload({
-            source: source + "\nmodule.exports.meta.version='2.0.0';",
+            source: `${source}\nmodule.exports.meta.version='2.0.0';`,
           }),
         source,
       );
@@ -3526,17 +3568,19 @@ test("设置助手审批、试跑与重启恢复", async () => {
         "version",
       ]);
       await expect(pluginResult.locator('dt[title="version"] + dd')).toHaveText("2.0.1");
-      const pluginName = await pluginResult.locator('dt[title="meta.name"] + dd').innerText();
+      const pluginName = await readRenderedText(pluginResult.locator('dt[title="meta.name"] + dd'));
       await pluginResult.getByRole("button", { name: pluginName, exact: true }).click();
       await expect(page.getByRole("button", { name: "适配器管理" })).toHaveAttribute(
         "aria-current",
         "page",
       );
       await expect(page.getByRole("region", { name: "插件目录" })).toBeVisible();
-      const pluginOrder = (await pluginResult.getAttribute("aria-label"))!.split(" ")[1]!;
+      const pluginOrder = requireTestValue(
+        requireTestValue(await pluginResult.getAttribute("aria-label")).split(" ")[1],
+      );
       action = { name: "admin_propose_changes", args: { revert_of: pluginOrder } };
       await pluginResult.getByRole("button", { name: "回滚" }).click();
-      await expect(assistant.getByText(manualIssue + "。", { exact: true })).toBeVisible();
+      await expect(assistant.getByText(`${manualIssue}。`, { exact: true })).toBeVisible();
       await expect(assistant.getByRole("status")).toHaveText("就绪");
       await expect(review).toHaveCount(0);
       expect(
@@ -3585,7 +3629,7 @@ test("设置助手审批、试跑与重启恢复", async () => {
       ).toBeVisible();
       await pluginHistory.getByLabel("关闭适配器详情").click();
       await expect(pluginResult.locator('dt[title="version"] + dd')).toHaveText("2.0.1");
-      const upgrade = source + "\n// upgrade review";
+      const upgrade = `${source}\n// upgrade review`;
       action = {
         name: "admin_plugin_check",
         args: {
@@ -3628,9 +3672,14 @@ test("设置助手审批、试跑与重启恢复", async () => {
       ).toEqual(["2.0.0"]);
       const readModel = () =>
         page.evaluate(async () => {
+          function requireTestValue<Value>(value: Value): NonNullable<Value> {
+            if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+            return value;
+          }
+
           const list = await window.desktop.settings.list({});
           if (!list.ok) throw Error(list.code);
-          return list.value.providers[0]!;
+          return requireTestValue(list.value.providers[0]);
         });
       const prior = await readModel();
       propose = {
@@ -3649,7 +3698,9 @@ test("设置助手审批、试跑与重启恢复", async () => {
         .getByRole("group", { name: /变更单 .* 结果/ })
         .filter({ hasText: "待反向审批" });
       await expect(forward).toContainText("未应用：model");
-      const order = (await forward.getAttribute("aria-label"))!.split(" ")[1]!;
+      const order = requireTestValue(
+        requireTestValue(await forward.getAttribute("aria-label")).split(" ")[1],
+      );
       action = { name: "admin_propose_changes", args: { revert_of: order } };
       await composer.fill("未发送的草稿");
       await forward.getByRole("button", { name: "回滚" }).click();
@@ -4074,11 +4125,16 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
       await composer.fill(longDraft);
       await expectDraft(composer, longDraft);
       await composer.evaluate((element) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         const range = document.createRange();
-        range.selectNodeContents(element.lastElementChild!);
+        range.selectNodeContents(requireTestValue(element.lastElementChild));
         range.collapse(false);
-        window.getSelection()!.removeAllRanges();
-        window.getSelection()!.addRange(range);
+        requireTestValue(window.getSelection()).removeAllRanges();
+        requireTestValue(window.getSelection()).addRange(range);
         document.dispatchEvent(new Event("selectionchange"));
       });
       await composer.dispatchEvent("keydown", { key: "Enter", isComposing: true });
@@ -4134,9 +4190,11 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
             output.includes("buildSubmitRequest"),
         ),
       ).toBe(true);
-      const checkOutput = outputs.find(
-        (output) => output.includes("attempts_left") && output.includes("checked_hooks"),
-      )!;
+      const checkOutput = requireTestValue(
+        outputs.find(
+          (output) => output.includes("attempts_left") && output.includes("checked_hooks"),
+        ),
+      );
       expect(checkOutput).toContain("parseSubmitResponse");
       expect(checkOutput).toContain("样例输出 ••••");
       expect(checkOutput).not.toContain("fixture-sample-auth");

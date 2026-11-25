@@ -20,7 +20,7 @@ const browser = await chromium.launch({ channel: "chrome" });
 try {
   await server.listen();
   const page = await browser.newPage();
-  const fixture = server.resolvedUrls.local[0] + "jpeg-grid";
+  const fixture = `${server.resolvedUrls.local[0]}jpeg-grid`;
   await page.route(fixture, (route) =>
     route.fulfill({ contentType: "text/html", body: '<input type="file" multiple>' }),
   );

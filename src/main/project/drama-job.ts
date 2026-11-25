@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import type { DramaDocument } from "../../../packages/link-studio-core/src/drama.ts";
 import {
@@ -158,7 +159,10 @@ export async function submitApprovedDramaJob(
       doc.revision++;
     }
     if (step === "storyboard") {
-      const episode = doc.episodes.find((entry) => entry.episode_no === quote.episodes[0])!;
+      const episode = requirePresent(
+        doc.episodes.find((entry) => entry.episode_no === quote.episodes[0]),
+        "doc.episodes.find((entry) => entry.episode_no === quote.episodes[0])",
+      );
       episode.storyboard_status = "generating";
       episode.revision = (episode.revision ?? 1) + 1;
       doc.overview_revision ??= doc.revision;

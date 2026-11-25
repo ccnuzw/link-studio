@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const reference = path.resolve(process.env.VIDEO_CANVAS_REFERENCE ?? "../video-canvas");
@@ -153,7 +154,7 @@ try {
           ["first", "black"],
           ["last", "white"],
         ]) {
-          const file = path.join(temp, id + ".mp4");
+          const file = path.join(temp, `${id}.mp4`);
           execFileSync(path.resolve(`out/media/${process.platform}-${process.arch}/ffmpeg`), [
             "-loglevel",
             "error",
@@ -167,7 +168,7 @@ try {
             ...(process.platform === "darwin" ? ["-allow_sw", "1"] : []),
             file,
           ]);
-          media[id] = "data:video/mp4;base64," + (await readFile(file)).toString("base64");
+          media[id] = `data:video/mp4;base64,${(await readFile(file)).toString("base64")}`;
         }
         await page.addInitScript((value) => {
           window.media = value;
@@ -213,7 +214,7 @@ try {
         assert.equal(await page.locator('[title="正在转写"]').count(), 0);
         await overwrite.getByRole("button", { name: "取消" }).click();
         await warning.waitFor();
-        assert.equal(await adapted.innerText(), "雨中的信封。");
+        assert.equal(await readRenderedText(adapted), "雨中的信封。");
         const dialog = page.getByRole("alertdialog", { name: "原稿在转写后改过" });
         await submit.click();
         await dialog.getByRole("button", { name: "取消" }).click();
@@ -247,10 +248,10 @@ try {
         await original.fill("回写前的最后修改。");
         await page.evaluate(() => window.releaseAdapt());
         await tab.getByText("已过期").waitFor();
-        assert.equal(await original.innerText(), "回写前的最后修改。");
+        assert.equal(await readRenderedText(original), "回写前的最后修改。");
         await tab.click();
         await warning.waitFor();
-        assert.equal(await adapted.innerText(), "改写：放下信封。");
+        assert.equal(await readRenderedText(adapted), "改写：放下信封。");
         const stored = await page.evaluate(
           async () => (await window.desktop.projects.drama({})).value.segments[0],
         );
@@ -265,7 +266,7 @@ try {
         const firstClip = page.getByLabel("片段 1，5 秒"),
           secondClip = page.getByLabel("片段 2，5 秒");
         await secondClip.click();
-        assert.equal(await original.innerText(), "门开了。");
+        assert.equal(await readRenderedText(original), "门开了。");
         assert.ok(await page.getByRole("button", { name: "转写为 H3" }).isEnabled());
         await firstClip.click();
         assert.ok(await page.getByTitle("正在转写", { exact: true }).first().isDisabled());
@@ -280,14 +281,14 @@ try {
         const failure = page.getByRole("alert").filter({ hasText: "文本模型超时" });
         await failure.waitFor();
         assert.equal(await page.evaluate(() => window.submissions.length), 5);
-        assert.equal(await adapted.innerText(), "改写：放下信封。");
+        assert.equal(await readRenderedText(adapted), "改写：放下信封。");
         await page.evaluate(() => {
           window.holdAdapt = false;
           window.failAdapt = false;
         });
         await failure.getByRole("button", { name: "重试" }).click();
         await tab.getByLabel("最新").waitFor();
-        assert.equal(await adapted.innerText(), "改写：回写前的最后修改。");
+        assert.equal(await readRenderedText(adapted), "改写：回写前的最后修改。");
         assert.equal(await failure.count(), 0);
         const batch = page.getByRole("button", { name: "批量生成分镜视频" });
         const options = page.getByRole("alertdialog", { name: "1 个片段还没转写为 H3" });
@@ -343,7 +344,7 @@ try {
           .waitFor();
         const partial = await page.evaluate(() => window.receipts.slice(12));
         assert.deepEqual(partial, [["seg:second", "改写：门开了。"]]);
-        assert.equal(await adapted.innerText(), "改写：回写前的最后修改。");
+        assert.equal(await readRenderedText(adapted), "改写：回写前的最后修改。");
         console.log("片场原稿、手改转写稿、取消、保留过期稿、重新转写后提交通过");
         continue;
       }
@@ -449,13 +450,13 @@ try {
       if (!upstream) await editor.fill("窗沿的新稿");
       await page.setViewportSize({ width: 1279, height: 900 });
       await measure("two", 4);
-      if (!upstream) assert.equal(await editor.innerText(), "窗沿的新稿");
+      if (!upstream) assert.equal(await readRenderedText(editor), "窗沿的新稿");
       await page.setViewportSize({ width: 1023, height: 900 });
       await measure("one", 3);
       await page.setViewportSize({ width: 1440, height: 900 });
       await measure("wide-again", 5);
       if (!upstream) {
-        assert.equal(await editor.innerText(), "窗沿的新稿");
+        assert.equal(await readRenderedText(editor), "窗沿的新稿");
         await page.waitForFunction(() => window.savedDraft === "窗沿的新稿");
         await page.evaluate(() => window.editFormat("h3"));
         await page.getByText("转写前一版", { exact: true }).waitFor();
@@ -521,7 +522,7 @@ try {
         ]);
         const remove = page.getByRole("button", { name: "删除这个片段" });
         const headingStatus = page.locator('.studio-segment-heading [role="status"]');
-        assert.equal(await headingStatus.innerText(), "生成失败");
+        assert.equal(await readRenderedText(headingStatus), "生成失败");
         for (const [phase, label] of [
           ["running", "生成中"],
           ["succeeded", "已出视频"],

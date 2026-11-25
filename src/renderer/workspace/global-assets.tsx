@@ -1,4 +1,5 @@
 import type { ChannelView, ProjectAsset, ProjectValues } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import {
   ChevronRight,
   ExternalLink,
@@ -86,7 +87,7 @@ function assetDay(value?: string) {
   if (!value) return "";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
-  return `${date.getFullYear() === new Date().getFullYear() ? "" : date.getFullYear() + "年"}${date.getMonth() + 1}月${date.getDate()}日`;
+  return `${date.getFullYear() === new Date().getFullYear() ? "" : `${date.getFullYear()}年`}${date.getMonth() + 1}月${date.getDate()}日`;
 }
 function MediaCard({
   entry,
@@ -296,8 +297,6 @@ function HistoryResults({
       );
       setNotice("已加入个人资产库");
       setAdding("");
-    } catch (reason) {
-      throw reason;
     } finally {
       setSaving("");
     }
@@ -798,14 +797,14 @@ function HumanLibrary({ settings }: { settings: () => void }) {
           {channels.length > 1 && (
             <AssetFilter
               label="备案渠道"
-              value={channel?.id ?? channels[0]!.id}
+              value={channel?.id ?? requirePresent(channels[0], "channels[0]").id}
               options={channels.map((ch) => ({ value: ch.id, label: ch.name }))}
               change={(id) => setChannel(channels.find((ch) => ch.id === id))}
             />
           )}
           <FilingLibrary
-            key={channel?.id ?? channels[0]!.id}
-            channel={channel ?? channels[0]!}
+            key={channel?.id ?? requirePresent(channels[0], "channels[0]").id}
+            channel={channel ?? requirePresent(channels[0], "channels[0]")}
             home
             close={() => {}}
           />

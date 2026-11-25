@@ -692,7 +692,7 @@ describe("S3 设置持久化", () => {
         await expect(quote("breakdown", [2, 2])).rejects.toThrow("集号须为1至100000且不能重复");
         await expect(quote("breakdown", [14])).rejects.toThrow("所选集不存在");
         await expect(quote("breakdown", [2, 1])).rejects.toThrow("DRAMA_NO_TEXT_MODEL");
-        const script = "第一集\n" + "🌙".repeat(4500) + "\n第二集\n灯亮了。";
+        const script = `第一集\n${"🌙".repeat(4500)}\n第二集\n灯亮了。`;
         await expect(estimateDramaSource({ script }, registry)).rejects.toMatchObject({
           code: "DRAMA_NO_TEXT_MODEL",
         });
@@ -1118,7 +1118,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, input }) => {
       await registry.save(input);
       const original = await registry.draft(
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='read-fixture';",
+        `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='read-fixture';`,
       );
       const newer = await registry.draft(
         original.source.replace('name: "OpenAI"', `name: "OpenAI ${input.secret}"`),
@@ -1163,14 +1163,14 @@ describe("S3 设置持久化", () => {
         ok: true,
       });
       await expect(
-        registry.agentPluginCheck(runId, "initial", { source: source + "\n" }),
+        registry.agentPluginCheck(runId, "initial", { source: `${source}\n` }),
       ).resolves.toMatchObject({
         ok: false,
         attempt: 1,
         issues: ["该检查标识已使用，请重新发起检查"],
       });
       await expect(registry.preview(request, "different-run")).rejects.toMatchObject(unchecked);
-      await expect(registry.preview({ pluginSource: source + "\n" }, runId)).rejects.toMatchObject(
+      await expect(registry.preview({ pluginSource: `${source}\n` }, runId)).rejects.toMatchObject(
         unchecked,
       );
       await expect(
@@ -1238,7 +1238,7 @@ describe("S3 设置持久化", () => {
         code: "PLUGIN_VERSION_DUPLICATE",
         issues: [{ path: "meta", message: "代码与 v1.1.1 完全相同，没有产生新版本" }],
       });
-      const upgrade = source + "\n// 第二次审阅\n",
+      const upgrade = `${source}\n// 第二次审阅\n`,
         nextRun = "upgrade-review";
       for (const domain of ["first.invalid", "second.invalid"]) {
         const sample = JSON.stringify({
@@ -1272,7 +1272,7 @@ describe("S3 设置持久化", () => {
       ]);
       expect(JSON.stringify(next.review)).not.toContain("不属于卡片的正文");
       await expect(
-        registry.preview({ pluginSource: upgrade + "// sk-dontpersist123456" }, nextRun),
+        registry.preview({ pluginSource: `${upgrade}// sk-dontpersist123456` }, nextRun),
       ).rejects.toMatchObject({ code: "SETTINGS_PROPOSAL_INVALID" });
       registry.forgetPluginChecks(runId);
       await expect(registry.preview(request, runId)).rejects.toMatchObject(unchecked);
@@ -1282,7 +1282,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry }) => {
       const original = registry.agentPlugin("openai").code;
       for (const origin of ["manual", "agent"] as const)
-        for (const candidate of [original, original + "\n"])
+        for (const candidate of [original, `${original}\n`])
           await expect(registry.draft(candidate, origin)).rejects.toMatchObject({
             code: "PLUGIN_BUILTIN_KEY_RESERVED",
           });
@@ -1292,7 +1292,7 @@ describe("S3 设置持久化", () => {
       const lower = await registry.draft(source("release-fixture", "2.0.0"), "builtin");
       expect([higher.version, lower.version]).toEqual(["3.0.0", "2.0.0"]);
       expect(await registry.draft(lower.source, "builtin")).toEqual(lower);
-      await expect(registry.draft(lower.source + "\n", "builtin")).rejects.toMatchObject({
+      await expect(registry.draft(`${lower.source}\n`, "builtin")).rejects.toMatchObject({
         code: "PLUGIN_BUILTIN_VERSION_CONFLICT",
       });
       await expect(
@@ -1311,7 +1311,7 @@ describe("S3 设置持久化", () => {
   it("兼容旧库的混合来源：保留手动行，按整个内置插件保护删除与报告来源", async () => {
     await withRegistry(async ({ registry, directory }) => {
       const legacy = await registry.inspect(
-        registry.agentPlugin("openai").code + "\n// legacy draft",
+        `${registry.agentPlugin("openai").code}\n// legacy draft`,
       );
       legacy.meta.version = "1.2.2";
       const database = new DatabaseSync(join(directory, "settings.sqlite"));
@@ -1391,7 +1391,7 @@ describe("S3 设置持久化", () => {
       const laterPath = join(bundle, "xai.js");
       await writeFile(
         laterPath,
-        (await readFile(laterPath, "utf8")) + "\nmodule.exports.meta.version='3.0.0';",
+        `${await readFile(laterPath, "utf8")}\nmodule.exports.meta.version='3.0.0';`,
       );
       const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
@@ -1560,9 +1560,9 @@ describe("S3 设置持久化", () => {
         await writeFile(join(bundle, name), source);
         return createHash("sha256").update(source).digest("hex");
       };
-      const good = await write("ok.js", code + "\nmodule.exports.meta.key='from-manifest';");
+      const good = await write("ok.js", `${code}\nmodule.exports.meta.key='from-manifest';`);
       const bad = await write("bad.js", "module.exports = {};");
-      const changed = await write("conflict.js", code + "\n ");
+      const changed = await write("conflict.js", `${code}\n `);
       const open = (release: Record<string, string>) =>
         SettingsRegistry.open(
           directory,
@@ -1710,7 +1710,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, directory, input }) => {
       const key = "retired",
         old = await registry.draft(
-          registry.agentPlugin("openai").code + `\nmodule.exports.meta.key='${key}';`,
+          `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='${key}';`,
           "builtin",
         );
       const channel = registry.channelSave({
@@ -2825,9 +2825,9 @@ describe("S3 设置持久化", () => {
   it("按插件标识预检全部版本，提交时重新统计离线模型与进行中的任务", async () => {
     await withRegistry(async ({ registry, input, directory }) => {
       const key = "delete-fixture";
-      const source = registry.agentPlugin("openai").code + `\nmodule.exports.meta.key='${key}';`;
+      const source = `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='${key}';`;
       const first = await registry.draft(source);
-      const second = await registry.draft(source + "\nmodule.exports.meta.version='2.0.0';");
+      const second = await registry.draft(`${source}\nmodule.exports.meta.version='2.0.0';`);
       const remove = () => registry.pluginRemove({ key, allVersions: true });
       expect(registry.pluginDeleteCheck({ key })).toEqual({ builtin: false, models: [], jobs: 0 });
       const channel = registry.channelSave({
@@ -3092,7 +3092,7 @@ describe("S3 设置持久化", () => {
     await withRegistry(async ({ registry, input }) => {
       const current = registry.agentPlugin("openai");
       const release = await registry.draft(
-        current.code + "\nmodule.exports.meta.version='2.0.0';",
+        `${current.code}\nmodule.exports.meta.version='2.0.0';`,
         "builtin",
       );
       const fields = {
@@ -3172,16 +3172,15 @@ describe("S3 设置持久化", () => {
   });
   it("停用按标识提交：预览版本已删除仍能停用剩余版本，整组消失则不创建幽灵状态", async () => {
     await withRegistry(async ({ registry }) => {
-      const source =
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='toggle-live';";
+      const source = `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='toggle-live';`;
       const first = await registry.draft(source);
-      const second = await registry.draft(source + "\n");
+      const second = await registry.draft(`${source}\n`);
       registry.pluginRemove({ hash: second.hash, allVersions: false });
       expect(registry.pluginToggle({ key: first.key, enabled: false })).toMatchObject({
         hash: first.hash,
         disabled: true,
       });
-      expect((await registry.draft(source + "\n\n")).disabled).toBe(true);
+      expect((await registry.draft(`${source}\n\n`)).disabled).toBe(true);
       registry.pluginRemove({ hash: first.hash, allVersions: true });
       expect(() => registry.pluginToggle({ key: first.key, enabled: false })).toThrow(
         "PLUGIN_VERSION_MISSING",
@@ -4493,7 +4492,7 @@ describe("S3 设置持久化", () => {
   it("分配版本号并按共享连接升级模型，拒绝不兼容配置与删除引用", async () => {
     await withRegistry(async ({ registry, input }) => {
       const plugin = await registry.draft(
-        registry.agentPlugin("openai").code + "\nmodule.exports.meta.key='upgrade-fixture';",
+        `${registry.agentPlugin("openai").code}\nmodule.exports.meta.key='upgrade-fixture';`,
       );
       const first = await registry.draft(`${plugin.source}\n// First revision`);
       const second = await registry.draft(`${plugin.source}\n// Second revision`);

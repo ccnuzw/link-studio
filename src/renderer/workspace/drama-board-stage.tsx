@@ -7,6 +7,7 @@ import {
   modelGenerationOptions,
   type PluginView,
   type ProviderView,
+  requirePresent,
 } from "@link-studio/core";
 import { CircleX, Grid2X2, LoaderCircle, PanelsTopLeft, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -216,7 +217,7 @@ export function DramaBoardStage({
       }
       await Promise.all(Array.from({ length: Math.min(3, list.length) }, () => worker(model)));
       if (failures.length)
-        setError(`${list.length > 1 ? failures.length + " 张" : ""}没能开始生成：${failures[0]}`);
+        setError(`${list.length > 1 ? `${failures.length} 张` : ""}没能开始生成：${failures[0]}`);
       refresh();
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "读取分镜原稿失败");
@@ -336,7 +337,11 @@ export function DramaBoardStage({
                   aria-current={output.id === node?.data.activeOutputId || undefined}
                   onClick={() => void choose(output.id)}
                 >
-                  <BoardImage projectHandle={projectHandle} assetId={output.assetId!} alt="" />
+                  <BoardImage
+                    projectHandle={projectHandle}
+                    assetId={requirePresent(output.assetId, "output.assetId")}
+                    alt=""
+                  />
                 </button>
               ))}
           </div>

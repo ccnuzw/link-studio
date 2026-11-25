@@ -66,7 +66,7 @@ test("片段转写保留启动时原稿指纹，两种格式重开后由小灵�
     const request = { ...base, revision: segment.revision, format: "h3" };
     const adapting = adaptDramaSegment(store, registry, request, signal);
     await expect(adaptDramaSegment(store, registry, request, signal)).rejects.toThrow("正在转写");
-    const updatedSource = source + "雨停了。";
+    const updatedSource = `${source}雨停了。`;
     await setDramaSegmentPrompt(store, {
       ...base,
       revision: segment.revision,
@@ -646,7 +646,7 @@ test("逐集写剧本：已提交集不重跑；后一集失败保留旧稿并�
     revision: 1,
   };
   const source = "第一章 雨\n敲门。\n第二章 信\n拆信。";
-  const firstScript = "灯灭。" + "🌙".repeat(799) + "信";
+  const firstScript = `灯灭。${"🌙".repeat(799)}信`;
   const controller = new AbortController();
   const calls: number[] = [];
   let mode: "interrupt" | "fail" | "success" = "interrupt";

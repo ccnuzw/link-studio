@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { chromium, _electron as electron, expect } from "@playwright/test";
 import { build } from "vite";
 import { createIdCodec } from "../packages/agent-runtime/upstream/src/ids.ts";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const testRequire = createRequire(import.meta.resolve("@playwright/test"));
 const { PNG } = createRequire(testRequire.resolve("playwright"))("playwright-core/lib/utilsBundle");
@@ -177,7 +178,7 @@ const server = createServer(async (request, response) => {
   response.write(frame({ role: "assistant", content: prefix }, null));
   await finishGate;
   response.end(
-    frame({ content: answer.slice(prefix.length) }, null) + frame({}, "stop") + "data: [DONE]\n\n",
+    `${frame({ content: answer.slice(prefix.length) }, null) + frame({}, "stop")}data: [DONE]\n\n`,
   );
 });
 const boxes = async (panel, selectors) =>
@@ -319,7 +320,10 @@ async function checkInsertPickers(page, side) {
     await expect(async () => {
       await measure();
     }).toPass({ timeout: 4000 });
-    report.pickers[`${side}-${name}`] = { ...(await measure()), text: await popup.innerText() };
+    report.pickers[`${side}-${name}`] = {
+      ...(await measure()),
+      text: await readRenderedText(popup),
+    };
     if (name === "插入模型") {
       for (const [kind, state] of [
         ["图片", "image"],
@@ -725,7 +729,7 @@ try {
       const page = await browser.firstWindow();
       await page.addInitScript((records) => {
         window.recordedEvents =
-          records[location.pathname.slice(1) + "-" + location.search.slice(1)];
+          records[`${location.pathname.slice(1)}-${location.search.slice(1)}`];
       }, recordings);
       report.renderers.reference = await page.evaluate(() => ({
         agent: navigator.userAgent,
@@ -961,7 +965,7 @@ try {
         record(
           scope,
           "streaming",
-          await panel.getByRole("log").getByText(prefix, { exact: true }).innerText(),
+          await readRenderedText(panel.getByRole("log").getByText(prefix, { exact: true })),
         );
         await capture(page, panel, scope, "desktop", "streaming");
       } finally {
@@ -1078,7 +1082,7 @@ try {
         await editor.press("Enter");
         await captureEndState(page, panel, scope, "desktop", "failed");
         record(scope, "failed");
-        const reason = await panel.locator(".agent-run-status-card p").innerText();
+        const reason = await readRenderedText(panel.locator(".agent-run-status-card p"));
         const history = panel.getByRole("button", { name: /^历史会话，当前/ });
         await history.dblclick();
         const title = panel.getByRole("textbox", { name: "会话标题" });

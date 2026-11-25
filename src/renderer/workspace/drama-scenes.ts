@@ -1,3 +1,5 @@
+import { requirePresent } from "@link-studio/core";
+
 /** 像场次编号的开头：1-1 / 3.2 / 第二场 / 第 3 幕 / 场景 / 场次 / INT. / EXT. */
 const SCENE_START =
   /^(?:\d+\s*[-–.．]\s*\d+|第\s*[\d一二三四五六七八九十百]+\s*[场幕]|场景|场次|INT\.|EXT\.)/i;
@@ -28,13 +30,13 @@ export function extractScenes(markdown: string): string[] {
     if (fenced || !line) continue;
     const heading = /^#{2,4}\s+(.+)$/.exec(line);
     if (heading) {
-      const title = normalizeSceneTitle(heading[1]!);
+      const title = normalizeSceneTitle(requirePresent(heading[1], "heading[1]"));
       if (title) scenes.push(title);
       continue;
     }
     const bold = /^\*\*(.+)\*\*$/.exec(line);
     if (bold) {
-      const title = normalizeSceneTitle(bold[1]!);
+      const title = normalizeSceneTitle(requirePresent(bold[1], "bold[1]"));
       if (SCENE_START.test(title)) scenes.push(title);
     }
   }

@@ -501,7 +501,8 @@ export class CanvasAgentService {
           /@\[([^\]]*)\]\((node|model|skill|asset):([^)\s]+)\)/g,
         )) {
           const [, name, kind, id] = match;
-          references.set(`${kind}:${id}`, { kind: kind!, id: id!, name: name! });
+          if (name === undefined || !kind || !id) continue;
+          references.set(`${kind}:${id}`, { kind, id, name });
           if (references.size > 50)
             throw new ProjectError("AGENT_MESSAGE_REFERENCE_INVALID", "一条消息最多引用 50 个对象");
         }
@@ -756,7 +757,7 @@ export class CanvasAgentService {
                 label: clean(node.data.label),
                 text: characters
                   ? characters.length > 4000
-                    ? characters.slice(0, 4000).join("") + "…"
+                    ? `${characters.slice(0, 4000).join("")}…`
                     : text
                   : text.slice(0, 200),
                 ...(director ? directorContext(director, !!input.nodeIds, clean) : {}),

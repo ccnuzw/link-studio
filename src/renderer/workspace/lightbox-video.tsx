@@ -1,4 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
+import { requirePresent } from "@link-studio/core";
 import { Check, Pause, Play, Repeat, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetVideo } from "../asset-media";
@@ -42,7 +43,7 @@ export function LightboxVideo({
     if (player.current) player.current.muted = !player.current.muted;
   }, []);
   useEffect(() => {
-    const video = player.current!;
+    const video = requirePresent(player.current, "player.current");
     const sync = () =>
       setState({
         paused: video.paused,

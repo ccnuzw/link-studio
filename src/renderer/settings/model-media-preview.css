@@ -52,11 +52,6 @@
     font-family: inherit;
     line-height: 20px;
   }
-  & .model-dialog-footer button {
-    font-family: inherit;
-    font-weight: 500;
-    line-height: 20px;
-  }
   & .model-editor-form::-webkit-scrollbar {
     width: 8px;
   }
@@ -93,25 +88,8 @@
     background: light-dark(transparent, #ffffff0b);
     font-size: 14px;
   }
-  & .model-editor-form .model-timeout-choices > button {
-    color: light-dark(oklch(0.5 0.015 85), oklch(0.708 0 0));
-    border-color: var(--channel-line);
-    background: light-dark(oklch(0.97 0.006 85 / 80%), oklch(0.2 0 0 / 78%));
-  }
-  & .model-editor-form .model-timeout-choices > button[aria-pressed="true"] {
-    color: light-dark(oklch(0.95 0.007 85), oklch(0.145 0 0));
-    border-color: light-dark(oklch(0.145 0 0 / 80%), oklch(0.985 0 0 / 80%));
-    background: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
-  }
   & .model-dialog-footer button:not(.settings-primary) {
     background: light-dark(oklch(0.95 0.007 85), #ffffff0b);
-  }
-  & .model-dialog-identity .model-avatar[data-vendor] {
-    background: white;
-    border: 1px solid #0000000d;
-    box-shadow:
-      0 1px 3px #0001,
-      0 1px 2px -1px #0001;
   }
   & .model-status[data-online="true"] {
     background: #00bc7d1a;
@@ -229,14 +207,6 @@
     border-color: var(--popup-border);
     border-radius: 10px;
     background: color-mix(in oklch, var(--popup-muted) 50%, transparent);
-  }
-  & .trial-media-fields .trial-ref .trial-file button {
-    width: 24px;
-    height: 24px;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
   }
   & header .model-kind {
     display: inline-flex;
@@ -382,5 +352,39 @@
     background: transparent;
     min-height: 0;
     cursor: pointer;
+  }
+}
+.model-settings .model-dialog:has(.model-editor-grid[data-media="true"][data-tab="params"]) {
+  & .model-dialog-footer button {
+    font-family: inherit;
+    font-weight: 500;
+    line-height: 20px;
+  }
+  & .model-editor-form .model-timeout-choices > button {
+    color: light-dark(oklch(0.5 0.015 85), oklch(0.708 0 0));
+    border-color: var(--channel-line);
+    background: light-dark(oklch(0.97 0.006 85 / 80%), oklch(0.2 0 0 / 78%));
+  }
+  & .model-editor-form .model-timeout-choices > button[aria-pressed="true"] {
+    color: light-dark(oklch(0.95 0.007 85), oklch(0.145 0 0));
+    border-color: light-dark(oklch(0.145 0 0 / 80%), oklch(0.985 0 0 / 80%));
+    background: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  }
+  & .model-dialog-identity .model-avatar[data-vendor] {
+    background: white;
+    border: 1px solid #0000000d;
+    box-shadow:
+      0 1px 3px #0001,
+      0 1px 2px -1px #0001;
+  }
+}
+.model-settings .model-dialog .model-trial-card.model-media-preview {
+  & .trial-media-fields .trial-ref .trial-file button {
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 }

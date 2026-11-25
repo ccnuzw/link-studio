@@ -33,8 +33,9 @@ export async function adaptDramaSegment(
   try {
     const deadline = AbortSignal.any([signal, AbortSignal.timeout(50_000)]);
     const assets = new Map<string, string>();
-    for (const match of source.matchAll(/@\[([^\]\r\n]+)\]\(([^)\r\n]+)\)/g))
-      if (!assets.has(match[2]!)) assets.set(match[2]!, match[1]!);
+    for (const [, label, id] of source.matchAll(/@\[([^\]\r\n]+)\]\(([^)\r\n]+)\)/g)) {
+      if (id && label && !assets.has(id)) assets.set(id, label);
+    }
     const variables = {
       source_prompt: source,
       seconds: segment.seconds,

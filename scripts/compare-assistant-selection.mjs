@@ -7,7 +7,7 @@ import { createServer } from "vite";
 
 assert(process.env.VIDEO_CANVAS_WEB);
 const software = process.argv.includes("--software");
-const output = resolve("test-results/assistant-selection-parity" + (software ? "-software" : "")),
+const output = resolve(`test-results/assistant-selection-parity${software ? "-software" : ""}`),
   scratch = await mkdtemp(join(tmpdir(), "selection-"));
 const browser = await chromium.launch({
     channel: "chrome",
@@ -59,18 +59,18 @@ try {
           colorScheme: theme,
         });
         try {
-          await page.route(origin + "assets/**", (route) =>
+          await page.route(`${origin}assets/**`, (route) =>
             route.fulfill({
               path: join(assets, basename(new URL(route.request().url()).pathname)),
             }),
           );
-          await page.route(origin + "audit", (route) =>
+          await page.route(`${origin}audit`, (route) =>
             route.fulfill({
               contentType: "text/html",
               body: `<!doctype html><html class="${theme}"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><style>body{margin:0;background:${theme === "light" ? "white" : "#171717"}}main.assistant-surface,main{position:fixed;top:16px;left:16px;padding:0;border:0;display:block;background:transparent;color-scheme:${theme}}</style><main class="${original ? "" : "assistant-surface canvas-assistant"}"></main><script type="module" src="${entry}"></script></html>`,
             }),
           );
-          await page.goto(origin + "audit");
+          await page.goto(`${origin}audit`);
           const group = page.getByRole("group", { name: "引用了 5 个节点" }),
             more = group.getByRole("button", { name: "再展开 2 个节点" });
           await page.addStyleTag({
@@ -104,12 +104,12 @@ try {
               ),
             );
           async function capture(name) {
-            const key = theme + "-" + name;
+            const key = `${theme}-${name}`;
             await page.waitForTimeout(180);
-            geometry[side + "-" + key] = await Promise.all(
+            geometry[`${side}-${key}`] = await Promise.all(
               [group, ...(await group.getByRole("button").all())].map((item) => item.boundingBox()),
             );
-            shots[side + "-" + key] = await page.screenshot({
+            shots[`${side}-${key}`] = await page.screenshot({
               clip: { x: 12, y: 12, width: 352, height: 90 },
               path: join(output, `${side}-${key}.png`),
             });
@@ -152,11 +152,11 @@ try {
           const refs = ["node:n1", "model:fixture/v1", "skill:shot", "asset:a1"].map((title) =>
             bubble.getByTitle(title, { exact: true }),
           );
-          const key = side + "-" + theme + "-bubble";
+          const key = `${side}-${theme}-bubble`;
           geometry[key] = await Promise.all([bubble, ...refs].map((item) => item.boundingBox()));
           shots[key] = await page.screenshot({
             clip: { x: 12, y: 120, width: 352, height: 128 },
-            path: join(output, key + ".png"),
+            path: join(output, `${key}.png`),
           });
         } finally {
           await page.close();
@@ -171,14 +171,14 @@ try {
     .filter((key) => key.startsWith("desktop-"))
     .map((key) => key.slice(8))) {
     const [left, right] = ["upstream", "desktop"].map((side) =>
-      shots[side + "-" + name].toString("base64"),
+      shots[`${side}-${name}`].toString("base64"),
     );
     const pixels = await decode.evaluate(
       async (pair) => {
         const arrays = await Promise.all(
           pair.map(async (png) => {
             const img = new Image();
-            img.src = "data:image/png;base64," + png;
+            img.src = `data:image/png;base64,${png}`;
             await img.decode();
             const cn = document.createElement("canvas");
             cn.width = img.width;
@@ -197,7 +197,7 @@ try {
   await writeFile(join(output, "results.json"), JSON.stringify({ geometry, results }, null, 2));
   console.table(results);
   for (const key of Object.keys(results)) {
-    assert.deepEqual(geometry["desktop-" + key], geometry["upstream-" + key], key);
+    assert.deepEqual(geometry[`desktop-${key}`], geometry[`upstream-${key}`], key);
     if (software || process.argv.includes("--strict")) assert.equal(results[key], 0, key);
   }
 } finally {

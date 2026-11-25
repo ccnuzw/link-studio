@@ -284,12 +284,12 @@ export function AssistantQuestionnaire({
                   required={required !== false}
                   maxLength={2048}
                   aria-invalid={!empty && !valid}
-                  aria-describedby={!empty && !valid ? control + "-error" : undefined}
+                  aria-describedby={!empty && !valid ? `${control}-error` : undefined}
                   onChange={(event) => edit(id, event.target.value)}
                 />
               )}
               {!empty && !valid && !items && (
-                <small id={control + "-error"} role="alert">
+                <small id={`${control}-error`} role="alert">
                   {kind === "number"
                     ? "请输入有效数字。"
                     : "请输入不含登录凭据的 HTTP 或 HTTPS 链接。"}

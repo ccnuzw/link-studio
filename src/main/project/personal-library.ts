@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type FileHandle, mkdir, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { Asset } from "../../../packages/link-studio-core/src/project.ts";
 import {
@@ -88,7 +89,7 @@ export class PersonalLibrary {
       })),
       folders: this.folderList(db),
       ...(removedSourceIds.length && { removedSourceIds }),
-      ...(rows.length > 40 && { next: Number(rows[39]!.cursor) }),
+      ...(rows.length > 40 && { next: Number(requirePresent(rows[39], "rows[39]").cursor) }),
     };
   }
   async listFolders() {
@@ -226,7 +227,7 @@ export class PersonalLibrary {
     return {
       assets: rows.slice(0, 40).map((row) => this.record(row.record)),
       folders: this.folderList(db),
-      ...(rows.length > 40 && { next: Number(rows[39]!.cursor) }),
+      ...(rows.length > 40 && { next: Number(requirePresent(rows[39], "rows[39]").cursor) }),
     };
   }
   async filingSelection(itemId: string) {
@@ -449,7 +450,12 @@ export class PersonalLibrary {
       this.pendingRecords.get(key) === source.sha256,
     );
     if (this.pendingRecords.size >= 128)
-      this.pendingRecords.delete(this.pendingRecords.keys().next().value!);
+      this.pendingRecords.delete(
+        requirePresent(
+          this.pendingRecords.keys().next().value,
+          "this.pendingRecords.keys().next().value",
+        ),
+      );
     this.pendingRecords.set(key, source.sha256);
     database.exec("BEGIN IMMEDIATE");
     try {
@@ -466,7 +472,7 @@ export class PersonalLibrary {
       throw error;
     }
     this.pendingRecords.delete(key);
-    return this.record(find()!.record);
+    return this.record(requirePresent(find(), "find()").record);
   }
   async attach(store: ProjectStore, itemId: string, operationId: string, signal?: AbortSignal) {
     const item = await this.get(itemId);

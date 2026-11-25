@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { compactViewport } from "./desktop-window";
 
 test("全能参考按原顺序展示前一百个音色，选择去重并进入豆包请求", async () => {
@@ -138,19 +139,19 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     const request = trial.getByRole("tabpanel", { name: "请求描述" }).locator("pre");
     await expect(request).toContainText("reference_audio");
     await expect(request).toContainText(exactPrompt);
-    const original = await request.innerText();
+    const original = await readRenderedText(request);
     const requestPanel = trial.getByRole("tabpanel", { name: "请求描述" });
     await expect(requestPanel.locator("time")).toHaveAttribute("datetime", /^\d{4}-/);
     await requestPanel.getByRole("button", { name: "收起" }).press("Enter");
     await expect(request).toHaveText(
-      original.split("\n").slice(0, 12).join("\n").slice(0, 1500) + "\n…",
+      `${original.split("\n").slice(0, 12).join("\n").slice(0, 1500)}\n…`,
       { useInnerText: true },
     );
     await requestPanel
       .getByRole("button", { name: `展开全部（${original.length} 字符）` })
       .press("Space");
-    expect(await request.innerText()).toBe(original);
-    expect(JSON.parse(await request.innerText()).json.content.slice(1)).toEqual(
+    expect(await readRenderedText(request)).toBe(original);
+    expect(JSON.parse(await readRenderedText(request)).json.content.slice(1)).toEqual(
       ["fz-asset-20260908172456-9zvzx-audio.wav", "fz-asset-20260908172605-qjqkx-audio.mp3"].map(
         (key) => ({
           type: "audio_url",
@@ -170,7 +171,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     await expect(request).not.toContainText("reference_audio");
     await modes.getByRole("radio", { name: "全能参考" }).click();
     await expect(trial.getByRole("button", { name: `移除素材 ${last}` })).toBeVisible();
-    const lastPreview = await request.innerText();
+    const lastPreview = await readRenderedText(request);
     await app.evaluate(({ ipcMain }) => {
       const method = "link-studio:settings:modelTrial";
       ipcMain.removeHandler(method);
@@ -198,7 +199,7 @@ test("全能参考按原顺序展示前一百个音色，选择去重并进入�
     );
     await expect(resultTab).toHaveAttribute("aria-selected", "true");
     await trial.getByRole("tab", { name: "请求描述", exact: true }).click();
-    expect(await request.innerText()).toBe(lastPreview);
+    expect(await readRenderedText(request)).toBe(lastPreview);
     await resultTab.click();
     await trial.getByRole("button", { name: "只看请求（不发送）" }).click();
     await expect(requestPanel.getByRole("alert")).toContainText(
@@ -442,7 +443,9 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       .poll(
         async () =>
           JSON.parse(
-            await video.getByRole("tabpanel", { name: "请求描述" }).locator("pre").innerText(),
+            await readRenderedText(
+              video.getByRole("tabpanel", { name: "请求描述" }).locator("pre"),
+            ),
           ).json.duration,
       )
       .toBe(7);
@@ -514,7 +517,9 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
       .poll(
         async () =>
           JSON.parse(
-            await video.getByRole("tabpanel", { name: "请求描述" }).locator("pre").innerText(),
+            await readRenderedText(
+              video.getByRole("tabpanel", { name: "请求描述" }).locator("pre"),
+            ),
           ).json,
       )
       .toMatchObject({ duration: 7, generate_audio: false, resolution: "4K" });
@@ -546,7 +551,9 @@ test("图生图试跑保留已添加的素材，单项移除后释放名额", as
     await video.getByRole("button", { name: "只看请求（不发送）" }).click();
     const requestBody = video.getByRole("tabpanel", { name: "请求描述" }).locator("pre");
     await expect(requestBody).toContainText("4K");
-    expect(JSON.parse(await requestBody.innerText()).json).not.toHaveProperty("generate_audio");
+    expect(JSON.parse(await readRenderedText(requestBody)).json).not.toHaveProperty(
+      "generate_audio",
+    );
     await video.getByRole("button", { name: "关闭", exact: true }).click();
     await page
       .locator(".channel-model-heading")

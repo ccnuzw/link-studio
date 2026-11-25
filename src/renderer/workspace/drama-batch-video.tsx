@@ -1,5 +1,6 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { useEffect, useRef, useState } from "react";
 import { DramaChoiceContent } from "./drama-choice-content";
 
@@ -109,11 +110,17 @@ export function DramaBatchVideo({
             const failed: number[] = [];
             const worker = async () => {
               while (live.current && queue.length) {
-                const item = queue.shift()!;
+                const item = requirePresent(queue.shift(), "queue.shift()");
                 try {
                   const saved = await rewrite(item);
                   current.set(item.id, saved);
-                  prompts.set(item.id, saved.adaptations![format]!.prompt);
+                  prompts.set(
+                    item.id,
+                    requirePresent(
+                      requirePresent(saved.adaptations, "saved.adaptations")[format],
+                      "saved.adaptations[format]",
+                    ).prompt,
+                  );
                 } catch {
                   failed.push(item.seq + 1);
                 }
@@ -134,7 +141,12 @@ export function DramaBatchVideo({
       const prepared = await Promise.allSettled(
         all
           .filter((item) => prompts.has(item.id))
-          .map((item) => plan(current.get(item.id)!, prompts.get(item.id)!)),
+          .map((item) =>
+            plan(
+              requirePresent(current.get(item.id), "current.get(item.id)"),
+              requirePresent(prompts.get(item.id), "prompts.get(item.id)"),
+            ),
+          ),
       );
       const plans = prepared.flatMap((entry) =>
         entry.status === "fulfilled" ? [entry.value] : [],

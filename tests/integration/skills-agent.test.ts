@@ -160,7 +160,7 @@ it("画布与短剧按运行固定版本、分段读取资源；撤销场景即�
           )
         ).content,
       );
-      expect(page.text + next.text).toBe("一版" + "镜".repeat(30000));
+      expect(page.text + next.text).toBe(`一版${"镜".repeat(30000)}`);
       await platform.endRun(context);
       expect(
         JSON.parse(

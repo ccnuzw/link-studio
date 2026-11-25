@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const reference = path.resolve(process.env.VIDEO_CANVAS_REFERENCE ?? "../video-canvas");
@@ -131,7 +132,7 @@ try {
           );
           const bubble = page.getByRole("status"),
             button = bubble.getByRole("button").first();
-          const text = await button.innerText();
+          const text = await readRenderedText(button);
           assert.ok(text.startsWith(expected));
           if (status === "failed") assert.ok(text.endsWith("…"));
           await page.evaluate(() => document.fonts.ready);
@@ -151,7 +152,7 @@ try {
                   const pixels = await Promise.all(
                     images.map(async (data) => {
                       const image = new Image();
-                      image.src = "data:image/png;base64," + data;
+                      image.src = `data:image/png;base64,${data}`;
                       await image.decode();
                       const canvas = document.createElement("canvas");
                       canvas.width = image.width;

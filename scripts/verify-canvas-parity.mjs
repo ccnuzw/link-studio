@@ -65,7 +65,7 @@ try {
     await server.listen();
     const page = await browser.newPage();
     page.on("pageerror", (e) => console.error(e.message));
-    const url = server.resolvedUrls.local[0] + "audit";
+    const url = `${server.resolvedUrls.local[0]}audit`;
     await page.route(url, (r) =>
       r.fulfill({
         contentType: "text/html",

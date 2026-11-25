@@ -11,6 +11,7 @@ import { Value } from "@sinclair/typebox/value";
 import { settingsRequests } from "../packages/link-studio-core/src/settings-api.ts";
 import { SettingsAgent } from "../src/main/settings/agent.ts";
 import { SettingsRegistry } from "../src/main/settings/registry.ts";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const registryMethods = new Set([
   "list",
@@ -379,7 +380,7 @@ async function replay() {
     await writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
     console.log(report);
   } catch (error) {
-    if (page && !page.isClosed()) console.error(await page.locator("body").innerText());
+    if (page && !page.isClosed()) console.error(await readRenderedText(page.locator("body")));
     console.error(
       "本机模型请求",
       requests.map((body) => ({ tools: body.tools?.length, role: body.messages.at(-1)?.role })),

@@ -53,7 +53,7 @@ try {
           enforce: "pre",
           resolveId(id) {
             if (id === entry) return id;
-            if (id in mocks) return "\0" + id;
+            if (id in mocks) return `\0${id}`;
           },
           load(id) {
             return id === entry ? code : mocks[id.slice(1)];
@@ -86,7 +86,7 @@ try {
               body: `<!doctype html><html class="dark"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><main class="${upstream ? "dark" : "canvas-workspace image-doodle-dialog director-dialog"}" style="position:fixed;inset:0;background:#171717"></main><script type="module" src="${entry}"></script></html>`,
             }),
           );
-          await page.goto(origin + "audit");
+          await page.goto(`${origin}audit`);
           const panel = page.getByRole("dialog", { name: "导出运镜预览视频" });
           await panel.waitFor();
           await page.evaluate(async () => {
@@ -101,8 +101,8 @@ try {
               await page.evaluate(() => document.activeElement?.blur?.());
             }
             await page.waitForTimeout(350);
-            const name = key + "-" + phase;
-            records[side + "-" + name] = await panel.evaluate((root) =>
+            const name = `${key}-${phase}`;
+            records[`${side}-${name}`] = await panel.evaluate((root) =>
               [
                 root.querySelector(".director-export-panel") ?? root,
                 ...root.querySelectorAll("h3,p,input,button"),
@@ -111,8 +111,8 @@ try {
                 return { type: node.tagName, x, y, width, height };
               }),
             );
-            pictures[side + "-" + name] = await page.screenshot({
-              path: join(output, side + "-" + name + ".png"),
+            pictures[`${side}-${name}`] = await page.screenshot({
+              path: join(output, `${side}-${name}.png`),
             });
           }
         } finally {
@@ -127,13 +127,13 @@ try {
     differences = {};
   for (const key of ["wide-idle", "wide-multi", "phone-idle", "phone-multi"]) {
     const pair = ["upstream", "desktop"].map((side) =>
-      pictures[side + "-" + key].toString("base64"),
+      pictures[`${side}-${key}`].toString("base64"),
     );
     differences[key] = await page.evaluate(async (pair) => {
       const pixels = await Promise.all(
         pair.map(async (png) => {
           const img = new Image();
-          img.src = "data:image/png;base64," + png;
+          img.src = `data:image/png;base64,${png}`;
           await img.decode();
           const canvas = document.createElement("canvas");
           canvas.width = img.width;
@@ -150,11 +150,11 @@ try {
   console.table(differences);
   for (const key of Object.keys(differences)) {
     assert.deepEqual(
-      records["desktop-" + key],
-      records["upstream-" + key],
-      key + " control rectangles",
+      records[`desktop-${key}`],
+      records[`upstream-${key}`],
+      `${key} control rectangles`,
     );
-    if (process.argv.includes("--strict")) assert.equal(differences[key], 0, key + " pixels");
+    if (process.argv.includes("--strict")) assert.equal(differences[key], 0, `${key} pixels`);
   }
 } finally {
   await browser.close();

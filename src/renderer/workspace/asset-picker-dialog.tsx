@@ -141,7 +141,7 @@ export function AssetPickerDialog({
   attachLibrary?: (itemId: string) => Promise<ProjectAsset>;
   upload: PickerUpload;
   close: () => void;
-  confirm: (assets: ProjectAsset[]) => void | Promise<string | void>;
+  confirm: (assets: ProjectAsset[]) => void | Promise<void> | Promise<string | undefined>;
   dialogTitle?: string;
   confirmLabel?: string;
   reasonOf?: (asset: ProjectAsset) => string | undefined;

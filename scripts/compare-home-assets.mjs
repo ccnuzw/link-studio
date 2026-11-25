@@ -38,8 +38,8 @@ const entries = catalog.map((voice) => ({
   kind: "audio",
   id: voice.url,
   fileName: voice.name,
-  url: "/official-voices/" + basename(voice.url),
-  thumbnailUrl: "/official-voices/" + voice.avatar,
+  url: `/official-voices/${basename(voice.url)}`,
+  thumbnailUrl: `/official-voices/${voice.avatar}`,
   voiceAge: voice.age,
   voiceGender: voice.gender,
   voiceLang: voice.lang,
@@ -102,7 +102,7 @@ try {
         page.setDefaultTimeout(7000);
         const pageErrors = [];
         page.on("pageerror", (error) => pageErrors.push(error.message));
-        await page.route(origin + "audit", (route) =>
+        await page.route(`${origin}audit`, (route) =>
           route.fulfill({
             contentType: "text/html",
             body: `<!doctype html><html class="${theme}"><meta charset=utf-8><style>body{margin:0}main{width:1000px;margin:auto}main .global-assets{padding:0}</style><main></main><script type=module src="${entry}"></script>`,
@@ -118,7 +118,7 @@ try {
           const ok = (value) => Promise.resolve({ ok: true, value });
           const items = ["海岸", "夜空"].map((name, i) => ({
             id: `00000000-0000-4000-8000-00000000000${i}`,
-            name: name + ".png",
+            name: `${name}.png`,
             prompt: name,
             saved: false,
             createdAt: "2026-10-05",
@@ -160,7 +160,7 @@ try {
           const retries = new Set();
           window.desktop = {
             dialogs: {
-              dropGlobalAsset: async (file, operationId) => {
+              dropGlobalAsset: async (file) => {
                 if (!retries.has(file.name)) {
                   retries.add(file.name);
                   return { ok: false, error: { message: "测试读取失败" } };
@@ -191,7 +191,7 @@ try {
             },
           };
         });
-        await page.goto(origin + "audit#assets?tab=official");
+        await page.goto(`${origin}audit#assets?tab=official`);
         const cards = page.locator(
           baseline ? '[data-slot="official-voice-card"]' : ".home-voice-card",
         );
@@ -222,8 +222,8 @@ try {
         await input.fill("少年");
         await expect(cards.first()).toHaveAttribute("aria-label", "Shiny");
         const first = await cards.first().getAttribute("aria-label");
-        if (baseline) snapshots.set(theme + "name", first);
-        else assert.equal(first, snapshots.get(theme + "name"));
+        if (baseline) snapshots.set(`${theme}name`, first);
+        else assert.equal(first, snapshots.get(`${theme}name`));
         await input.fill("nothing-matches-123");
         await expect(cards).toHaveCount(0);
         await input.press("Escape");
@@ -250,7 +250,7 @@ try {
         await page.keyboard.press("Escape");
         await expect(dialog).toBeHidden();
         if (baseline) {
-          await page.goto(origin + "audit#history-audit");
+          await page.goto(`${origin}audit#history-audit`);
           await page.reload();
           const card = page.locator('[data-slot="history-card"]').first();
           await card.hover();

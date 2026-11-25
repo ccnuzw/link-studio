@@ -43,10 +43,10 @@ try {
   await mkdir(out, { recursive: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on("pageerror", (error) => console.error(error.message));
-  await page.route(origin + "assets/**", (route) =>
+  await page.route(`${origin}assets/**`, (route) =>
     route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
   );
-  await page.route(origin + "audit*", (route) =>
+  await page.route(`${origin}audit*`, (route) =>
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><main style="position:fixed;inset:0"></main><script type="module" src="${entry}"></script>`,
@@ -59,12 +59,12 @@ try {
       : ["script", "image", "video", "audio", "storyboard", "director", "character"]) {
       const key = (reverse ? "in-" : "out-") + kind;
       await page.goto(
-        origin + "audit?kind=" + kind + (reverse ? "&reverse" : "") + (upload ? "&upload=1" : ""),
+        `${origin}audit?kind=${kind}${reverse ? "&reverse" : ""}${upload ? "&upload=1" : ""}`,
       );
       if (upload)
         await expect(page.locator('[data-id="source"]').getByRole("status")).toContainText("25%");
       const port = page.locator(
-        '[data-id="source"] .react-flow__handle-' + (reverse ? "left" : "right"),
+        `[data-id="source"] .react-flow__handle-${reverse ? "left" : "right"}`,
       );
       await port.waitFor({ timeout: 18000 });
       const card = page.locator('[data-id="receiver"] [aria-label="候选节点"]').first(),

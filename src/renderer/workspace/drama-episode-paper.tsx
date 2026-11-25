@@ -1,9 +1,10 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { Autosaver, type AutosaveStatus } from "./drama-autosave";
 import { useDramaSaveStatus } from "./drama-save-status";
-import { markdownExtensions, TextFormatBar } from "./text-editor-dialog";
+import { markdownExtensions, TextFormatBar } from "./text-editor-format";
 
 export function EpisodePaper({
   projectHandle,
@@ -56,7 +57,7 @@ export function EpisodePaper({
               }
             : {
                 saveScript: {
-                  episode_no: no!,
+                  episode_no: requirePresent(no, "no"),
                   revision: expected,
                   episodeOrder,
                   script_md: markdown,
@@ -77,7 +78,13 @@ export function EpisodePaper({
         callbacks.current.saved(result.value);
         return documentField
           ? result.value.revision
-          : result.value.episodes.find((item) => item.episode_no === no)!.revision!;
+          : requirePresent(
+              requirePresent(
+                result.value.episodes.find((item) => item.episode_no === no),
+                "result.value.episodes.find((item) => item.episode_no === no)",
+              ).revision,
+              "result.value.episodes.find((item) => item.episode_no === no).revision",
+            );
       },
     });
     instance.reset(value, revision);
@@ -174,7 +181,9 @@ export function EpisodePaper({
                 lastSaved.current = markdown;
                 saver.reset(
                   markdown,
-                  documentField ? result.value.revision : (latest!.revision ?? 1),
+                  documentField
+                    ? result.value.revision
+                    : (requirePresent(latest, "latest").revision ?? 1),
                 );
                 saved(result.value);
               }}

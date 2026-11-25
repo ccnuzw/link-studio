@@ -211,7 +211,6 @@
 .canvas-control-tip [data-side="right"] {
   width: 10px;
   height: 10px;
-  top: 50% !important;
   left: -4px;
   translate: 0 -50%;
   rotate: 45deg;

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const workspace = process.cwd(),
@@ -155,7 +156,7 @@ try {
     const aliases = upstream
       ? Object.keys(hooks)
           .filter((id) => id.startsWith("@"))
-          .map((id) => ({ find: new RegExp("^" + id + "$"), replacement: "\0mock:" + id }))
+          .map((id) => ({ find: new RegExp(`^${id}$`), replacement: `\0mock:${id}` }))
       : [];
     await build({
       root,
@@ -188,7 +189,7 @@ try {
                           : "/scripts-dialog.tsx",
                 ))
             )
-              return "\0mock:" + id;
+              return `\0mock:${id}`;
           },
           load(id) {
             if (id.startsWith("\0mock:")) return hooks[id.slice(6)];
@@ -316,7 +317,7 @@ try {
             const popup = page.getByRole(state === "menu" ? "menu" : "alertdialog");
             const ringButton = dialog.getByRole("button", { name: "第 2 集 · 长路2", exact: true });
             if (rings) {
-              await page.goto("http://localhost/?phase=" + state);
+              await page.goto(`http://localhost/?phase=${state}`);
               await ringButton.waitFor();
               assert.equal(
                 await ringButton.locator("circle[stroke-dasharray]").count(),
@@ -330,7 +331,7 @@ try {
               else {
                 await page.getByRole("menuitem", { name: "删除" }).click();
                 await popup.getByText("删除第 2 集「长路2」？").waitFor();
-                assert.ok((await popup.innerText()).includes("它的 1 个片段也会删除"));
+                assert.ok((await readRenderedText(popup)).includes("它的 1 个片段也会删除"));
               }
               await popup.waitFor();
             } else if (rail) {
@@ -382,7 +383,7 @@ try {
               await dialog.getByText(`已选 ${chosen.length} 集`, { exact: true }).waitFor();
               assert.ok((await grid.getByRole("button").count()) < 60);
             } else if (quotations) {
-              await page.goto("http://localhost/?phase=" + state);
+              await page.goto(`http://localhost/?phase=${state}`);
               await dialog
                 .getByText(state === "loading" ? "估算中…" : "估算失败", { exact: true })
                 .waitFor();
@@ -592,7 +593,7 @@ try {
                     const pixels = await Promise.all(
                       pair.map(async (data) => {
                         const image = new Image();
-                        image.src = "data:image/png;base64," + data;
+                        image.src = `data:image/png;base64,${data}`;
                         await image.decode();
                         const canvas = document.createElement("canvas");
                         canvas.width = image.width;
@@ -692,7 +693,7 @@ try {
     const comparison = await browser.newPage({ viewport: { width: 530, height: 204 } });
     try {
       const phases = ["queued", "0", "20", "80", "done"],
-        keys = phases.map((state) => "light-1024-" + state);
+        keys = phases.map((state) => `light-1024-${state}`);
       const lines = await Promise.all(
         ["reference", "desktop"].map(
           async (side) =>

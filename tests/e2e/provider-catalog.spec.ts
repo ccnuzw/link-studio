@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { ProjectStore } from "../../src/main/project/store";
 import { SettingsRegistry } from "../../src/main/settings/registry";
+import { requireTestValue } from "../require-test-value";
 
 test("插件目录区分首次读取、可重试的故障和无插件，空态可打开上传", async () => {
   const directory = await mkdtemp(join(tmpdir(), "studio-plugin-loading-"));
@@ -213,10 +214,17 @@ test("版本详情的计数与历史引用独立读取，列表失败或过期�
     await page.getByRole("button", { name: "应用设置" }).click();
     await page.getByRole("button", { name: "适配器管理" }).click();
     const pins = await page.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         list = await api.list({});
       if (!list.ok) throw Error(list.code);
-      const plugin = list.value.plugins.find((entry) => entry.key === "history-pins")!;
+      const plugin = requireTestValue(
+        list.value.plugins.find((entry) => entry.key === "history-pins"),
+      );
       const channel = await api.channelSave({
         expectedRevision: 0,
         approve: true,
@@ -322,15 +330,21 @@ test("版本详情的计数与历史引用独立读取，列表失败或过期�
     await expect(dialog.getByText("等 10 个")).toBeVisible();
     await expect(dialog.getByText("已过期名单")).toHaveCount(0);
     await page.evaluate(async (id) => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings,
         list = await api.list({});
       if (!list.ok) throw Error(list.code);
       const removed = await api.modelRemove({
         id,
-        expectedRevision: list.value.providers.find((item) => item.id === id)!.revision,
+        expectedRevision: requireTestValue(list.value.providers.find((item) => item.id === id))
+          .revision,
       });
       if (!removed.ok) throw Error(removed.code);
-    }, pins[6]!.id);
+    }, requireTestValue(pins[6]).id);
     await dialog.getByRole("link", { name: "历史样例 6" }).click();
     await expect(page.getByRole("region", { name: "插件通知" })).toContainText(
       "未找到可打开的渠道模型",
@@ -535,7 +549,7 @@ test("删除插件首次预检可重试，写入冲突后保留输入和两类�
     const source = await readFile("resources/provider-plugins/openai.js", "utf8");
     const saved = await page.evaluate(
       (source) => window.desktop.settings.draft({ source }),
-      source + "\nmodule.exports.meta.key='retry-delete';",
+      `${source}\nmodule.exports.meta.key='retry-delete';`,
     );
     if (!saved.ok) throw Error(saved.code);
     await app.evaluate(({ ipcMain }) => {
@@ -796,7 +810,7 @@ test("渠道模型引用与适配器版本管理", async () => {
     );
     try {
       await seed.draft(
-        seed.agentPlugin("openai").code + "\nmodule.exports.meta.version='1.2.0';",
+        `${seed.agentPlugin("openai").code}\nmodule.exports.meta.version='1.2.0';`,
         "builtin",
       );
     } finally {
@@ -911,10 +925,15 @@ test("渠道模型引用与适配器版本管理", async () => {
       await expect(submitUpload).toBeDisabled();
       await expect(upload.getByRole("button", { name: "复制修复信息" })).toHaveCount(0);
       await fileInput.evaluate((input: HTMLInputElement) => {
+        function requireTestValue<Value>(value: Value): NonNullable<Value> {
+          if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+          return value;
+        }
+
         input.addEventListener(
           "change",
           () => {
-            const file = input.files![0]!;
+            const file = requireTestValue(requireTestValue(input.files)[0]);
             const read = file.text.bind(file);
             file.text = async () => {
               await new Promise<void>((resolve) =>
@@ -1024,7 +1043,7 @@ test("渠道模型引用与适配器版本管理", async () => {
     const oldVersion = details.getByText(`v${openai.version}`, { exact: true });
     await expect(details.getByRole("button", { name: /编辑草稿/ })).toHaveCount(0);
     const rejected = await page.evaluate(
-      (source) => window.desktop.settings.draft({ source: source + "\n" }),
+      (source) => window.desktop.settings.draft({ source: `${source}\n` }),
       openai.source,
     );
     expect(rejected).toMatchObject({ ok: false, code: "PLUGIN_BUILTIN_KEY_RESERVED" });
@@ -1296,13 +1315,20 @@ test("渠道模型引用与适配器版本管理", async () => {
       reopened.getByRole("table").getByRole("row").filter({ hasText: "fixture-upload" }),
     ).toHaveCount(1);
     const before = await reopened.evaluate(async () => {
+      function requireTestValue<Value>(value: Value): NonNullable<Value> {
+        if (value === null || value === undefined) throw new Error("测试页面缺少预期值");
+        return value;
+      }
+
       const api = window.desktop.settings;
       const listing = await api.list({});
       if (!listing.ok) throw Error(listing.code);
-      const latest = listing.value.plugins.find(
-        (entry) => entry.key === "fixture-upload" && entry.version === "1.2.2",
-      )!;
-      return api.pluginUpload({ source: latest.source + "\n// transient history test" });
+      const latest = requireTestValue(
+        listing.value.plugins.find(
+          (entry) => entry.key === "fixture-upload" && entry.version === "1.2.2",
+        ),
+      );
+      return api.pluginUpload({ source: `${latest.source}\n// transient history test` });
     });
     if (!before.ok) throw Error(before.code);
     await reopened

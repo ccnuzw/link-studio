@@ -18,6 +18,7 @@ import {
   dramaImageFields,
   dramaVideoModelIssue,
   episodeScriptPhase,
+  requirePresent,
   settleDramaImageParams,
 } from "@link-studio/core";
 import { ArrowUp, Clapperboard, FileText, X } from "lucide-react";
@@ -578,7 +579,13 @@ export function DramaStudio({
         document.querySelector('dialog[open],[role="dialog"],[role="alertdialog"],[role="menu"]')
       )
         return;
-      if (/^[1-5]$/.test(event.key)) go((Object.keys(stages) as Stage[])[Number(event.key) - 1]!);
+      if (/^[1-5]$/.test(event.key))
+        go(
+          requirePresent(
+            (Object.keys(stages) as Stage[])[Number(event.key) - 1],
+            "(Object.keys(stages) as Stage[])[Number(event.key) - 1]",
+          ),
+        );
       if (event.key === "[" || event.key === "]") {
         const index = Math.max(
             0,
@@ -631,7 +638,7 @@ export function DramaStudio({
             : job.step === "scripts"
               ? "script"
               : "assets",
-        episodes[0]!.episode_no,
+        requirePresent(episodes[0], "episodes[0]").episode_no,
       );
   }
   async function quoteTaskPrompts(job: NonNullable<DramaDocument["jobs"]>[number]) {
@@ -1437,7 +1444,10 @@ export function DramaStudio({
                           }
                           return;
                         }
-                        const no = result.value.episodes.at(-1)!.episode_no;
+                        const no = requirePresent(
+                          result.value.episodes.at(-1),
+                          "result.value.episodes.at(-1)",
+                        ).episode_no;
                         setDoc(result.value);
                         nav.go("script", no);
                         setVideoSegment("");

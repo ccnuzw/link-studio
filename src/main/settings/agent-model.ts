@@ -5,6 +5,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
+import { requirePresent } from "@link-studio/core";
 import {
   DramaOutputTruncatedError,
   ProviderError,
@@ -133,7 +134,7 @@ async function agentAttempt(
     gatewayDiagnostic(
       {
         ...attempt,
-        channel: profile.channelId!,
+        channel: requirePresent(profile.channelId, "profile.channelId"),
         upstream_model: redactor.redact(profile.model),
         format: gemini ? "gemini" : responses ? "responses" : "openai",
         request_bytes: bodyBytes.length,
@@ -377,7 +378,11 @@ export async function probeAgentStream(
                     const match =
                       /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(url);
                     if (!match) throw new ProviderError("无效的本机图片输入");
-                    return { type: "image" as const, mimeType: match[1]!, data: match[2]! };
+                    return {
+                      type: "image" as const,
+                      mimeType: requirePresent(match[1], "match[1]"),
+                      data: requirePresent(match[2], "match[2]"),
+                    };
                   }),
                 ]
               : (trial?.prompt ?? "Reply with OK."),

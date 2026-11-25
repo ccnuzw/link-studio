@@ -117,5 +117,5 @@
     0 25px 50px -12px #00000040;
 }
 .canvas-workspace .canvas-group[data-agent-mark] > .canvas-group-frame {
-  border-color: var(--agent-ring) !important;
+  border-color: var(--agent-ring);
 }

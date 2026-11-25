@@ -541,7 +541,7 @@ export function DirectorDialog({
       <div
         className="director-editor-layout"
         style={{
-          gridTemplateColumns: `${NAV_WIDTH}px ${panels.assets ? sizes.assets + "px " : ""}minmax(0,1fr) ${sizes.sidebar}px`,
+          gridTemplateColumns: `${NAV_WIDTH}px ${panels.assets ? `${sizes.assets}px ` : ""}minmax(0,1fr) ${sizes.sidebar}px`,
         }}
       >
         <nav aria-label="工具" className="director-tool-rail">

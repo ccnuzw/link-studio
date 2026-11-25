@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const workspace = process.cwd();
 const reference = path.resolve(process.env.AGENT_REFERENCE_WEB ?? "../video-canvas/web");
@@ -184,7 +185,7 @@ try {
       bundle = path.join(temp, side);
     const aliases = upstream
       ? Object.keys(mocks).map((key) => ({
-          find: new RegExp("^" + key + "$"),
+          find: new RegExp(`^${key}$`),
           replacement: `\0fixture:${key}`,
         }))
       : [];
@@ -462,16 +463,17 @@ try {
                     : position === "params-keyboard"
                       ? ["16:9", "4K"]
                       : ["1:1", "4K"];
-                assert.equal(await trigger.innerText(), `${ratio} · ${resolution}`);
+                assert.equal(await readRenderedText(trigger), `${ratio} · ${resolution}`);
                 for (const [label, value] of [
                   ["构图比例", ratio],
                   ["出图精度", `${resolution}档`],
                 ])
                   assert.equal(
-                    await parameterPanel
-                      .getByRole("radiogroup", { name: label })
-                      .getByRole("radio", { checked: true })
-                      .innerText(),
+                    await readRenderedText(
+                      parameterPanel
+                        .getByRole("radiogroup", { name: label })
+                        .getByRole("radio", { checked: true }),
+                    ),
                     value,
                   );
               }
@@ -514,7 +516,7 @@ try {
                   await page.getByRole("button", { name: /纸张质感.*资产图的纸面纹理/ }).waitFor();
                 } else {
                   await page.getByRole("button", { name: /纸张质感.*资产图的纸面纹理/ }).click();
-                  if ((await trigger.innerText()).trim() !== "技能 · 纸张质感")
+                  if ((await readRenderedText(trigger)).trim() !== "技能 · 纸张质感")
                     throw Error(`技能选值不一致：${side}`);
                 }
               }

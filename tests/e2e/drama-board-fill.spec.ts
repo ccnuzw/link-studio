@@ -9,6 +9,7 @@ import { addDramaSegment, createDrama, dramaDocument } from "../../src/main/proj
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { syncDramaBoards } from "../../src/main/project/drama-boards";
 import { ProjectStore } from "../../src/main/project/store";
+import { requireTestValue } from "../require-test-value";
 import { projectAction } from "./workspace-actions";
 
 test("批量故事板允许部分失败，再次补图只请求失败片段", async () => {
@@ -25,10 +26,10 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
       revision = updated.revision;
     }
     await store.updateGeneration((state) => {
-      const doc = dramaDocument(state)!;
-      doc.episodes[0]!.locked = true;
-      doc.episodes[0]!.storyboard_status = "ready";
-      syncDramaBoards(state, 1, doc.segments!);
+      const doc = requireTestValue(dramaDocument(state));
+      requireTestValue(doc.episodes[0]).locked = true;
+      requireTestValue(doc.episodes[0]).storyboard_status = "ready";
+      syncDramaBoards(state, 1, requireTestValue(doc.segments));
       mergeDramaAssets(
         state,
         (["character", "scene", "prop"] as const).map((type) => ({
@@ -194,7 +195,7 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     );
     await toggle.getByRole("button", { name: "画布" }).click();
     expect(
-      await flow!.evaluate(
+      await flow.evaluate(
         (node) => node === document.querySelector('[aria-label="片场画布"] .react-flow'),
       ),
     ).toBe(true);
@@ -286,7 +287,7 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await settings.getByRole("button", { name: "取消" }).click();
     await page.getByRole("tab", { name: "片场", exact: true }).click();
     await page.getByRole("button", { name: "片段 1，5 秒" }).click();
-    await expect(chip).toHaveAttribute("data-ref", refId!);
+    await expect(chip).toHaveAttribute("data-ref", requireTestValue(refId));
     await expect(sourcePrompt).toHaveText("prop 灯亮了。镜头转向窗沿。");
     await page.getByRole("button", { name: "返回画布" }).click();
     await projectAction(page, "关闭项目");

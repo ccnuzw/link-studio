@@ -1,4 +1,9 @@
-import { type PluginView, providerPluginSourceLimit, type SettingsValues } from "@link-studio/core";
+import {
+  type PluginView,
+  providerPluginSourceLimit,
+  requirePresent,
+  type SettingsValues,
+} from "@link-studio/core";
 import {
   ArrowLeft,
   Boxes,
@@ -255,7 +260,7 @@ export function AdapterManager({
   const selectedHash = plugin?.hash;
   useEffect(() => onSelection?.(selectedHash), [selectedHash, onSelection]);
   const versions = loaded
-    ? groupAdapters(loaded)[0]!
+    ? requirePresent(groupAdapters(loaded)[0], "groupAdapters(loaded)[0]")
     : (groups.find(([entry]) => entry?.key === plugin?.key) ?? []);
   const latest = versions[0];
   const history = loaded ? [...loaded].reverse() : [];

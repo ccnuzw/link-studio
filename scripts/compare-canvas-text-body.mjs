@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const reference = path.resolve(process.env.VIDEO_CANVAS_REFERENCE ?? "../video-canvas");
@@ -125,7 +126,7 @@ try {
           );
           assert.deepEqual(await content.boundingBox(), clip);
           const expected = state.textError ?? (state.text ? "来信" : "双击输入文字");
-          assert.ok((await content.innerText()).includes(expected));
+          assert.ok((await readRenderedText(content)).includes(expected));
           if (state.view === "copied") {
             await page
               .getByRole("button", { name: `任务 ID ${state.textFailureTask.reference}，点击复制` })

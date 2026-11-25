@@ -1,4 +1,9 @@
-import { type DramaDocument, dramaBoardMeta, jobIsTerminal } from "@link-studio/core";
+import {
+  type DramaDocument,
+  dramaBoardMeta,
+  jobIsTerminal,
+  requirePresent,
+} from "@link-studio/core";
 import { CircleX, Film, Loader2, Plus } from "lucide-react";
 import { Reorder } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -106,7 +111,7 @@ export function DramaClipRow({
             onPointerCancel={() => setLocal(undefined)}
           >
             {shown.slice(0, limit).map((id, index) => {
-              const segment = byId.get(id)!;
+              const segment = requirePresent(byId.get(id), "byId.get(id)");
               const board = boards.get(id);
               const boardJob = board && editor.jobs.get(board.id)?.[0];
               const boardState =

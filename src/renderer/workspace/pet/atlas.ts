@@ -41,5 +41,5 @@ export function buildKeyframes(
       .map((r) => `${sel}[data-row="${r.row}"]{background-position:0px ${px(r.row * cell.height)}}`)
       .join("")}}`,
   );
-  return out.join("\n") + "\n";
+  return `${out.join("\n")}\n`;
 }

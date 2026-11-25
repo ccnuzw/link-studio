@@ -12,6 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   app,
@@ -527,7 +528,7 @@ export class ProjectIpc {
             return new Response(null, { status: 404 });
           const media = await this.globalMedia(
             path[1] === "history" ? "history" : "personal",
-            path[2]!,
+            requirePresent(path[2], "path[2]"),
           );
           if (!media) return new Response(null, { status: 404 });
           const { location, asset } = media;
@@ -615,7 +616,7 @@ export class ProjectIpc {
         if (response.ok && downloadName)
           response.headers.set(
             "content-disposition",
-            `attachment; filename*=UTF-8''${encodeURIComponent(downloadName).replace(/['()*]/g, (char) => "%" + char.charCodeAt(0).toString(16))}`,
+            `attachment; filename*=UTF-8''${encodeURIComponent(downloadName).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16)}`)}`,
           );
         if (
           response.ok &&
@@ -1097,7 +1098,11 @@ export class ProjectIpc {
         const selected =
           carriedChoice && choices.find((entry) => entry.choice === carriedChoice.choice);
         if (selected && carried && selected !== carriedChoice)
-          grant.choices.set(selected.choice, assets[choices.indexOf(selected)]!.assetId);
+          grant.choices.set(
+            selected.choice,
+            requirePresent(assets[choices.indexOf(selected)], "assets[choices.indexOf(selected)]")
+              .assetId,
+          );
         grant.next = next;
         grant.historyCursor = results?.next;
         const destinations = grant.uploads.destinations;
@@ -1216,7 +1221,7 @@ export class ProjectIpc {
             bytes,
             grant.abort.signal,
           );
-          return { status: result[0]!.status } as ProjectValues[Method];
+          return { status: requirePresent(result[0], "result[0]").status } as ProjectValues[Method];
         } catch (error) {
           if (error instanceof ProviderError) return { error: error.code } as ProjectValues[Method];
           throw error;
@@ -1251,7 +1256,7 @@ export class ProjectIpc {
             bytes,
             mediaSignal,
           );
-          return { status: result[0]!.status } as ProjectValues[Method];
+          return { status: requirePresent(result[0], "result[0]").status } as ProjectValues[Method];
         } catch (error) {
           if (error instanceof ProviderError) return { error: error.code } as ProjectValues[Method];
           throw error;
@@ -1685,12 +1690,12 @@ export class ProjectIpc {
                   const output = await new Promise<string>((resolve, reject) => {
                     const proc = execFile(
                       this.providerRunner,
-                      ["drama-source", input.filename!],
+                      ["drama-source", requirePresent(input.filename, "input.filename")],
                       { timeout: 15000, maxBuffer: 32 * 1024 * 1024, signal: mediaSignal },
                       (error, stdout) => (error ? reject(error) : resolve(stdout)),
                     );
-                    proc.stdin!.on("error", reject);
-                    proc.stdin!.end(input.fileBytes);
+                    requirePresent(proc.stdin, "proc.stdin").on("error", reject);
+                    requirePresent(proc.stdin, "proc.stdin").end(input.fileBytes);
                   });
                   const result = JSON.parse(output);
                   if (!result.ok) throw new ProjectError("VALIDATION_FAILED", result.code);
@@ -1837,7 +1842,9 @@ export class ProjectIpc {
               if (cancelJob || cancelBreakdown || cancelStoryboard) {
                 await this.canvasAgent.cancelStudioJob(
                   store,
-                  cancelJob ?? cancelBreakdown ?? cancelStoryboard!,
+                  cancelJob ??
+                    cancelBreakdown ??
+                    requirePresent(cancelStoryboard, "cancelStoryboard"),
                   cancelJob ? undefined : cancelBreakdown ? "breakdown" : "storyboard",
                 );
                 return dramaDocument(store.snapshot) as ProjectValues[Method];
@@ -2533,7 +2540,7 @@ export class ProjectIpc {
       case "saveAssetCopy": {
         const input = request as ProjectRequest<"saveAssetCopy">;
         const saveCopy = async (store: MediaLocation, asset?: AssetRecord) => {
-          if (!asset || asset.availability !== "ready")
+          if (asset?.availability !== "ready")
             throw new ProjectError("ASSET_NOT_FOUND", "素材不可用");
           const save = await dialog.showSaveDialog(window, {
             title: "下载原文件",

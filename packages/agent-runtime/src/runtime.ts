@@ -107,6 +107,7 @@ export class LocalAgentRuntime {
         : createLocalGateway({ targets, onEffectCommitted: options.onEffectCommitted });
       if (options.settings) await reconcileSettingsDecisions(store, platform, options.settings);
       const openedCanvases = new Set<string>();
+      const settings = options.settings;
       const engine = await AgentEngine.open({
         store,
         storage: await openNodeSqliteStorage(database, { prefix: "pi_" }),
@@ -118,13 +119,13 @@ export class LocalAgentRuntime {
         autoTitle: Boolean(options.settings),
         activitySummary: Boolean(options.settings),
         leaseIntervalMs: 1000,
-        ...(options.settings
+        ...(settings
           ? {
               watchGraceMs: 500,
               watchPollMs: 2000,
               modelDiagnostics: true,
               readSteerImages: (run: Run, ids: string[]) =>
-                readSteerImages(store, targets, options.settings!, run, ids),
+                readSteerImages(store, targets, settings, run, ids),
               localModelUsage: true,
               canvasWatchEnabled: (id: string) => openedCanvases.has(id),
             }

@@ -1,4 +1,5 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Link2Off, Loader2, Lock, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
@@ -186,7 +187,7 @@ export function DramaScriptsDialog({
         <div role="note">
           <Link2Off size={16} />
           {gaps.length === 1
-            ? `第 ${gaps[0]! - 1} 集还没有剧本，第 ${gaps[0]} 集会按它的梗概和结尾悬念衔接`
+            ? `第 ${requirePresent(gaps[0], "gaps[0]") - 1} 集还没有剧本，第 ${gaps[0]} 集会按它的梗概和结尾悬念衔接`
             : `第 ${gaps.slice(0, 6).join("、")}${gaps.length > 6 ? " 等" : ""} 集的上一集还没有剧本，会按上一集的梗概和结尾悬念衔接`}
         </div>
       )}

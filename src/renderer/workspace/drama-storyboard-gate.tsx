@@ -7,6 +7,7 @@ import {
   modelGenerationOptions,
   type PluginView,
   type ProviderView,
+  requirePresent,
 } from "@link-studio/core";
 import { Clapperboard, Loader2, RotateCw } from "lucide-react";
 import { motion } from "motion/react";
@@ -222,16 +223,18 @@ export function DramaStoryboardGate({
       }
       if (quote.problem) pending.current = null;
       const request = cancel
-        ? { cancelStoryboard: job!.id }
+        ? { cancelStoryboard: requirePresent(job, "job").id }
         : {
             storyboard: {
               episodeNo: no,
               maxSeconds,
               videoModel,
               episodeOrder: order,
-              estimate: confirm ? preview!.credits : (quote.credits ?? (await load())),
+              estimate: confirm
+                ? requirePresent(preview, "preview").credits
+                : (quote.credits ?? (await load())),
               operationId: operation.current,
-              ...(confirm && { clearHash: preview!.clearHash }),
+              ...(confirm && { clearHash: requirePresent(preview, "preview").clearHash }),
             },
           };
       if (!live.current) return;

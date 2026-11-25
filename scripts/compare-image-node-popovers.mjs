@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const upstream = resolve(process.env.VIDEO_CANVAS_WEB ?? "../video-canvas/web");
 assert.equal(
@@ -331,7 +332,7 @@ try {
           if (!original) await richDialog.getByLabel("测试提示词").fill("试跑样例");
           await richDialog.getByRole("button", { name: "只看请求（不发送）" }).click();
           await richPanel.locator("pre").waitFor();
-          assert.deepEqual(JSON.parse(await richPanel.locator("pre").innerText()).json, {
+          assert.deepEqual(JSON.parse(await readRenderedText(richPanel.locator("pre"))).json, {
             model: "fixture",
           });
           if (!original) {
@@ -372,7 +373,7 @@ try {
             });
             const request = trial.getByRole("tabpanel", { name: "请求描述" }).locator("pre");
             await dryRun.click();
-            assert.deepEqual(JSON.parse(await request.innerText()).json.images, [
+            assert.deepEqual(JSON.parse(await readRenderedText(request)).json.images, [
               { kind: "image", mime: "image/png" },
             ]);
             await trial.getByRole("radio", { name: "文生图" }).click();
@@ -602,11 +603,11 @@ try {
                   return Array.from(ctx.getImageData(0, 0, 1, 1).data);
                 });
               });
-          if (original) shots.set(id + "-pressed", await chipStyle());
+          if (original) shots.set(`${id}-pressed`, await chipStyle());
           else
             assert.deepEqual(
               await chipStyle(),
-              shots.get(id + "-pressed"),
+              shots.get(`${id}-pressed`),
               `${id} selected mode colors`,
             );
           const layout = await Promise.all(
@@ -619,11 +620,11 @@ try {
             path: join(output, `${name}-${theme}-${modelKind}-editor.png`),
             animations: "disabled",
           });
-          if (original) shots.set(id + "-layout", layout);
+          if (original) shots.set(`${id}-layout`, layout);
           else
             assert.deepEqual(
               layout,
-              shots.get(id + "-layout"),
+              shots.get(`${id}-layout`),
               `${id} dialog, preview and generation modes`,
             );
           if (modelKind === "video") {
@@ -645,11 +646,11 @@ try {
               path: join(output, `${name}-${theme}-video-bottom-${pixelRatio}x.png`),
               animations: "disabled",
             });
-            if (original) shots.set(id + "-bottom", bounds);
+            if (original) shots.set(`${id}-bottom`, bounds);
             else
               assert.deepEqual(
                 bounds,
-                shots.get(id + "-bottom"),
+                shots.get(`${id}-bottom`),
                 `${id} scrolled duration, audio and count`,
               );
             await scroller.evaluate((element) => {
@@ -677,11 +678,11 @@ try {
             path: join(output, `${name}-${theme}-${modelKind}-references.png`),
             animations: "disabled",
           });
-          if (original) shots.set(id + "-references", buttons);
+          if (original) shots.set(`${id}-references`, buttons);
           else {
             assert.deepEqual(
               buttons,
-              shots.get(id + "-references"),
+              shots.get(`${id}-references`),
               `${id} reference upload controls`,
             );
             const localFile = preview.getByLabel(

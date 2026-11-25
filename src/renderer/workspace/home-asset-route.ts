@@ -1,3 +1,5 @@
+import { requirePresent } from "@link-studio/core";
+
 const tabs = {
   history: "history",
   library: "personal",
@@ -16,9 +18,15 @@ export function homeAssetRoute() {
 export function navigateHomeAssets(section: AssetTab, folder = "", replace = false) {
   const params = new URLSearchParams();
   if (section !== "history")
-    params.set("tab", Object.keys(tabs).find((tab) => tabs[tab as keyof typeof tabs] === section)!);
+    params.set(
+      "tab",
+      requirePresent(
+        Object.keys(tabs).find((tab) => tabs[tab as keyof typeof tabs] === section),
+        "Object.keys(tabs).find((tab) => tabs[tab as keyof typeof tabs] === section)",
+      ),
+    );
   if (section === "personal" && folder) params.set("folder", folder);
-  const hash = `#assets${params.size ? "?" + params : ""}`;
+  const hash = `#assets${params.size ? `?${params}` : ""}`;
   if (location.hash !== hash) {
     history[replace ? "replaceState" : "pushState"](history.state, "", hash);
     window.dispatchEvent(new Event("hashchange"));

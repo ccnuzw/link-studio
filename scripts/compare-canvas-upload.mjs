@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { chromium, expect } from "@playwright/test";
 import { createServer } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 assert(process.env.VIDEO_CANVAS_WEB);
 const theme = process.argv.includes("--dark") ? "dark" : "light",
@@ -70,7 +71,7 @@ try {
           deviceScaleFactor: dpr,
           colorScheme: theme,
         });
-      await page.route(origin + "assets/**", (route) =>
+      await page.route(`${origin}assets/**`, (route) =>
         route.fulfill({ path: join(assets, basename(new URL(route.request().url()).pathname)) }),
       );
       const wrapper = generation
@@ -78,7 +79,7 @@ try {
         : original
           ? ""
           : 'class="creative-card" data-visual="true" data-image-frame="true"';
-      await page.route(origin + "check*", (route) =>
+      await page.route(`${origin}check*`, (route) =>
         route.fulfill({
           contentType: "text/html",
           body: `<!doctype html><html class="${theme}"><meta charset="utf-8"><link rel="stylesheet" href="/assets/${css}"><style>#sample{position:fixed;left:40px;top:30px;width:576px;height:288px;border-radius:8px;background:${theme === "dark" ? "oklch(.205 0 0)" : "white"}}*,*::before{animation-play-state:paused!important}</style><main class="${original ? "" : "canvas-workspace"}"><div id="sample" ${wrapper}></div></main><script type="module" src="${entry}"></script></html>`,
@@ -91,11 +92,11 @@ try {
               ["idle", "hover", "focus"].map((state) => `${kind}-${state}`),
             )
           : ["0", "37", "100", "retry", "reopened", "interrupted"]) {
-        await page.goto(origin + "check?" + phase);
+        await page.goto(`${origin}check?${phase}`);
         const panel = empty
           ? page.locator("#sample")
           : page.getByRole(
-              (generation ? phase === "failed" : isNaN(Number(phase))) ? "alert" : "status",
+              (generation ? phase === "failed" : Number.isNaN(Number(phase))) ? "alert" : "status",
             );
         await expect(empty ? panel.getByRole("img") : panel).toBeVisible();
         await page.evaluate(() => document.fonts.ready);
@@ -105,7 +106,7 @@ try {
           if (phase.endsWith("focus")) await page.keyboard.press("Tab");
           await page.waitForTimeout(200);
         }
-        const actual = await panel.innerText();
+        const actual = await readRenderedText(panel);
         states[phase] ??= [];
         states[phase].push(actual);
         await writeFile(
@@ -166,7 +167,7 @@ try {
       const [left, right] = await Promise.all(
         pair.map(async (source) => {
           const image = new Image();
-          image.src = "data:image/png;base64," + source;
+          image.src = `data:image/png;base64,${source}`;
           await image.decode();
           const canvas = document.createElement("canvas");
           canvas.width = image.width;

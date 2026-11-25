@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import type { PetMode } from "./mood";
 
 export const MERGE_WINDOW_MS = 2000;
@@ -86,7 +87,7 @@ const easterBlocked = (c: BubbleContext) =>
 function nextIndex(queue: readonly Bubble[]): number {
   let best = -1;
   queue.forEach((b, i) => {
-    if (best < 0 || rank(b) > rank(queue[best]!)) best = i;
+    if (best < 0 || rank(b) > rank(requirePresent(queue[best], "queue[best]"))) best = i;
   });
   return best;
 }
@@ -99,7 +100,11 @@ function promote(state: BubbleQueueState): BubbleQueueState {
   );
   const i = nextIndex(queue);
   if (i < 0) return { ...state, queue };
-  return { ...state, current: queue[i]!, queue: queue.filter((_, j) => j !== i) };
+  return {
+    ...state,
+    current: requirePresent(queue[i], "queue[i]"),
+    queue: queue.filter((_, j) => j !== i),
+  };
 }
 
 function capQueue(queue: Bubble[]): Bubble[] {
@@ -107,7 +112,7 @@ function capQueue(queue: Bubble[]): Bubble[] {
   while (next.length > MAX_QUEUE) {
     let drop = 0;
     next.forEach((b, i) => {
-      const d = next[drop]!;
+      const d = requirePresent(next[drop], "next[drop]");
       if (rank(b) < rank(d) || (rank(b) === rank(d) && b.createdAt < d.createdAt)) drop = i;
     });
     next.splice(drop, 1);

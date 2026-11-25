@@ -1,4 +1,4 @@
-import { EditableModelDocument, type PluginView } from "@link-studio/core";
+import { EditableModelDocument, type PluginView, requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { decodeModelBody } from "./model-document";
 
@@ -31,7 +31,7 @@ export function projectModelDraft(raw: Record<string, unknown>, plugins: readonl
     return value;
   };
   let body = base;
-  let projected = read(base)!;
+  let projected = requirePresent(read(base), "read(base)");
   const include = (field: string, value: unknown) => {
     const next = { ...body, [field]: value };
     try {
@@ -60,7 +60,10 @@ export function projectModelDraft(raw: Record<string, unknown>, plugins: readonl
   for (const field of ["protocol", "api_format", "path_prefix", "studio_api"]) {
     if (!Object.hasOwn(binding, field)) continue;
     include("channels", [{ ...channel, [field]: binding[field] }]);
-    channel = (body.channels as Record<string, unknown>[])[0]!;
+    channel = requirePresent(
+      (body.channels as Record<string, unknown>[])[0],
+      "(body.channels as Record<string, unknown>[])[0]",
+    );
   }
   if (isModelObject(raw.capabilities)) {
     for (const field of [
@@ -112,7 +115,9 @@ function mergeEdits(raw: unknown, before: unknown, after: unknown): unknown {
     let index = 0;
     return Object.fromEntries(
       [...entries.keys()].map((rawKey) => {
-        const key = Object.hasOwn(after, rawKey) ? ordered[index++]! : rawKey;
+        const key = Object.hasOwn(after, rawKey)
+          ? requirePresent(ordered[index++], "ordered[index++]")
+          : rawKey;
         return [key, entries.get(key)];
       }),
     );
@@ -128,7 +133,7 @@ function mergeEdits(raw: unknown, before: unknown, after: unknown): unknown {
     for (let index = before.length - 1; index >= 0; index--) {
       const key = JSON.stringify(before[index]);
       if (!byValue.has(key)) byValue.set(key, []);
-      byValue.get(key)!.push(index);
+      requirePresent(byValue.get(key), "byValue.get(key)").push(index);
     }
     const origins = after.map((value) => {
       const origin = byValue.get(JSON.stringify(value))?.pop();

@@ -1,4 +1,4 @@
-import { type DramaDocument, dramaStyles } from "@link-studio/core";
+import { type DramaDocument, dramaStyles, requirePresent } from "@link-studio/core";
 import {
   ArrowLeft,
   Check,
@@ -184,7 +184,7 @@ export function DramaReadingRoom({
     const ordered = new Map<string, typeof cards>();
     for (const card of cards) {
       if (!ordered.has(card.group)) ordered.set(card.group, []);
-      ordered.get(card.group)!.push(card);
+      requirePresent(ordered.get(card.group), "ordered.get(card.group)").push(card);
     }
     return [...ordered];
   }, [cards]);

@@ -38,9 +38,6 @@
 .compaction-divider[data-failed="true"] {
   color: var(--status-warning, oklch(0.7 0.16 70));
 }
-.compaction-divider[data-failed="true"] i {
-  background: color-mix(in oklab, currentColor 45%, transparent);
-}
 .compaction-divider > span {
   display: inline-flex;
   align-items: center;
@@ -86,6 +83,9 @@
     color-mix(in oklab, var(--compact-beam) 40%, black)
   );
   box-shadow: 0 0 8px color-mix(in oklab, var(--compact-beam) 60%, transparent);
+}
+.compaction-divider[data-failed="true"] i {
+  background: color-mix(in oklab, currentColor 45%, transparent);
 }
 .agent-compacting-line time {
   font-variant-numeric: tabular-nums;

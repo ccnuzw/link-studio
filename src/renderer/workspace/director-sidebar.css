@@ -119,8 +119,7 @@
 }
 .ds-group-name,
 .ds-item,
-.ds-fieldrow,
-.ds-sidebar .ds-empty {
+.ds-fieldrow {
   font-size: 12px;
   line-height: 16px;
 }
@@ -135,9 +134,6 @@
   padding: 0 4px 0 24px;
   cursor: pointer;
   border-radius: 8px;
-}
-.ds-item:hover {
-  background: oklch(0.269 0 0 / 60%);
 }
 .ds-swatch {
   width: 8px;
@@ -168,15 +164,6 @@
 .ds-item:focus-within .ds-actions {
   opacity: 1;
 }
-.ds-sidebar .ds-action {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  color: var(--director-dim);
-}
 .ds-properties {
   padding-top: 4px;
 }
@@ -197,6 +184,33 @@
 }
 .ds-unit {
   width: 12px;
+  color: var(--director-dim);
+}
+.ds-note,
+.ds-unit,
+.ds-hint {
+  font-size: 11px;
+  line-height: 1.42857143;
+}
+.ds-note,
+.ds-dim,
+.ds-empty {
+  color: var(--director-dim);
+}
+.ds-sidebar .ds-empty {
+  font-size: 12px;
+  line-height: 16px;
+}
+.ds-item:hover {
+  background: oklch(0.269 0 0 / 60%);
+}
+.ds-sidebar .ds-action {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
   color: var(--director-dim);
 }
 .ds-sidebar .ds-field {
@@ -220,19 +234,8 @@
   border-radius: 4px;
   cursor: pointer;
 }
-.ds-note,
-.ds-unit,
-.ds-hint {
-  font-size: 11px;
-  line-height: 1.42857143;
-}
 .ds-sidebar .ds-unit {
   line-height: 1.33333333;
-}
-.ds-note,
-.ds-dim,
-.ds-empty {
-  color: var(--director-dim);
 }
 .ds-sidebar .ds-empty {
   margin-top: 8px;

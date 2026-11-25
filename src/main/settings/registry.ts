@@ -3,6 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   channelEndpointIdentity,
@@ -151,7 +152,10 @@ function filingURLKey(value: string) {
     /^(x-amz|x-goog)-signature$/i.test(key),
   );
   if (!signature) return value;
-  const prefix = signature.toLowerCase().split("-signature")[0]!;
+  const prefix = requirePresent(
+    signature.toLowerCase().split("-signature")[0],
+    'signature.toLowerCase().split("-signature")[0]',
+  );
   for (const key of [...url.searchParams.keys()]) {
     if (key.toLowerCase().startsWith(prefix) && signedURLParameters.has(key.toLowerCase()))
       url.searchParams.delete(key);
@@ -2341,7 +2345,14 @@ export class SettingsRegistry {
       .sort((left, right) => left - right);
     if (!seconds.length) return undefined;
     return Math.floor(
-      (seconds[Math.floor((seconds.length - 1) / 2)]! + seconds[Math.floor(seconds.length / 2)]!) /
+      (requirePresent(
+        seconds[Math.floor((seconds.length - 1) / 2)],
+        "seconds[Math.floor((seconds.length - 1) / 2)]",
+      ) +
+        requirePresent(
+          seconds[Math.floor(seconds.length / 2)],
+          "seconds[Math.floor(seconds.length / 2)]",
+        )) /
         2,
     );
   }
@@ -2625,7 +2636,14 @@ export class SettingsRegistry {
       this.database
         .prepare(`UPDATE ark_assets SET status=? WHERE scope=? AND id=? AND status='processing'
         AND NOT EXISTS (SELECT 1 FROM ark_sources WHERE scope=? AND asset=? AND remote IS NOT ?)`)
-        .run(status, scope, image.id!, scope, image.id!, image.remote);
+        .run(
+          status,
+          scope,
+          requirePresent(image.id, "image.id"),
+          scope,
+          requirePresent(image.id, "image.id"),
+          image.remote,
+        );
       return this.filedReference(channelId, url);
     } catch {
       return undefined;
@@ -2697,10 +2715,10 @@ export class SettingsRegistry {
       throw new ProviderError("FILING_STORAGE_KEYS_REQUIRED");
     const access = input.accessKey
       ? this.secrets.encrypt(input.accessKey)
-      : (old!.access_key as Uint8Array);
+      : (requirePresent(old, "old").access_key as Uint8Array);
     const secret = input.secretKey
       ? this.secrets.encrypt(input.secretKey)
-      : (old!.secret_key as Uint8Array);
+      : (requirePresent(old, "old").secret_key as Uint8Array);
     this.database.exec("BEGIN IMMEDIATE");
     try {
       this.database.prepare("UPDATE filing_stores SET selected=0 WHERE selected=1").run();
@@ -3154,7 +3172,7 @@ export class SettingsRegistry {
     if (!keys) throw new ProviderError("CHANNEL_FILING_KEYS_INVALID");
     const submitImage = async (name: string, url: string) => {
       const result = await call(channel.endpoint, keys, "CreateAsset", {
-        GroupId: channel.filing!.groupId.trim(),
+        GroupId: requirePresent(channel.filing, "channel.filing").groupId.trim(),
         URL: url,
         AssetType: "Image",
         Name: name,
@@ -3676,7 +3694,7 @@ export class SettingsRegistry {
           config: decoded.config,
           settings: decoded.settings,
           pluginHash: decoded.pluginHash || undefined,
-          upstreamModel: decoded.channels[0]!.upstream_model,
+          upstreamModel: requirePresent(decoded.channels[0], "decoded.channels[0]").upstream_model,
         };
         if (!Value.Check(settingsRequests.modelSave, input)) throw new Error();
         documentIssues = issues;
@@ -4868,7 +4886,11 @@ export class SettingsRegistry {
           profile.channelId && profile.config?.kind === "agent"
             ? this.agentFields(fields)
             : this.validateFields(fields, profile.pluginHash);
-        const selectedFields = new Set(ordered.map((index) => proposal.items[index]!.field));
+        const selectedFields = new Set(
+          ordered.map(
+            (index) => requirePresent(proposal.items[index], "proposal.items[index]").field,
+          ),
+        );
         for (const key of new Set([
           ...Object.keys(profile.channel),
           ...Object.keys(validated.channel),

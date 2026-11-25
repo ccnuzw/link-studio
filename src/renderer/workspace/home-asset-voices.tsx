@@ -1,7 +1,8 @@
+import { requirePresent } from "@link-studio/core";
 import { AudioLines, Copy, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { copySettingsText } from "../settings/copy-settings-text";
-import type catalog from "../settings/official-voices.json";
+import catalog from "../settings/official-voices.json";
 import { BackdropDialog } from "./backdrop-dialog";
 import { AssetFilter, AssetSearch, AssetToolbar } from "./home-asset-controls";
 import { NodeAudioPlayer } from "./node-audio-player";
@@ -19,9 +20,12 @@ const voiceName = (voice: Voice) =>
   voice.name.replace(/^(Child|Teen|Young|Middle-aged|Older) - (Male|Female) - /, "").trim() ||
   "音色";
 const groupOf = (voice: Voice) =>
-  groups[
-    (voice.age === "child" || voice.age === "teen" ? 0 : 2) + (voice.gender === "female" ? 1 : 0)
-  ]!;
+  requirePresent(
+    groups[
+      (voice.age === "child" || voice.age === "teen" ? 0 : 2) + (voice.gender === "female" ? 1 : 0)
+    ],
+    'groups[ (voice.age === "child" || voice.age === "teen" ? 0 : 2) + (voice.gender === "female" ? 1 : 0) ]',
+  );
 const localFile = (name: string) => `./official-voices/${name}`;
 export function AudioPreview({
   name,
@@ -99,30 +103,12 @@ export function AudioPreview({
   );
 }
 export function VoiceLibrary() {
-  const [voices, setVoices] = useState<Voice[]>(),
-    [failed, setFailed] = useState(false),
-    [retry, setRetry] = useState(0),
-    [query, setQuery] = useState(""),
+  const [query, setQuery] = useState(""),
     [lang, setLang] = useState(""),
     [group, setGroup] = useState(""),
     [preview, setPreview] = useState<Voice>();
-  useEffect(() => {
-    let active = true;
-    setFailed(false);
-    void import("../settings/official-voices.json").then(
-      (catalog) => {
-        if (active) setVoices(catalog.default);
-      },
-      () => {
-        if (active) setFailed(true);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [retry]);
   const term = query.trim().toLowerCase(),
-    matches = voices?.filter(
+    matches = catalog.filter(
       (voice) =>
         (!lang || voice.lang === lang) &&
         (!group || groupOf(voice) === group) &&
@@ -155,16 +141,7 @@ export function VoiceLibrary() {
         />
         <AssetSearch label="搜索音色名称" value={query} change={setQuery} />
       </AssetToolbar>
-      {failed ? (
-        <p role="alert">
-          音色库加载失败{" "}
-          <button type="button" onClick={() => setRetry(retry + 1)}>
-            重试
-          </button>
-        </p>
-      ) : !matches ? (
-        <p role="status">正在加载…</p>
-      ) : matches.length ? (
+      {matches.length ? (
         <div className="home-voice-grid">
           {matches.map((voice) => (
             <button
@@ -191,7 +168,9 @@ export function VoiceLibrary() {
       {preview && (
         <AudioPreview
           name={voiceName(preview)}
-          src={localFile(preview.url.split("/").at(-1)!)}
+          src={localFile(
+            requirePresent(preview.url.split("/").at(-1), 'preview.url.split("/").at(-1)'),
+          )}
           voice={preview}
           close={() => setPreview(undefined)}
         />

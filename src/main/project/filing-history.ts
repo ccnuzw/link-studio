@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import { GenerationInput } from "../../../packages/link-studio-core/src/generation.ts";
 import { Asset, type ProjectState } from "../../../packages/link-studio-core/src/project.ts";
@@ -223,7 +224,10 @@ export class FilingHistory {
       items: rows.slice(0, 40).map((row) => this.item(row)),
       next:
         rows.length > 40
-          ? { created: Number(rows[39]!.created), id: String(rows[39]!.id) }
+          ? {
+              created: Number(requirePresent(rows[39], "rows[39]").created),
+              id: String(requirePresent(rows[39], "rows[39]").id),
+            }
           : undefined,
     };
   }

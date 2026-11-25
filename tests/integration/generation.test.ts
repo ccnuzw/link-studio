@@ -1056,11 +1056,11 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
     expect(trial).toBeTypeOf("function");
     expect(registry.acquireGeneration(first.id, "model-trial", "second-trial")).toBeUndefined();
     expect(registry.acquireGeneration(first.id, "project-0", "job-0")).toBeTypeOf("function");
-    releases[2]!();
+    requireTestValue(releases[2])();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeUndefined();
     requireTestValue(trial)();
     expect(registry.acquireGeneration(first.id, "another", "waiting")).toBeTypeOf("function");
-    releases[1]!();
+    requireTestValue(releases[1])();
     expect(registry.acquireGeneration(undefined, "legacy", "direct")).toBeTypeOf("function");
   });
 
@@ -3086,7 +3086,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       .agentPlugin("doubao-video")
       .code.replace("firstDelay: 15, interval: 10", "firstDelay: 0.01, interval: 0.01");
     const plugin = await registry.draft(
-      source + "\nmodule.exports.meta.key='retired-video';",
+      `${source}\nmodule.exports.meta.key='retired-video';`,
       "builtin",
     );
     const channel = generationChannel();
@@ -5273,8 +5273,8 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
   });
 
   it("精读长正文保留完整字符并返回全部关联边", async () => {
-    const prefix = "信".repeat(3999) + "📬";
-    const letter = node("letter", "script", prefix + "到达");
+    const prefix = `${"信".repeat(3999)}📬`;
+    const letter = node("letter", "script", `${prefix}到达`);
     const targets = Array.from({ length: 101 }, (_, index) => node(`target-${index}`));
     await edit(letter, ...targets);
     const edges = targets.map((target) => ({
@@ -5293,7 +5293,7 @@ describe.skipIf(process.platform !== "darwin")("S4 持久生成与画布助手",
       input: { nodeIds: [letter.id] },
     });
     expect(result).toMatchObject({
-      nodes: [{ id: letter.id, data: { text: prefix + "…" } }],
+      nodes: [{ id: letter.id, data: { text: `${prefix}…` } }],
       edges,
     });
   });

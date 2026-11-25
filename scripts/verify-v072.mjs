@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { expect } from "@playwright/test";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 export async function replayRelease(page, width) {
   await mkdir("test-results/v072", { recursive: true });
@@ -166,7 +167,7 @@ export async function replayRelease(page, width) {
   await line.click();
   await expect(line).toHaveAttribute("aria-expanded", "true");
   await line.screenshot({ path: "test-results/v072/board-line-en.png" });
-  const instruction = await line.innerText();
+  const instruction = await readRenderedText(line);
   await button("立即生成").click();
   await page.waitForFunction(() => !!window.releaseState.submission);
   const submitted = await page.evaluate(() => window.releaseState.submission);

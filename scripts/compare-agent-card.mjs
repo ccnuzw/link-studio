@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const workspace = process.cwd();
 const reference = path.resolve(process.env.AGENT_REFERENCE_WEB ?? "../video-canvas/web");
@@ -152,7 +153,7 @@ try {
       const content = createElement(ReactFlowProvider,null,createElement(InfoCard,{card:parseCard(fixture),scope:'canvas'}));`
           : `import {InfoCard} from '/src/renderer/assistant/info-card.tsx';
       const content = createElement(InfoCard,{raw:fixture});`;
-    const file = path.join(root, "card-fixture-" + path.basename(temp) + ".jsx");
+    const file = path.join(root, `card-fixture-${path.basename(temp)}.jsx`);
     const watchEntry = `import {useState} from 'react';import {${upstream ? "WatchStripView" : "AssistantWatchStrip"} as Strip} from '${upstream ? "/src/pages/canvas/agent/watch-strip.tsx" : "/src/renderer/workspace/assistant-watch.tsx"}';import {summarizeWatches} from '${upstream ? "/src/utils/agent/watch.ts" : "/src/renderer/workspace/assistant-watch-state.ts"}';
       const scenario=new URLSearchParams(location.search).get('state'), queued=scenario==='queued',partial=scenario==='partial',settled=queued?3:partial?2:0;
       const labels=['片头画面','夜景全景 · '+ '雨后的街道和远处亮着灯的房间'.repeat(3),'街道特写'];if(scenario==='overflow')labels.push(...Array.from({length:12},(_,index)=>'补充镜头 '+(index+1)));
@@ -298,7 +299,7 @@ try {
                 await page.mouse.move(0, 0);
                 const approve = card.getByRole("option", { name: /批准生成/ });
                 if (
-                  !(await approve.innerText()).includes(
+                  !(await readRenderedText(approve)).includes(
                     `✦ ${state === "none" ? 0 : state === "partial" ? 30 : 66}`,
                   ) ||
                   (await approve.isDisabled()) !== (state === "none")
@@ -323,12 +324,12 @@ try {
                         : page.getByRole(state === "running" ? "status" : "separator");
               await divider.waitFor();
               await page.evaluate(() => document.fonts.ready);
-              if (decisions && !(await divider.innerText()).includes("申请生成 4 个节点"))
+              if (decisions && !(await readRenderedText(divider)).includes("申请生成 4 个节点"))
                 throw Error("Missing generation decision");
               if (
                 decisions &&
                 state === "priced" &&
-                !(await divider.innerText()).includes("· ✦ 30")
+                !(await readRenderedText(divider)).includes("· ✦ 30")
               )
                 throw Error("Missing approved quote");
               if (approvalCard)
@@ -558,8 +559,8 @@ try {
   for (const [state, images] of Object.entries(captures)) {
     if (
       component &&
-      JSON.stringify(report.sizes["upstream-" + state]) !==
-        JSON.stringify(report.sizes["desktop-" + state])
+      JSON.stringify(report.sizes[`upstream-${state}`]) !==
+        JSON.stringify(report.sizes[`desktop-${state}`])
     ) {
       report.differences[state] = "geometry";
       continue;
@@ -593,7 +594,7 @@ try {
       : ["executed", "partially_approved", "rejected", "failed", "expired"];
     const columns = ["小镜 · 4277d16f", "小灵 · Link Studio"].map(
       (title, index) =>
-        `<section><h2>${title}</h2>${states.map((state) => `<img alt="${state}" src="data:image/png;base64,${captures["canvas-light-400-" + state][index]}">`).join("")}</section>`,
+        `<section><h2>${title}</h2>${states.map((state) => `<img alt="${state}" src="data:image/png;base64,${captures[`canvas-light-400-${state}`][index]}">`).join("")}</section>`,
     );
     await page.setViewportSize({ width: 820, height: 240 });
     await page.setContent(

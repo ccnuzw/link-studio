@@ -11,6 +11,7 @@ import {
 } from "./model-config.ts";
 import { readDuration } from "./model-duration.ts";
 import type { ModelPricing } from "./model-price.ts";
+import { requirePresent } from "./require-present.ts";
 import type { PluginView, ProviderFields } from "./settings-api.ts";
 
 const strict = { additionalProperties: false };
@@ -257,7 +258,7 @@ export function inspectOfflineBody(text: string) {
       if (!Object.hasOwn(parent, key)) throw new DocumentIssue(issue.path, "字段路径无效");
       parent = parent[key] as Record<string, unknown>;
     }
-    delete parent[keys.at(-1)!];
+    delete parent[requirePresent(keys.at(-1), "keys.at(-1)")];
     if (issue.path !== "/params") issues.push({ field: issue.path, text: "未知字段" });
   }
   if (!Value.Check(bodySchema, body)) throw new DocumentIssue("", "字段无效");
@@ -278,7 +279,7 @@ export function decodeModelBody(raw: unknown, plugins: readonly PluginView[]) {
     const issue = Value.Errors(bodySchema, raw).First();
     throw new DocumentIssue(issue?.path ?? "", issue?.message ?? "字段无效");
   }
-  const binding = raw.channels[0]!;
+  const binding = requirePresent(raw.channels[0], "raw.channels[0]");
   const selected = binding.protocol;
   const candidates = selected
     ? newestCatalogVersions(
@@ -500,7 +501,10 @@ export function modelCapabilities(config: ModelConfig) {
   if (config.params)
     caps.params = Object.fromEntries(
       (Object.keys(config.params) as ModelParameter[]).map((name) => {
-        const field = config.params![name]!;
+        const field = requirePresent(
+          requirePresent(config.params, "config.params")[name],
+          "config.params[name]",
+        );
         const convert = (value: string) =>
           name === "count" || name === "duration" ? Number(value) : value;
         return [
@@ -574,7 +578,9 @@ export function modelCapabilities(config: ModelConfig) {
     );
     const entries = caps.params ?? {};
     caps.params = Object.fromEntries(
-      order.filter((name) => Object.hasOwn(entries, name)).map((name) => [name, entries[name]!]),
+      order
+        .filter((name) => Object.hasOwn(entries, name))
+        .map((name) => [name, requirePresent(entries[name], "entries[name]")]),
     );
   }
   return caps;

@@ -59,9 +59,7 @@ export function cleanModelStream(
         index,
         delta: { tool_calls: remainingCalls(index) },
       }));
-      return (
-        (choices.length ? `data: ${JSON.stringify({ choices })}\n\n` : "") + "data: [DONE]\n\n"
-      );
+      return `${choices.length ? `data: ${JSON.stringify({ choices })}\n\n` : ""}data: [DONE]\n\n`;
     }
     const data = JSON.parse(raw);
     const streamedFields = new Set<Delta>();

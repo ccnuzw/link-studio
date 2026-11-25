@@ -35,7 +35,7 @@ test("目录优先列出选中的节点，分组成员上限 50，摘要按 Unic
       label: "镜头 209",
       group: "group",
       hasOutput: false,
-      prompt: "🎞".repeat(60) + "…",
+      prompt: `${"🎞".repeat(60)}…`,
     },
     { id: "group", type: "group", label: "摄影组", members: 210, hasOutput: false },
   ]);

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { build, parseSync, transformWithOxc } from "vite";
+import { readRenderedText } from "./read-rendered-text.mjs";
 
 const revision = "4277d16f40457664e27a89efabac14d07c1d73e8";
 const reference = path.resolve(process.env.VIDEO_CANVAS_REFERENCE ?? "../video-canvas");
@@ -191,7 +192,7 @@ try {
       const root=createRoot(document.querySelector('#gate'));let data;window.show=phase=>{const status=phase==='missing'?'empty':'ready',episode={no:3,episode_no:3,scriptStatus:status,script_status:status,storyboardStatus:'empty',storyboard_status:'empty',locked:false},jobs=['breaking','other','hover','focus'].includes(phase)?[{step:'breakdown',status:'running',episodes:[phase==='other'?2:3]}]:[];data={drama:{episodes:phase==='empty'?[]:[episode],jobs},jobs};flushSync(()=>root.render(${upstream ? "<StudioArea key={phase} ep={3} onGo={()=>{}} onBreakdownOpen={()=>{}}/>" : "<DramaStudioGate key={phase} kind={studioPrerequisite(data.drama,data.drama.episodes[0])} no={3} go={()=>{}} openBreakdown={()=>{}}/>"}));};`;
       if (storyboard) {
         const extract = async (module, name) => {
-          const file = path.join(pinned, "src/pages/drama/workspace", module + ".tsx"),
+          const file = path.join(pinned, "src/pages/drama/workspace", `${module}.tsx`),
             text = await readFile(file, "utf8"),
             node = parseSync(file, text)
               .program.body.map((entry) => entry.declaration ?? entry)
@@ -749,13 +750,16 @@ try {
                 ),
               );
               clip = await host.boundingBox();
-              row[side] = await host.evaluate((el) => ({
-                text: el.innerText,
-                parts: [...el.firstElementChild.children].map((part) => {
-                  const rect = part.getBoundingClientRect();
-                  return [rect.x, rect.y, rect.width, rect.height];
-                }),
-              }));
+              const text = await readRenderedText(host);
+              row[side] = {
+                text,
+                ...(await host.evaluate((el) => ({
+                  parts: [...el.firstElementChild.children].map((part) => {
+                    const rect = part.getBoundingClientRect();
+                    return [rect.x, rect.y, rect.width, rect.height];
+                  }),
+                }))),
+              };
             } else if (pill) {
               await page.evaluate((phase) => window.show(phase), label);
               const host = page.locator("#pill");
@@ -765,20 +769,23 @@ try {
               await page.evaluate(() => document.fonts.ready);
               const box = await host.boundingBox();
               clip = { x: box.x, y: 32, width: box.width, height: 208 };
-              row[side] = await host.evaluate((region) => ({
-                text: region.innerText,
-                buttons: [...region.querySelectorAll("button")].map((button) => [
-                  button.textContent,
-                  button.disabled,
-                  button.title,
-                ]),
-                parts: [...(region.firstElementChild?.children ?? [])].map((el) => ({
-                  x: el.getBoundingClientRect().x,
-                  width: el.getBoundingClientRect().width,
-                  font: getComputedStyle(el).fontVariantNumeric,
-                })),
-                height: region.firstElementChild?.getBoundingClientRect().height ?? 0,
-              }));
+              const text = await readRenderedText(host);
+              row[side] = {
+                text,
+                ...(await host.evaluate((region) => ({
+                  buttons: [...region.querySelectorAll("button")].map((button) => [
+                    button.textContent,
+                    button.disabled,
+                    button.title,
+                  ]),
+                  parts: [...(region.firstElementChild?.children ?? [])].map((el) => ({
+                    x: el.getBoundingClientRect().x,
+                    width: el.getBoundingClientRect().width,
+                    font: getComputedStyle(el).fontVariantNumeric,
+                  })),
+                  height: region.firstElementChild?.getBoundingClientRect().height ?? 0,
+                }))),
+              };
             } else if (overview) {
               await page.mouse.move(0, 300);
               await page.evaluate((phase) => window.show(phase), label);
@@ -811,14 +818,17 @@ try {
               );
               const box = await card.boundingBox();
               clip = { x: box.x, y: box.y, width: box.width, height: Math.ceil(box.height) };
-              row[side] = await card.evaluate((region) => ({
-                text: region.innerText,
-                height: region.getBoundingClientRect().height,
-                buttons: [...region.querySelectorAll("button")].map((button) => [
-                  button.textContent,
-                  button.disabled,
-                ]),
-              }));
+              const text = await readRenderedText(card);
+              row[side] = {
+                text,
+                ...(await card.evaluate((region) => ({
+                  height: region.getBoundingClientRect().height,
+                  buttons: [...region.querySelectorAll("button")].map((button) => [
+                    button.textContent,
+                    button.disabled,
+                  ]),
+                }))),
+              };
             } else {
               const role = views ? "button" : "tab",
                 button = tabs.getByRole(role, { name: label, exact: true });
@@ -872,7 +882,7 @@ try {
                   const parts = await Promise.all(
                     pair.map(async (data) => {
                       const image = new Image();
-                      image.src = "data:image/png;base64," + data;
+                      image.src = `data:image/png;base64,${data}`;
                       await image.decode();
                       const canvas = document.createElement("canvas");
                       canvas.width = image.width;
@@ -928,7 +938,7 @@ try {
         const image = await readFile(
           path.join(
             output,
-            `${side}-${theme}-${batchChoice ? "1024-idle" : adaptBar ? "1440-idle" : addClip ? "1440-focus" : library ? "1440-all" : generateButton ? "1024-again" : secondsChip ? "1024-menu" : storyboard ? "390-running" : gate ? "390-breaking" : pill ? "390-many" : "1024-" + (overview ? "ready" : views ? "画布" : "资产管理")}.png`,
+            `${side}-${theme}-${batchChoice ? "1024-idle" : adaptBar ? "1440-idle" : addClip ? "1440-focus" : library ? "1440-all" : generateButton ? "1024-again" : secondsChip ? "1024-menu" : storyboard ? "390-running" : gate ? "390-breaking" : pill ? "390-many" : `1024-${overview ? "ready" : views ? "画布" : "资产管理"}`}.png`,
           ),
         );
         panels.push(

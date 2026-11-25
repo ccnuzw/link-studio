@@ -17,8 +17,7 @@
 .dp-hero,
 .dp-compose,
 .dp-characters article,
-.dp-empty,
-.dp-overview .drama-overview-details > div {
+.dp-empty {
   background: var(--desk-card);
   border: 1px solid var(--desk-border);
   border-radius: 18px;
@@ -54,15 +53,13 @@
   font-weight: 900;
 }
 .dp-hero small,
-.dp-final-preview > small,
-.dp-script aside h3 {
+.dp-final-preview > small {
   font-size: 12px;
   letter-spacing: 0.075em;
   color: var(--desk-muted);
 }
 .dp-hero p,
 .dp-compose p,
-.dp-script aside p,
 .dp-empty p {
   color: var(--desk-muted);
   font-size: 14px;
@@ -96,8 +93,6 @@
 }
 .dp-action,
 .dp-link,
-.dp-overview table button,
-.dp-overview nav button,
 .dp-empty button {
   border: 1px solid var(--desk-border);
   background: var(--desk-card);
@@ -116,7 +111,6 @@
 }
 .dp-action:enabled:hover,
 .dp-overview button:enabled:hover,
-.dp-empty button:hover,
 .dp-link:hover {
   background: var(--desk-hover);
   color: var(--desk-text);
@@ -137,13 +131,7 @@
   background: color-mix(in oklch, var(--rail-primary) 86%, white);
   color: #201909;
 }
-:is(.dp-overview, .dp-final, .dp-script, .dp-dialog, .drama-reading-room) button:focus-visible,
-.dp-dialog textarea:focus-visible {
-  outline: 2px solid var(--desk-focus);
-  outline-offset: 2px;
-}
-.dp-action:disabled,
-.dp-overview button:disabled {
+.dp-action:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -155,9 +143,6 @@
   position: relative;
   color: color-mix(in oklch, var(--desk-muted) 50%, transparent);
 }
-.dp-posters:has(img) > svg {
-  display: none;
-}
 .dp-posters img {
   object-fit: cover;
   width: clamp(60px, 8vw, 124px);
@@ -166,15 +151,6 @@
   box-shadow: 0 12px 28px #0003;
   transform: rotate(-5deg);
 }
-.dp-posters img + img {
-  margin-left: -12px;
-  transform: rotate(4deg);
-}
-.dp-overview .drama-overview-details > div {
-  padding: 18px;
-  overflow: visible;
-}
-.dp-overview .drama-overview-details h2,
 .dp-compose h3 {
   font-size: 17px;
   margin: 0 0 14px;
@@ -185,28 +161,10 @@
   border-collapse: collapse;
   font-size: 12px;
 }
-.dp-overview th:first-child {
-  width: 22%;
-  text-align: left;
-}
 .dp-overview :is(th, td) {
   padding: 7px 1px;
   border-bottom: 1px solid var(--desk-border);
   text-align: center;
-}
-.dp-overview table button {
-  background: transparent;
-  border: 0;
-  padding: 5px 2px;
-  font-size: 12px;
-  max-width: 100%;
-  color: var(--desk-text);
-}
-.dp-overview table th button {
-  font-weight: 600;
-}
-.dp-overview table button:disabled {
-  color: var(--desk-muted);
 }
 .dp-overview nav {
   margin-top: 14px;
@@ -243,9 +201,6 @@
   top: 8px;
   padding: 35px 0 0;
 }
-.dp-script aside ol {
-  padding-left: 18px;
-}
 .dp-script-wait {
   display: flex;
   flex-direction: column;
@@ -280,26 +235,6 @@
   background: var(--desk-inset);
   border-radius: 4px;
 }
-.dp-script-lines i:nth-child(2) {
-  width: 70%;
-}
-.dp-script-lines i:last-child {
-  width: 80%;
-}
-.dp-script aside h3 {
-  margin: 8px 0;
-}
-.dp-script aside p {
-  margin: 4px 0 14px;
-}
-.dp-script aside .dp-action {
-  padding: 3px 7px;
-}
-.dp-script .drama-episode-paper {
-  box-sizing: border-box;
-  max-width: none;
-  color: var(--paper-ink);
-}
 .dp-paper-head {
   justify-content: space-between;
 }
@@ -319,10 +254,6 @@
 }
 .dp-characters :is(h3, p) {
   margin: 5px 0;
-}
-.dp-characters dl div {
-  padding: 8px 0;
-  border-top: 1px solid var(--desk-border);
 }
 .dp-characters :is(dt, small) {
   color: var(--desk-muted);
@@ -368,25 +299,6 @@
   border-radius: 16px;
   background: #101010;
 }
-.dp-screen :is(video, .drama-take-play, .local-video-poster) {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-}
-.dp-screen .drama-take-play {
-  position: relative;
-  background: #101010;
-  color: white;
-  border: 0;
-  cursor: pointer;
-}
-.dp-screen .drama-take-play > span:last-child {
-  position: absolute;
-  inset: 45% 0 auto;
-  text-align: center;
-}
 .dp-compose {
   align-self: start;
   padding: 20px;
@@ -394,8 +306,18 @@
 .dp-compose h3 {
   margin-bottom: 4px;
 }
+.dp-script aside h3 {
+  font-size: 12px;
+  letter-spacing: 0.075em;
+  color: var(--desk-muted);
+}
 .dp-compose p {
   font-size: 13px;
+}
+.dp-script aside p {
+  color: var(--desk-muted);
+  font-size: 14px;
+  line-height: 1.65;
 }
 .dp-compose ol {
   list-style: none;
@@ -410,30 +332,11 @@
   padding: 8px 0;
   font-size: 13px;
 }
-.dp-compose li span:last-child {
-  margin-left: auto;
-  color: var(--desk-muted);
-}
-.dp-compose li :is(img, .local-video-placeholder),
-.dp-other :is(img, .local-video-placeholder) {
-  width: 42px;
-  height: 36px;
-  object-fit: cover;
-  border-radius: 6px;
-}
 .dp-other button {
   margin: 0 6px 6px 0;
 }
-.dp-compose progress,
-.dp-compose > .dp-action {
+.dp-compose progress {
   width: 100%;
-}
-.drama-script-area:has(.dp-final) {
-  padding: 0;
-}
-.drama-script-area > section:has(> .dp-final) {
-  height: 100%;
-  min-height: 0;
 }
 .dp-final {
   height: 100%;
@@ -470,36 +373,11 @@
   padding: 12px 16px;
   border-top: 1px solid var(--desk-border);
 }
-.dp-compose footer button {
-  width: 100%;
-}
-.dp-compose footer p:empty {
-  display: none;
-}
-.dp-compose li small {
-  display: block;
-  font-weight: 400;
-  color: var(--desk-muted);
-}
-.dp-compose .dp-skipped {
-  padding: 10px;
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--rail-primary) 12%, transparent);
-}
-.dp-overview nav [aria-current="page"] {
-  background: var(--rail-muted);
-  font-weight: 650;
-}
 .drama-paper-prose :is(h2, h3, h4, p) {
   scroll-margin-top: 24px;
 }
 .drama-file-drop {
   position: relative;
-}
-.drama-file-drop[data-dragging],
-.drama-file-drop:focus-within {
-  outline: 2px solid var(--rail-primary, var(--desk-focus));
-  outline-offset: -2px;
 }
 .drama-file-pick::after {
   position: absolute;
@@ -560,11 +438,9 @@
 }
 @container (max-width: 780px) {
   .dp-script,
-  .dp-final,
-  .dp-overview .drama-overview-details {
+  .dp-final {
     grid-template-columns: minmax(0, 1fr);
   }
-  .drama-script-area > section:has(> .dp-final),
   .dp-final {
     height: auto;
   }
@@ -580,9 +456,6 @@
   }
   .dp-posters {
     display: none;
-  }
-  .dp-overview .drama-overview-details > div {
-    padding: 12px;
   }
 }
 .dp-overview table td button[data-state] {
@@ -603,21 +476,10 @@
   background: color-mix(in oklch, var(--rail-primary) 17%, var(--desk-card));
   color: light-dark(#684e15, #f4d99d);
 }
-.drama-reading-room:has(.dp-characters) {
-  width: min(100%, 1040px);
-}
 .dp-characters {
   display: flex;
   flex-direction: column;
   gap: 28px;
-}
-.dp-characters .dp-cast-group {
-  margin: 0 4px 12px;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  color: var(--desk-muted);
 }
 .dp-periods {
   display: block;
@@ -637,14 +499,6 @@
   padding: 20px;
   min-width: 0;
   border-radius: 22px;
-}
-.dp-cast-grid article header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.dp-cast-grid article header div {
-  min-width: 0;
 }
 .dp-cast-icon {
   display: grid;
@@ -669,20 +523,11 @@
   line-height: 28px;
   margin: 0;
 }
-.dp-cast-grid article :is(p, dd) {
-  font-size: 14px;
-  line-height: 1.625;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
 .dp-cast-grid dl {
   margin: 0;
   display: grid;
   grid-template-columns: minmax(3.5em, max-content) minmax(0, 1fr);
   gap: 10px 16px;
-}
-.dp-cast-grid dl div {
-  display: contents;
 }
 .dp-cast-grid dt {
   line-height: 24px;
@@ -704,28 +549,10 @@
   border: 0;
   background: transparent;
 }
-.dp-view-switch button[aria-pressed="true"],
-.dp-view-switch button:hover {
-  background: var(--desk-card);
-  color: var(--desk-text);
-}
 .dp-script > div {
   min-width: 0;
 }
-.dp-script > div > .dp-paper-head {
-  justify-content: flex-start;
-  gap: 8px;
-}
-.dp-script .dp-paper-head small {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-.dp-lock-banner,
-.dp-script small[data-locked="true"] {
+.dp-lock-banner {
   color: light-dark(#72521e, #eed299);
   background: light-dark(#f1e6d2, #392e1d);
 }
@@ -746,13 +573,62 @@
   border: 1px solid var(--desk-border);
   color: var(--paper-ink);
 }
-.dp-script .drama-episode-paper::before {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  inset: 0 auto 0 36px;
-  width: 1px;
-  background: repeating-linear-gradient(var(--desk-border) 0 3px, transparent 3px 9px);
+.dp-script .drama-episode-paper {
+  box-sizing: border-box;
+  max-width: none;
+  color: var(--paper-ink);
+}
+.dp-screen :is(video, .drama-take-play, .local-video-poster) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+.dp-screen .drama-take-play {
+  position: relative;
+  background: #101010;
+  color: white;
+  border: 0;
+  cursor: pointer;
+}
+.dp-other :is(img, .local-video-placeholder) {
+  width: 42px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.dp-compose > .dp-action {
+  width: 100%;
+}
+.drama-script-area:has(.dp-final) {
+  padding: 0;
+}
+.dp-compose .dp-skipped {
+  padding: 10px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--rail-primary) 12%, transparent);
+}
+.drama-file-drop[data-dragging],
+.drama-file-drop:focus-within {
+  outline: 2px solid var(--rail-primary, var(--desk-focus));
+  outline-offset: -2px;
+}
+@container (max-width: 780px) {
+  .dp-overview .drama-overview-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.drama-reading-room:has(.dp-characters) {
+  width: min(100%, 1040px);
+}
+.dp-characters .dp-cast-group {
+  margin: 0 4px 12px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--desk-muted);
 }
 .drama-paper-prose,
 .text-editor-dialog .text-draft {
@@ -814,9 +690,6 @@
 }
 .drama-episode-paper .text-format-bar > div + div::before {
   background: var(--desk-border);
-}
-.drama-episode-paper .text-format-bar button:disabled {
-  opacity: 0.45;
 }
 .dp-task-trigger,
 .dp-task-menu,
@@ -900,12 +773,6 @@
   background: transparent;
   cursor: pointer;
 }
-.dp-task-row small svg {
-  vertical-align: middle;
-}
-.dp-task-row[aria-expanded="true"] small svg {
-  rotate: 180deg;
-}
 .dp-task-row:hover {
   background: var(--desk-hover);
 }
@@ -913,8 +780,7 @@
   outline: 2px solid var(--desk-focus);
   outline-offset: -2px;
 }
-.dp-task-detail,
-.dp-task-row .dp-task-track {
+.dp-task-detail {
   grid-column: 2 / -1;
 }
 .dp-task-detail {
@@ -957,22 +823,50 @@
 .dp-task-heading button {
   margin-inline-start: auto;
 }
-.dp-task-menu button:disabled {
-  opacity: 0.55;
-}
-.drama-project-name .dp-title-edit {
-  display: block;
-  box-sizing: border-box;
-  padding: 4px 6px;
+.dp-overview table button,
+.dp-overview nav button {
+  border: 1px solid var(--desk-border);
+  background: var(--desk-card);
   color: var(--desk-text);
-  width: 11em;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+.dp-posters:has(img) > svg {
+  display: none;
+}
+.dp-posters img + img {
+  margin-left: -12px;
+  transform: rotate(4deg);
+}
+.dp-overview table button {
   background: transparent;
   border: 0;
-  border-radius: 6px;
-  font: inherit;
+  padding: 5px 2px;
+  font-size: 12px;
+  max-width: 100%;
+  color: var(--desk-text);
+}
+.dp-script aside ol {
+  padding-left: 18px;
+}
+.dp-script aside h3 {
+  margin: 8px 0;
+}
+.dp-script aside p {
+  margin: 4px 0 14px;
+}
+.dp-characters dl div {
+  padding: 8px 0;
+  border-top: 1px solid var(--desk-border);
+}
+.dp-compose footer button {
+  width: 100%;
+}
+.dp-overview table th button {
+  font-weight: 600;
 }
 .dp-save-indicator {
   display: inline-flex;
@@ -981,9 +875,6 @@
   color: var(--desk-muted);
   white-space: nowrap;
   font-size: 12px;
-}
-.dp-save-indicator[data-problem="true"] {
-  color: var(--desk-danger);
 }
 .dp-commands {
   padding: 12px;
@@ -1006,13 +897,221 @@
   background: var(--desk-inset);
   font: inherit;
 }
-.dp-commands input:focus-visible {
-  outline: 2px solid var(--desk-focus);
+.dp-commands small {
+  color: var(--desk-muted);
+}
+.dp-compose li small {
+  display: block;
+  font-weight: 400;
+  color: var(--desk-muted);
+}
+.dp-cast-grid article header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dp-cast-grid article :is(p, dd) {
+  font-size: 14px;
+  line-height: 1.625;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.dp-cast-grid dl div {
+  display: contents;
+}
+.dp-task-row small svg {
+  vertical-align: middle;
+}
+@media (max-width: 1100px) {
+  .dp-save-indicator span {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .drama-settings-summary {
+    display: none;
+  }
+}
+.dp-task-track {
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--rail-muted);
+}
+.dp-task-row .dp-task-track {
+  grid-column: 2 / -1;
+}
+.drama-project-name .dp-title-edit {
+  display: block;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  color: var(--desk-text);
+  width: 11em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+}
+.dp-save-indicator[data-problem="true"] {
+  color: var(--desk-danger);
 }
 .dp-commands [role="listbox"] {
   margin-top: 8px;
   max-height: min(46vh, 360px);
   overflow: auto;
+}
+@media (max-width: 800px) {
+  .dp-save-indicator:not([data-problem="true"]) {
+    display: none;
+  }
+}
+.dp-task-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  background: var(--rail-primary);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dp-task-track i {
+    transition: transform 280ms ease-out;
+  }
+  @keyframes dp-task-reading {
+    to {
+      transform: translateX(233%);
+    }
+  }
+}
+.dp-script aside {
+  top: 24px;
+  padding-top: 48px;
+}
+.dp-script aside > div {
+  border-left: 2px solid var(--desk-border);
+  padding-left: 12px;
+}
+.dp-cast-grid article header div {
+  min-width: 0;
+}
+.dp-overview .drama-overview-details > div {
+  background: var(--desk-card);
+  border: 1px solid var(--desk-border);
+  border-radius: 18px;
+}
+.dp-empty button:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+:is(.dp-overview, .dp-final, .dp-script, .dp-dialog, .drama-reading-room) button:focus-visible,
+.dp-dialog textarea:focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 2px;
+}
+.dp-overview button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.dp-overview .drama-overview-details > div {
+  padding: 18px;
+  overflow: visible;
+}
+.dp-overview .drama-overview-details h2 {
+  font-size: 17px;
+  margin: 0 0 14px;
+}
+.dp-overview th:first-child {
+  width: 22%;
+  text-align: left;
+}
+.dp-script-lines i:nth-child(2) {
+  width: 70%;
+}
+.dp-script-lines i:last-child {
+  width: 80%;
+}
+.dp-script aside .dp-action {
+  padding: 3px 7px;
+}
+.dp-compose li :is(img, .local-video-placeholder) {
+  width: 42px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.drama-script-area > section:has(> .dp-final) {
+  height: 100%;
+  min-height: 0;
+}
+.dp-overview nav [aria-current="page"] {
+  background: var(--rail-muted);
+  font-weight: 650;
+}
+@container (max-width: 780px) {
+  .drama-script-area > section:has(> .dp-final) {
+    height: auto;
+  }
+  .dp-overview .drama-overview-details > div {
+    padding: 12px;
+  }
+}
+.dp-view-switch button[aria-pressed="true"],
+.dp-view-switch button:hover {
+  background: var(--desk-card);
+  color: var(--desk-text);
+}
+.dp-script > div > .dp-paper-head {
+  justify-content: flex-start;
+  gap: 8px;
+}
+.dp-script .dp-paper-head small {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.dp-script small[data-locked="true"] {
+  color: light-dark(#72521e, #eed299);
+  background: light-dark(#f1e6d2, #392e1d);
+}
+.dp-script .drama-episode-paper::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  inset: 0 auto 0 36px;
+  width: 1px;
+  background: repeating-linear-gradient(var(--desk-border) 0 3px, transparent 3px 9px);
+}
+.dp-task-menu button:disabled {
+  opacity: 0.55;
+}
+.dp-overview table button:disabled {
+  color: var(--desk-muted);
+}
+.dp-compose li span:last-child {
+  margin-left: auto;
+  color: var(--desk-muted);
+}
+.dp-screen .drama-take-play > span:last-child {
+  position: absolute;
+  inset: 45% 0 auto;
+  text-align: center;
+}
+.dp-compose footer p:empty {
+  display: none;
+}
+.drama-episode-paper .text-format-bar button:disabled {
+  opacity: 0.45;
+}
+.dp-task-row[aria-expanded="true"] small svg {
+  rotate: 180deg;
+}
+.dp-commands input:focus-visible {
+  outline: 2px solid var(--desk-focus);
 }
 .dp-commands button[role="option"] {
   display: flex;
@@ -1028,54 +1127,14 @@
 .dp-commands button:hover {
   background: var(--desk-hover);
 }
-.dp-commands small {
-  color: var(--desk-muted);
-}
-@media (max-width: 1100px) {
-  .dp-save-indicator span {
-    display: none;
-  }
-}
-@media (max-width: 800px) {
-  .dp-save-indicator:not([data-problem="true"]),
-  .drama-settings-summary {
-    display: none;
-  }
-}
-.dp-task-track {
-  height: 4px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--rail-muted);
-}
-.dp-task-track i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transform-origin: left;
-  background: var(--rail-primary);
-}
 .dp-task-track:not([aria-valuenow]) i {
   width: 30%;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .dp-task-track i {
-    transition: transform 280ms ease-out;
-  }
   .dp-task-track:not([aria-valuenow]) i {
     animation: dp-task-reading 1.8s ease-in-out infinite alternate;
   }
-  @keyframes dp-task-reading {
-    to {
-      transform: translateX(233%);
-    }
-  }
 }
-.dp-script aside {
-  top: 24px;
-  padding-top: 48px;
-}
-.dp-script aside > div,
 .dp-script aside > p {
   border-left: 2px solid var(--desk-border);
   padding-left: 12px;

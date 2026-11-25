@@ -1,4 +1,5 @@
 import type { DirectorScene } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Aperture, Box, PanelLeftClose, Search, UserRound, Video } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -161,8 +162,14 @@ export function DirectorAssets({
 
   const add = (card: Card) => {
     if (card.run) return card.run();
-    if (card.kind === "character") addCharacter(card.options!.model!);
-    else if (card.kind === "prop") addProp(card.options!.shape!);
+    if (card.kind === "character")
+      addCharacter(
+        requirePresent(requirePresent(card.options, "card.options").model, "card.options.model"),
+      );
+    else if (card.kind === "prop")
+      addProp(
+        requirePresent(requirePresent(card.options, "card.options").shape, "card.options.shape"),
+      );
     else addCamera();
   };
 

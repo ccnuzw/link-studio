@@ -1,3 +1,4 @@
+import { requirePresent } from "@link-studio/core";
 import { useState } from "react";
 import voices from "../settings/official-voices.json";
 
@@ -32,7 +33,7 @@ export function CanvasVoices({
       )}
       {!matches.length && <p>没有匹配的音色</p>}
       {matches.map((voice) => {
-        const file = voice.url.split("/").at(-1)!;
+        const file = requirePresent(voice.url.split("/").at(-1), 'voice.url.split("/").at(-1)');
         const checked = selected.some((item) => item.assetId === voice.url);
         return (
           <div key={voice.url}>

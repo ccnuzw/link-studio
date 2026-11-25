@@ -3,6 +3,7 @@ import { lstat, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
+import { requirePresent } from "@link-studio/core";
 import type { DramaJobRecord } from "../../../packages/link-studio-core/src/drama.ts";
 import {
   evenGridLines,
@@ -97,59 +98,66 @@ export class CanvasMedia {
     const existing = this.posterCache.get(key) ?? this.pendingPosters.get(key);
     if (existing) return existing;
     const slot = this.posterSlot++ % this.posterQueue.length;
-    const task = this.posterQueue[slot]!.then(async () => {
-      const directory = await mkdtemp(join(tmpdir(), "link-studio-poster-"));
-      try {
-        const source = join(directory, "source");
-        await this.files.materialize(store, asset, source);
-        const image = join(directory, "poster.png");
-        await runMediaProcess(
-          this.ffmpeg,
-          [
-            "-nostdin",
-            "-v",
-            "error",
-            "-protocol_whitelist",
-            "file,pipe",
-            "-max_alloc",
-            "67108864",
-            "-f",
-            thumbnail
-              ? splitFormats[asset.mimeType]!
-              : asset.mimeType === "video/webm"
-                ? "matroska"
-                : "mov",
-            "-i",
-            source,
-            "-map",
-            "0:v:0",
-            "-frames:v",
-            "1",
-            "-vf",
-            "scale=w='min(576,iw)':h='min(576,ih)':force_original_aspect_ratio=decrease",
-            "-threads",
-            "1",
-            "-c:v",
-            "png",
-            "-f",
-            "image2",
-            "-update",
-            "1",
-            image,
-          ],
-          { timeoutMs: 15000, maxStdoutBytes: 2 * 1024 * 1024, maxRssMiB: 384 },
-        );
-        const frame = await readFile(image);
-        if (!frame.length) throw new ProjectError("ASSET_READ_FAILED", "无法读取视频封面");
-        const url = `data:image/png;base64,${frame.toString("base64")}`;
-        if (this.posterCache.size >= 32)
-          this.posterCache.delete(this.posterCache.keys().next().value!);
-        this.posterCache.set(key, url);
-        return url;
-      } finally {
-        await rm(directory, { recursive: true, force: true });
-      }
-    }).finally(() => this.pendingPosters.delete(key));
+    const task = requirePresent(this.posterQueue[slot], "this.posterQueue[slot]")
+      .then(async () => {
+        const directory = await mkdtemp(join(tmpdir(), "link-studio-poster-"));
+        try {
+          const source = join(directory, "source");
+          await this.files.materialize(store, asset, source);
+          const image = join(directory, "poster.png");
+          await runMediaProcess(
+            this.ffmpeg,
+            [
+              "-nostdin",
+              "-v",
+              "error",
+              "-protocol_whitelist",
+              "file,pipe",
+              "-max_alloc",
+              "67108864",
+              "-f",
+              thumbnail
+                ? requirePresent(splitFormats[asset.mimeType], "splitFormats[asset.mimeType]")
+                : asset.mimeType === "video/webm"
+                  ? "matroska"
+                  : "mov",
+              "-i",
+              source,
+              "-map",
+              "0:v:0",
+              "-frames:v",
+              "1",
+              "-vf",
+              "scale=w='min(576,iw)':h='min(576,ih)':force_original_aspect_ratio=decrease",
+              "-threads",
+              "1",
+              "-c:v",
+              "png",
+              "-f",
+              "image2",
+              "-update",
+              "1",
+              image,
+            ],
+            { timeoutMs: 15000, maxStdoutBytes: 2 * 1024 * 1024, maxRssMiB: 384 },
+          );
+          const frame = await readFile(image);
+          if (!frame.length) throw new ProjectError("ASSET_READ_FAILED", "无法读取视频封面");
+          const url = `data:image/png;base64,${frame.toString("base64")}`;
+          if (this.posterCache.size >= 32)
+            this.posterCache.delete(
+              requirePresent(
+                this.posterCache.keys().next().value,
+                "this.posterCache.keys().next().value",
+              ),
+            );
+          this.posterCache.set(key, url);
+          return url;
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      })
+      .finally(() => this.pendingPosters.delete(key));
     this.pendingPosters.set(key, task);
     this.posterQueue[slot] = task.then(
       () => {},

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   type CanvasOperation,
@@ -191,14 +192,16 @@ export async function reorderDramaSegments(store: ProjectStore, input: unknown) 
     if (input.ids.every((id, index) => id === ordered[index]?.id))
       return { changed: false, result: doc };
     const next = input.ids.map((id, seq) => {
-      const segment = byId.get(id)!;
+      const segment = requirePresent(byId.get(id), "byId.get(id)");
       if (segment.seq === seq) return segment;
       bumpSegmentVersion(doc, input.episodeNo);
       return { ...segment, seq, revision: segment.revision + 1 };
     });
     let index = 0;
     doc.segments = doc.segments.map((segment) =>
-      segment.episode_no === input.episodeNo ? next[index++]! : segment,
+      segment.episode_no === input.episodeNo
+        ? requirePresent(next[index++], "next[index++]")
+        : segment,
     );
     doc.overview_revision ??= doc.revision;
     doc.revision++;

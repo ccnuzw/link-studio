@@ -362,7 +362,7 @@ try {
           await page.evaluate(
             async ({ src, clip }) => {
               const image = new Image();
-              image.src = "data:image/png;base64," + src;
+              image.src = `data:image/png;base64,${src}`;
               await image.decode();
               const canvas = document.createElement("canvas"),
                 dpr = devicePixelRatio;
@@ -855,7 +855,7 @@ try {
       const buffers = await Promise.all(
         pair.map(async (src) => {
           const bitmap = new Image();
-          bitmap.src = "data:image/png;base64," + src;
+          bitmap.src = `data:image/png;base64,${src}`;
           await bitmap.decode();
           const canvas = document.createElement("canvas");
           canvas.width = bitmap.width;
@@ -878,7 +878,7 @@ try {
             Promise.all(
               pair.map(async (bytes) => {
                 const image = new Image();
-                image.src = "data:image/png;base64," + bytes;
+                image.src = `data:image/png;base64,${bytes}`;
                 await image.decode();
                 return image;
               }),
@@ -931,7 +931,7 @@ try {
         ctx.font = "15px sans-serif";
         for (const [column, bytes] of pair.entries()) {
           const image = new Image();
-          image.src = "data:image/png;base64," + bytes;
+          image.src = `data:image/png;base64,${bytes}`;
           await image.decode();
           ctx.fillText(column ? "桌面 Electron" : reference, column * 352 + 8, 20);
           ctx.drawImage(image, column * 352, 28);
@@ -956,7 +956,7 @@ try {
       context.font = "16px sans-serif";
       for (const [column, bytes] of pair.entries()) {
         const image = new Image();
-        image.src = "data:image/png;base64," + bytes;
+        image.src = `data:image/png;base64,${bytes}`;
         await image.decode();
         const dpr = devicePixelRatio;
         context.fillStyle = "white";
@@ -988,7 +988,7 @@ try {
         ctx.font = "16px sans-serif";
         for (const [column, bytes] of pair.entries()) {
           const image = new Image();
-          image.src = "data:image/png;base64," + bytes;
+          image.src = `data:image/png;base64,${bytes}`;
           await image.decode();
           ctx.fillText(column ? "桌面 Electron" : reference, column * 500 + 8, 22);
           ctx.drawImage(image, column * 500, 32, 500, 126);
@@ -1019,7 +1019,7 @@ try {
         for (const [row, pair] of pairs.entries())
           for (const [column, bytes] of pair.entries()) {
             const image = new Image();
-            image.src = "data:image/png;base64," + bytes;
+            image.src = `data:image/png;base64,${bytes}`;
             await image.decode();
             const left = 10 + column * 332,
               top = 10 + row * 300;

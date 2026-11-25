@@ -1,4 +1,5 @@
 import type { DramaDocument } from "@link-studio/core";
+import { requirePresent } from "@link-studio/core";
 import { Clapperboard, Download, Film } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DramaAssetEditor } from "./drama-asset-browser";
@@ -132,8 +133,11 @@ export function DramaFinalArea({
                 aria-label={`第 ${item.episode_no} 集成片`}
                 onClick={() => select(item.episode_no)}
               >
-                <LocalVideoPoster projectHandle={projectHandle} assetId={item.final_asset_id!} />第{" "}
-                {item.episode_no} 集
+                <LocalVideoPoster
+                  projectHandle={projectHandle}
+                  assetId={requirePresent(item.final_asset_id, "item.final_asset_id")}
+                />
+                第 {item.episode_no} 集
               </button>
             ))}
           </div>

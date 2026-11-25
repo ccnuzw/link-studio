@@ -24,7 +24,7 @@ export function CanvasControlTip({
           <Tooltip.Popup role="tooltip" className="strip-tip canvas-more-tip canvas-control-tip">
             {label}
             {shortcut && <kbd>{shortcut}</kbd>}
-            <Tooltip.Arrow />
+            <Tooltip.Arrow style={({ side }) => (side === "right" ? { top: "50%" } : undefined)} />
           </Tooltip.Popup>
         </Tooltip.Positioner>
       </Tooltip.Portal>

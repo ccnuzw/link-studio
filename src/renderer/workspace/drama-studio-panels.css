@@ -87,13 +87,6 @@
   background: var(--desk-danger);
   opacity: 1;
 }
-.studio-panel-preview .drama-preview-switch button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--rail-soft);
-  font-family: inherit;
-}
 .studio-panel-preview .drama-preview-switch button[aria-pressed="true"] {
   color: var(--rail-ink);
   background: var(--rail-muted);
@@ -157,9 +150,6 @@
   background: var(--rail-muted);
   color: var(--rail-soft);
 }
-.drama-board-frame[data-state="failed"] svg {
-  color: var(--desk-danger);
-}
 .drama-board-stale {
   position: absolute;
   top: 12px;
@@ -189,12 +179,7 @@
 .drama-board-actions button:hover:not(:disabled) {
   background: var(--rail-muted);
 }
-.drama-board-actions button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.drama-board-stage :focus-visible,
-.drama-preview-switch button:focus-visible {
+.drama-board-stage :focus-visible {
   outline: 2px solid var(--desk-focus);
   outline-offset: 2px;
 }
@@ -278,9 +263,6 @@
   background: transparent;
   color: inherit;
 }
-.studio-segment-heading button:hover {
-  background: var(--rail-muted);
-}
 .studio-segment-heading h2 {
   flex: 1;
 }
@@ -299,9 +281,6 @@
 .studio-segment-status[data-state="running"] {
   color: var(--rail-primary);
   background: color-mix(in oklab, currentColor 15%, transparent);
-}
-.studio-segment-status[data-state="running"] svg {
-  animation: drama-delete-spin 1s linear infinite;
 }
 .studio-segment-status[data-state="ready"] {
   color: var(--status-success);
@@ -348,13 +327,6 @@
   align-items: center;
   flex: none;
 }
-.studio-panel-editor .studio-segment-heading h2 {
-  font:
-    600 18px / 1.4 "Songti SC",
-    "Noto Serif CJK SC",
-    serif;
-  letter-spacing: 0.04em;
-}
 .studio-video-editor {
   flex: 1;
   display: flex;
@@ -369,9 +341,6 @@
   overflow: auto;
   scrollbar-width: none;
 }
-.studio-video-editor .drama-ref-bar header {
-  color: var(--rail-soft);
-}
 .studio-video-editor .drama-ref-bar header small {
   padding: 1px 6px;
   border-radius: 999px;
@@ -383,23 +352,8 @@
   border-radius: 10px;
   font-size: 12px;
 }
-.studio-video-editor .drama-ref-bar i {
-  background: var(--rail-bg);
-}
 .studio-video-editor .drama-ref-bar .drama-board-chip {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rail-primary) 45%, transparent);
-}
-.studio-video-editor .studio-draft-controls {
-  flex: none;
-  margin: 4px 0 0;
-}
-.studio-video-editor .drama-segment-prompt {
-  display: flex;
-  flex-direction: column;
-  min-height: 68px;
-  margin: 0;
-  box-sizing: border-box;
-  color: var(--rail-ink);
 }
 .studio-board-line {
   display: flex;
@@ -426,21 +380,6 @@
   align-self: flex-start;
   margin-top: 3px;
 }
-.studio-board-line[aria-expanded="false"] span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.studio-board-line:focus-visible {
-  outline: 2px solid var(--desk-focus);
-}
-.studio-video-editor .canvas-prompt-wrap,
-.studio-video-editor .canvas-prompt-wrap > div {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
 .studio-video-editor .canvas-prompt-wrap[data-expanded="true"] .canvas-prompt-content {
   min-height: 0;
   max-height: none;
@@ -455,10 +394,6 @@
     "PingFang SC",
     sans-serif;
 }
-.studio-video-editor .prompt-ref-chip {
-  background: var(--rail-muted);
-  color: var(--rail-ink);
-}
 .studio-video-editor > p {
   margin: 0;
   font-size: 12px;
@@ -471,6 +406,31 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
+}
+.studio-video-editor .studio-draft-controls {
+  flex: none;
+  margin: 4px 0 0;
+}
+.studio-video-editor .drama-segment-prompt {
+  display: flex;
+  flex-direction: column;
+  min-height: 68px;
+  margin: 0;
+  box-sizing: border-box;
+  color: var(--rail-ink);
+}
+.studio-board-line:focus-visible {
+  outline: 2px solid var(--desk-focus);
+}
+.studio-video-editor .canvas-prompt-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.studio-video-editor .prompt-ref-chip {
+  background: var(--rail-muted);
+  color: var(--rail-ink);
 }
 .studio-draft-controls [role="tablist"] {
   display: flex;
@@ -567,6 +527,54 @@
   background-clip: padding-box;
   transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
+}
+.studio-panel-preview .drama-preview-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rail-soft);
+  font-family: inherit;
+}
+.drama-board-frame[data-state="failed"] svg {
+  color: var(--desk-danger);
+}
+.drama-board-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.drama-preview-switch button:focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 2px;
+}
+.studio-segment-heading button:hover {
+  background: var(--rail-muted);
+}
+.studio-segment-status[data-state="running"] svg {
+  animation: drama-delete-spin 1s linear infinite;
+}
+.studio-panel-editor .studio-segment-heading h2 {
+  font:
+    600 18px / 1.4 "Songti SC",
+    "Noto Serif CJK SC",
+    serif;
+  letter-spacing: 0.04em;
+}
+.studio-video-editor .drama-ref-bar header {
+  color: var(--rail-soft);
+}
+.studio-video-editor .drama-ref-bar i {
+  background: var(--rail-bg);
+}
+.studio-board-line[aria-expanded="false"] span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-video-editor .canvas-prompt-wrap > div {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 .studio-adapt-bar button:hover {
   background-color: var(--rail-muted);

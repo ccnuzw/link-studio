@@ -1,4 +1,4 @@
-import { type DramaDocument, dramaBusyReason } from "@link-studio/core";
+import { type DramaDocument, dramaBusyReason, requirePresent } from "@link-studio/core";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { EpisodeProgress } from "./drama-episode-rail";
@@ -9,7 +9,12 @@ const active = (job: Job) => job.status === "queued" || job.status === "running"
 function rangeLabel(numbers: number[]) {
   const sorted = [...numbers].sort((left, right) => left - right);
   if (sorted.length === 1) return `第 ${sorted[0]} 集`;
-  if (sorted.every((number, index) => !index || number === sorted[index - 1]! + 1))
+  if (
+    sorted.every(
+      (number, index) =>
+        !index || number === requirePresent(sorted[index - 1], "sorted[index - 1]") + 1,
+    )
+  )
     return `第 ${sorted[0]}–${sorted.at(-1)} 集`;
   return `第 ${sorted.slice(0, 4).join("、")}${sorted.length > 4 ? ` 等 ${sorted.length}` : ""} 集`;
 }

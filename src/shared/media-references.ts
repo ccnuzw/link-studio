@@ -1,4 +1,9 @@
-import { mediaReferenceBytes, type ProjectAsset, type ProjectCanvasView } from "@link-studio/core";
+import {
+  mediaReferenceBytes,
+  type ProjectAsset,
+  type ProjectCanvasView,
+  requirePresent,
+} from "@link-studio/core";
 
 type Source = {
   label: string;
@@ -125,7 +130,7 @@ export function mediaReferences({
     }
     ids.add(assetId);
   }
-  const chosen = [...ids].map((id) => byId.get(id)!);
+  const chosen = [...ids].map((id) => requirePresent(byId.get(id), "byId.get(id)"));
   const errors: Partial<Record<ProjectAsset["mediaType"], string>> = {};
   const names = { image: "图片", video: "视频", audio: "音频" } as const;
   for (const kind of ["image", "video", "audio"] as const) {

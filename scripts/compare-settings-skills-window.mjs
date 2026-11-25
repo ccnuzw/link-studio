@@ -241,14 +241,14 @@ try {
   };
   const detail = "/admin/agent/skills/fixture-003";
   endpoints.set(detail, { ...record.baseline, versions: [version] });
-  endpoints.set(detail + "/versions/1", {
+  endpoints.set(`${detail}/versions/1`, {
     ...version,
     frontmatter: {},
     body: record.content,
     files: [file],
     issues: [],
   });
-  endpoints.set(detail + "/versions/1/files", preview);
+  endpoints.set(`${detail}/versions/1/files`, preview);
   await baseline.reload();
   const populated = await openSettingsPage(
     browser,
@@ -415,7 +415,7 @@ try {
     full: pixels(mobileImages, 0, 0, 390, 700),
   };
   report.requested = [...requested];
-  assert.ok(requested.has(detail + "/versions/1/files"));
+  assert.ok(requested.has(`${detail}/versions/1/files`));
   assert.deepEqual(unexpected, []);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
