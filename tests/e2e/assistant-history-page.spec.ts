@@ -182,10 +182,14 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(users).toHaveCount(33);
         await expect(users.first()).toHaveText("验收问题 58");
         await expect(users.last()).toHaveText("验收问题 90");
+        await expect(log).toHaveAttribute("data-scrolled", "true");
+        const scrollToTop = () =>
+          log.evaluate((element) => {
+            element.scrollTop = 0;
+            element.dispatchEvent(new Event("scroll"));
+          });
         hide();
-        await log.evaluate((el) => {
-          el.scrollTop = 0;
-        });
+        await scrollToTop();
         const retry = panel.getByRole("button", { name: "加载失败，点击重试" });
         await expect(retry).toBeVisible();
         await expect(users).toHaveCount(33);
@@ -200,9 +204,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await retry.click();
         await expect(users).toHaveCount(67);
         expect(Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
-        await log.evaluate((el) => {
-          el.scrollTop = 0;
-        });
+        await scrollToTop();
         await expect(users).toHaveCount(91);
         await expect(users.first()).toHaveText("验收问题 1");
         expect(new Set(await users.allTextContents()).size).toBe(91);
