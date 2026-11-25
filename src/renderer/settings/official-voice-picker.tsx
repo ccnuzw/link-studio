@@ -18,15 +18,27 @@ export function OfficialVoicePicker({
     if (!popup) return;
     function revealFocus() {
       const item = document.activeElement;
-      if (item?.getAttribute("role") === "menuitem" && popup?.contains(item))
-        item.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+      if (item?.getAttribute("role") !== "menuitem" || !popup?.contains(item)) return;
+      const top = popup.getBoundingClientRect().top + popup.clientTop;
+      const bottom = top + popup.clientHeight;
+      const bounds = item.getBoundingClientRect();
+      if (bounds.top < top) popup.scrollTop -= top - bounds.top;
+      else if (bounds.bottom > bottom) popup.scrollTop += bounds.bottom - bottom;
     }
+    let frame = 0;
+    const onFocus = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(revealFocus);
+      });
+    };
     const observer = new ResizeObserver(revealFocus);
     observer.observe(popup);
-    popup.addEventListener("focusin", revealFocus);
+    popup.addEventListener("focusin", onFocus);
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
-      popup.removeEventListener("focusin", revealFocus);
+      popup.removeEventListener("focusin", onFocus);
     };
   }, [popup]);
   function load(open: boolean) {
