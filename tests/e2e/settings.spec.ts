@@ -2419,6 +2419,8 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       .toBe(2);
     await expect(libraryEnvelope).not.toContainText("无图");
     await page.setViewportSize(priorViewport);
+    await assistant.getByRole("button", { name: "收起小灵", exact: true }).click();
+    await expect(assistant).toBeHidden();
     const videoPanel = page.getByRole("region", { name: "片段预览" });
     const inspector = page.getByRole("region", { name: "片段编辑" });
     const boardStage = videoPanel.getByRole("region", { name: "故事板预览" });
@@ -2587,10 +2589,12 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     });
     compose = true;
     jobTurn = 1;
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
     await assistant.getByLabel("短剧消息").fill("用已采用的视频合成第一集");
     await assistant.getByRole("button", { name: "发送", exact: true }).click();
     await expect(retryCard.getByRole("heading")).toHaveText("运行短剧任务：合成整集");
     await retryCard.getByRole("button", { name: "批准并运行", exact: true }).click();
+    await assistant.getByRole("button", { name: "收起小灵", exact: true }).click();
     await stage(page, "成片");
     const final = page.getByRole("region", { name: "本集成片" });
     await expect(final.getByRole("heading")).toHaveText("成片已合成");
@@ -2621,8 +2625,10 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await shot().click();
     await shot().click();
     await expect(modelPicker).toHaveText("短剧视频");
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
     await expect(assistant.getByRole("status")).toHaveText("就绪");
     await deleteSavedHistory(assistant, "门外改稿");
+    await assistant.getByRole("button", { name: "收起小灵", exact: true }).click();
     const redo = page.getByRole("button", { name: "重新生成分镜脚本" }),
       clear = page.getByRole("alertdialog", { name: "重新生成第 1 集的分镜脚本？" });
     const previousStages = stages.length;
