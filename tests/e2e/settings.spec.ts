@@ -306,6 +306,7 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
       )
       .toBe(1);
     await page.getByRole("button", { name: "返回首页", exact: true }).click();
+    await expect(page.getByRole("button", { name: "应用设置", exact: true })).toBeVisible();
     await projectAction(page, "模型设置");
     await page
       .getByRole("navigation", { name: "设置分类" })
@@ -2294,10 +2295,14 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     );
     await promptDialog.getByRole("textbox", { name: "生成提示词" }).fill("信封右下角的蓝色蜡印。");
     await promptDialog.press("Escape");
-    await assetsArea.getByRole("button", { name: "在画布中打开 来客的信封" }).click();
     const assetCanvas = assetsArea.getByRole("main", { name: "创作画布" });
-    await expect(assetCanvas.locator(".react-flow__node.selected")).toContainText("来客的信封");
-    await assetCanvas.locator(".react-flow__node.selected").click();
+    const selectedAssetNode = assetCanvas.locator(".react-flow__node.selected");
+    const openPropOnCanvas = async () => {
+      await propCard.getByRole("button", { name: "在画布中打开 来客的信封" }).click();
+      await expect(selectedAssetNode).toContainText("来客的信封");
+    };
+    await openPropOnCanvas();
+    await selectedAssetNode.click();
     await expect(assetCanvas.getByRole("textbox", { name: "生成提示词" })).toContainText(
       "信封右下角的蓝色蜡印。",
     );
@@ -2373,7 +2378,8 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await stage(page, "资产管理");
     await pickEpisode(page, 1);
     await assetsArea.getByRole("tab", { name: /^道具/ }).click();
-    await propCard.getByRole("button", { name: "在画布中打开 来客的信封" }).click();
+    await openPropOnCanvas();
+    await selectedAssetNode.click();
     await assetCanvas.getByRole("button", { name: "开始生成", exact: true }).click();
     await assetsArea
       .getByRole("group", { name: "视图" })
@@ -2383,11 +2389,8 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     finishPropImage();
     await expect(propCard).toContainText("生成失败");
     await expect(propCard.locator("small")).not.toBeEmpty();
-    await propCard.getByRole("button", { name: "在画布中打开 来客的信封" }).click();
-    await assetCanvas
-      .locator(".react-flow__node.selected")
-      .getByRole("button", { name: "重试" })
-      .click();
+    await openPropOnCanvas();
+    await selectedAssetNode.getByRole("button", { name: "重试", exact: true }).click();
     await assetsArea
       .getByRole("group", { name: "视图" })
       .getByRole("button", { name: "列表" })
