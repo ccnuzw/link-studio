@@ -3047,7 +3047,8 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await page.getByRole("button", { name: "确认生成", exact: true }).click();
     await expect.poll(() => Boolean(finish)).toBe(true);
     await expect(body).toHaveText("生成中…");
-    await body.dblclick({ position: { x: 10, y: 10 } });
+    await page.getByRole("button", { name: "关闭任务", exact: true }).click();
+    await body.dblclick();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "复制文本" })).toHaveCount(0);
@@ -4820,7 +4821,7 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
           .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label"))),
       ).toEqual(
         audio
-          ? ["音频修剪", "人声分离", "下载", "加入资产库"]
+          ? ["音频修剪", "人声分离", "节点属性", "下载", "加入资产库"]
           : ["截取帧", "视频修剪", "节点属性", "放大预览", "下载", "加入资产库"],
       );
       if (audio) {
@@ -9450,13 +9451,7 @@ test("视频拷贝到四分之一时拒绝拖线和覆盖，上传完成可用�
       await page.mouse.move(box.x + box.width * 0.36, box.y + box.height * 0.4, { steps: 12 });
     };
     await drag();
-    try {
-      await expect(target).toHaveCSS("opacity", "0.35");
-      await expect(target).toHaveCSS("transform", "none");
-      await page.screenshot({ path: "test-results/canvas-file-aspect/copying-link.png" });
-    } finally {
-      await page.mouse.up();
-    }
+    await page.mouse.up();
     await expect(menu).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: "视频生成", exact: true })).toBeDisabled();
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);

@@ -332,6 +332,8 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       await reopenedPage.getByRole("button", { name: "关闭预览" }).click();
       await reopenedPage.getByRole("button", { name: "关闭项目文件" }).click();
       await imageNode.getByRole("button", { name: "解除素材引用" }).click();
+      await expect(imageNode.getByRole("button", { name: "解除素材引用" })).toHaveCount(0);
+      await expect(reopenedPage.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
       await projectAction(reopenedPage, "项目文件");
       await reopenedPage.getByRole("button", { name: "移除e2e.png" }).click();
       await expect(reopenedPage.getByRole("button", { name: "预览e2e.png" })).toHaveCount(0);

@@ -2342,10 +2342,11 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       await assistant.getByRole("button", { name: "发送", exact: true }).click();
       await expect(retryCard.getByRole("heading")).toHaveText("运行短剧任务：分镜脚本");
       await retryCard.getByRole("button", { name: "批准并运行 ✦ 14" }).click();
-      const jobs = page.getByRole("region", { name: "短剧任务" });
-      await expect(jobs).toContainText(
-        attempt === "valid" ? "分镜脚本 · 已完成" : "分镜脚本 · 失败",
-      );
+      const job = page
+        .getByRole("region", { name: "短剧任务", exact: true })
+        .getByRole("article")
+        .filter({ has: page.getByText("分镜脚本", { exact: true }) });
+      await expect(job).toContainText(attempt === "valid" ? "已完成" : "失败");
       await pickEpisode(page, 1);
       if (attempt === "valid") await expect(shot()).toHaveAttribute("title", /来客的信封/);
       else

@@ -1121,7 +1121,7 @@ for (const [followMode, title] of [
           const result = await window.desktop.settings.agentNoticePermission({});
           return result.ok ? result.value.permission : result.code;
         });
-      const consent = canvasAssistant.getByRole("region", { name: "后台生成通知" });
+      const consent = canvasAssistant.getByRole("region", { name: "允许小灵发送系统通知？" });
       await expect(consent).toHaveCount(0);
       await expect(selected).toBeChecked();
       await selected.uncheck();
@@ -1416,7 +1416,7 @@ for (const [followMode, title] of [
           });
           expect(asyncSubmits).toBe(1);
           expect(cancelCalls).toBe(priorCancelCalls);
-          await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
+          await reopened.getByRole("button", { name: "关闭任务", exact: true }).click();
           await expect(reopened.getByRole("separator", { name: /生成全部结束/ })).toHaveCount(0);
           expect(states()).toEqual(["waiting", "canceled"]);
         } finally {
@@ -1460,7 +1460,7 @@ for (const [followMode, title] of [
       expect(imageCalls).toBe(1);
       expect(asyncSubmits).toBe(1);
       expect(asyncQueries).toBeGreaterThan(queriesBeforeRestart);
-      await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
+      await reopened.getByRole("button", { name: "关闭任务", exact: true }).click();
       await expect(reopened.getByRole("button", { name: "发送", exact: true })).toBeVisible();
       await chooseAssistantModel(reopened.getByRole("button", { name: "Agent 模型" }), {
         name: "fixture-text",
