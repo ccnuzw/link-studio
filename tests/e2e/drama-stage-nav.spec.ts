@@ -8,11 +8,10 @@ import { addDramaSegment, createDrama } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { ProjectStore } from "../../src/main/project/store";
 import { requireTestValue } from "../require-test-value";
-import { projectAction } from "./workspace-actions";
 
 test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保存互不干扰", async () => {
   const root = await mkdtemp(join(tmpdir(), "link-stage-route-"));
-  const store = await ProjectStore.create(root, "两封信"),
+  const store = await ProjectStore.create(root, "两封信", { projectKind: "drama" }),
     directory = store.directory;
   try {
     const doc = await createDrama(store, {
@@ -86,7 +85,6 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     const tabs = page.getByRole("tablist", { name: "制作工序" }),
       tab = (name: string) => tabs.getByRole("tab", { name, exact: true });
     const rail = page.getByRole("navigation", { name: "分集" }),
@@ -203,8 +201,13 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
       requireTestValue(propId),
     );
     await tab("片场").click();
-    await expect(page.getByText("第2个片段 · 5 秒")).toBeVisible();
-    await expect(page.getByText("第1个片段 · 5 秒")).toHaveCount(0);
+    const segmentEditor = page.getByRole("region", { name: "分镜片段编辑" });
+    await expect(
+      segmentEditor.getByRole("listitem").filter({ hasText: "第2个片段" }),
+    ).toBeVisible();
+    await expect(segmentEditor.getByRole("listitem").filter({ hasText: "第1个片段" })).toHaveCount(
+      0,
+    );
     await input.pressSequentially("3]");
     await expect(input).toHaveValue("3]");
     await expect(tab("片场")).toHaveAttribute("aria-selected", "true");
@@ -215,11 +218,17 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await page.keyboard.press("5");
     await expect(page.getByRole("heading", { name: "第 2 集还没有成片" })).toBeVisible();
     await page.getByRole("button", { name: "去片场" }).click();
-    await expect(page.getByText("第2个片段 · 5 秒")).toBeVisible();
+    await expect(
+      segmentEditor.getByRole("listitem").filter({ hasText: "第2个片段" }),
+    ).toBeVisible();
     await page.keyboard.press("[");
-    await expect(page.getByText("第1个片段 · 5 秒")).toBeVisible();
+    await expect(
+      segmentEditor.getByRole("listitem").filter({ hasText: "第1个片段" }),
+    ).toBeVisible();
     await page.keyboard.press("]");
-    await expect(page.getByText("第2个片段 · 5 秒")).toBeVisible();
+    await expect(
+      segmentEditor.getByRole("listitem").filter({ hasText: "第2个片段" }),
+    ).toBeVisible();
     await tab("资产管理").click();
     await rail.getByRole("button", { name: "全集" }).click();
     await expect(assetList.locator(".drama-asset-caption")).toHaveText([
@@ -231,10 +240,8 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
     await page.keyboard.press("2");
     await expect(script).toContainText("门口响了三声。");
     expect(page.url()).toBe(url);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^两封信/ }).click();
-    await projectAction(page, "短剧工作室");
     await page.getByRole("button", { name: "第 2 集 剧本", exact: true }).click();
     await expect(script).toHaveText("二集手写回信。");
     await tab("资产管理").click();
@@ -267,7 +274,7 @@ test("短剧：跨工序保留当前集，全集筛选、快捷键和编辑保�
 test("资产列表：原生文件拖入空卡、已占卡、空白和文本，分集重开后不变", async () => {
   test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "link-drama-file-drop-"));
-  const store = await ProjectStore.create(root, "拖入资产"),
+  const store = await ProjectStore.create(root, "拖入资产", { projectKind: "drama" }),
     directory = store.directory;
   try {
     await createDrama(store, {
@@ -292,7 +299,6 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     const list = page.getByRole("region", { name: "资产列表" }),
       cards = list.locator("[data-asset-id]"),
       overlay = list.getByText("松手上传");
@@ -427,10 +433,8 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await expect(cards.locator("img")).toBeVisible();
     await expect(cards.locator(".drama-asset-badges")).toHaveText("全集");
     await session.detach();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^拖入资产/ }).click();
-    await projectAction(page, "短剧工作室");
     await assets.press("Enter");
     await episode(1).click();
     await selectAssetType("道具");
@@ -441,8 +445,7 @@ test("资产列表：原生文件拖入空卡、已占卡、空白和文本，�
     await selectAssetType("道具");
     await expect(cards.locator("img")).toHaveCount(3);
     await expect(empty.locator("img")).toBeVisible();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await expect(page.getByRole("button", { name: "打开项目", exact: true })).toBeVisible();
     const reopened = await ProjectStore.open(directory);
     try {

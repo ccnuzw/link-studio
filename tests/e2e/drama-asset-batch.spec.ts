@@ -9,12 +9,11 @@ import { createDrama } from "../../src/main/project/drama";
 import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { ProjectStore } from "../../src/main/project/store";
 import { requireTestValue } from "../require-test-value";
-import { projectAction } from "./workspace-actions";
 
 test("短剧资产：框选不提交，全集预选跨集，失败重试不重复成功项，形象完成后生成音色", async () => {
   test.setTimeout(75_000);
   const root = await mkdtemp(join(tmpdir(), "drama-asset-batch-")),
-    store = await ProjectStore.create(root, "两把钥匙"),
+    store = await ProjectStore.create(root, "两把钥匙", { projectKind: "drama" }),
     directory = store.directory;
   try {
     await createDrama(store, {
@@ -227,7 +226,6 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     const assets = page.getByRole("tab", { name: "资产管理", exact: true }),
       list = page.getByRole("region", { name: "资产列表" }),
       rail = page.getByRole("navigation", { name: "分集" });
@@ -313,10 +311,8 @@ test("短剧资产：框选不提交，全集预选跨集，失败重试不重�
     await expect(card("守门人").getByRole("button", { name: "取消选择" })).toBeVisible();
     await expect(card("未归类").getByRole("button", { name: "选择", exact: true })).toHaveCount(0);
     await bar.getByRole("button", { name: "取消", exact: true }).click();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^两把钥匙/ }).click();
-    await projectAction(page, "短剧工作室");
     await assets.click();
     await expect(card("守门人").getByLabel("已设定音色")).toBeVisible();
     await expect(card("访客")).toHaveAttribute("data-status", "done");

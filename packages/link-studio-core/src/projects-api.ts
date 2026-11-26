@@ -717,6 +717,7 @@ export interface ProjectActivation {
 
 export interface ProjectSession {
   projectKind?: "canvas" | "drama";
+  hasDrama?: boolean;
   projectHandle: string;
   projectId: string;
   name: string;
@@ -728,6 +729,7 @@ export interface ProjectSession {
 export interface RecentProject {
   activity?: { label: string; count: number; progress?: number };
   projectKind?: "canvas" | "drama";
+  hasDrama?: boolean;
   recentEntryId: string;
   projectId: string;
   displayName: string;
@@ -765,6 +767,7 @@ export type ProjectErrorCode =
   | "AGENT_OVER_BUDGET"
   | "AGENT_GENERATION_PRICE_UNKNOWN"
   | "DRAMA_EPISODE_LOCKED"
+  | "DRAMA_ASSISTANT_CONTEXT_STALE"
   | "DRAMA_STEP_NOT_READY"
   | "DRAMA_NOTHING_TO_COMPOSE"
   | "DRAMA_NO_TEXT_MODEL"

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { composeLinkedPrompt } from "./compose-canvas-prompt";
 import { boardSourceHash, type referenceContext } from "./drama-segment-video";
+import { DramaNotice } from "./drama-studio-status";
 import { promptRefIds } from "./prompt-tokens";
 
 type Context = Awaited<ReturnType<typeof referenceContext>>;
@@ -382,7 +383,7 @@ export function DramaBoardStage({
           )}
         </div>
         {(error || (latest?.status === "failed" && latest.error)) && (
-          <p role="alert">{error || latest?.error}</p>
+          <DramaNotice tone="error">{error || latest?.error}</DramaNotice>
         )}
       </section>
       {hidden &&

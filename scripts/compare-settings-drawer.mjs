@@ -308,7 +308,9 @@ try {
                 await row.getByRole("option", { name: /应用 3 项变更/ }).waitFor();
               }
               if (state === "explain") {
-                await row.getByRole("option", { name: /拒绝，并告诉助手怎么改/ }).click();
+                await row
+                  .getByRole("option", { name: upstream ? /告诉助手怎么改/ : /告诉小灵怎么改/ })
+                  .click();
                 await row.getByRole("textbox").fill("保留模型标识");
               }
               await page.mouse.move(0, 410);

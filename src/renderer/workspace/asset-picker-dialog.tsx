@@ -352,6 +352,7 @@ export function AssetPickerDialog({
       ref={dialog}
       aria-label={dialogTitle ?? (character ? characterPickTitles[character.purpose] : "资产库")}
       className="asset-pick"
+      data-source={source}
       onCancel={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -382,6 +383,7 @@ export function AssetPickerDialog({
                     setSource(value);
                     setFolder(undefined);
                     setQuery("");
+                    setSearch("");
                   }}
                 >
                   {source === value && (
@@ -534,7 +536,13 @@ export function AssetPickerDialog({
           </nav>
         )}
         {source === "voices" ? (
-          <CanvasVoices query={search} selected={selected} full={full} toggle={toggle} />
+          <CanvasVoices
+            query={search}
+            selected={selected}
+            full={full}
+            toggle={toggle}
+            container={dialog}
+          />
         ) : humans ? (
           <AssetHumanPane
             query={search}
@@ -724,7 +732,7 @@ export function AssetPickerDialog({
                     onClick={() => toggle(asset)}
                   >
                     {"official" in asset ? (
-                      "♫"
+                      <img src={asset.avatar} alt="" draggable={false} />
                     ) : "filed" in asset ? (
                       <FilingCover channel={asset.filed.channel} imageId={asset.filed.image.id} />
                     ) : (

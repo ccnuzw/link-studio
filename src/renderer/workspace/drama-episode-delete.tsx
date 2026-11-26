@@ -2,6 +2,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Loader2, Trash2 } from "lucide-react";
 import { type ReactElement, useState } from "react";
+import { DramaNotice } from "./drama-studio-status";
 
 export interface EpisodeDeletion {
   no: number;
@@ -103,7 +104,7 @@ export function DramaDeleteDialog({
             {title}
           </AlertDialog.Title>
           <AlertDialog.Description>{description}</AlertDialog.Description>
-          {(error || blocked) && <p role="alert">{blocked || error}</p>}
+          {(error || blocked) && <DramaNotice tone="error">{blocked || error}</DramaNotice>}
           <div>
             <AlertDialog.Close disabled={busy}>取消</AlertDialog.Close>
             <button

@@ -1,4 +1,5 @@
 import { type Static, Type } from "@sinclair/typebox";
+import { CanvasId } from "./canvas.ts";
 import { DramaImageParams } from "./drama-image-params.ts";
 import { PromptChanges, PromptPicks, PromptSnapshots } from "./drama-prompts.ts";
 import styleCatalog from "./drama-styles.json" with { type: "json" };
@@ -47,6 +48,31 @@ const title = Type.String({ minLength: 1, maxLength: 255 });
 const episodeNo = Type.Integer({ minimum: 1, maximum: 100000 });
 const seconds = Type.Integer({ minimum: 1, maximum: 86400 });
 const segmentId = Type.String({ pattern: "^[0-9a-f]{32}$" });
+export const dramaStages = {
+  overview: "总览",
+  script: "剧本",
+  assets: "资产管理",
+  studio: "片场",
+  final: "成片",
+} as const;
+export const DramaAgentContext = Type.Object(
+  {
+    stage: Type.Optional(
+      Type.Union(
+        (Object.keys(dramaStages) as (keyof typeof dramaStages)[]).map((stage) =>
+          Type.Literal(stage),
+        ),
+      ),
+    ),
+    episodeNo: Type.Optional(episodeNo),
+    episodeOrder: Type.Optional(Type.Integer({ minimum: 0 })),
+    segmentId: Type.Optional(segmentId),
+    assetId: Type.Optional(CanvasId),
+  },
+  strict,
+);
+export type DramaAgentContext = Static<typeof DramaAgentContext>;
+export type DramaAgentSnapshot = DramaAgentContext & { segmentNumber?: number; assetName?: string };
 const segmentOrder = Type.Array(segmentId, { minItems: 1, maxItems: 5000, uniqueItems: true });
 export const ReorderDramaSegments = Type.Object(
   {
@@ -276,12 +302,25 @@ export const DramaRead = Type.Object(
       Type.Literal("overview"),
       Type.Literal("episode"),
       Type.Literal("segments"),
+      Type.Literal("assets"),
+      Type.Literal("asset"),
+      Type.Literal("jobs"),
     ]),
     episode_no: Type.Optional(episodeNo),
+    asset_id: Type.Optional(CanvasId),
+    job_id: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   strict,
 );
 export const DramaEdits = {
+  drama_update_asset_prompt: Type.Object(
+    {
+      asset_id: CanvasId,
+      prompt: text,
+      reason: Type.Optional(Type.String({ maxLength: 500 })),
+    },
+    strict,
+  ),
   drama_update_segment: Type.Object(
     {
       segment_id: segmentId,

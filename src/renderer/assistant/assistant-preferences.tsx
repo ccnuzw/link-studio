@@ -64,7 +64,7 @@ export function AssistantPreferences({ children }: { children?: ReactNode }) {
       <button
         type="button"
         className="agent-settings-trigger"
-        aria-label="Agent 设置"
+        aria-label="小灵设置"
         title="设置"
         popoverTarget={id}
         onClick={() => {

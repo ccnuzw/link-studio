@@ -1,13 +1,7 @@
-import type { DramaDocument } from "@link-studio/core";
+import { type DramaDocument, dramaStages as stages } from "@link-studio/core";
 import { useEffect, useState } from "react";
 
-export const stages = {
-  overview: "总览",
-  script: "剧本",
-  assets: "资产管理",
-  studio: "片场",
-  final: "成片",
-} as const;
+export { stages };
 export type Stage = keyof typeof stages;
 export type ScriptDoc = "characters" | "outline";
 type Route = { stage: Stage; ep: number; paper?: ScriptDoc };

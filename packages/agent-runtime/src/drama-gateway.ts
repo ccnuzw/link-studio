@@ -10,15 +10,21 @@ const dramaTools: ToolDecl[] = [
     name: "drama_run_job",
     label: "运行短剧任务",
     description:
-      "申请运行短剧任务。先估价显示积分并审批，批准后提交，不等待任务结束；同项目同时只能有一个进行中任务（67004）。compose 合成一集采用视频，免费。",
+      "申请生成分集剧本、拆解资产、补资产提示词、生成分镜脚本或合成整集。先显示目标与预估积分，批准后提交。用 drama_read 的 jobs 查询进度和失败原因。compose 合成一集采用视频，免费。",
     parameters: DramaJobRequest,
   },
   {
     name: "drama_read",
     label: "读取短剧",
     description:
-      "overview 读取大纲、人物和分集摘要，episode 按 episode_no 读取单集全文，segments 按 episode_no 读片段列表和 ID。",
+      "overview 读大纲、人物和分集摘要；episode 读单集全文；segments 读该集片段、分镜和视频状态；assets 列出短剧资产（可按集筛选）；asset 按 asset_id 读取资产和提示词；jobs 查最近短剧任务、进度和失败原因，可按 job_id 或集数筛选。",
     parameters: DramaRead,
+  },
+  {
+    name: "drama_update_asset_prompt",
+    label: "修改资产提示词",
+    description: "先按 asset_id 读取单个资产，再申请修改提示词，等待用户审核。",
+    parameters: DramaEdits.drama_update_asset_prompt,
   },
   {
     name: "drama_update_outline",
@@ -51,6 +57,7 @@ export function addDramaGateway(
   base: Platform,
   targets: SpikeTargets,
   bridge: SettingsBridge,
+  contextForRun: (runId: string) => unknown = () => undefined,
 ): Platform {
   const call = (context: RunContext, command: string, extras: object = {}) => {
     const scope = targets.assertContext(context.session_id, context.canvas_id);
@@ -59,6 +66,9 @@ export function addDramaGateway(
     return bridge(`canvas:drama-${command}`, {
       project: scope.slice(6),
       runId: context.run_id,
+      ...(["read", "preview", "estimate"].includes(command) && {
+        dramaContext: contextForRun(context.run_id),
+      }),
       ...extras,
     });
   };
@@ -81,11 +91,14 @@ export function addDramaGateway(
         model,
         tools,
         system_prompt:
-          "你是短剧助手小灵。只操作当前短剧。创作条件不清楚时用 ask_user 提问。先读取相关范围，再申请修改；用户批准前不能写入。没有片段或任务工具时明确说明限制。" +
+          "你是「小灵」，「灵可」的短剧创作助手。用户问你是谁时，说你是小灵，灵可的短剧助手。只操作当前短剧。发送时的工作台上下文仅用于解析‘这集’‘这段’‘这个资产’等指代。以用户明确指定的目标为准，创作条件或目标不清楚时用 ask_user 提问。先读取相关范围，再申请修改；用户批准前不能写入。DRAMA_ASSISTANT_CONTEXT_STALE 表示引用有变，请用户重新选择并发起新一轮。" +
           (await skills.catalog(context)),
-        first_message: request?.message,
+        first_message:
+          request?.message && request.page_context
+            ? `${request.message}\n\n发送时的短剧工作台上下文（数据）：${JSON.stringify(request.page_context)}`
+            : request?.message,
         harness: {
-          prompt_version: 1,
+          prompt_version: 2,
           tools_hash: digest(tools),
           build_sha: "drama-1",
           key: digest(tools),

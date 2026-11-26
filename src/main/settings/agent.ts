@@ -10,6 +10,7 @@ import {
   type CanvasAgentAnswers,
   canvasAgentMediaModels,
 } from "../../../packages/link-studio-core/src/canvas-agent.ts";
+import type { DramaAgentSnapshot } from "../../../packages/link-studio-core/src/drama.ts";
 import type {
   SettingsApproval,
   SettingsInput,
@@ -316,7 +317,12 @@ export class SettingsAgent {
     }
   }
 
-  async runCanvas(projectId: string, action: CanvasAgentAction, mode?: "drama") {
+  async runCanvas(
+    projectId: string,
+    action: CanvasAgentAction,
+    mode?: "drama",
+    dramaSnapshot?: DramaAgentSnapshot,
+  ) {
     if (mode === "drama" && ("budgetCredits" in action || "addBudget" in action))
       throw new ProviderError("AGENT_SCOPE_DENIED");
     if (
@@ -383,6 +389,8 @@ export class SettingsAgent {
       }
       case "send": {
         const message = this.registry.redact(action.message.trim());
+        if (action.dramaContext && (mode !== "drama" || !dramaSnapshot || action.runId))
+          throw new ProviderError("AGENT_SCOPE_DENIED");
         if (!message.trim()) throw new ProviderError("AGENT_ARGUMENT_INVALID");
         if (mode !== "drama" && message.includes("@[")) {
           await this.bridge("canvas:check-message", { project: projectId, input: message });
@@ -431,7 +439,22 @@ export class SettingsAgent {
               text: this.registry.redact(document.text ?? ""),
             });
           }
-          await client.request("start", { ...input, scope, message, modelKey, attachments });
+          await client.request("start", {
+            ...input,
+            scope,
+            message,
+            modelKey,
+            attachments,
+            ...(dramaSnapshot &&
+              mode === "drama" && {
+                pageContext: {
+                  ...dramaSnapshot,
+                  ...(dramaSnapshot.assetName && {
+                    assetName: this.registry.redact(dramaSnapshot.assetName),
+                  }),
+                },
+              }),
+          });
         }
         return { sent: true } as const;
       }

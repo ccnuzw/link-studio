@@ -1,62 +1,101 @@
-import { requirePresent } from "@link-studio/core";
-import { useState } from "react";
-import voices from "../settings/official-voices.json";
+import { AudioLines } from "lucide-react";
+import { type RefObject, useState } from "react";
+import { AudioPreview } from "./audio-preview";
+import {
+  matchOfficialVoices,
+  type OfficialVoice,
+  OfficialVoiceCard,
+  voiceAudioFile,
+  voiceGroups,
+  voiceLanguages,
+  voiceLocalFile,
+  voiceName,
+} from "./official-voice-card";
+import { PickerFilter } from "./picker-filter";
+import "./canvas-voices.css";
 
-export type VoiceChoice = { assetId: string; displayName: string; official: string };
+export type VoiceChoice = {
+  assetId: string;
+  displayName: string;
+  official: string;
+  avatar: string;
+};
 
 export function CanvasVoices({
   query,
   selected,
   full,
   toggle,
+  container,
 }: {
   query: string;
   selected: { assetId: string }[];
   full: boolean;
   toggle: (voice: VoiceChoice) => void;
+  container: RefObject<HTMLDialogElement | null>;
 }) {
-  const [preview, setPreview] = useState("");
-  const matches = voices.filter((voice) =>
-    `${voice.name} ${voice.lang}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const [preview, setPreview] = useState<OfficialVoice>();
+  const [lang, setLang] = useState("");
+  const [group, setGroup] = useState("");
+  const matches = matchOfficialVoices(query, lang, group);
   return (
-    <div className="canvas-voices">
+    <>
+      <div className="canvas-voice-filters">
+        <PickerFilter
+          label="语言"
+          options={voiceLanguages}
+          value={lang}
+          change={setLang}
+          container={container}
+        />
+        <PickerFilter
+          label="人群"
+          options={voiceGroups}
+          value={group}
+          change={setGroup}
+          container={container}
+        />
+        <span aria-live="polite">{matches.length} 个音色</span>
+      </div>
+      {matches.length ? (
+        <section className="canvas-voice-grid" aria-label="官方音色">
+          {matches.map((voice) => {
+            const checked = selected.some((item) => item.assetId === voice.url);
+            return (
+              <OfficialVoiceCard
+                key={voice.url}
+                voice={voice}
+                preview={() => setPreview(voice)}
+                selection={{
+                  checked,
+                  disabled: !checked && full,
+                  toggle: () =>
+                    toggle({
+                      assetId: voice.url,
+                      official: voiceAudioFile(voice),
+                      displayName: voice.name,
+                      avatar: voiceLocalFile(voice.avatar),
+                    }),
+                }}
+              />
+            );
+          })}
+        </section>
+      ) : (
+        <div className="canvas-voice-empty">
+          <AudioLines size={24} aria-hidden="true" />
+          <strong>没有匹配的音色</strong>
+          <p>试试其他关键词或筛选条件。</p>
+        </div>
+      )}
       {preview && (
-        // biome-ignore lint/a11y/useMediaCaption: The catalog provides a voice sample but no transcript.
-        <audio
-          controls
-          autoPlay
-          key={preview}
-          src={`./official-voices/${preview}`}
-          aria-label="音色试听"
+        <AudioPreview
+          name={voiceName(preview)}
+          src={voiceLocalFile(voiceAudioFile(preview))}
+          voice={preview}
+          close={() => setPreview(undefined)}
         />
       )}
-      {!matches.length && <p>没有匹配的音色</p>}
-      {matches.map((voice) => {
-        const file = requirePresent(voice.url.split("/").at(-1), 'voice.url.split("/").at(-1)');
-        const checked = selected.some((item) => item.assetId === voice.url);
-        return (
-          <div key={voice.url}>
-            <button
-              type="button"
-              disabled={!checked && full}
-              aria-pressed={checked}
-              onClick={() =>
-                toggle({ assetId: voice.url, official: file, displayName: voice.name })
-              }
-            >
-              {voice.name}
-            </button>
-            <button
-              type="button"
-              aria-label={`试听 ${voice.name}`}
-              onClick={() => setPreview(file)}
-            >
-              试听
-            </button>
-          </div>
-        );
-      })}
-    </div>
+    </>
   );
 }

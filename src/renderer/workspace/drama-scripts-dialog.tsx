@@ -4,6 +4,7 @@ import { Link2Off, Loader2, Lock, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
 import { DramaEpisodePicker } from "./drama-episode-picker";
+import { DramaNotice } from "./drama-studio-status";
 
 export function DramaScriptsDialog({
   projectHandle,
@@ -225,7 +226,7 @@ export function DramaScriptsDialog({
           模型输出过长时会分批重试，实际用量可能变化。未写成的提示词可另行估价补写。
         </div>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && <DramaNotice tone="error">{error}</DramaNotice>}
       <footer>
         <button type="button" disabled={busy} onClick={close}>
           取消

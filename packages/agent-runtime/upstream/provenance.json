@@ -44,6 +44,10 @@
   },
   "hashMeaning": "sha256 records original upstream bytes; localPatches records adapted bytes; localAdditions records local-only files.",
   "localPatches": {
+    "src/durable-tools.ts": {
+      "sha256": "761197f41794332490b6a74251f3f813bd1f8eaf9454f647407c077a31ed5ad7",
+      "reason": "Route short-drama asset prompt edits through durable user approvals."
+    },
     "src/attachments.ts": {
       "sha256": "ef26cdbc61d42f3a8f1c3d836347f53ee3e38c3b2ed291f078904dc4ba11aa29",
       "reason": "Prefer locally validated inline image data over the asset locator when constructing model input."
@@ -61,16 +65,16 @@
       "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
     },
     "src/engine/engine.ts": {
-      "sha256": "2b46be97f7f8cd6c7cb0e5653678c4de0cff4b66919c6923b0a22be141f6a939",
-      "reason": "Strict indexed-access narrowing, scoped task lookups, desktop watch recovery including receipt-only delivery for stopped runs, metadata diagnostics, preserve the model API, persist local main-call context usage, pass fresh-run web consent to platform preparation and rehydrate held image steers from project-scoped assets."
+      "sha256": "8896a194eff4ad242dff5362c1d76407c1784827d7add1c6da5ad338b5c05501",
+      "reason": "Strict indexed-access narrowing, scoped task lookups, desktop watch recovery including receipt-only delivery for stopped runs, metadata diagnostics, preserve the model API, persist local main-call context usage, pass fresh-run web consent to platform preparation and rehydrate held image steers from project-scoped assets. Carry short-drama workspace context into the first persisted user turn and model preparation."
     },
     "src/model-provider.ts": {
       "sha256": "e52c420b5f993328a28f67a2033c7d0a161e9cd73f51a2bd31c71e3342f00bf0",
       "reason": "Expose model response status and call purpose for desktop diagnostics, count local main request characters for missing usage, and register native OpenAI Responses."
     },
     "src/platform-client.ts": {
-      "sha256": "2074922919d8dd23dc0f7c40b566fe424f73135d55305d792cb650620ac17b81",
-      "reason": "Declare the optional watch session ID, unknown local task outcomes, model API, and fresh-run web consent."
+      "sha256": "54aad8d43d9ce042f98f3b84e2648d10bdf1973d0630679845d59710573b996d",
+      "reason": "Declare the optional watch session ID, unknown local task outcomes, model API, and fresh-run web consent. Declare the approval kind for short-drama asset prompt edits."
     },
     "src/engine/watch.ts": {
       "sha256": "1243f2cd64bd33bec1456d356048f29d2a0cd5843ecbb45a09e68f63f28df826",
@@ -81,8 +85,8 @@
       "reason": "Strict indexed-access narrowing / bounded array assertions for desktop TypeScript configuration; no test assertion changes."
     },
     "src/store/store.ts": {
-      "sha256": "15333086b08306742b41040e2a899c65029e9b3ef180c18440d0941c0d741666",
-      "reason": "Reconcile unfinished generation approvals for the local user and canvas regardless of age; only resume executed watches inside their retention window."
+      "sha256": "41916b9606839c129d056cdfb55a54a8560d7bdcc696cd0ec07e5f3c712e9288",
+      "reason": "Reconcile unfinished generation approvals for the local user and canvas regardless of age; only resume executed watches inside their retention window. Expose the first user turn for the short-drama scope to recover its pinned workspace context."
     },
     "test/fake-go.ts": {
       "sha256": "bace906bcf8e8f8c7027524b76aeaa519294d1cc5bdaade8d2ae7b9e731bedc3",

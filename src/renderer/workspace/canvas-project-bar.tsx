@@ -5,7 +5,6 @@ import {
   Check,
   ChevronDown,
   CloudAlert,
-  Ellipsis,
   FileDown,
   LoaderCircle,
   Plus,
@@ -26,7 +25,6 @@ const saveLabels = {
   conflict: "存在冲突",
 };
 type SaveState = keyof typeof saveLabels;
-type Action = { label: string; run: () => void; disabled?: boolean };
 
 function SaveIndicator({ state, retry }: { state: SaveState; retry: () => void }) {
   const [quiet, setQuiet] = useState(false);
@@ -83,7 +81,6 @@ export function CanvasProjectBar({
   leave,
   create,
   exportGraph,
-  extras,
   locked,
 }: {
   title: string;
@@ -93,7 +90,6 @@ export function CanvasProjectBar({
   leave: () => void;
   create: () => void;
   exportGraph: () => void;
-  extras: Action[];
   locked: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -137,38 +133,8 @@ export function CanvasProjectBar({
                 <Menu.Separator />
                 <Menu.Item disabled={locked} onClick={exportGraph}>
                   <FileDown size={16} />
-                  导出画布
+                  导出画布文件…
                 </Menu.Item>
-                <Menu.Separator />
-                <Menu.SubmenuRoot>
-                  <Menu.SubmenuTrigger>
-                    <Ellipsis size={16} />
-                    桌面项目操作
-                  </Menu.SubmenuTrigger>
-                  <Menu.Portal>
-                    <Menu.Positioner
-                      className="canvas-frame-positioner"
-                      side="right"
-                      align="start"
-                      alignOffset={-3}
-                    >
-                      <Menu.Popup
-                        className="canvas-frame-menu canvas-view-menu canvas-brand-extras"
-                        aria-label="桌面项目操作"
-                      >
-                        {extras.map((action) => (
-                          <Menu.Item
-                            key={action.label}
-                            disabled={action.disabled}
-                            onClick={action.run}
-                          >
-                            {action.label}
-                          </Menu.Item>
-                        ))}
-                      </Menu.Popup>
-                    </Menu.Positioner>
-                  </Menu.Portal>
-                </Menu.SubmenuRoot>
               </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>

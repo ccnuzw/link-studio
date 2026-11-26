@@ -16,20 +16,6 @@
 .compaction-divider:focus-visible {
   box-shadow: 0 0 0 2px var(--divider-ring, oklch(0.2 0 0 / 0.51));
 }
-.drama-assistant :is(.compaction-divider, .agent-compacting-line) {
-  --muted-foreground: oklch(0.5 0.015 85);
-  --foreground: oklch(0.22 0.01 85);
-  --status-warning: oklch(0.67 0.14 78);
-  --chrome-border: oklch(0.22 0.02 85 / 0.1);
-}
-@media (prefers-color-scheme: dark) {
-  .drama-assistant :is(.compaction-divider, .agent-compacting-line) {
-    --muted-foreground: oklch(0.75 0.015 85);
-    --foreground: oklch(0.955 0.008 85);
-    --status-warning: oklch(0.81 0.15 82);
-    --chrome-border: oklch(1 0 0 / 0.08);
-  }
-}
 .compaction-divider i {
   height: 1px;
   flex: 1;

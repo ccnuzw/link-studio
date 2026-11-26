@@ -199,7 +199,7 @@ export async function replayHistoryLifecycle(page, upstream, expect, checkpoint)
   if (upstream) await requests[1].abort();
   else await page.evaluate(() => window.reply({ ok: false }));
   await expect(dialog).toContainText("生成中");
-  await dialog.getByRole("button", { name: "Close" }).click();
+  await dialog.getByRole("button", { name: upstream ? "Close" : "关闭任务历史" }).click();
   await expect(dialog).toHaveCount(0);
   return { requests: await count(), spinner };
 }

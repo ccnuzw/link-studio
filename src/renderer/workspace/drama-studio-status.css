@@ -1,0 +1,329 @@
+.drama-workspace-state,
+.drama-empty-state,
+.drama-notice,
+.drama-task-status-stack {
+  box-sizing: border-box;
+  color: var(--rail-ink, var(--desk-text));
+  font:
+    14px / 1.5 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
+.drama-workspace-fallback-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  margin: -4px 0 18px;
+  color: var(--desk-text);
+}
+
+.drama-workspace-fallback-header h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.drama-workspace-fallback-header button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--desk-border);
+  border-radius: 999px;
+  background: var(--desk-card);
+  color: inherit;
+  font: inherit;
+}
+
+.drama-studio-episode-heading {
+  display: grid;
+  gap: 4px;
+  margin: 8px auto 18px;
+  width: min(900px, calc(100% - 32px));
+}
+
+.drama-studio-episode-heading small {
+  color: var(--rail-soft, var(--desk-muted));
+  font-size: 12px;
+}
+
+.drama-studio-episode-heading h2 {
+  margin: 0;
+  font-size: clamp(20px, 3vw, 28px);
+  letter-spacing: -0.02em;
+}
+
+.drama-workspace-state,
+.drama-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 220px;
+  margin: 24px auto;
+  padding: 28px 20px;
+  border: 1px dashed var(--rail-line, var(--desk-border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--rail-muted, var(--desk-inset)) 58%, transparent);
+  text-align: center;
+}
+
+.drama-workspace-state-icon,
+.drama-empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--rail-primary, var(--desk-focus)) 14%, transparent);
+  color: var(--rail-primary, var(--desk-focus));
+}
+
+.drama-workspace-state strong,
+.drama-empty-state strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.drama-workspace-state p,
+.drama-empty-state p {
+  max-width: 42ch;
+  margin: 0;
+  color: var(--rail-soft, var(--desk-muted));
+  font-size: 13px;
+}
+
+.drama-workspace-state button,
+.drama-empty-state button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--rail-line, var(--desk-border));
+  border-radius: 9px;
+  background: var(--rail-bg, var(--desk-card));
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+}
+
+.drama-workspace-state button:hover,
+.drama-empty-state button:hover {
+  background: var(--rail-muted, var(--desk-hover));
+}
+
+.drama-workspace-state[data-kind="error"] {
+  border-color: color-mix(
+    in oklab,
+    var(--desk-danger, #b84b4b) 28%,
+    var(--rail-line, var(--desk-border, #00000014))
+  );
+}
+
+.drama-workspace-state[data-kind="error"] .drama-workspace-state-icon {
+  color: var(--desk-danger, #b84b4b);
+  background: color-mix(in oklab, var(--desk-danger, #b84b4b) 14%, transparent);
+}
+
+.drama-empty-state[data-compact] {
+  min-height: 0;
+  margin: 8px 0;
+  padding: 20px 12px;
+  border-radius: 12px;
+}
+
+.drama-empty-state[data-compact] .drama-empty-state-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.drama-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--rail-line, var(--desk-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--rail-muted, var(--desk-inset)) 72%, transparent);
+  color: var(--rail-soft, var(--desk-muted));
+  font-size: 13px;
+}
+
+.drama-notice svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--rail-primary, var(--desk-focus));
+}
+
+.drama-notice[data-tone="success"] svg {
+  color: var(--status-success, #3b9b72);
+}
+
+.drama-notice[data-tone="warning"] svg,
+.drama-notice[data-tone="error"] svg {
+  color: var(--desk-danger, #b84b4b);
+}
+
+.drama-notice[data-tone="error"] {
+  border-color: color-mix(
+    in oklab,
+    var(--desk-danger, #b84b4b) 28%,
+    var(--rail-line, var(--desk-border, #00000014))
+  );
+  background: color-mix(in oklab, var(--desk-danger, #b84b4b) 8%, transparent);
+}
+
+.drama-notice[data-compact] {
+  margin: 6px 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.drama-notice button {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.drama-start-dialog .drama-notice,
+.drama-scripts-dialog .drama-notice,
+.drama-continue-dialog .drama-notice,
+.dp-dialog .drama-notice,
+.drama-delete-confirm .drama-notice {
+  margin: 0;
+}
+
+.drama-field-menu .drama-notice {
+  margin: 4px;
+}
+
+.drama-board-stage > .drama-notice,
+.drama-breakdown-row + .drama-notice {
+  margin: 8px 0;
+}
+
+.drama-task-status-stack {
+  display: grid;
+  gap: 8px;
+  margin: 12px auto 20px;
+  width: min(760px, calc(100% - 32px));
+  padding: 14px;
+  border: 1px solid var(--rail-line, var(--desk-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--rail-muted, var(--desk-inset)) 48%, transparent);
+}
+
+.drama-task-status-stack > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 4px;
+}
+
+.drama-task-status-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.drama-task-status-stack header small {
+  color: var(--rail-soft, var(--desk-muted));
+  font-size: 12px;
+}
+
+.drama-task-status-stack > div {
+  display: grid;
+  gap: 6px;
+}
+
+.drama-task-status {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--rail-bg, var(--desk-card));
+}
+
+.drama-task-status-icon {
+  display: grid;
+  place-items: center;
+  color: var(--rail-soft, var(--desk-muted));
+}
+
+.drama-task-status-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.drama-task-status-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.drama-task-status-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--rail-soft, var(--desk-muted));
+  font-size: 12px;
+}
+
+.drama-task-status > b {
+  color: var(--rail-primary, var(--desk-focus));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drama-task-status[data-status="running"] .drama-task-status-icon {
+  color: var(--rail-primary, var(--desk-focus));
+}
+
+.drama-task-status[data-status="succeeded"] .drama-task-status-icon {
+  color: var(--status-success, #3b9b72);
+}
+
+.drama-task-status[data-status="failed"] .drama-task-status-icon {
+  color: var(--desk-danger, #b84b4b);
+}
+
+.drama-status-spin {
+  animation: drama-status-spin 1.1s linear infinite;
+}
+
+@keyframes drama-status-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (max-width: 640px) {
+  .drama-task-status-stack {
+    width: calc(100% - 20px);
+    margin-inline: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drama-status-spin {
+    animation: none;
+  }
+}

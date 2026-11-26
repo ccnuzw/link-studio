@@ -85,6 +85,13 @@
   padding: 32px 12px;
   color: var(--rail-soft);
 }
+.studio-lib-scroll .drama-empty-state {
+  margin: 8px;
+  padding: 18px 10px;
+}
+.studio-lib-scroll .drama-empty-state p {
+  padding: 0;
+}
 .studio-lib svg {
   width: 14px;
   height: 14px;

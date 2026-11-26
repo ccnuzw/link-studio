@@ -10,11 +10,10 @@ import { mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { syncDramaBoards } from "../../src/main/project/drama-boards";
 import { ProjectStore } from "../../src/main/project/store";
 import { requireTestValue } from "../require-test-value";
-import { projectAction } from "./workspace-actions";
 
 test("批量故事板允许部分失败，再次补图只请求失败片段", async () => {
   const root = await mkdtemp(join(tmpdir(), "link-board-fill-"));
-  const store = await ProjectStore.create(root, "双片段");
+  const store = await ProjectStore.create(root, "双片段", { projectKind: "drama" });
   const directory = store.directory;
   try {
     let { revision } = await createDrama(store, { title: "双片段", script: "灯亮了。门开了。" });
@@ -126,7 +125,6 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     const openSettings = page.getByRole("button", { name: "项目设置", exact: true });
     const settings = page.getByRole("dialog", { name: "项目设置" });
     const done = settings.getByRole("button", { name: "完成" });
@@ -265,10 +263,8 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await expect(chip).toHaveText("prop");
     await expect(chip).toHaveAttribute("data-gone", "false");
     const refId = await chip.getAttribute("data-ref");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     await openSettings.click();
     await expect(settings.getByRole("button", { name: "场景图片模型", exact: true })).toContainText(
       "场景出图",
@@ -289,8 +285,7 @@ test("批量故事板允许部分失败，再次补图只请求失败片段", as
     await page.getByRole("button", { name: "片段 1，5 秒" }).click();
     await expect(chip).toHaveAttribute("data-ref", requireTestValue(refId));
     await expect(sourcePrompt).toHaveText("prop 灯亮了。镜头转向窗沿。");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await expect(page.getByRole("button", { name: "打开项目", exact: true })).toBeVisible();
     const reopened = await ProjectStore.open(directory);
     try {

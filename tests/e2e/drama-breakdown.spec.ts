@@ -8,12 +8,11 @@ import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { addDramaEpisode, createDrama, dramaDocument } from "../../src/main/project/drama";
 import { ProjectStore } from "../../src/main/project/store";
 import { requireTestValue } from "../require-test-value";
-import { projectAction } from "./workspace-actions";
 
 test("资产管理直接拆解：选集不出站，取消中断，重新确认后只锁定所选集并保留道具", async () => {
   test.setTimeout(60000);
   const root = await mkdtemp(join(tmpdir(), "studio-breakdown-")),
-    store = await ProjectStore.create(root, "三封信"),
+    store = await ProjectStore.create(root, "三封信", { projectKind: "drama" }),
     directory = store.directory;
   try {
     const initial = await createDrama(store, {
@@ -157,7 +156,6 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     const tab = page.getByRole("tab", { name: "资产管理", exact: true });
     await tab.click();
     const list = page.getByRole("region", { name: "资产列表" }),
@@ -232,10 +230,8 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await expect(first).toBeEnabled();
     await dialog.press("Escape");
     expect(scopes).toEqual([[1], [3]]);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^三封信/ }).click();
-    await projectAction(page, "短剧工作室");
     await tab.click();
     await page
       .getByRole("navigation", { name: "分集" })
@@ -457,8 +453,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
     await expect(page.getByRole("button", { name: "重新生成分镜脚本" })).toBeVisible();
     await rail.getByRole("button", { name: /^第 3 集 ·/ }).click();
     await expect(page.getByRole("button", { name: "重新生成分镜脚本" })).toBeVisible();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     const reopened = await ProjectStore.open(directory);
     try {
       const doc = requireTestValue(dramaDocument(reopened.snapshot));
@@ -511,7 +506,7 @@ test("资产管理直接拆解：选集不出站，取消中断，重新确认�
 
 test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消后没有任务", async () => {
   const root = await mkdtemp(join(tmpdir(), "studio-batch-limit-"));
-  const store = await ProjectStore.create(root, "末班车"),
+  const store = await ProjectStore.create(root, "末班车", { projectKind: "drama" }),
     directory = store.directory;
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
   try {
@@ -545,7 +540,6 @@ test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消�
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
     }, directory);
     await page.getByRole("button", { name: "打开项目", exact: true }).click();
-    await projectAction(page, "短剧工作室");
     await page.getByRole("tab", { name: "片场", exact: true }).click();
     await page.getByRole("button", { name: "批量生成脚本", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "批量生成分镜脚本" });
@@ -562,8 +556,7 @@ test("长剧片场批量分镜限制 50 集，估价失败允许重试，取消�
     await expect(dialog.getByRole("alert")).toContainText(/第 51 集.*第 52 集/);
     await expect(dialog.getByRole("button", { name: "生成 2 集脚本" })).toBeEnabled();
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     const reopened = await ProjectStore.open(directory);
     try {
       expect(requireTestValue(dramaDocument(reopened.snapshot)).jobs ?? []).toEqual([]);

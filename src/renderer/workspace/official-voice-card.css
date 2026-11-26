@@ -1,0 +1,118 @@
+.official-voice-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--desk-border);
+  border-radius: 8px;
+  background: var(--desk-card);
+  color: var(--desk-text);
+  color-scheme: light dark;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px;
+}
+
+.official-voice-card:hover {
+  background: var(--desk-inset);
+}
+
+.official-voice-card[data-selected] {
+  border-color: var(--desk-focus);
+  box-shadow: 0 0 0 1px var(--desk-focus);
+}
+
+.official-voice-card .official-voice-hit {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+}
+
+.official-voice-portrait {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--desk-inset);
+}
+
+.official-voice-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.official-voice-portrait small {
+  position: absolute;
+  inset: 4px 4px auto auto;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: #000b;
+  color: white;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.official-voice-hit strong {
+  min-width: 0;
+  padding-inline: 2px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.official-voice-card[data-selectable] strong {
+  padding-block: 6px;
+  padding-inline-end: 31px;
+}
+
+.official-voice-check,
+.official-voice-card .official-voice-preview {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.official-voice-check {
+  inset: 4px auto auto 4px;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #fff;
+  background: #0008;
+  color: #fff;
+}
+
+.official-voice-card[data-selected] .official-voice-check {
+  border-color: var(--desk-text);
+  background: var(--desk-text);
+  color: var(--desk-card);
+}
+
+.official-voice-card .official-voice-preview {
+  inset: auto 6px 6px auto;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  background: var(--desk-inset);
+  color: var(--desk-text);
+}
+
+.official-voice-card .official-voice-preview:hover {
+  background: var(--desk-hover);
+}
+
+.official-voice-card :is(.official-voice-hit, .official-voice-preview):focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: -2px;
+}

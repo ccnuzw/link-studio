@@ -1,21 +1,19 @@
 import { X } from "lucide-react";
-import type {
-  SettingsRef,
-  SettingsRefId,
-} from "../../../packages/link-studio-core/src/settings-page-context";
 
-export function SettingsContextChips({
+export function AssistantContextChips<Id extends string>({
   refs,
   remove,
+  label = "页面上下文",
 }: {
-  refs: SettingsRef[];
-  remove?: (id: SettingsRefId) => void;
+  refs: { id: Id; label: string; title?: string }[];
+  remove?: (id: Id) => void;
+  label?: string;
 }) {
   if (!refs.length) return null;
   return (
     <fieldset
       data-ui-group
-      aria-label="页面上下文"
+      aria-label={label}
       className="settings-context-chips"
       data-editable={!!remove}
     >

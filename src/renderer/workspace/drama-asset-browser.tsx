@@ -24,6 +24,7 @@ import {
   PencilLine,
   Plus,
   Search,
+  Sparkles,
   Type,
   Upload,
   UserRound,
@@ -36,6 +37,7 @@ import { characterShowsGenerator } from "./character-pick";
 import { useAssetMarquee } from "./drama-asset-marquee";
 import { assetPoster, dramaAssetStatus } from "./drama-asset-status";
 import { BreakdownProgress, breakdownBlocked } from "./drama-breakdown";
+import { DramaEmptyState, DramaNotice, DramaWorkspaceState } from "./drama-studio-status";
 import { episodeLabel } from "./episode-label";
 import { ImagePlaceholderShape } from "./media-node-placeholder";
 import "./drama-asset-browser.css";
@@ -371,6 +373,7 @@ export function AssetCard({
   multi = false,
   checked = false,
   toggle,
+  askAssistant,
   index = 0,
 }: {
   item: Item;
@@ -382,6 +385,7 @@ export function AssetCard({
   multi?: boolean;
   checked?: boolean;
   toggle?: () => void;
+  askAssistant?: () => void;
   index?: number;
 }) {
   const { node, type, name, look, numbers } = item,
@@ -525,6 +529,16 @@ export function AssetCard({
             <AudioLines size={14} />
           </button>
         )}
+        {askAssistant && !multi && (
+          <button
+            type="button"
+            aria-label={`把 ${name} 交给小灵`}
+            title="交给小灵"
+            onClick={askAssistant}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+          </button>
+        )}
       </div>
       <div className="drama-asset-badges">
         {typeof filingAsset?.metadata.filingHumanName === "string" ? (
@@ -558,6 +572,8 @@ export function StageAssets({
   ep,
   editor,
   handle,
+  askAssistant,
+  enterCanvas,
 }: {
   doc: DramaDocument;
   ep: number;
@@ -565,6 +581,8 @@ export function StageAssets({
   handle: string;
   saved: (doc: DramaDocument) => void;
   openBreakdown: () => void;
+  askAssistant?: (id: string) => void;
+  enterCanvas: () => void;
 }) {
   const blocked = breakdownBlocked(doc);
   const [view, setView] = useState<"list" | "canvas">("list"),
@@ -718,6 +736,11 @@ export function StageAssets({
     });
     return () => cancelAnimationFrame(frame);
   }, [view, pending, editor]);
+  const showCanvas = (id = "") => {
+    if (view !== "canvas") enterCanvas();
+    setView("canvas");
+    setPending(id);
+  };
   return (
     <section className="drama-asset-browser" aria-label="资产列表">
       <h2 className="sr-only">资产管理 · {ep ? `第 ${ep} 集` : "全集"}</h2>
@@ -728,8 +751,7 @@ export function StageAssets({
             () => setEditing(""),
             (id) => {
               setEditing("");
-              setView("canvas");
-              setPending(id);
+              showCanvas(id);
             },
           )}
         </div>
@@ -739,10 +761,13 @@ export function StageAssets({
           view={view}
           change={(next) => {
             clear();
-            setView(next);
-            setPending("");
             setQuery("");
-            if (next === "list") editor.clearSelection();
+            if (next === "canvas") showCanvas();
+            else {
+              setView("list");
+              setPending("");
+              editor.clearSelection();
+            }
           }}
         />
         {view === "canvas" && selected && (
@@ -766,7 +791,7 @@ export function StageAssets({
               : `继续补写 · ${missing.length} 个资产待补提示词`}
           </button>
         )}
-        {repairError && <small role="alert">{repairError}</small>}
+        {repairError && <DramaNotice tone="error">{repairError}</DramaNotice>}
         <BreakdownProgress
           doc={doc}
           cancel={async (id) => {
@@ -845,7 +870,12 @@ export function StageAssets({
               );
             })}
             {editor.ready && !library.length && query.trim() && (
-              <p role="status">未找到匹配的资产</p>
+              <DramaEmptyState
+                compact
+                icon={<Search size={18} />}
+                title="未找到匹配的资产"
+                description="换个关键词，或清空搜索查看全部资产。"
+              />
             )}
           </aside>
         </div>
@@ -868,7 +898,11 @@ export function StageAssets({
             ))}
           </div>
           {!editor.ready ? (
-            <p>正在读取资产…</p>
+            <DramaWorkspaceState
+              kind="loading"
+              title="正在读取资产"
+              description="正在准备角色、场景、道具和媒体素材。"
+            />
           ) : (
             <div className="drama-asset-drop-scroll">
               {/* biome-ignore lint/a11y/noStaticElementInteractions: File drops and marquee selection supplement the asset picker and selection controls. */}
@@ -931,11 +965,13 @@ export function StageAssets({
                           : undefined
                       }
                       handle={handle}
+                      askAssistant={
+                        askAssistant && dramaAssetMeta(item.node.data)
+                          ? () => askAssistant(item.node.id)
+                          : undefined
+                      }
                       edit={() => setEditing(item.node.id)}
-                      open={() => {
-                        setView("canvas");
-                        setPending(item.node.id);
-                      }}
+                      open={() => showCanvas(item.node.id)}
                     />
                   ))}
                   <li>

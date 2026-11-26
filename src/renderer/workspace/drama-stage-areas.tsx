@@ -10,6 +10,7 @@ import { useLocalPreview } from "./character-card-body";
 import type { DramaAssetEditor } from "./drama-asset-browser";
 import { DramaOverviewNext } from "./drama-overview-next";
 import { boardSourceHash } from "./drama-segment-video";
+import { DramaEmptyState } from "./drama-studio-status";
 import type { Stage } from "./drama-workspace-nav";
 
 type Snapshot = { freshBoards: Set<string> };
@@ -303,7 +304,13 @@ export function StageOverview({
               ))}
             </tbody>
           </table>
-          {!rows.length && <p>还没有分集，研读完成后会出现在这里</p>}
+          {!rows.length && (
+            <DramaEmptyState
+              compact
+              title="还没有分集"
+              description="完成研读后，分集会出现在这里。"
+            />
+          )}
           {pages > 1 && (
             <nav aria-label="进度表分页">
               <button type="button" disabled={!page} onClick={() => setIndex(page - 1)}>

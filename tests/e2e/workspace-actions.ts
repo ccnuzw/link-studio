@@ -36,6 +36,17 @@ export async function createCanvasProject(page: Page, name?: string) {
   await dialog.getByRole("button", { name: "选择保存位置…" }).click();
 }
 
+export async function createDramaProject(page: Page, name?: string) {
+  await page
+    .getByRole("radiogroup", { name: "创作方式" })
+    .getByRole("radio", { name: "短剧" })
+    .click();
+  await page.getByRole("button", { name: /^新建短剧项目/ }).click();
+  const dialog = page.getByRole("dialog", { name: "新建短剧项目" });
+  if (name) await dialog.getByLabel("新项目名称").fill(name);
+  await dialog.getByRole("button", { name: "选择保存位置…" }).click();
+}
+
 export async function editTextNode(preview: Locator, ...drafts: string[]) {
   await preview.dblclick();
   const dialog = preview.page().getByRole("dialog");
@@ -57,20 +68,60 @@ export async function chooseCanvasZoom(
 }
 
 export async function projectAction(page: Page, name: string) {
-  await page.getByRole("button", { name: "画布菜单", exact: true }).click();
-  const label = name === "关闭项目" ? "返回项目列表" : name;
-  if (!["返回项目列表", "新建画布项目", "导出画布"].includes(label)) {
-    await page.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
-    const item = page
-      .getByRole("menu", { name: "桌面项目操作", exact: true })
-      .getByRole("menuitem", { name: label, exact: true });
-    await expect(item).toBeVisible();
-    await expect(item).toBeEnabled();
-    if (label === "导入画布") await item.click();
-    else await item.press("Enter");
+  const taskDialog = page.getByRole("dialog", { name: "生成任务", exact: true });
+  if (name === "生成任务") {
+    if (!(await taskDialog.isVisible()))
+      await page
+        .getByRole("toolbar", { name: "画布编辑" })
+        .getByRole("button", { name: "任务", exact: true })
+        .click();
+    await taskDialog.getByRole("button", { name: "任务管理", exact: true }).click();
     return;
   }
+  if (await taskDialog.isVisible())
+    await taskDialog.getByRole("button", { name: "关闭任务", exact: true }).click();
+  if (name === "项目文件") {
+    await page
+      .getByRole("toolbar", { name: "画布编辑" })
+      .getByRole("button", { name: "素材", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "项目素材", exact: true }).click();
+    return;
+  }
+  if (name === "所选节点属性") {
+    await page.getByRole("button", { name: "节点属性", exact: true }).click();
+    return;
+  }
+  if (name === "模型设置" || name === "运行环境") {
+    const navigation = page.getByRole("navigation", { name: "设置分类" });
+    if (!(await navigation.isVisible())) {
+      const homeSettings = page.getByRole("button", { name: "应用设置", exact: true });
+      if (await homeSettings.isVisible()) await homeSettings.click();
+      else {
+        await page.getByRole("button", { name: "更多", exact: true }).click();
+        await page.getByRole("menuitem", { name: "应用设置", exact: true }).click();
+      }
+    }
+    await navigation
+      .getByRole("button", { name: name === "运行环境" ? "诊断" : "模型与渠道", exact: true })
+      .click();
+    return;
+  }
+  if (name === "保存项目") {
+    await page.getByLabel("画布名称", { exact: true }).press("ControlOrMeta+s");
+    return;
+  }
+  const label = name === "关闭项目" ? "返回项目列表" : name === "导出画布" ? "导出画布文件…" : name;
+  await page.getByRole("button", { name: "画布菜单", exact: true }).click();
   await page.getByRole("menuitem", { name: label, exact: true }).click();
+}
+
+export async function openCanvasAssetLibrary(page: Page) {
+  await page
+    .getByRole("toolbar", { name: "画布编辑" })
+    .getByRole("button", { name: "素材", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "从资产库添加", exact: true }).click();
 }
 
 export async function confirmDramaScript(page: Page) {

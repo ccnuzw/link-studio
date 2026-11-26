@@ -54,6 +54,115 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
+it("短剧 Worker 在首条消息固定引用，资产提示词只在批准后提交", async () => {
+  const scope = { kind: "drama", projectId: "project-drama" } as const;
+  const pageContext = {
+    stage: "assets",
+    episodeNo: 1,
+    episodeOrder: 3,
+    assetId: "platform",
+    assetName: "站台",
+  };
+  const approvedWrites: unknown[] = [];
+  const reads: unknown[] = [];
+  const directory = await mkdtemp(join(tmpdir(), "link-drama-worker-"));
+  directories.push(directory);
+  const server = await fakeGo({
+    turns: [
+      {
+        tools: [{ id: "read", name: "drama_read", args: { scope: "asset", asset_id: "platform" } }],
+      },
+      {
+        tools: [
+          {
+            id: "write",
+            name: "drama_update_asset_prompt",
+            args: { asset_id: "platform", prompt: "暮色中的站台" },
+          },
+        ],
+      },
+      { text: "提示词已修改。" },
+    ],
+  });
+  servers.push(server);
+  const client = await AgentWorkerClient.open({
+    workerPath,
+    directory,
+    modelBridgeUrl: server.url,
+    settings: async (command, args) => {
+      if (command === "model") return { name: "fixture", context_window: 32768, max_tokens: 1024 };
+      if (command === "canvas:drama-prepare") return {};
+      if (command === "canvas:drama-skills") return [];
+      if (command === "canvas:drama-read") {
+        reads.push(args);
+        return { id: "platform", prompt: "白天的站台" };
+      }
+      if (command === "canvas:drama-preview") {
+        reads.push(args);
+        return {
+          title: "修改资产",
+          before: { prompt: "白天的站台" },
+          after: { prompt: "暮色中的站台" },
+        };
+      }
+      if (command === "canvas:drama-apply") {
+        approvedWrites.push(args);
+        return { applied: true };
+      }
+      throw Error(`意外的桥接调用：${command}`);
+    },
+  });
+  clients.push(client);
+  await client.request("recoverCanvas", { scope });
+  const { sessionId } = await session(client, scope);
+  const run = await client.request<Run>("start", {
+    scope,
+    sessionId,
+    message: "改这个资产",
+    pageContext,
+  });
+  await client.request("idle");
+  const [approval] = await client.request<Approval[]>("approvals", {
+    scope,
+    sessionId,
+    runId: run.id,
+  });
+  expect(approval).toMatchObject({ kind: "drama_update_asset_prompt", status: "pending" });
+  expect(reads).toEqual([
+    expect.objectContaining({ project: scope.projectId, dramaContext: pageContext }),
+    expect.objectContaining({ project: scope.projectId, dramaContext: pageContext }),
+  ]);
+  expect(approvedWrites).toEqual([]);
+  const state = await client.request<State>("page", { scope, sessionId, after: 0 });
+  expect(state.events).toContainEqual(
+    expect.objectContaining({
+      type: "message.user",
+      payload: expect.objectContaining({ page_context: pageContext }),
+    }),
+  );
+  expect(
+    server.seen.some((request) =>
+      JSON.stringify(request.body).includes("发送时的短剧工作台上下文"),
+    ),
+  ).toBe(true);
+  expect(server.seen.map(({ body }) => JSON.stringify(body)).join("\n")).toContain(
+    "你是「小灵」，「灵可」的短剧创作助手",
+  );
+  await expect(
+    client.request("page", { scope: canvas, sessionId, after: 0 }),
+  ).rejects.toMatchObject({ code: "AGENT_SCOPE_DENIED" });
+  await client.request("decide", {
+    scope,
+    sessionId,
+    approvalId: requireTestValue(approval).id,
+    decision: { decision: "approve" },
+  });
+  await client.request("idle");
+  expect(approvedWrites).toEqual([
+    expect.objectContaining({ project: scope.projectId, kind: "drama_update_asset_prompt" }),
+  ]);
+});
+
 it("画布 Worker 超出预算时保留审批，追加预算和部分批准仅生效一次", async () => {
   const server = await fakeGo({
     turns: [

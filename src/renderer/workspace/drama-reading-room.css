@@ -100,6 +100,10 @@
 .drama-reading-actions button:hover {
   background: var(--desk-hover);
 }
+.drama-work-tools > .drama-assistant-launcher[aria-expanded="true"] {
+  background: var(--desk-hover);
+  border-color: color-mix(in oklab, currentColor 28%, var(--desk-border));
+}
 .drama-workbar button:focus-visible,
 .drama-reading-actions button:focus-visible {
   outline: 2px solid var(--desk-focus);

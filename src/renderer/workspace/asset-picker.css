@@ -405,87 +405,19 @@
   max-height: 90vh;
   overflow: auto;
 }
-.library-manager {
-  width: min(860px, calc(100vw - 32px));
-  min-height: 280px;
-  align-content: start;
-}
-.library-manager > header,
-.library-tools,
 .library-inline-create,
 .library-locations button {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.library-manager > header {
-  justify-content: space-between;
-}
-.library-tools input {
-  flex: 1;
-}
-.library-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-}
-.library-cards article {
-  position: relative;
-  border: 1px solid #8884;
-  border-radius: 12px;
-  padding: 10px;
-  min-width: 0;
-}
-.library-cards article > button:first-child {
-  display: grid;
-  text-align: left;
-  gap: 6px;
-  width: 100%;
-}
-.library-cards strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.library-cards [aria-haspopup="menu"] {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  border-radius: 50%;
-  background: Canvas;
-}
-.library-actions {
-  display: grid;
-  background: Canvas;
-  color: CanvasText;
-  padding: 4px;
-  box-shadow: 0 4px 18px #0003;
-  border-radius: 9px;
-}
-.library-actions [role="menuitem"],
 .library-locations button {
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
-.library-actions [data-highlighted],
 .library-locations [aria-checked="true"] {
   background: color-mix(in srgb, CanvasText 9%, Canvas);
-}
-.library-cover {
-  height: 92px;
-  display: grid;
-  place-items: center;
-}
-.library-cover img,
-.library-cover video {
-  height: 100%;
-  max-width: 100%;
-  object-fit: contain;
-}
-.library-cover svg {
-  width: 32px;
 }
 .asset-pick-actions label svg {
   flex-shrink: 0;
@@ -956,8 +888,6 @@
 .asset-pick-logo {
   flex: none;
   margin-bottom: 10px;
-  color: color-mix(in oklab, var(--ink) 20%, transparent);
-  --picker-beam: oklch(0.62 0.16 55);
 }
 .asset-pick-empty strong {
   font-size: 14px;
@@ -1081,11 +1011,6 @@
 }
 .asset-pick .asset-pick-confirm {
   border: 1px solid transparent;
-}
-@media (prefers-color-scheme: dark) {
-  .asset-pick-logo {
-    --picker-beam: oklch(0.78 0.15 70);
-  }
 }
 .asset-pick-grid {
   display: grid;
@@ -1515,9 +1440,6 @@
 }
 .filing-personal-picker .asset-source-slide {
   background: rgb(255 255 255 / 0.1);
-}
-.filing-personal-picker .asset-pick-logo {
-  --picker-beam: oklch(0.78 0.15 70);
 }
 .filing-personal-picker .asset-upload-card {
   --upload-border: oklch(1 0 0 / 0.1);

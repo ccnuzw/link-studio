@@ -1,8 +1,8 @@
 import { type GenerationJob, jobIsTerminal, type SettingsApproval } from "@link-studio/core";
-import { Sparkles } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { saveAgentLayout, useAgentLayout } from "../agent-layout";
+import { AssistantLauncher } from "../assistant-workspace";
 import { buildKeyframes } from "./atlas";
 import { IDLE_SLEEP_MS, petMood } from "./mood";
 import { NoticeBubble, usePetNotices } from "./notices";
@@ -189,9 +189,9 @@ export function CanvasPet({
             />
           )}
           {(status === "off" || status === "failed") && (
-            <button
-              type="button"
+            <AssistantLauncher
               ref={fallback}
+              iconSize={21}
               className="canvas-launcher"
               aria-label={open ? "收起小灵" : "打开小灵"}
               aria-expanded={open}
@@ -201,9 +201,8 @@ export function CanvasPet({
               }}
               onClick={toggle}
             >
-              <Sparkles size={21} />
               小灵
-            </button>
+            </AssistantLauncher>
           )}
           <fieldset ref={menu} popover="auto" className="pet-options" aria-label="桌宠偏好">
             {(

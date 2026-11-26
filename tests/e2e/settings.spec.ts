@@ -20,7 +20,12 @@ import {
   expectReadableModelHover,
 } from "./assistant-theme";
 import { compactViewport, desktopElectron as electron } from "./desktop-window";
-import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
+import {
+  confirmDramaScript,
+  createCanvasProject,
+  createDramaProject,
+  projectAction,
+} from "./workspace-actions";
 
 async function seedLegacyClips(root: string, clips: Array<[number, string]>) {
   const projects = (await readdir(root)).filter((entry) => entry.endsWith(".linkstudio"));
@@ -171,11 +176,7 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
   });
   try {
     const page = await app.firstWindow();
-    await createCanvasProject(page, "停用后重开");
-    const action = async (name: string) => {
-      await projectAction(page, name);
-    };
-    await action("短剧工作室");
+    await createDramaProject(page, "停用后重开");
     await page.getByRole("button", { name: "粘贴正文" }).click();
     const script = Array.from(
       { length: 201 },
@@ -258,7 +259,7 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
     } finally {
       drafts.close();
     }
-    const panel = page.getByRole("complementary", { name: "短剧助手" }),
+    const panel = page.getByRole("complementary", { name: "短剧小灵" }),
       starter = panel.getByRole("button", { name: "把第 1 集的结尾改得更有悬念" });
     await pickEpisode(page, 201);
     await expect(
@@ -298,18 +299,18 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
           .evaluate((columns) => getComputedStyle(columns).gridTemplateColumns.split(" ").length),
       )
       .toBe(1);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await action("模型设置");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
+    await projectAction(page, "模型设置");
     await page
       .getByRole("navigation", { name: "设置分类" })
       .getByRole("button", { name: /^返回/ })
       .click();
-    await action("短剧助手");
+    await page.getByRole("button", { name: /^停用后重开/ }).click();
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
     await expect(starter).toBeVisible();
     let expectedRevision = model.revision;
     for (const enabled of [false, true]) {
-      await page.getByRole("button", { name: "返回画布" }).click();
-      await action("关闭项目");
+      await page.getByRole("button", { name: "返回首页", exact: true }).click();
       expectedRevision = await page.evaluate(
         async (input) => {
           const result = await window.desktop.settings.modelToggle(input);
@@ -319,14 +320,14 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
         { id: model.id, expectedRevision, enabled },
       );
       await page.getByRole("button", { name: /^停用后重开/ }).click();
-      await action("短剧助手");
+      await page.getByRole("button", { name: "小灵", exact: true }).click();
       await pickEpisode(page, 202);
       await expect(page.getByRole("heading", { name: "第 202 集 · 新的一集" })).toBeVisible();
       if (!enabled) {
         await expect(panel.getByText("暂时没有可用的 Agent 模型", { exact: true })).toBeVisible();
         await expect(panel.getByText("请联系管理员发布 Agent 模型后再来。")).toBeVisible();
         await expect(panel.getByRole("textbox")).toHaveCount(0);
-        await expect(panel.getByRole("button")).toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "收起小灵" })).toBeVisible();
       } else {
         const ring = panel.getByRole("button", { name: "上下文用量 0 / 33K" });
         await ring.press("Enter");
@@ -458,8 +459,7 @@ test("短剧：五百万码点 DOCX 建剧，仅规划首章，关闭重开后�
         if (!model.ok) throw Error(model.code);
       }
     }, `http://127.0.0.1:${address.port}`);
-    await createCanvasProject(page, "五百万字项目");
-    await projectAction(page, "短剧工作室");
+    await createDramaProject(page, "五百万字项目");
     const upload = page.locator('input[type="file"][aria-label="剧本文件"]'),
       start = page.getByRole("button", { name: "开始", exact: true });
     for (const extra of ["尾", ""]) {
@@ -492,8 +492,7 @@ test("短剧：五百万码点 DOCX 建剧，仅规划首章，关闭重开后�
     expect(calls[0]).toContain("🌙");
     expect(calls[1]).toContain("门外来了信。");
     expect(calls[1]).not.toContain("🌙");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     const project = requireTestValue(
       (await readdir(root)).find((name) => name.endsWith(".linkstudio")),
     );
@@ -503,7 +502,6 @@ test("短剧：五百万码点 DOCX 建剧，仅规划首章，关闭重开后�
         .digest("hex"),
     ).toBe(digest);
     await page.getByRole("button", { name: /^五百万字项目/ }).click();
-    await projectAction(page, "短剧工作室");
     await pickEpisode(page, 1);
     await expect(
       page.getByRole("heading", { name: "第 1 集 · 雨夜来信", exact: true }),
@@ -637,8 +635,7 @@ test("短剧：四批规划 204 集，选取末尾四集生成并重开", async 
       });
       if (!model.ok) throw Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
-    await createCanvasProject(page, "长剧改编");
-    await projectAction(page, "短剧工作室");
+    await createDramaProject(page, "长剧改编");
     await page.getByRole("button", { name: "粘贴正文" }).click();
     await page
       .getByLabel("粘贴正文")
@@ -722,10 +719,8 @@ test("短剧：四批规划 204 集，选取末尾四集生成并重开", async 
       timeout: 20000,
     });
     expect(generated).toEqual([201, 202, 203, 204]);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^长剧改编/ }).click();
-    await projectAction(page, "短剧工作室");
     await pickEpisode(page, 204);
     await expect(page.getByText("为第204集写好的剧本。", { exact: true })).toBeVisible();
     await pickEpisode(page, 200);
@@ -734,11 +729,9 @@ test("短剧：四批规划 204 集，选取末尾四集生成并重开", async 
     await stage(page, "片场");
     await expect(page.getByRole("button", { name: "去拆解" })).toBeVisible();
     await expect(page.getByLabel("片段提示词")).toHaveCount(0);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await seedLegacyClips(root, [[201, "长路201的片段"]]);
     await page.getByRole("button", { name: /^长剧改编/ }).click();
-    await projectAction(page, "短剧工作室");
     await pickEpisode(page, 201);
     await stage(page, "片场");
     await expect(page.getByText("长路201的片段 · 5 秒")).toBeVisible();
@@ -776,10 +769,8 @@ test("短剧：四批规划 204 集，选取末尾四集生成并重开", async 
     );
     await page.getByLabel("分集剧本", { exact: true }).fill("补位后只改长路203。");
     await pickEpisode(page, 201);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^长剧改编/ }).click();
-    await projectAction(page, "短剧工作室");
     await pickEpisode(page, 202);
     await expect(page.getByLabel("分集剧本", { exact: true })).toHaveText("补位后只改长路203。");
   } finally {
@@ -1000,8 +991,7 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
       });
       if (!model.ok) throw Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
-    await createCanvasProject(page, "夜雨来信");
-    await projectAction(page, "短剧工作室");
+    await createDramaProject(page, "夜雨来信");
     await page.getByRole("button", { name: "粘贴正文" }).click();
     const paste = page.getByLabel("粘贴正文");
     await paste.fill("门前放着一封信。");
@@ -1078,10 +1068,8 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     await planning.getByRole("button", { name: "暂停规划" }).click();
     await expect(planning.getByText("用户暂停", { exact: true })).toBeVisible();
     await expect(planning).toContainText("已处理 12 / 13 个原文单元");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^夜雨来信/ }).click();
-    await projectAction(page, "短剧工作室");
     await stage(page, "剧本");
     await expect(page.getByRole("heading", { name: "风雨来客" })).toBeVisible();
     await pickEpisode(page, 2);
@@ -1125,15 +1113,14 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     await expect(picker.getByText("已选 2 集")).toBeVisible();
     await expect(picker.getByRole("note")).toHaveCount(0);
     await picker.getByRole("button", { name: "取消" }).click();
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "短剧助手");
-    const assistant = page.getByRole("complementary", { name: "短剧助手" });
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
+    const assistant = page.getByRole("complementary", { name: "短剧小灵" });
     await assistant.getByLabel("短剧消息").fill("把两集改编成剧本");
     await assistant.getByRole("button", { name: "发送", exact: true }).click();
-    const approval = assistant.locator("section.settings-confirm");
+    const approval = assistant.locator("section.canvas-request-card");
     await expect(approval.getByRole("heading")).toHaveText("运行短剧任务：分集剧本");
     expect(scriptRequests).toHaveLength(0);
-    await approval.getByRole("button", { name: /批准修改/ }).click();
+    await approval.getByRole("button", { name: /批准并运行/ }).click();
     await pickEpisode(page, 2);
     await expect(page.locator(".drama-columns > article")).toContainText("屋内。她拆开了湿信。");
     expect(scriptRequests).toHaveLength(2);
@@ -1167,10 +1154,8 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     await picker.getByRole("button", { name: "生成 1 集剧本" }).click();
     const episodes = page.locator(".drama-columns > article");
     await expect(episodes).toContainText("门后。她把湿信递还给来人。");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^夜雨来信/ }).click();
-    await projectAction(page, "短剧工作室");
     await pickEpisode(page, 1);
     await expect(episodes).toContainText("门廊。信使把湿信塞进门缝。");
     await pickEpisode(page, 2);
@@ -1214,10 +1199,8 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     expect(planningPrompts.at(-1)).toContain("## [14]");
     expect(planningPrompts.at(-1)).not.toContain("## [13]");
     expect(planningPrompts.at(-1)).not.toContain("## [15]");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await page.getByRole("button", { name: /^夜雨来信/ }).click();
-    await projectAction(page, "短剧工作室");
     await stage(page, "剧本");
     await extend.click();
     await expect(continuation).toContainText(/第 15–15 章.*预计约 1 集/);
@@ -1235,10 +1218,8 @@ test("短剧：小说选区开拍，第二批请求中关闭项目并从第十�
     await pickEpisode(page, 2);
     await expect(episodes).toContainText("门后。她把湿信递还给来人。");
     expect(scriptRequests).toHaveLength(3);
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
-    await createCanvasProject(page, "雨夜重试");
-    await projectAction(page, "短剧工作室");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
+    await createDramaProject(page, "雨夜重试");
     await page.getByRole("button", { name: "粘贴正文" }).click();
     await paste.fill("第一章 门外\n风雨未停。\n第二章 门内\n来信。");
     await start.click();
@@ -1828,11 +1809,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
         if (!model.ok) throw Error(model.code);
       }
     }, `http://127.0.0.1:${addr.port}`);
-    await createCanvasProject(page);
-    const open = async () => {
-      await projectAction(page, "短剧助手");
-    };
-    await open();
+    await createDramaProject(page, "门外");
     const setup = page.getByRole("dialog", { name: "开拍设置" });
     const pickStartModel = async (field: string, option: string) => {
       await setup.getByRole("button", { name: field, exact: true }).click();
@@ -2036,7 +2013,8 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       "我的 · 铅笔故事板",
     );
     await setup.getByRole("button", { name: "开始" }).click();
-    const assistant = page.getByRole("complementary", { name: "短剧助手" });
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
+    const assistant = page.getByRole("complementary", { name: "短剧小灵" });
     await expect(assistant).toBeVisible();
     await page.evaluate(async () => {
       const list = await window.desktop.settings.dramaPromptLibrary({ action: "list" });
@@ -2051,7 +2029,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       if (!removed.ok) throw Error(removed.code);
     });
     await checkEmptyHistory(assistant);
-    await assistant.getByRole("button", { name: "Agent 设置" }).click();
+    await assistant.getByRole("button", { name: "小灵设置" }).click();
     const dramaThinking = assistant.getByRole("switch", { name: "显示思考过程" });
     await expect(dramaThinking).not.toBeChecked();
     await dramaThinking.click();
@@ -2105,29 +2083,29 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await assistant.getByRole("button", { name: "批准修改" }).click();
     await expect(document).toContainText("第二次敲门声");
     await checkSavedHistory(assistant, "门外改稿");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await seedLegacyClips(root, [
       [1, "门扇慢慢打开"],
       [2, "纸条特写"],
     ]);
-    await page.locator(".home-record button").first().click();
+    await createCanvasProject(page, "助手偏好校验");
     await page.getByRole("button", { name: "打开小灵" }).click();
     const canvasAssistant = page.getByRole("region", { name: "画布小灵" });
-    await expect(
-      canvasAssistant.getByRole("button", { name: "把选中的剧本拆成分镜" }),
-    ).toBeVisible();
-    await canvasAssistant.getByRole("button", { name: "Agent 设置" }).click();
+    await expect(canvasAssistant.getByText("门外改稿", { exact: true })).toHaveCount(0);
+    await canvasAssistant.getByRole("button", { name: "小灵设置" }).click();
     const canvasThinking = canvasAssistant.getByRole("switch", { name: "显示思考过程" });
     await expect(canvasThinking).toBeChecked();
     await canvasThinking.click();
     await expect(canvasThinking).not.toBeChecked();
     await canvasThinking.press("Escape");
     await page.getByRole("button", { name: "关闭小灵" }).click();
-    await open();
+    await projectAction(page, "关闭项目");
+    const dramaRecord = page.locator(".home-record > button").filter({ hasText: "门外" });
+    await dramaRecord.click();
+    await page.getByRole("button", { name: "小灵", exact: true }).click();
     await stage(page, "剧本");
     await expect(document).toContainText("第二次敲门声");
-    await assistant.getByRole("button", { name: "Agent 设置" }).click();
+    await assistant.getByRole("button", { name: "小灵设置" }).click();
     await expect(dramaThinking).not.toBeChecked();
     await dramaThinking.press("Escape");
     const firstEpisode = document
@@ -2142,7 +2120,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       await assistant.getByRole("button", { name: "发送", exact: true }).click();
       await question.getByRole("button", { name: "跳过提问" }).click();
       await expect.poll(() => sawSkip).toBe(true);
-      const card = assistant.locator("section.settings-confirm");
+      const card = assistant.locator("section.canvas-request-card");
       await expect(card.getByRole("heading")).toHaveText("修改第 1 集片段 1");
       await expect(card.locator("del")).toHaveText("5");
       await expect(card.locator("ins")).toHaveText("8");
@@ -2162,7 +2140,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     outlineTurn = 1;
     await assistant.getByLabel("短剧消息").fill("把父女重逢写进大纲");
     await assistant.getByRole("button", { name: "发送", exact: true }).click();
-    const outlineCard = assistant.locator("section.settings-confirm");
+    const outlineCard = assistant.locator("section.canvas-request-card");
     await expect(outlineCard.getByRole("heading")).toHaveText("修改短剧大纲与人物");
     expect(readRatio).toBe(true);
     const secondEpisode = document
@@ -2263,20 +2241,16 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await expect(projectSettings).toHaveCount(0);
     for (const [index, decision] of [
       "不用了",
-      "不用了，并告诉 Agent 怎么改…",
-      "批准修改 ✦ 28",
+      "不用了，并告诉小灵怎么改…",
+      "批准并运行 ✦ 28",
     ].entries()) {
       await expect(assistant.getByRole("status")).toHaveText("就绪");
       jobTurn = 1;
       await assistant.getByLabel("短剧消息").fill("拆解第一集资产");
       await assistant.getByRole("button", { name: "发送", exact: true }).click();
-      const approval = assistant.locator("section.settings-confirm");
+      const approval = assistant.locator("section.canvas-request-card");
       await expect(approval.getByRole("heading")).toHaveText("运行短剧任务：资产拆解");
-      await expect(approval.locator("del")).toHaveText('{"active_jobs":[]}');
-      expect(JSON.parse(await readRenderedText(approval.locator("ins")))).toEqual({
-        step: "breakdown",
-        episodes: [1],
-      });
+      await expect(approval).toContainText("第 1 集 · 预估 28 积分");
       await approval.getByRole("button", { name: decision, exact: true }).click();
       if (decision.endsWith("…")) {
         await approval.getByLabel("拒绝说明").fill("先核对场景名称");
@@ -2337,7 +2311,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     jobTurn = 1;
     await assistant.getByLabel("短剧消息").fill("补写第一集信封的提示词");
     await assistant.getByRole("button", { name: "发送", exact: true }).click();
-    const retryCard = assistant.locator("section.settings-confirm");
+    const retryCard = assistant.locator("section.canvas-request-card");
     await expect(assistant.getByText("· 1 项失败", { exact: true })).toBeVisible();
     await expect(retryCard).toHaveCount(0);
     expect(stages).toHaveLength(4);
@@ -2354,7 +2328,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       await assistant.getByLabel("短剧消息").fill("生成第一集分镜，片段最长八秒");
       await assistant.getByRole("button", { name: "发送", exact: true }).click();
       await expect(retryCard.getByRole("heading")).toHaveText("运行短剧任务：分镜脚本");
-      await retryCard.getByRole("button", { name: "批准修改 ✦ 14" }).click();
+      await retryCard.getByRole("button", { name: "批准并运行 ✦ 14" }).click();
       const jobs = page.getByRole("region", { name: "短剧任务" });
       await expect(jobs).toContainText(
         attempt === "valid" ? "分镜脚本 · 已完成" : "分镜脚本 · 失败",
@@ -2377,17 +2351,15 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
         expect.stringContaining("不超过max_seconds"),
       ]);
     }
-    await page.getByRole("button", { name: "返回画布" }).click();
-    const envelope = page.locator(".react-flow__node").filter({ hasText: "来客的信封" });
-    await expect(
-      page.locator(".react-flow__node").filter({ hasText: "故事板 · 第 1 集 · 01" }),
-    ).toHaveCount(1);
-    await envelope.locator(".node-media").click();
-    await page.getByRole("button", { name: "开始生成" }).click();
-    await open();
     await stage(page, "资产管理");
     await pickEpisode(page, 1);
     await assetsArea.getByRole("tab", { name: /^道具/ }).click();
+    await propCard.getByRole("button", { name: "在画布中打开 来客的信封" }).click();
+    await assetCanvas.getByRole("button", { name: "开始生成", exact: true }).click();
+    await assetsArea
+      .getByRole("group", { name: "视图" })
+      .getByRole("button", { name: "列表" })
+      .click();
     await expect(propCard).toContainText("生成中");
     finishPropImage();
     await expect(propCard).toContainText("生成失败");
@@ -2596,7 +2568,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await assistant.getByLabel("短剧消息").fill("用已采用的视频合成第一集");
     await assistant.getByRole("button", { name: "发送", exact: true }).click();
     await expect(retryCard.getByRole("heading")).toHaveText("运行短剧任务：合成整集");
-    await retryCard.getByRole("button", { name: "批准修改", exact: true }).click();
+    await retryCard.getByRole("button", { name: "批准并运行", exact: true }).click();
     await stage(page, "成片");
     const final = page.getByRole("region", { name: "本集成片" });
     await expect(final.getByRole("heading")).toHaveText("成片已合成");
@@ -2647,14 +2619,9 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await expect(redo).toBeVisible();
     await pickEpisode(page, 2);
     await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await expect(page.locator(".react-flow__node").filter({ hasText: "来客的信封" })).toHaveCount(
-      1,
-    );
-    await projectAction(page, "关闭项目");
-    const savedProjects = (await readdir(root)).filter((name) => name.endsWith(".linkstudio"));
-    expect(savedProjects).toHaveLength(1);
-    const reopened = await ProjectStore.open(join(root, requireTestValue(savedProjects[0])));
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
+    const dramaPath = await dramaRecord.locator("small[title]").getAttribute("title");
+    const reopened = await ProjectStore.open(requireTestValue(dramaPath));
     try {
       const doc = requireTestValue(dramaDocument(reopened.snapshot));
       expect(doc.episodes[0]?.storyboard_status).toBe("ready");
@@ -2674,16 +2641,13 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     } finally {
       await reopened.close();
     }
-    await page.locator(".home-record button").first().click();
-    await projectAction(page, "短剧工作室");
+    await dramaRecord.click();
     await stage(page, "片场");
     await pickEpisode(page, 1);
     await expect(resolutionPicker).toHaveText("720p");
     await expect(modelPicker).toHaveText("短剧视频");
-    await page.getByRole("button", { name: "返回画布" }).click();
-    await projectAction(page, "关闭项目");
-    await createCanvasProject(page);
-    await open();
+    await page.getByRole("button", { name: "返回首页", exact: true }).click();
+    await createDramaProject(page);
     await page.getByRole("button", { name: "粘贴正文" }).click();
     await paste.fill("夜里传来一声问候。");
     await start.click();
@@ -2757,7 +2721,7 @@ test("设置抽屉：首次关闭、无模型提示、宽屏让位和窄屏覆�
     await page.setViewportSize({ width: 1080, height: 720 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.getByRole("button", { name: "应用设置" }).click();
-    const trigger = page.getByRole("button", { name: "设置助手", exact: true });
+    const trigger = page.getByRole("button", { name: "设置小灵", exact: true });
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator(".settings-assistant")).toHaveCount(0);
     const body = page.locator(".channel-settings-body");
@@ -2766,12 +2730,12 @@ test("设置抽屉：首次关闭、无模型提示、宽屏让位和窄屏覆�
     await expect(drawer.getByText("暂时没有可用的 Agent 模型", { exact: true })).toBeVisible();
     await expect(drawer.getByText("请先在模型渠道发布 Agent 模型")).toBeVisible();
     await expect(drawer.getByRole("textbox")).toHaveCount(0);
-    await expect(drawer.getByRole("button", { name: "收起设置助手" })).toBeHidden();
+    await expect(drawer.getByRole("button", { name: "收起设置小灵" })).toBeHidden();
     const glass = drawer.locator(".settings-drawer-glass");
     await expect.poll(() => glass.boundingBox()).toEqual({ x: 612, y: 8, width: 460, height: 704 });
     await expect.poll(async () => (await body.boundingBox())?.width).toBe(612);
     await page.setViewportSize({ width: 767, height: 580 });
-    await expect(drawer.getByRole("button", { name: "收起设置助手" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "收起设置小灵" })).toBeVisible();
     await expect.poll(() => glass.boundingBox()).toEqual({ x: 8, y: 8, width: 751, height: 564 });
     await expect.poll(async () => (await body.boundingBox())?.width).toBe(767);
     await page.keyboard.press("ControlOrMeta+j");
@@ -2946,7 +2910,7 @@ test("后台页面上下文：可移除引用、选中项生命周期及逐轮�
       ).not.toContain("page_context:");
     };
     await page.getByRole("button", { name: "应用设置" }).click();
-    await page.getByRole("button", { name: "设置助手" }).click();
+    await page.getByRole("button", { name: "设置小灵" }).click();
     const panel = page.getByRole("complementary", { name: "小灵设置助手" }),
       composer = page.locator(".settings-assistant form.assistant-composer"),
       log = panel.getByRole("log");
@@ -3204,14 +3168,14 @@ test("设置助手审批、试跑与重启恢复", async () => {
           { field: "model", value: "跳过的模型" },
         ],
       };
-      await page.getByRole("button", { name: "设置助手" }).click();
+      await page.getByRole("button", { name: "设置小灵" }).click();
       const assistant = page.getByRole("complementary", { name: "小灵设置助手" });
       await expect(assistant.getByRole("button", { name: "Agent 模型" })).toHaveText(
         "fixture-model",
       );
       const composer = assistant.getByRole("textbox", { name: "消息", exact: true });
       await checkEmptyHistory(assistant);
-      const preferences = assistant.getByRole("button", { name: "Agent 设置" });
+      const preferences = assistant.getByRole("button", { name: "小灵设置" });
       await preferences.click();
       const thinking = assistant.getByRole("switch", { name: "显示思考过程" });
       await expect(thinking).not.toBeChecked();
@@ -3231,7 +3195,7 @@ test("设置助手审批、试跑与重启恢复", async () => {
       await expect(composer).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(assistant).toBeHidden();
-      await expect(page.getByRole("button", { name: "设置助手", exact: true })).toBeFocused();
+      await expect(page.getByRole("button", { name: "设置小灵", exact: true })).toBeFocused();
       await page.getByRole("button", { name: "适配器管理", exact: true }).click();
       await page.keyboard.press("ControlOrMeta+j");
       await expectDraft(composer, starter);
@@ -3347,13 +3311,13 @@ test("设置助手审批、试跑与重启恢复", async () => {
       await apply.press("ArrowDown");
       await expect(choices.getByRole("option", { name: /^2\s*拒绝$/ })).toBeFocused();
       await choices.getByRole("option", { selected: true }).press("3");
-      const reason = choices.getByRole("textbox", { name: "拒绝，并告诉助手怎么改…" });
+      const reason = choices.getByRole("textbox", { name: "拒绝，并告诉小灵怎么改…" });
       await expect(reason).toBeFocused();
       await reason.fill("  ");
       await reason.press("Enter");
       await expect(reason).toBeVisible();
       await reason.press("Escape");
-      const explain = choices.getByRole("option", { name: /拒绝，并告诉助手怎么改/ });
+      const explain = choices.getByRole("option", { name: /拒绝，并告诉小灵怎么改/ });
       await expect(explain).toBeFocused();
       await explain.press("Enter");
       await reason.fill(`  保留模型标识；不要使用 ${credential}。  `);
@@ -3430,7 +3394,7 @@ test("设置助手审批、试跑与重启恢复", async () => {
     try {
       const page = await reopened.firstWindow();
       await page.getByRole("button", { name: "应用设置" }).click();
-      await page.getByRole("button", { name: "设置助手" }).click();
+      await page.getByRole("button", { name: "设置小灵" }).click();
       await expect(
         page.getByRole("log").getByText("请提出名称和模型变更。", { exact: true }),
       ).toBeVisible();
@@ -3454,7 +3418,7 @@ test("设置助手审批、试跑与重启恢复", async () => {
         "aria-expanded",
         "false",
       );
-      await assistant.getByRole("button", { name: "Agent 设置" }).click();
+      await assistant.getByRole("button", { name: "小灵设置" }).click();
       const thinking = assistant.getByRole("switch", { name: "显示思考过程" });
       await expect(thinking).toBeChecked();
       await thinking.click();
@@ -4116,7 +4080,7 @@ test("Responses 配置、无工具探测和设置小灵的只读工具调用", a
       });
       expect(calls[0]?.body.tools ?? []).toEqual([]);
       await page.getByRole("button", { name: "应用设置" }).click();
-      await page.getByRole("button", { name: "设置助手" }).click();
+      await page.getByRole("button", { name: "设置小灵" }).click();
       const composer = page.getByRole("textbox", { name: "消息", exact: true });
       await expect(
         page.getByRole("complementary", { name: "小灵设置助手" }).getByRole("status"),

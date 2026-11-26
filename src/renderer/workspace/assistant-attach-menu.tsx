@@ -62,7 +62,7 @@ export function AssistantAttachMenu({
             >
               <FileText size={16} aria-hidden />
               <span>
-                上传故事或剧本<small>选一个 .txt 或 .md 文件，作为附件发给 Agent</small>
+                上传故事或剧本<small>选一个 .txt 或 .md 文件，作为附件发给小灵</small>
               </span>
             </button>
             <input

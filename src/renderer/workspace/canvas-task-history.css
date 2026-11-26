@@ -1,10 +1,13 @@
+.canvas-task-layer {
+  color-scheme: light dark;
+}
 .canvas-task-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background-color: color-mix(in oklab, black 10%, transparent);
-  backdrop-filter: blur(4px);
-  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  background: light-dark(rgb(25 29 39 / 14%), rgb(0 0 0 / 44%));
+  backdrop-filter: blur(2px);
+  transition: opacity 160ms ease-out;
 }
 .canvas-task-history {
   position: fixed;
@@ -12,58 +15,53 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  width: 75%;
-  max-width: 384px;
-  background: var(--canvas-paper);
-  background-clip: padding-box;
-  color: var(--foreground);
-  border-right: 1px solid var(--board-border);
-  box-shadow:
-    0 10px 15px -3px #0000001a,
-    0 4px 6px -4px #0000001a;
+  width: min(400px, 92vw);
+  border-right: 1px solid var(--task-line);
+  background: var(--task-paper);
+  color: var(--task-ink);
+  box-shadow: 12px 0 36px rgb(0 0 0 / 14%);
   outline: none;
   transition:
-    translate 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    translate 200ms ease-out,
+    opacity 160ms ease-out;
 }
 .canvas-task-backdrop:is([data-starting-style], [data-ending-style]),
 .canvas-task-history:is([data-starting-style], [data-ending-style]) {
   opacity: 0;
 }
 .canvas-task-history:is([data-starting-style], [data-ending-style]) {
-  translate: -40px 0;
+  translate: -24px 0;
 }
-.canvas-task-history header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.canvas-task-history > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  flex: none;
+  align-items: center;
+  gap: 10px;
   padding: 16px;
+  border-bottom: 1px solid var(--task-line);
 }
-@media (max-width: 639px) {
-  .canvas-task-history {
-    max-width: none;
-  }
+.canvas-task-history > header > :where(svg) {
+  color: var(--task-accent);
 }
 .canvas-task-history h2 {
   margin: 0;
-  font:
-    500 16px / 24px "Geist Variable",
-    "PingFang SC",
-    sans-serif;
+  font-size: 16px;
+  font-weight: 650;
 }
-.canvas-task-history p {
+.canvas-task-history > header p {
   margin: 0;
-  color: var(--muted-foreground);
+  color: var(--task-muted);
+  font-size: 12px;
 }
-.canvas-task-history .storyboard-close {
-  top: 12px;
-  right: 12px;
-}
-.canvas-task-history .storyboard-close:focus-visible {
-  outline: none;
-}
-.canvas-task-history .storyboard-close:hover {
-  background-clip: padding-box;
+.canvas-task-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--task-line);
+  border-radius: 8px;
 }
 .canvas-task-empty,
 .canvas-task-wait {
@@ -71,17 +69,14 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  color: var(--muted-foreground);
   gap: 8px;
+  padding: 16px;
+  background: var(--task-inset);
+  color: var(--task-muted);
+  text-align: center;
 }
 .canvas-task-empty {
   flex-direction: column;
-  gap: 12px;
-  padding: 32px;
-  text-align: center;
-}
-.canvas-task-empty svg {
-  opacity: 0.4;
 }
 .canvas-task-wait svg {
   animation: canvas-task-spin 1s linear infinite;
@@ -91,100 +86,83 @@
     transform: rotate(360deg);
   }
 }
-.canvas-task-history ul {
-  list-style: none;
-  margin: 0;
-  padding: 0 8px 16px;
-  overflow-y: auto;
+.canvas-task-views {
+  flex: none;
+  margin: 8px 12px;
+}
+.canvas-task-history > ul {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--task-inset);
 }
 .canvas-task-history li button {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 14px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  padding: 10px 12px;
+  min-height: 58px;
+  padding: 8px;
+  border: 1px solid var(--task-line);
+  border-radius: 9px;
+  background: var(--task-paper);
+  color: var(--task-ink);
   text-align: left;
-  color: inherit;
-  outline: none;
 }
-.canvas-task-history li button:is(:hover, :focus-visible) {
-  background: var(--board-muted, oklch(0.97 0 0));
-  outline: none;
+.canvas-task-history li button:enabled:hover {
+  background: var(--task-hover);
 }
 .canvas-task-history li button:disabled {
-  opacity: 0.6;
+  cursor: default;
+  opacity: 1;
+  color: var(--task-muted);
 }
-.canvas-task-history li button > span {
-  display: flex;
-  flex-direction: column;
+.canvas-task-kind {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--task-inset);
+  color: var(--task-muted);
+}
+.canvas-task-record,
+.canvas-task-result {
+  display: grid;
   gap: 2px;
   min-width: 0;
-  flex: 1;
 }
-.canvas-task-history strong,
-.canvas-task-history small {
+.canvas-task-result {
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+.canvas-task-result .canvas-task-status {
+  justify-self: end;
+}
+.canvas-task-record > * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.canvas-task-history strong {
-  font-weight: 500;
+.canvas-task-history small,
+.canvas-task-locate {
+  color: var(--task-muted);
+  font-size: 11px;
 }
-.canvas-task-history small {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--muted-foreground);
-  font-weight: 400;
-}
-.canvas-task-history strong small {
-  margin-left: 6px;
-}
-.canvas-task-history ul {
-  scrollbar-gutter: stable;
-}
-.canvas-task-history ul::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.canvas-task-history ul::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
-}
-.canvas-task-history ul::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
-}
-.canvas-task-history li button > span:first-child small {
-  color: var(--muted-foreground);
-}
-.canvas-task-history li button > span:last-child {
-  align-items: flex-end;
-  flex: none;
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--muted-foreground);
-}
-.canvas-task-history li button > span:last-child small {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-.canvas-task-history [data-status="succeeded"] {
-  color: var(--task-success, oklch(0.6 0.15 155));
-}
-.canvas-task-history :is([data-status="running"], [data-status="downloading"]) {
-  color: var(--task-running, oklch(0.58 0.15 250));
-}
-.canvas-task-history [data-status="failed"] {
-  color: var(--destructive);
-}
-@media (prefers-color-scheme: dark) {
+@media (prefers-reduced-motion: reduce) {
+  .canvas-task-backdrop,
   .canvas-task-history {
-    --task-success: oklch(0.75 0.15 155);
-    --task-running: oklch(0.75 0.12 240);
+    transition: none;
+  }
+  .canvas-task-wait svg {
+    animation: none;
   }
 }

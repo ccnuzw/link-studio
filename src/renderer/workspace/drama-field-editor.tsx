@@ -1,6 +1,7 @@
 import type { DramaDocument, ProjectRequest } from "@link-studio/core";
 import { Pencil } from "lucide-react";
 import { useRef, useState } from "react";
+import { DramaNotice } from "./drama-studio-status";
 
 export type FieldAccess = {
   projectHandle: string;
@@ -79,7 +80,7 @@ export function DramaFieldEditor({
           disabled={busy}
           onChange={(event) => setDraft(event.target.value)}
         />
-        {problem && <p role="alert">{problem}</p>}
+        {problem && <DramaNotice tone="error">{problem}</DramaNotice>}
         <footer>
           <button
             type="button"

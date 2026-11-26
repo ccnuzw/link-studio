@@ -142,6 +142,7 @@ export type ApprovalKind =
   | "drama_update_outline"
   | "drama_update_episode"
   | "drama_update_segment"
+  | "drama_update_asset_prompt"
   | "drama_run_job"
   | "admin_change"
   | "admin_secret"

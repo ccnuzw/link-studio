@@ -103,6 +103,12 @@ export class LocalAgentRuntime {
             ),
             targets,
             options.settings,
+            (runId) => {
+              const payload = store.firstRunUserMessage(runId)?.payload;
+              return payload && typeof payload === "object" && "page_context" in payload
+                ? payload.page_context
+                : undefined;
+            },
           )
         : createLocalGateway({ targets, onEffectCommitted: options.onEffectCommitted });
       if (options.settings) await reconcileSettingsDecisions(store, platform, options.settings);
@@ -265,6 +271,7 @@ export class LocalAgentRuntime {
               "drama_update_episode",
               "drama_update_outline",
               "drama_update_segment",
+              "drama_update_asset_prompt",
               "drama_run_job",
             ].includes(approval.kind)
           )
@@ -284,7 +291,7 @@ export class LocalAgentRuntime {
             run.id,
             "approval.decided",
             `approval:${approval.id}`,
-            { kind: approval.kind, status, result },
+            { kind: approval.kind, payload: approval.payload, status, result },
           );
           this.store.updateApprovalIf(approval.id, ["approved"], { status, result });
         }

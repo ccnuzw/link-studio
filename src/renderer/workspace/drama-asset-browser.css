@@ -59,6 +59,13 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--asset-line);
 }
+.drama-asset-bar > .drama-notice {
+  flex: 1 1 220px;
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--asset-fg);
+  font-size: 12px;
+}
 .drama-asset-toggle {
   display: flex;
   border: 0;

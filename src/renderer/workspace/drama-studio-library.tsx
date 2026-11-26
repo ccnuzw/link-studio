@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useThumbURL } from "./canvas-prompt-editor";
 import type { DramaAssetEditor } from "./drama-asset-browser";
 import { studioAssetDragType, studioAssets } from "./drama-studio-assets";
+import { DramaEmptyState } from "./drama-studio-status";
 import "./drama-studio-library.css";
 
 const categories = [
@@ -149,17 +150,31 @@ export function StudioLibrary({
           ) : null;
         })}
         {!count && (
-          <p>
-            {error
-              ? "资产读取失败"
-              : !editor.ready
-                ? "加载中…"
-                : extracting.includes(episodeNo) || (all && extracting.length > 0)
-                  ? "正在拆解资产…"
-                  : available.length > 0 && !all
-                    ? "本集没有关联资产，可切换到「全集」"
-                    : "暂无资产"}
-          </p>
+          <DramaEmptyState
+            compact
+            title={
+              error
+                ? "资产读取失败"
+                : !editor.ready
+                  ? "正在加载资产"
+                  : extracting.includes(episodeNo) || (all && extracting.length > 0)
+                    ? "正在拆解资产"
+                    : available.length > 0 && !all
+                      ? "本集没有关联资产"
+                      : "暂无资产"
+            }
+            description={
+              error
+                ? "请稍后重试或重新打开资产管理。"
+                : !editor.ready
+                  ? "正在准备可拖入片段提示词的素材。"
+                  : extracting.includes(episodeNo) || (all && extracting.length > 0)
+                    ? "资产拆解完成后会出现在这里。"
+                    : available.length > 0 && !all
+                      ? "可切换到「全集」查看全部关联资产。"
+                      : "完成资产拆解后，角色、场景和道具会出现在这里。"
+            }
+          />
         )}
       </div>
     </aside>

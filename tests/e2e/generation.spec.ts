@@ -26,6 +26,7 @@ import {
   clickBlankCanvas,
   createCanvasProject,
   editTextNode,
+  openCanvasAssetLibrary,
   projectAction,
 } from "./workspace-actions";
 
@@ -135,6 +136,21 @@ test("旧工程结果未知：任务中心区分缺少原绑定和仍可查询�
     const center = page.getByRole("region", { name: "生成任务中心" });
     const blocked = center.getByRole("article").filter({ hasText: "绑定缺失" });
     const available = center.getByRole("article").filter({ hasText: "绑定可用" });
+    const dock = page.getByRole("dialog", { name: "生成任务", exact: true });
+    const active = center.getByRole("button", { name: /^进行中/ });
+    const attention = center.getByRole("button", { name: /^需处理/ });
+    await active.click();
+    await expect(active).toHaveAttribute("aria-pressed", "true");
+    await expect(center.getByRole("status")).toHaveText("当前没有进行中的任务。");
+    await attention.click();
+    await expect(attention).toHaveAttribute("aria-pressed", "true");
+    await expect(center.getByRole("article")).toHaveCount(2);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect(dock).toHaveCSS("background-color", "rgb(27, 27, 27)");
+    await expect(attention).toHaveCSS("background-color", "rgb(48, 45, 74)");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(dock).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(attention).toHaveCSS("background-color", "rgb(237, 237, 252)");
     for (const viewport of [{ width: 1280, height: 800 }, compactViewport]) {
       await page.setViewportSize(viewport);
       await expect(blocked.getByText(/请到原供应商核对结果/)).toBeVisible();
@@ -450,7 +466,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     await projectAction(page, "生成任务");
     await expect(jobs.getByText("失败", { exact: true })).toBeVisible({ timeout: 25_000 });
     await expect(jobs.getByText("任务详情 · Sora 任务失败：cancelled")).toBeVisible();
-    await page.getByRole("button", { name: "关闭侧栏" }).click();
+    await page.getByRole("button", { name: "关闭任务" }).click();
     const resultNotice = page.locator(".pet-request").getByRole("button", { name: /^生成失败/ });
     await resultNotice.hover();
     await expect(resultNotice).toContainText("Sora 任务失败：cancelled");
@@ -475,9 +491,9 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     await projectAction(page, "生成任务");
     await expect(jobs.getByText("失败", { exact: true })).toHaveCount(2, { timeout: 25_000 });
     await expect(jobs.getByText("任务详情 · 镜头时长不受支持")).toBeVisible();
-    await page.getByRole("button", { name: "关闭侧栏" }).click();
-    await page.getByRole("button", { name: "任务历史" }).click();
-    const history = page.getByRole("dialog", { name: "任务历史" }),
+    await page.getByRole("button", { name: "关闭任务" }).click();
+    await page.getByRole("button", { name: "任务" }).click();
+    const history = page.getByRole("dialog", { name: "生成任务", exact: true }),
       rows = history.getByRole("listitem");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText(historyModelKey);
@@ -905,7 +921,7 @@ for (const [followMode, title] of [
       const destination = page.getByRole("dialog", { name: "加入资产库" });
       await destination.getByRole("button", { name: "加入", exact: true }).click();
       await expect(destination).toHaveCount(0);
-      await page.getByRole("button", { name: "资产库", exact: true }).click();
+      await openCanvasAssetLibrary(page);
       const assetPicker = page.getByRole("dialog", { name: "资产库" });
       await expect(
         assetPicker.locator('.asset-pick-card[data-source="library"][data-kind="image"]'),
@@ -1112,9 +1128,9 @@ for (const [followMode, title] of [
         await expect(canvasAssistant.getByRole("region", { name: "等待读取的插话" })).toContainText(
           "1 张图",
         );
-        const explain = canvasAssistant.getByRole("option", { name: /告诉 Agent 怎么改/ });
+        const explain = canvasAssistant.getByRole("option", { name: /告诉小灵怎么改/ });
         await explain.click();
-        const input = canvasAssistant.getByRole("textbox", { name: /告诉 Agent 怎么改/ });
+        const input = canvasAssistant.getByRole("textbox", { name: /告诉小灵怎么改/ });
         await input.press("Escape");
         await expect(explain).toBeFocused();
         await explain.press("Enter");
@@ -2075,7 +2091,12 @@ for (const [followMode, title] of [
       await assistant.getByLabel("画布消息").fill("切换面板后保留的草稿");
       await projectAction(reopened, "运行环境");
       await expect(assistant).toBeHidden();
-      await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
+      await reopened
+        .getByRole("navigation", { name: "设置分类" })
+        .getByRole("button", { name: /^返回/ })
+        .click();
+      if (!(await assistant.isVisible()))
+        await reopened.getByRole("button", { name: "打开小灵", exact: true }).click();
       await expectDraft(assistant.getByLabel("画布消息"), "切换面板后保留的草稿");
 
       const profile = await reopened.evaluate(async () => {
@@ -2086,7 +2107,7 @@ for (const [followMode, title] of [
       if (!profile) throw new Error("Missing settings model");
       await projectAction(reopened, "模型设置");
       await expect(reopened).toHaveTitle("灵可 · Link Studio");
-      await reopened.getByRole("button", { name: "设置助手" }).click();
+      await reopened.getByRole("button", { name: "设置小灵" }).click();
       nextTool = {
         name: "admin_propose_changes",
         args: {

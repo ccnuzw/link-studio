@@ -20,6 +20,7 @@ import {
   Box,
   Camera,
   ChevronDown,
+  ListTodo,
   Loader2,
   Maximize2,
   Shapes,
@@ -54,6 +55,7 @@ import { ReferenceStrip } from "./reference-strip";
 import { ReferenceTile } from "./reference-tile";
 import { VideoModeTabs } from "./video-mode-tabs";
 import { mediaModeForSource, referenceUsed } from "./video-modes";
+import "./canvas-generation-tasks.css";
 
 type Picker = "parameters" | PresetKind;
 
@@ -1289,6 +1291,12 @@ export function GenerationForm({
   );
 }
 
+const jobFilters = [
+  ["all", "全部", "还没有生成任务。选择创作节点后即可开始生成。"],
+  ["active", "进行中", "当前没有进行中的任务。"],
+  ["attention", "需处理", "没有失败或结果未知的任务。"],
+] as const;
+
 export function JobCenter({
   jobs,
   assets,
@@ -1304,6 +1312,12 @@ export function JobCenter({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<(typeof jobFilters)[number][0]>("all");
+  const groups = {
+    all: jobs,
+    active: jobs.filter(({ status }) => !jobIsTerminal(status)),
+    attention: jobs.filter(({ status }) => status === "failed" || status === "outcome_unknown"),
+  };
   const act = async (action: "cancelJob" | "recheckJob", id: string) => {
     setBusy(true);
     try {
@@ -1314,86 +1328,113 @@ export function JobCenter({
   };
   return (
     <section className="job-center" aria-label="生成任务中心">
-      <header>
-        <h2>生成任务</h2>
-        <span>{jobs.filter(({ status }) => !jobIsTerminal(status)).length} 项进行中</span>
-      </header>
-      {!jobs.length && <p className="muted">选择创作节点，打开生成面板。</p>}
-      {error && <p role="alert">{error}</p>}
-      {jobs.map((job) => (
-        <article key={job.id} className="job-row">
-          <strong>
-            {job.purpose === "character-voice" ? "角色音色 · " : ""}
-            {job.providerLabel} · {job.model}
-          </strong>
-          <small>
-            {new Date(job.createdAt).toLocaleString()} · {job.nodeId}
-          </small>
-          <span>
-            {job.cancelRequested
-              ? "正在请求取消"
-              : job.status === "queued" && job.afterImageJobId
-                ? "等待形象生成并绑定主图"
-                : generationStatuses[job.status]}
-          </span>
-          {!jobIsTerminal(job.status) && (
-            <progress aria-label="生成进度" value={job.progress} max={100} />
-          )}
-          {job.status === "succeeded" && job.purpose === "character-voice" && !job.bound && (
-            <small>试听后，可在角色卡中采用此音色。</small>
-          )}
-          {job.status === "succeeded" && !job.bound && !job.purpose && (
-            <small>来源节点已修改或移除，仍可在生成任务和项目文件中查看结果。</small>
-          )}
-          {job.error && (
+      <fieldset className="job-center-filters" data-ui-group aria-label="筛选生成任务">
+        {jobFilters.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={filter === key}
+            onClick={() => setFilter(key)}
+          >
+            {label} <span>{groups[key].length}</span>
+          </button>
+        ))}
+      </fieldset>
+      <div className="job-center-list">
+        {error && <p role="alert">{error}</p>}
+        {!groups[filter].length && (
+          <div className="job-center-empty" role="status">
+            <ListTodo aria-hidden="true" size={26} />
+            <p>{jobFilters.find(([key]) => key === filter)?.[2]}</p>
+          </div>
+        )}
+        {groups[filter].map((job) => (
+          <article key={job.id} className="job-row">
+            <div className="job-row-heading">
+              <strong>
+                {job.purpose === "character-voice" ? "角色音色 · " : ""}
+                {job.providerLabel} · {job.model}
+              </strong>
+              <span className="canvas-task-status" data-status={job.status}>
+                {job.cancelRequested ? "正在请求取消" : generationStatuses[job.status]}
+              </span>
+            </div>
             <small>
-              {job.error === "JOB_ORIGINAL_BINDING_MISSING"
-                ? missingJobBindingMessage
-                : job.error === "JOB_OUTCOME_UNKNOWN"
-                  ? "请核对供应商状态，避免重复消费。"
-                  : job.error === "JOB_QUEUE_TIMEOUT"
-                    ? "排队超时，任务未提交给供应商。"
-                    : job.error === "JOB_IMAGE_DEPENDENCY_FAILED"
-                      ? "本次形象未能用作主图参考，音色未发送。"
-                      : `任务详情 · ${jobFailureReason(job)}`}
+              {new Date(job.createdAt).toLocaleString()} · {job.nodeId}
             </small>
-          )}
-          {job.outputs.map((output) => {
-            if ("text" in output)
-              return (
-                <details key={`text:${output.text}`}>
-                  <summary>生成文本</summary>
-                  <p>{output.text}</p>
-                </details>
-              );
-            const asset = assets.find(({ assetId }) => assetId === output.assetId);
-            return (
-              asset?.availability === "ready" && (
-                <button type="button" key={asset.assetId} onClick={() => onPreview(asset)}>
-                  预览{asset.displayName}
+            {!job.cancelRequested && job.status === "queued" && job.afterImageJobId && (
+              <small>等待形象生成并绑定主图</small>
+            )}
+            {!jobIsTerminal(job.status) && (
+              <div className="job-row-progress">
+                <progress aria-label="生成进度" value={job.progress} max={100} />
+                <span aria-hidden="true">{Math.round(job.progress)}%</span>
+              </div>
+            )}
+            {job.status === "succeeded" && job.purpose === "character-voice" && !job.bound && (
+              <small>试听后，可在角色卡中采用此音色。</small>
+            )}
+            {job.status === "succeeded" && !job.bound && !job.purpose && (
+              <small>来源节点已修改或移除，仍可在生成任务和项目文件中查看结果。</small>
+            )}
+            {job.error && (
+              <small>
+                {job.error === "JOB_ORIGINAL_BINDING_MISSING"
+                  ? missingJobBindingMessage
+                  : job.error === "JOB_OUTCOME_UNKNOWN"
+                    ? "请核对供应商状态，避免重复消费。"
+                    : job.error === "JOB_QUEUE_TIMEOUT"
+                      ? "排队超时，任务未提交给供应商。"
+                      : job.error === "JOB_IMAGE_DEPENDENCY_FAILED"
+                        ? "本次形象未能用作主图参考，音色未发送。"
+                        : `任务详情 · ${jobFailureReason(job)}`}
+              </small>
+            )}
+            {job.status === "running" && !job.canCancelRemote && (
+              <small>供应商未确认可取消。</small>
+            )}
+            <div className="job-row-actions">
+              {job.outputs.map((output) => {
+                if ("text" in output)
+                  return (
+                    <details key={`text:${output.text}`}>
+                      <summary>生成文本</summary>
+                      <p>{output.text}</p>
+                    </details>
+                  );
+                const asset = assets.find(({ assetId }) => assetId === output.assetId);
+                return (
+                  asset?.availability === "ready" && (
+                    <button type="button" key={asset.assetId} onClick={() => onPreview(asset)}>
+                      预览{asset.displayName}
+                    </button>
+                  )
+                );
+              })}
+              {(job.status === "queued" ||
+                (job.status === "running" && job.canCancelRemote && !job.cancelRequested)) && (
+                <button type="button" disabled={busy} onClick={() => void act("cancelJob", job.id)}>
+                  请求取消
                 </button>
-              )
-            );
-          })}
-          {(job.status === "queued" ||
-            (job.status === "running" && job.canCancelRemote && !job.cancelRequested)) && (
-            <button type="button" disabled={busy} onClick={() => void act("cancelJob", job.id)}>
-              请求取消
-            </button>
-          )}
-          {job.status === "running" && !job.canCancelRemote && <small>供应商未确认可取消。</small>}
-          {job.status === "outcome_unknown" && job.canRecheck && (
-            <button type="button" disabled={busy} onClick={() => void act("recheckJob", job.id)}>
-              查询原任务
-            </button>
-          )}
-          {job.status === "failed" && (
-            <button type="button" onClick={() => onRetry(job.nodeId, job.purpose)}>
-              重新配置并生成
-            </button>
-          )}
-        </article>
-      ))}
+              )}
+              {job.status === "outcome_unknown" && job.canRecheck && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void act("recheckJob", job.id)}
+                >
+                  查询原任务
+                </button>
+              )}
+              {job.status === "failed" && (
+                <button type="button" onClick={() => onRetry(job.nodeId, job.purpose)}>
+                  重新配置并生成
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

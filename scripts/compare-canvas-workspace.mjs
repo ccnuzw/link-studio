@@ -161,21 +161,8 @@ try {
       desktop,
       await readFile("resources/icons/icon-32.png", "base64"),
     );
-  await desktop.getByRole("button", { name: /^新建画布项目/ }).click();
-  await desktop.getByRole("textbox", { name: "新项目名称" }).fill(title);
-  await desktop.getByRole("button", { name: "选择保存位置…" }).click();
-  await desktop.getByRole("button", { name: "更多", exact: true }).click();
-  await desktop.getByRole("menuitem", { name: "主题", exact: true }).press("ArrowRight");
-  await desktop
-    .getByRole("menuitemradio", { name: theme === "dark" ? "深色" : "浅色", exact: true })
-    .click();
-  await expect
-    .poll(() => desktop.evaluate(() => matchMedia("(prefers-color-scheme:dark)").matches))
-    .toBe(theme === "dark");
-  await desktop.getByRole("button", { name: "画布菜单" }).click();
-  await desktop.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
   const chosen = desktop.waitForEvent("filechooser");
-  await desktop.getByRole("menuitem", { name: "导入画布" }).click();
+  await desktop.getByRole("button", { name: "导入为新画布…", exact: true }).click();
   await (await chosen).setFiles({
     name: "workspace.canvas.json",
     mimeType: "application/json",
@@ -191,6 +178,14 @@ try {
     ),
   });
   await expect(desktop.locator(".react-flow__edge")).toHaveCount(1);
+  await desktop.getByRole("button", { name: "更多", exact: true }).click();
+  await desktop.getByRole("menuitem", { name: "主题", exact: true }).press("ArrowRight");
+  await desktop
+    .getByRole("menuitemradio", { name: theme === "dark" ? "深色" : "浅色", exact: true })
+    .click();
+  await expect
+    .poll(() => desktop.evaluate(() => matchMedia("(prefers-color-scheme:dark)").matches))
+    .toBe(theme === "dark");
   const display = await desktop.evaluate(() => ({
     width: innerWidth,
     height: innerHeight,
@@ -810,8 +805,13 @@ try {
     await page.mouse.up();
     await page.mouse.move(95, 97);
     await capture("dragged");
-    await page.getByRole("button", { name: "任务历史" }).click();
-    await expect(page.getByRole("dialog", { name: "任务历史" })).toBeVisible();
+    const desktopPage = page === desktop;
+    await page
+      .getByRole("button", { name: desktopPage ? "任务" : "任务历史", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: desktopPage ? "生成任务" : "任务历史" }),
+    ).toBeVisible();
     await page.mouse.move(500, 250);
     await capture("history");
   }

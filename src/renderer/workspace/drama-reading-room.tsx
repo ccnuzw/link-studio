@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState, useSyncExternalStore } from "react";
+import { AssistantLauncher } from "./assistant-workspace";
 import { CanvasAccountPill } from "./canvas-account-pill";
 import { CanvasTextMarkdown } from "./canvas-text-markdown";
 import { DramaCommandMenu } from "./drama-command-menu";
@@ -64,6 +65,7 @@ export function DramaWorkspaceHeader({
     breakdown: () => void;
     rewriteScripts?: () => void;
     toggleTheme?: () => void;
+    assistant?: { open: boolean; toggle: () => void };
     tasks: import("./drama-task-pill").TaskControls;
   };
 }) {
@@ -112,6 +114,16 @@ export function DramaWorkspaceHeader({
       </div>
       {children}
       <div className="drama-work-tools">
+        {controls?.assistant && (
+          <AssistantLauncher
+            className="drama-assistant-launcher"
+            title={controls.assistant.open ? "收起小灵" : "打开小灵"}
+            aria-expanded={controls.assistant.open}
+            onClick={controls.assistant.toggle}
+          >
+            小灵
+          </AssistantLauncher>
+        )}
         <button
           type="button"
           onClick={settings}
@@ -129,6 +141,7 @@ export function DramaWorkspaceHeader({
             breakdown={controls.breakdown}
             rewriteScripts={controls.rewriteScripts}
             toggleTheme={controls.toggleTheme}
+            assistant={controls.assistant}
           />
         )}
         {controls?.toggleTheme && (

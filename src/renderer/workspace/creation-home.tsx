@@ -185,7 +185,7 @@ export function CreationHome({
             <ArrowRight size={16} />
           </button>
           <div className="home-record-actions">
-            {!project.projectKind && (
+            {(!project.projectKind || (project.projectKind === "canvas" && project.hasDrama)) && (
               <button
                 type="button"
                 disabled={busy}

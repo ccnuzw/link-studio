@@ -81,6 +81,7 @@ import {
   dramaDocument,
   editDramaField,
   reorderDramaSegments,
+  resolveDramaAssistantContext,
   saveDramaScript,
   setDramaSegmentPrompt,
   setDramaSegmentSeconds,
@@ -108,6 +109,7 @@ import type { ProjectStore } from "./store.ts";
 
 interface RecentEntry {
   projectKind?: "canvas" | "drama";
+  hasDrama?: boolean;
   recentEntryId: string;
   projectId: string;
   displayName: string;
@@ -2029,8 +2031,17 @@ export class ProjectIpc {
               const { action, mode } = request as ProjectRequest<"canvasAgent">;
               if (mode === "drama" && !dramaDocument(store.snapshot))
                 throw new ProjectError("AGENT_SCOPE_DENIED", "当前项目没有短剧");
+              const context =
+                action.method === "send" && action.dramaContext ? action.dramaContext : undefined;
+              if (context && (mode !== "drama" || (action.method === "send" && action.runId)))
+                throw new ProjectError("AGENT_SCOPE_DENIED", "本轮不能更改短剧引用");
               const { agent, observeSession } = await this.settings();
-              const result = await agent.runCanvas(this.canvasAgent.key(store), action, mode);
+              const result = await agent.runCanvas(
+                this.canvasAgent.key(store),
+                action,
+                mode,
+                context ? resolveDramaAssistantContext(store.snapshot, context) : undefined,
+              );
               if (action.method === "state")
                 observeSession(window.webContents.id, mode ?? "canvas", action.sessionId);
               if (action.method !== "exportDiagnostics") return result as ProjectValues[Method];
@@ -3390,6 +3401,7 @@ export class ProjectIpc {
     name: string;
     directory: string;
     projectKind?: "canvas" | "drama";
+    hasDrama?: boolean;
   }) {
     await this.loadRecents();
     const canonical = await import("node:fs/promises").then(({ realpath }) =>
@@ -3401,6 +3413,7 @@ export class ProjectIpc {
       projectId: session.projectId,
       displayName: session.name,
       projectKind: session.projectKind ?? existing?.projectKind,
+      hasDrama: session.hasDrama,
       displayPath: canonical,
       directory: canonical,
       lastOpenedAt: new Date().toISOString(),

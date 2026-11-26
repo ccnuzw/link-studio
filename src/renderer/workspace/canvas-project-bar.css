@@ -93,7 +93,3 @@
 .canvas-frame-menu.canvas-view-menu.canvas-brand-menu {
   width: 208px;
 }
-.canvas-frame-menu.canvas-brand-extras {
-  max-height: var(--available-height);
-  overflow: auto;
-}

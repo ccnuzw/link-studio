@@ -81,26 +81,23 @@ export function GenerationApprovalCard({
 
 export function GenerationRequestDetails({ items }: { items: Item[] }) {
   return (
-    <details className="generation-request-details">
-      <summary>查看端点和出站内容</summary>
+    <>
       <p>供应商可能计费。</p>
       {items.map((item) => {
         const request = item.request as
           | { prompt?: string; referenceAssetIds?: string[] }
           | undefined;
         return (
-          <section key={String(item.node_id)}>
+          <section key={String(item.node_id)} className="generation-request-entry">
             <strong>{String(item.label)}</strong>
-            <p>
-              {String(item.model)} · {String(item.endpoint)}
-            </p>
-            <p>{request?.prompt}</p>
+            <p>{[item.model, item.endpoint].filter(Boolean).join(" · ")}</p>
+            {request?.prompt && <p>{request.prompt}</p>}
             {!!request?.referenceAssetIds?.length && (
               <p>参考素材 {request.referenceAssetIds.join("、")}</p>
             )}
           </section>
         );
       })}
-    </details>
+    </>
   );
 }

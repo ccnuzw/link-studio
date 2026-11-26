@@ -146,7 +146,7 @@ try {
   await desktop.getByRole("button", { name: "技能管理", exact: true }).click();
   await expect(desktop.getByRole("button", { name: "切换到深色", exact: true })).toBeVisible();
   await expect(desktop.getByText("共 0 个", { exact: true })).toBeVisible();
-  await desktop.getByRole("button", { name: "设置助手", exact: true }).click();
+  await desktop.getByRole("button", { name: "设置小灵", exact: true }).click();
   await expect(desktop.getByText(noModel, { exact: true })).toBeVisible();
   const panels = [],
     labels = [],
@@ -215,7 +215,7 @@ try {
     (await nav.boundingBox()).y + (await nav.boundingBox()).height <= geometry.desktop.panel.y,
   );
   await expect(desktop.getByRole("button", { name: "切换设置侧栏" })).toHaveCount(0);
-  const trigger = desktop.getByRole("button", { name: "设置助手", exact: true });
+  const trigger = desktop.getByRole("button", { name: "设置小灵", exact: true });
   await desktop.setViewportSize({ width: 1080, height: 720 });
   await expect
     .poll(async () => (await desktop.locator(".channel-settings-body").boundingBox()).width)
@@ -224,7 +224,7 @@ try {
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
   await desktop.setViewportSize({ width: 767, height: 580 });
-  await desktop.getByRole("button", { name: "收起设置助手", exact: true }).click();
+  await desktop.getByRole("button", { name: "收起设置小灵", exact: true }).click();
   await expect(trigger).toBeFocused();
   const fixture = createSkillRows();
   skillRows = fixture.map((row) => row.baseline);
@@ -266,7 +266,7 @@ try {
   const listImages = [];
   for (const [side, page, triggerName] of [
     ["baseline", baseline, "小镜"],
-    ["desktop", populated, "设置助手"],
+    ["desktop", populated, "设置小灵"],
   ]) {
     await page.getByRole("button", { name: triggerName, exact: true }).click();
     await expect(page.getByText(noModel, { exact: true })).toBeVisible();
@@ -295,7 +295,7 @@ try {
   report.rows = {};
   for (const [side, page, triggerName] of [
     ["baseline", baseline, "小镜"],
-    ["desktop", populated, "设置助手"],
+    ["desktop", populated, "设置小灵"],
   ]) {
     const row = page.locator('[data-skill-name="fixture-003"]');
     const pending = page.locator('[data-skill-name="fixture-006"]');

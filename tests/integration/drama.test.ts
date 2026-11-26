@@ -16,6 +16,7 @@ import {
   deleteDramaEpisode,
   dramaDocument,
   reorderDramaSegments,
+  resolveDramaAssistantContext,
   saveDramaScript,
   setDramaSegmentPrompt,
   setDramaSegmentSeconds,
@@ -25,7 +26,11 @@ import { adaptDramaSegment } from "../../src/main/project/drama-adaptation";
 import { type DramaAsset, mergeDramaAssets } from "../../src/main/project/drama-assets";
 import { syncDramaBoards } from "../../src/main/project/drama-boards";
 import { estimateDramaJob } from "../../src/main/project/drama-estimate";
-import { storyboardClearHash, submitApprovedDramaJob } from "../../src/main/project/drama-job";
+import {
+  dramaJobTargetHash,
+  storyboardClearHash,
+  submitApprovedDramaJob,
+} from "../../src/main/project/drama-job";
 import {
   controlDramaPlanning,
   extendDramaPlanning,
@@ -1757,6 +1762,114 @@ test("跨集别名复用资产，保留确认的形象和提示词", async () =>
   }
 });
 
+test("短剧助手固定发送引用，资产审批隔离运行并防止覆盖更新", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drama-assistant-"));
+  const store = await ProjectStore.create(root, "站台");
+  const other = await ProjectStore.create(root, "另一部");
+  const tools = new DramaTools();
+  try {
+    const doc = await createDrama(store, {
+      title: "站台",
+      script: "第一集 来客\n停车。\n第二集 夜班\n关灯。",
+    });
+    await createDrama(other, { title: "另一部", script: "门开了。" });
+    const next = await addDramaSegment(store, {
+      revision: doc.revision,
+      episode_no: 2,
+      seconds: 5,
+      prompt: "停车",
+    });
+    const segment = requireTestValue(next.segments?.[0]);
+    const assetId = await store.updateGeneration((state) => {
+      const [created] = mergeDramaAssets(state, [
+        {
+          type: "scene",
+          name: "站台",
+          episodes: [2],
+          aliases: [],
+          description: "旧提示词",
+          look: "",
+          voice_prompt: "",
+        },
+      ]);
+      return { changed: true, result: requireTestValue(created).node_id };
+    });
+    const context = {
+      stage: "studio" as const,
+      episodeNo: 2,
+      episodeOrder: 0,
+      segmentId: segment.id,
+      assetId,
+    };
+    expect(resolveDramaAssistantContext(store.snapshot, context)).toMatchObject({
+      ...context,
+      segmentNumber: 1,
+      assetName: "站台",
+    });
+    expect(() =>
+      resolveDramaAssistantContext(store.snapshot, { ...context, episodeNo: 1 }),
+    ).toThrow(expect.objectContaining({ code: "DRAMA_ASSISTANT_CONTEXT_STALE" }));
+    expect(() => resolveDramaAssistantContext(other.snapshot, { assetId })).toThrow(
+      expect.objectContaining({ code: "DRAMA_ASSISTANT_CONTEXT_STALE" }),
+    );
+    const kind = "drama_update_asset_prompt";
+    const runId = "author";
+    const read = (episode_no: number) =>
+      tools.command(store, "drama-read", {
+        runId,
+        input: { scope: "asset", asset_id: assetId, episode_no },
+      });
+    const propose = (prompt: string, owner = runId) =>
+      tools.command(store, "drama-preview", {
+        runId: owner,
+        kind,
+        input: { asset_id: assetId, prompt },
+      });
+    await expect(propose("灯光变暗")).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
+    await expect(read(1)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(read(2)).resolves.toMatchObject({ name: "站台", episodes: [2] });
+    await expect(propose("越过读取", "other-run")).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    const applied = { runId, kind, id: "approved", input: await propose("灯光变暗") };
+    const stale = { ...applied, id: "competing", input: await propose("灯光变蓝") };
+    await tools.command(store, "drama-apply", applied);
+    await tools.command(store, "drama-apply", applied);
+    await expect(tools.command(store, "drama-apply", stale)).rejects.toMatchObject({
+      code: "AGENT_APPROVAL_STALE",
+    });
+    await expect(tools.command(store, "drama-receipt", applied)).resolves.toEqual({
+      applied: true,
+    });
+    await expect(read(2)).resolves.toMatchObject({ prompt: "灯光变暗" });
+    const request = { step: "breakdown" as const, episodes: [2] };
+    const targetHash = dramaJobTargetHash(requireTestValue(dramaDocument(store.snapshot)), request);
+    await saveDramaScript(store, {
+      episode_no: 2,
+      revision: 1,
+      episodeOrder: 0,
+      script_md: "不同版本的剧本",
+    });
+    await expect(
+      submitApprovedDramaJob(store, {} as SettingsRegistry, runId, "job", {
+        args: request,
+        estimate: 0,
+        targetHash,
+      }),
+    ).rejects.toMatchObject({ code: "AGENT_APPROVAL_STALE" });
+    await deleteDramaEpisode(store, { episode_no: 1, episodeOrder: 0 });
+    expect(() => resolveDramaAssistantContext(store.snapshot, context)).toThrow(
+      expect.objectContaining({ code: "DRAMA_ASSISTANT_CONTEXT_STALE" }),
+    );
+    await expect(
+      tools.command(store, "drama-read", { runId, input: { scope: "jobs", episode_no: 1 } }),
+    ).resolves.toEqual([]);
+  } finally {
+    await Promise.all([store.close(), other.close()]);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("短剧写入需要同一运行先读，审批重放幂等，过期修改不覆盖，重开仍可读取", async () => {
   const root = await mkdtemp(join(tmpdir(), "link-drama-store-"));
   let store = await ProjectStore.create(root, "第一部");
@@ -1842,6 +1955,28 @@ test("短剧写入需要同一运行先读，审批重放幂等，过期修改�
     await store.close();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("旧项目缺少可选版本时仍可生成任务审批指纹", () => {
+  const episode = { episode_no: 1, title: "来客", synopsis: "", script_md: "敲门。" };
+  const legacy = {
+    title: "回声",
+    revision: 7,
+    outline_md: "来客敲门。",
+    characters_md: "",
+    episodes: [episode],
+  };
+  const request = { step: "compose" as const, episodes: [1] };
+  const hash = dramaJobTargetHash(legacy, request);
+  expect(hash).toBe(
+    dramaJobTargetHash(
+      { ...legacy, overview_revision: 7, episodes: [{ ...episode, segment_version: 0 }] },
+      request,
+    ),
+  );
+  expect(hash).not.toBe(
+    dramaJobTargetHash({ ...legacy, episodes: [{ ...episode, segment_version: 1 }] }, request),
+  );
 });
 
 test("旧项目的大纲审批跨分集与片段变更仍可提交，同一版大纲只能改一次", async () => {
