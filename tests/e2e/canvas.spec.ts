@@ -2303,12 +2303,13 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
       await expect(create).toBeEnabled();
     };
     await send("保留分镜");
-    const original = await history.getAttribute("aria-label");
+    const original = "历史会话，当前：分镜记录";
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.pressSequentially("discard");
     await expect(input).toHaveValue("discard");
     await input.press("Escape");
-    await expect(history).toHaveAccessibleName(requireTestValue(original));
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.pressSequentially("Storyboard");
     await input.press("Tab");
@@ -2320,6 +2321,7 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
     await create.click();
     await expect(history).toHaveAccessibleName("历史会话，当前：新对话");
     await send("删除草案");
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.fill("删除草案");
     await input.press("Enter");
@@ -3045,7 +3047,7 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     await page.getByRole("button", { name: "确认生成", exact: true }).click();
     await expect.poll(() => Boolean(finish)).toBe(true);
     await expect(body).toHaveText("生成中…");
-    await body.dblclick();
+    await body.dblclick({ position: { x: 10, y: 10 } });
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "复制文本" })).toHaveCount(0);
@@ -3355,7 +3357,9 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
       .toBe(1);
     await projectAction(page, "所选节点属性");
     const properties = page.getByRole("region", { name: "节点属性" });
-    const generate = properties.getByRole("button", { name: "生成内容", exact: true });
+    await expect(properties).toBeVisible();
+    await page.getByRole("button", { name: "关闭侧栏", exact: true }).click();
+    const generate = page.getByRole("button", { name: "生成内容", exact: true });
     await expect(generate).toBeEnabled();
     await generate.focus();
     await expect(generate).toBeFocused();
@@ -4817,7 +4821,7 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
       ).toEqual(
         audio
           ? ["音频修剪", "人声分离", "下载", "加入资产库"]
-          : ["截取帧", "视频修剪", "放大预览", "下载", "加入资产库"],
+          : ["截取帧", "视频修剪", "节点属性", "放大预览", "下载", "加入资产库"],
       );
       if (audio) {
         for (const name of ["音频修剪", "人声分离"]) {

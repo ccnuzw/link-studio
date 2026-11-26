@@ -423,7 +423,9 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
       await projectAction(page, "项目文件");
       await page.getByRole("combobox", { name: "导入方式" }).selectOption("reference");
       await page.getByRole("button", { name: "导入素材" }).click();
-      await expect(page.getByText("外部引用 · 0.0 MB")).toBeVisible();
+      await expect(page.getByRole("article", { name: "external.png" })).toContainText(
+        /外部引用 · \d+ B/,
+      );
       await page.getByRole("button", { name: "预览external.png" }).click();
       await expect
         .poll(() =>

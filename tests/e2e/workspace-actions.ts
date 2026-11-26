@@ -34,6 +34,7 @@ export async function createCanvasProject(page: Page, name?: string) {
   const dialog = page.getByRole("dialog", { name: "新建画布项目" });
   if (name) await dialog.getByLabel("新项目名称").fill(name);
   await dialog.getByRole("button", { name: "选择保存位置…" }).click();
+  await expect(page.getByLabel("画布名称", { exact: true })).toBeVisible();
 }
 
 export async function createDramaProject(page: Page, name?: string) {

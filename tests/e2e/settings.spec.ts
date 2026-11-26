@@ -60,6 +60,12 @@ async function pickEpisode(page: Page, no: number) {
 const stage = (page: Page, name: string) =>
   page.getByRole("tablist", { name: "制作工序" }).getByRole("tab", { name, exact: true }).click();
 
+async function expectDraftSegment(panel: Locator, prompt: string, seconds: number) {
+  const segment = panel.getByRole("listitem").filter({ hasText: prompt });
+  await expect(segment.getByText(prompt, { exact: true })).toBeVisible();
+  await expect(segment.getByText(`${seconds}s`, { exact: true })).toBeVisible();
+}
+
 async function checkEmptyHistory(assistant: Locator) {
   const history = assistant.getByRole("button", { name: /^历史会话，当前/ });
   await assistant.getByRole("button", { name: "新对话", exact: true }).click();
@@ -335,7 +341,8 @@ test("短剧：已建项目无可用模型时不显示输入框，重新启用�
         await ring.press("Escape");
         await starter.click();
         await expect(panel.getByRole("textbox", { name: "短剧消息" })).toBeFocused();
-        await expect(panel.getByRole("textbox", { name: "短剧消息" })).toHaveValue(
+        await expectDraft(
+          panel.getByRole("textbox", { name: "短剧消息" }),
           "把第 1 集的结尾改得更有悬念",
         );
         await panel.getByRole("button", { name: /^历史会话，当前/ }).click();
@@ -734,7 +741,11 @@ test("短剧：四批规划 204 集，选取末尾四集生成并重开", async 
     await page.getByRole("button", { name: /^长剧改编/ }).click();
     await pickEpisode(page, 201);
     await stage(page, "片场");
-    await expect(page.getByText("长路201的片段 · 5 秒")).toBeVisible();
+    await expectDraftSegment(
+      page.getByRole("region", { name: "分镜片段编辑" }),
+      "长路201的片段",
+      5,
+    );
     await stage(page, "剧本");
     await pickEpisode(page, 204);
     await rail
@@ -2054,7 +2065,9 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await expect(assistant.getByText("修改第 1 集", { exact: true })).toBeVisible();
     const document = page.locator(".drama-columns > article");
     await expect(document).toContainText("一声敲门声");
-    await expect(assistant.getByText("进行中 · 核对第一集结尾", { exact: true })).toBeVisible();
+    const runPlan = assistant.getByRole("region", { name: "本轮计划" });
+    await expect(runPlan.getByRole("button", { name: "展开计划" })).toContainText("核对第一集结尾");
+    await expect(runPlan).toContainText("0/1");
     expect(readSecond).toBe(true);
     await expect(assistant.getByText("第一集改写摘要", { exact: true })).toBeVisible();
     const summary = assistant.getByRole("region", { name: "第一集改写摘要" });
@@ -2112,7 +2125,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       .locator("section")
       .filter({ has: page.getByRole("heading", { name: "第 1 集 · 第一集 来客", exact: true }) });
     await stage(page, "片场");
-    await expect(firstEpisode.getByRole("listitem")).toHaveText("门扇慢慢打开 · 5 秒");
+    await expectDraftSegment(firstEpisode, "门扇慢慢打开", 5);
     for (const decision of ["保留原文", "批准修改"]) {
       await expect(assistant.getByRole("status")).toHaveText("就绪");
       segmentTurn = 1;
@@ -2124,11 +2137,11 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       await expect(card.getByRole("heading")).toHaveText("修改第 1 集片段 1");
       await expect(card.locator("del")).toHaveText("5");
       await expect(card.locator("ins")).toHaveText("8");
-      await expect(document.getByRole("listitem")).toHaveText("门扇慢慢打开 · 5 秒");
+      await expectDraftSegment(document, "门扇慢慢打开", 5);
       await card.getByRole("button", { name: decision }).click();
       await expect(card).toHaveCount(0);
     }
-    await expect(document.getByRole("listitem")).toHaveText("门扇慢慢打开 · 8 秒");
+    await expectDraftSegment(document, "门扇慢慢打开", 8);
     expect(readIdleSegment).toBe(true);
     await stage(page, "剧本");
     await pickEpisode(page, 3);
@@ -2147,7 +2160,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       .locator("section")
       .filter({ has: page.getByRole("heading", { name: "第 2 集 · 第二集 纸条", exact: true }) });
     await stage(page, "片场");
-    await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
+    await expectDraftSegment(secondEpisode, "纸条特写", 5);
     await page.getByRole("button", { name: "故事大纲" }).click();
     const outline = document.getByRole("region", { name: "故事大纲" });
     await expect(outline).toBeVisible();
@@ -2156,7 +2169,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     await expect(outline).toContainText("父女循着纸条在门口重逢。");
     await pickEpisode(page, 2);
     await stage(page, "片场");
-    await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
+    await expectDraftSegment(secondEpisode, "纸条特写", 5);
     await page.evaluate(async (endpoint) => {
       const channel = await window.desktop.settings.channelSave({
         expectedRevision: 0,
@@ -2340,7 +2353,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
           page.getByRole("button", { name: "重新生成分镜脚本", exact: true }),
         ).toBeEnabled();
       await pickEpisode(page, 2);
-      await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
+      await expectDraftSegment(secondEpisode, "纸条特写", 5);
       expect(stages.slice(firstStage)).toEqual([
         expect.stringMatching(/^单集分镜(?!格式化)/),
         expect.stringMatching(/^单集分镜格式化/),
@@ -2618,7 +2631,7 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
       .toBe(true);
     await expect(redo).toBeVisible();
     await pickEpisode(page, 2);
-    await expect(secondEpisode.getByRole("listitem")).toHaveText("纸条特写 · 5 秒");
+    await expectDraftSegment(secondEpisode, "纸条特写", 5);
     await page.getByRole("button", { name: "返回首页", exact: true }).click();
     const dramaPath = await dramaRecord.locator("small[title]").getAttribute("title");
     const reopened = await ProjectStore.open(requireTestValue(dramaPath));

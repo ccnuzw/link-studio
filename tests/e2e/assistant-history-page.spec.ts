@@ -191,7 +191,12 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(retry).toBeVisible();
         await expect(users).toHaveCount(33);
         const anchor = log.getByText("验收问题 58", { exact: true });
-        const y = () => anchor.evaluate((el) => el.getBoundingClientRect().top);
+        const y = () =>
+          anchor.evaluate((element) => {
+            const transcript = element.closest('[role="log"]');
+            if (!transcript) throw new Error("找不到历史记录容器");
+            return element.getBoundingClientRect().top - transcript.getBoundingClientRect().top;
+          });
         const original = await y();
         restore();
         seed(91, 91);
@@ -200,7 +205,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(latest).toBeVisible();
         await retry.click();
         await expect(users).toHaveCount(67);
-        expect(Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
+        await expect.poll(async () => Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
         await scrollToTop();
         await expect(users).toHaveCount(91);
         await expect(users.first()).toHaveText("验收问题 1");

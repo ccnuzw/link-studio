@@ -492,7 +492,7 @@ test("画布连线作为视频参考，断线与文生模式不发送原图", as
     await expect(jobs.getByText("失败", { exact: true })).toHaveCount(2, { timeout: 25_000 });
     await expect(jobs.getByText("任务详情 · 镜头时长不受支持")).toBeVisible();
     await page.getByRole("button", { name: "关闭任务" }).click();
-    await page.getByRole("button", { name: "任务" }).click();
+    await page.getByRole("button", { name: "任务", exact: true }).click();
     const history = page.getByRole("dialog", { name: "生成任务", exact: true }),
       rows = history.getByRole("listitem");
     await expect(rows).toHaveCount(2);
@@ -914,6 +914,8 @@ for (const [followMode, title] of [
         prompt: expect.stringMatching(/^给封面生成一张图片，古偶唯美柔光风格/),
       });
       await expect(imageNode.locator('.node-media img[src^="link-media:"]')).toBeVisible();
+      await page.getByRole("button", { name: "关闭任务", exact: true }).click();
+      await imageNode.click({ position: { x: 36, y: 36 } });
       await page
         .getByRole("toolbar", { name: /的功能区$/ })
         .getByRole("button", { name: "加入资产库" })
