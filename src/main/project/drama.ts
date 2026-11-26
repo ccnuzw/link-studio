@@ -3,6 +3,7 @@ import { requirePresent } from "@link-studio/core";
 import { Value } from "@sinclair/typebox/value";
 import {
   type CanvasOperation,
+  dramaAssetMeta,
   dramaBoardMeta,
 } from "../../../packages/link-studio-core/src/canvas.ts";
 import {
@@ -10,6 +11,8 @@ import {
   AddDramaSegment,
   DeleteDramaEpisode,
   DeleteDramaSegment,
+  type DramaAgentContext,
+  type DramaAgentSnapshot,
   DramaDocument,
   DramaEdits,
   DramaRead,
@@ -603,8 +606,48 @@ export async function updateDramaBoardSettings(
     return { changed: true, result: doc };
   });
 }
+export function resolveDramaAssistantContext(
+  state: ProjectState,
+  context: DramaAgentContext,
+): DramaAgentSnapshot {
+  const doc = dramaDocument(state);
+  const episode = doc?.episodes.find((entry) => entry.episode_no === context.episodeNo);
+  const segment = doc?.segments?.find((entry) => entry.id === context.segmentId);
+  const asset = context.assetId
+    ? projectCanvas(state.canvas).nodes.find((node) => node.id === context.assetId)
+    : undefined;
+  const assetMeta =
+    asset?.type === "creative" && !asset.data.director && dramaAssetMeta(asset.data);
+  if (
+    !doc ||
+    (context.episodeNo !== undefined && !episode) ||
+    ((context.episodeNo !== undefined || context.segmentId) &&
+      context.episodeOrder !== (doc.episode_order ?? 0)) ||
+    (context.segmentId && (!segment || (episode && segment.episode_no !== episode.episode_no))) ||
+    (context.assetId &&
+      (!assetMeta ||
+        (episode &&
+          assetMeta.episodes?.length &&
+          !assetMeta.episodes.includes(episode.episode_no))))
+  )
+    throw new ProjectError("DRAMA_ASSISTANT_CONTEXT_STALE", "引用已变更，请重新选择后发送");
+  return {
+    ...context,
+    ...(context.segmentId && segment && { segmentNumber: segment.seq + 1 }),
+    ...(assetMeta && { assetName: assetMeta.name }),
+  };
+}
+
+function dramaAssistantAssets(state: ProjectState) {
+  return projectCanvas(state.canvas).nodes.flatMap((node) => {
+    if (node.type !== "creative" || node.data.director) return [];
+    const meta = dramaAssetMeta(node.data);
+    return meta ? [{ node, meta }] : [];
+  });
+}
+
 export class DramaTools {
-  private reads = new Map<string, Map<string, number>>();
+  private reads = new Map<string, Map<string, number | string>>();
   async command(
     store: ProjectStore,
     command: string,
@@ -616,22 +659,84 @@ export class DramaTools {
     if (!doc) throw new ProjectError("AGENT_SCOPE_DENIED", "未创建短剧");
     if (command === "drama-prepare") return { title: doc.title };
     const { runId, input, kind } = args;
+    const readKey = JSON.stringify([store.directory, runId]);
+    const remember = (scope: string, revision: number | string) => {
+      if (this.reads.size >= 512 && !this.reads.has(readKey))
+        this.reads.delete(this.reads.keys().next().value ?? "");
+      const scopes = this.reads.get(readKey) ?? new Map<string, number | string>();
+      scopes.set(scope, revision);
+      this.reads.set(readKey, scopes);
+    };
     if (command === "drama-read") {
       if (!Value.Check(DramaRead, input)) return invalid();
       const ep = doc.episodes.find((entry) => entry.episode_no === input.episode_no);
-      if (input.scope !== "overview" && !ep) return invalid();
-      const readKey = JSON.stringify([store.directory, runId]);
-      const scopes = this.reads.get(readKey) ?? new Map<string, number>();
+      if ((input.episode_no !== undefined || ["episode", "segments"].includes(input.scope)) && !ep)
+        return invalid();
+      if (input.scope === "jobs") {
+        return (doc.jobs ?? [])
+          .filter(
+            (job) =>
+              (!input.job_id || job.id === input.job_id) &&
+              (!ep ||
+                ((job.episode_order ?? 0) === (doc.episode_order ?? 0) &&
+                  job.episodes.includes(ep.episode_no))),
+          )
+          .slice(-30)
+          .reverse()
+          .map(
+            ({
+              id,
+              step,
+              status,
+              episodes,
+              progress,
+              error_message,
+              prompt_error,
+              created_at,
+            }) => ({
+              id,
+              step,
+              status,
+              episodes,
+              progress,
+              error_message,
+              prompt_error,
+              created_at,
+            }),
+          );
+      }
+      if (input.scope === "assets") {
+        return dramaAssistantAssets(snapshot)
+          .filter(
+            ({ meta }) => !ep || !meta.episodes?.length || meta.episodes.includes(ep.episode_no),
+          )
+          .slice(0, 200)
+          .map(({ node, meta }) => ({
+            id: node.id,
+            ...meta,
+            has_prompt: !!node.data.text?.trim(),
+          }));
+      }
+      if (input.scope === "asset") {
+        const asset = dramaAssistantAssets(snapshot).find(({ node }) => node.id === input.asset_id);
+        if (!asset) return invalid();
+        const { node, meta } = asset;
+        if (ep && meta.episodes?.length && !meta.episodes.includes(ep.episode_no)) return invalid();
+        remember(`asset:${node.id}`, contentHash(node.data));
+        return {
+          id: node.id,
+          ...meta,
+          prompt: node.data.text ?? "",
+          media: dramaAssetView(snapshot.assets[node.data.assetId ?? ""]),
+        };
+      }
       const segments = (doc.segments ?? [])
         .filter((segment) => segment.episode_no === ep?.episode_no)
         .sort((first, second) => first.seq - second.seq);
-      if (input.scope === "overview") scopes.set("overview", doc.overview_revision ?? doc.revision);
+      if (input.scope === "overview") remember("overview", doc.overview_revision ?? doc.revision);
       else if (input.scope === "episode" && ep)
-        scopes.set(`episode:${doc.episode_order ?? 0}:${ep.episode_no}`, ep.revision ?? 1);
-      else for (const segment of segments) scopes.set(`segment:${segment.id}`, segment.revision);
-      if (this.reads.size >= 512 && !this.reads.has(readKey))
-        this.reads.delete(this.reads.keys().next().value ?? "");
-      this.reads.set(readKey, scopes);
+        remember(`episode:${doc.episode_order ?? 0}:${ep.episode_no}`, ep.revision ?? 1);
+      else for (const segment of segments) remember(`segment:${segment.id}`, segment.revision);
       if (input.scope === "segments")
         return segments.map((segment) => {
           const takes = segmentTakes(snapshot, segment);
@@ -771,6 +876,21 @@ export class DramaTools {
           };
     }
     if (command === "drama-preview") {
+      if (kind === "drama_update_asset_prompt") {
+        if (!Value.Check(DramaEdits[kind], input)) return invalid();
+        const asset = dramaAssistantAssets(snapshot).find(({ node }) => node.id === input.asset_id);
+        if (!asset) return stale();
+        const nodeVersion = contentHash(asset.node.data);
+        if (this.reads.get(readKey)?.get(`asset:${input.asset_id}`) !== nodeVersion) return stale();
+        return {
+          title: `修改资产「${asset.meta.name}」的提示词`,
+          assetId: asset.node.id,
+          nodeVersion,
+          reason: input.reason ?? "",
+          before: { prompt: asset.node.data.text ?? "" },
+          after: { prompt: input.prompt },
+        };
+      }
       const outline = kind === "drama_update_outline";
       const segment = kind === "drama_update_segment";
       if (!outline && !segment && kind !== "drama_update_episode") return invalid();
@@ -785,7 +905,7 @@ export class DramaTools {
         : segment
           ? currentSegment
           : doc.episodes.find((entry) => entry.episode_no === episode);
-      const read = this.reads.get(JSON.stringify([store.directory, runId]));
+      const read = this.reads.get(readKey);
       const scope = outline
         ? "overview"
         : segment
@@ -833,6 +953,8 @@ export class DramaTools {
       episodeOrder?: number;
       episode: number;
       segment_id?: string;
+      assetId?: string;
+      nodeVersion?: string;
       after: Record<string, unknown>;
     };
     const fingerprint = contentHash({ runId, kind, payload });
@@ -844,6 +966,21 @@ export class DramaTools {
       if (!current) return stale();
       if (state.extensions[receipt] === fingerprint)
         return { result: { applied: true }, changed: false };
+      if (kind === "drama_update_asset_prompt") {
+        const asset = dramaAssistantAssets(state).find(({ node }) => node.id === payload.assetId);
+        if (
+          state.extensions[receipt] !== undefined ||
+          !asset ||
+          contentHash(asset.node.data) !== payload.nodeVersion
+        )
+          return stale();
+        const edit = { ...payload.after, asset_id: payload.assetId };
+        if (!Value.Check(DramaEdits[kind], edit)) return invalid();
+        const node = { ...asset.node, data: { ...asset.node.data, text: edit.prompt } };
+        state.canvas = applyCanvas(state, [{ type: "putNode", node }]);
+        state.extensions[receipt] = fingerprint;
+        return { result: { applied: true }, changed: true };
+      }
       if ((payload.episodeOrder ?? 0) !== (current.episode_order ?? 0)) return stale();
       if (
         state.extensions[receipt] !== undefined ||
@@ -901,10 +1038,22 @@ export class DramaTools {
         (!outline || overviewRevision !== payload.overviewRevision)
       )
         return stale();
-      if (kind === "drama_update_episode") checkEpisodeLock(target, patch);
+      if (kind === "drama_update_episode") {
+        checkEpisodeLock(target, patch);
+        if (
+          typeof patch.script_md === "string" &&
+          current.jobs?.some((job) => episodeScriptPhase(job, payload.episode))
+        )
+          throw new ProjectError(
+            "AGENT_APPROVAL_STALE",
+            "正在生成这一集的剧本，请稍后重新申请审批",
+          );
+      }
       Object.assign(target, patch);
-      if ("script_md" in target && typeof patch.script_md === "string")
+      if ("script_md" in target && typeof patch.script_md === "string") {
         target.script_status = patch.script_md.trim() ? "ready" : "empty";
+        target.updated_at = new Date().toISOString();
+      }
       if (!outline) target.revision = (target.revision ?? 1) + 1;
       current.overview_revision = overviewRevision + Number(outline);
       current.revision++;

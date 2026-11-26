@@ -116,11 +116,11 @@
   background: color-mix(in oklab, var(--welcome-ink) 7%, transparent);
   box-shadow: 0 0 0 1px var(--drawer-line);
 }
-.settings-assistant .settings-context-chips button:hover:not(:disabled) {
+.assistant-surface .settings-context-chips button:hover:not(:disabled) {
   background: color-mix(in oklab, var(--welcome-ink) 10%, transparent);
   color: var(--welcome-ink);
 }
-.settings-assistant .settings-context-chips button:focus-visible {
+.assistant-surface .settings-context-chips button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px oklch(0.2 0 0 / 0.51);
 }
@@ -134,7 +134,7 @@
   .settings-user-message {
     --settings-sheen: oklch(1 0 0 / 0.09);
   }
-  .settings-assistant .settings-context-chips button:focus-visible {
+  .assistant-surface .settings-context-chips button:focus-visible {
     box-shadow: 0 0 0 2px oklch(1 0 0 / 0.432);
   }
 }
@@ -4073,7 +4073,7 @@
 .settings-context-chips[data-editable="true"] > span {
   padding-right: 2px;
 }
-.settings-assistant .settings-context-chips button {
+.assistant-surface .settings-context-chips button {
   display: grid;
   place-items: center;
   flex: none;

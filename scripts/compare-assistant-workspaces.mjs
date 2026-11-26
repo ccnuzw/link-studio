@@ -897,7 +897,7 @@ try {
         await page.getByRole("button", { name: "打开小灵", exact: true }).click();
       } else {
         await page.getByRole("button", { name: "应用设置" }).click();
-        await page.getByRole("button", { name: "设置助手" }).click();
+        await page.getByRole("button", { name: "设置小灵" }).click();
       }
       const panel = page.locator(
         scope === "canvas" ? ".assistant-frame" : ".settings-drawer-glass",

@@ -175,7 +175,10 @@ export function useAssistantSession(sessionId: string, readPage: ReadPage, visib
   };
 }
 
-export function useAssistantAction(onError: (code: string) => void) {
+export function useAssistantAction(
+  onError: (code: string) => void,
+  errorCode: (cause: unknown) => string = () => "AGENT_REQUEST_UNCERTAIN",
+) {
   const locked = useRef(false);
   const [busy, setBusy] = useState(false);
   const run = async (action: () => Promise<void>) => {
@@ -185,8 +188,8 @@ export function useAssistantAction(onError: (code: string) => void) {
     onError("");
     try {
       await action();
-    } catch {
-      onError("AGENT_REQUEST_UNCERTAIN");
+    } catch (cause) {
+      onError(errorCode(cause));
     } finally {
       locked.current = false;
       setBusy(false);

@@ -1371,9 +1371,8 @@ async function compare() {
     } else {
       await studio.getByRole("button", { name: /^新建画布项目/ }).click();
       await studio.getByRole("button", { name: "选择保存位置…" }).click();
-      await studio.getByRole("button", { name: "画布菜单", exact: true }).click();
-      await studio.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
-      await studio.getByRole("menuitem", { name: "项目文件", exact: true }).click();
+      await studio.getByRole("button", { name: "素材", exact: true }).click();
+      await studio.getByRole("menuitem", { name: "项目素材", exact: true }).click();
       await studio.getByRole("button", { name: "导入素材", exact: true }).click();
       await studio.getByRole("button", { name: "加入真人库", exact: true }).click();
     }

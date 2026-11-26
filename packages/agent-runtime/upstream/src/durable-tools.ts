@@ -97,6 +97,7 @@ const APPROVAL_KIND: Record<string, ApprovalKind> = {
   drama_update_outline: "drama_update_outline",
   drama_update_episode: "drama_update_episode",
   drama_update_segment: "drama_update_segment",
+  drama_update_asset_prompt: "drama_update_asset_prompt",
   drama_run_job: "drama_run_job",
 };
 
@@ -142,6 +143,7 @@ const SAFE = new Set([
   "drama_update_outline",
   "drama_update_episode",
   "drama_update_segment",
+  "drama_update_asset_prompt",
   "drama_run_job",
 ]);
 export const replayOf = (name: string): "safe" | "unsafe" => (SAFE.has(name) ? "safe" : "unsafe");

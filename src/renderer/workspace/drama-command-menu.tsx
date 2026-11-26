@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
 import { canvasModifier } from "./canvas-keys";
+import { DramaEmptyState } from "./drama-studio-status";
 import { type Stage, stages } from "./drama-workspace-nav";
 
 export function DramaCommandMenu({
@@ -12,6 +13,7 @@ export function DramaCommandMenu({
   breakdown,
   rewriteScripts,
   toggleTheme,
+  assistant,
 }: {
   doc: DramaDocument;
   go: (stage: Stage, episode?: number) => void;
@@ -19,6 +21,7 @@ export function DramaCommandMenu({
   breakdown: () => void;
   rewriteScripts?: () => void;
   toggleTheme?: () => void;
+  assistant?: { open: boolean; toggle: () => void };
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -52,6 +55,9 @@ export function DramaCommandMenu({
     { label: "资产拆解", group: "操作", run: breakdown },
     ...(rewriteScripts ? [{ label: "重新生成分集剧本", group: "操作", run: rewriteScripts }] : []),
     ...(toggleTheme ? [{ label: "切换明暗主题", group: "操作", run: toggleTheme }] : []),
+    ...(assistant
+      ? [{ label: assistant.open ? "收起小灵" : "打开小灵", group: "操作", run: assistant.toggle }]
+      : []),
     ...doc.episodes.map((ep) => ({
       label: `第 ${ep.episode_no} 集 · ${ep.title}`,
       group: "分集",
@@ -137,7 +143,14 @@ export function DramaCommandMenu({
             </button>
           ))}
         </div>
-        {!options.length && <p>没有找到匹配的内容</p>}
+        {!options.length && (
+          <DramaEmptyState
+            compact
+            icon={<Search size={18} />}
+            title="没有找到匹配的内容"
+            description="尝试搜索工序、分集或项目操作。"
+          />
+        )}
       </BackdropDialog>
     </>
   );

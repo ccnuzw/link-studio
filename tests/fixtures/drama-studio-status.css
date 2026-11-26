@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light;
+  --desk-bg: #f5f4f1;
+  --desk-card: #fffdfa;
+  --desk-inset: #ebe9e3;
+  --desk-hover: #e2dfd7;
+  --desk-border: rgb(34 30 24 / 14%);
+  --desk-text: #24211d;
+  --desk-muted: #746f66;
+  --desk-focus: #9a5c26;
+  --desk-danger: #b84b4b;
+  --rail-bg: var(--desk-card);
+  --rail-muted: var(--desk-inset);
+  --rail-line: var(--desk-border);
+  --rail-ink: var(--desk-text);
+  --rail-soft: var(--desk-muted);
+  --rail-primary: var(--desk-focus);
+  --status-success: #3b9b72;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --desk-bg: #151414;
+    --desk-card: #211f1d;
+    --desk-inset: #2a2825;
+    --desk-hover: #34312c;
+    --desk-border: rgb(255 255 255 / 12%);
+    --desk-text: #f5f1e9;
+    --desk-muted: #afa79c;
+    --desk-focus: #ffbd72;
+    --desk-danger: #f08b82;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--desk-bg);
+}
+
+.status-fixture {
+  min-height: 100vh;
+  padding: 32px;
+  color: var(--desk-text);
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      color-mix(in oklab, var(--rail-primary) 13%, transparent),
+      transparent 32%
+    ),
+    var(--desk-bg);
+  font:
+    14px / 1.5 "Geist Variable",
+    "PingFang SC",
+    sans-serif;
+}
+
+.status-fixture > header {
+  width: min(900px, 100%);
+  margin: 0 auto 20px;
+}
+
+.status-fixture > header small {
+  color: var(--desk-muted);
+}
+
+.status-fixture h1 {
+  margin: 4px 0 0;
+  font-size: clamp(24px, 4vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+.status-fixture .drama-workspace-state,
+.status-fixture .drama-empty-state {
+  min-width: 0;
+  margin: 0;
+}
+
+.status-fixture .drama-notice {
+  width: min(900px, 100%);
+  margin: 12px auto;
+}
+
+.status-fixture .drama-task-status-stack {
+  margin: 16px auto 0;
+}
+
+@media (max-width: 640px) {
+  .status-fixture {
+    padding: 18px 10px;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+}

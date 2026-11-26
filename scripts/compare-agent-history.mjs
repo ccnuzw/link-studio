@@ -185,7 +185,13 @@ try {
               await page.setViewportSize({ width, height: 420 });
               await page.goto(`http://history.test/?theme=${theme}&state=${state}&scope=${scope}`);
               const trigger = page.getByRole("button", {
-                name: contextRing ? /^上下文用量/ : preferences ? "Agent 设置" : /^历史会话，当前/,
+                name: contextRing
+                  ? /^上下文用量/
+                  : preferences
+                    ? upstream
+                      ? "Agent 设置"
+                      : "小灵设置"
+                    : /^历史会话，当前/,
               });
               await trigger.click();
               const menu = page.locator(

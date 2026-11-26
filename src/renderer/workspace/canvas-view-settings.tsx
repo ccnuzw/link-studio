@@ -156,8 +156,9 @@ function DefaultModelRows({
 
 export function CanvasViewSettings({
   openGuide,
+  openAppSettings,
   ...options
-}: DialogOptions & { openGuide: () => void }) {
+}: DialogOptions & { openGuide: () => void; openAppSettings?: () => void }) {
   const [open, setOpen] = useState(false);
   const { preferences, change } = options;
   const ThemeIcon = themeIcons[preferences.theme];
@@ -200,6 +201,7 @@ export function CanvasViewSettings({
                     <Settings size={16} />
                     画布设置
                   </Menu.Item>
+                  {openAppSettings && <Menu.Item onClick={openAppSettings}>应用设置</Menu.Item>}
                   <Menu.Item onClick={openGuide}>
                     <Keyboard size={16} />
                     快捷键<small>?</small>

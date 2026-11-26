@@ -381,6 +381,7 @@ export class ProjectCoordinator {
   private session(project: ProjectEntry): ProjectSession {
     const state = project.store.snapshot;
     return {
+      hasDrama: !!state.extensions["link-studio:drama"],
       projectKind:
         state.extensions["link-studio:workspace"] === "drama" ||
         (!state.extensions["link-studio:workspace"] && state.extensions["link-studio:drama"])

@@ -1,6 +1,7 @@
 import { requirePresent } from "@link-studio/core";
 import { AudioLines, Box, Grid2x2, Image as ImageIcon, User, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { DramaNotice } from "./drama-studio-status";
 import type { dramaVideoInput } from "./drama-video-input";
 
 type Plan = ReturnType<typeof dramaVideoInput>;
@@ -160,7 +161,7 @@ export function DramaReferenceBar({
           </Fragment>
         ))}
       </div>
-      {problem && <p role="alert">{problem}</p>}
+      {problem && <DramaNotice tone="error">{problem}</DramaNotice>}
     </section>
   );
 }

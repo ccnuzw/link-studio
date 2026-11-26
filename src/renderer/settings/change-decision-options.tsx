@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 
-const explain = "拒绝，并告诉助手怎么改…";
+const explain = "拒绝，并告诉小灵怎么改…";
 
 export function ChangeDecisionOptions({
   count,
@@ -16,11 +16,7 @@ export function ChangeDecisionOptions({
   generation?: boolean;
   meta?: string;
 }) {
-  const options = [
-    generation ? "批准生成" : `应用 ${count} 项变更`,
-    "拒绝",
-    generation ? "拒绝，并告诉 Agent 怎么改…" : explain,
-  ];
+  const options = [generation ? "批准生成" : `应用 ${count} 项变更`, "拒绝", explain];
   const [active, setActive] = useState(count ? 0 : 1);
   const highlightId = useId();
   const [editing, setEditing] = useState(false);

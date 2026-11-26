@@ -4,6 +4,7 @@ import { Clapperboard, Download, Film } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DramaAssetEditor } from "./drama-asset-browser";
 import { playableClips } from "./drama-playback";
+import { DramaEmptyState, DramaNotice } from "./drama-studio-status";
 import { TakeVideo } from "./drama-take-carousel";
 import { LocalVideoPoster } from "./local-video-poster";
 
@@ -207,7 +208,14 @@ export function DramaFinalArea({
               );
             })}
           </ol>
-          {!segments.length && <p>这一集还没有片段</p>}
+          {!segments.length && (
+            <DramaEmptyState
+              compact
+              title="这一集还没有片段"
+              description="先到片场添加片段，再回来合成整集。"
+              action={{ label: "去片场", onClick: () => studio() }}
+            />
+          )}
         </div>
         <footer>
           {running && <progress aria-label="合成进度" max={100} value={latest.progress ?? 0} />}
@@ -219,13 +227,19 @@ export function DramaFinalArea({
           >
             {running ? `正在合成 ${latest.progress ?? 0}%` : final ? "重新合成" : `合成第 ${no} 集`}
           </button>
-          <p role="status">
-            {message ||
-              (!running &&
-                (latest?.status === "failed"
-                  ? latest.error_message || "合成失败，请重试"
-                  : reason))}
-          </p>
+          {(message ||
+            (!running &&
+              (latest?.status === "failed"
+                ? latest.error_message || "合成失败，请重试"
+                : reason))) && (
+            <DramaNotice tone={message || latest?.status === "failed" ? "error" : "warning"}>
+              {message ||
+                (!running &&
+                  (latest?.status === "failed"
+                    ? latest.error_message || "合成失败，请重试"
+                    : reason))}
+            </DramaNotice>
+          )}
         </footer>
       </section>
     </div>

@@ -229,7 +229,7 @@ async function replay() {
       });
       page = await openSettingsPage(browser, rpc);
       await page.getByRole("button", { name: "通用与外观", exact: true }).click();
-      await page.getByRole("button", { name: "设置助手" }).click();
+      await page.getByRole("button", { name: "设置小灵" }).click();
       await expect(page.getByRole("radiogroup", { name: "应用主题" })).toBeInViewport();
       await expect(page.locator(".assistant-composer")).toBeVisible();
       await expect(
@@ -263,8 +263,8 @@ async function replay() {
     ).toBeVisible();
     await receipt.getByRole("button", { name: "回滚" }).click();
     const reverse = panel.getByRole("region", { name: `回滚变更单 ${order}` });
-    await reverse.getByRole("option", { name: /拒绝，并告诉助手/ }).click();
-    const explanation = reverse.getByRole("textbox", { name: /拒绝，并告诉助手/ });
+    await reverse.getByRole("option", { name: /拒绝，并告诉小灵/ }).click();
+    const explanation = reverse.getByRole("textbox", { name: /拒绝，并告诉小灵/ });
     await explanation.fill(reason);
     await explanation.press("Enter");
     const status = `已拒绝：回滚变更单 ${order} · 你的说明：${reason}`;

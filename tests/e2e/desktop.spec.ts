@@ -100,9 +100,9 @@ test("桌面启动、画布交互与受限 IPC", async () => {
     const importButton = page.getByRole("button", { name: "导入素材", exact: true });
     await importButton.click();
     await expect(page.getByTitle("e2e.png", { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("image · 3×2")).toBeVisible();
+    await expect(page.getByText("图片 · 3×2")).toBeVisible();
     await expect(page.getByText("e2e.wav", { exact: true })).toBeVisible();
-    await expect(page.getByText("audio · 1.0 秒")).toBeVisible();
+    await expect(page.getByText("音频 · 1.0 秒")).toBeVisible();
     await expect(page.getByTitle("e2e.mp4")).toBeVisible();
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByText("e2e.png 已存在")).toBeVisible();
@@ -332,6 +332,8 @@ test("桌面启动、画布交互与受限 IPC", async () => {
       await reopenedPage.getByRole("button", { name: "关闭预览" }).click();
       await reopenedPage.getByRole("button", { name: "关闭项目文件" }).click();
       await imageNode.getByRole("button", { name: "解除素材引用" }).click();
+      await expect(imageNode.getByRole("button", { name: "解除素材引用" })).toHaveCount(0);
+      await expect(reopenedPage.getByRole("status", { name: "已保存", exact: true })).toBeVisible();
       await projectAction(reopenedPage, "项目文件");
       await reopenedPage.getByRole("button", { name: "移除e2e.png" }).click();
       await expect(reopenedPage.getByRole("button", { name: "预览e2e.png" })).toHaveCount(0);
@@ -423,7 +425,9 @@ test("外部素材重开后显示缺失，只接受相同内容重定位", async
       await projectAction(page, "项目文件");
       await page.getByRole("combobox", { name: "导入方式" }).selectOption("reference");
       await page.getByRole("button", { name: "导入素材" }).click();
-      await expect(page.getByText("外部引用 · 0.0 MB")).toBeVisible();
+      await expect(page.getByRole("article", { name: "external.png" })).toContainText(
+        /外部引用 · \d+ B/,
+      );
       await page.getByRole("button", { name: "预览external.png" }).click();
       await expect
         .poll(() =>

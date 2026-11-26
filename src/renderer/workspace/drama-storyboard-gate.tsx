@@ -13,6 +13,7 @@ import { Clapperboard, Loader2, RotateCw } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { dramaJobFeedback } from "./drama-job-feedback";
+import { DramaNotice } from "./drama-studio-status";
 
 export function studioVideoSelection(
   local: string,
@@ -311,11 +312,7 @@ export function DramaStoryboardGate({
           cancel={() => void submit(true)}
         />
       )}
-      {error && !preview && (
-        <p role="alert" className="drama-storyboard-error">
-          {error}
-        </p>
-      )}
+      {error && !preview && <DramaNotice tone="error">{error}</DramaNotice>}
       {preview && (
         <AlertDialog.Root
           open
@@ -332,7 +329,7 @@ export function DramaStoryboardGate({
               <AlertDialog.Description>
                 这一集已经有生成结果，重新生成会清空已有片段（片段提示词和采用状态）。已生成的视频文件不会被删除。
               </AlertDialog.Description>
-              {error && <p role="alert">{error}</p>}
+              {error && <DramaNotice tone="error">{error}</DramaNotice>}
               <div>
                 <AlertDialog.Close disabled={busy}>取消</AlertDialog.Close>
                 <button

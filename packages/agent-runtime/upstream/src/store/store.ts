@@ -418,6 +418,14 @@ export class AgentStore {
     ).map(eventOf);
   }
 
+  firstRunUserMessage(runId: string): AgentEventRecord | undefined {
+    const row = this.#get(
+      "SELECT * FROM agent_events WHERE run_id = ? AND type = 'message.user' ORDER BY seq ASC LIMIT 1",
+      dec(runId),
+    );
+    return row && eventOf(row);
+  }
+
   /** 同会话里比 runId 更早的 turns 轮的用户消息和最终回复，按序号升序：给读导出的人补上"这一轮是接着什么说的" */
   listContextEvents(sessionId: string, runId: string, turns: number): AgentEventRecord[] {
     return this.#all(

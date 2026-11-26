@@ -118,13 +118,9 @@
 .generation-approval .change-decision-options button > span {
   position: relative;
 }
-.generation-request-details {
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.generation-request-details summary {
-  cursor: pointer;
-}
-.generation-request-details p {
-  white-space: pre-wrap;
+.generation-request-entry {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--request-line);
+  padding-top: 6px;
 }

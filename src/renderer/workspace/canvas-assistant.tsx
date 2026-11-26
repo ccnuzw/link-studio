@@ -9,7 +9,7 @@ import type {
   SettingsApproval,
 } from "@link-studio/core";
 import { canvasAgentMediaModels, maxAgentImages, requirePresent } from "@link-studio/core";
-import { Download, SquarePen } from "lucide-react";
+import { Download } from "lucide-react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { approvedQuoteHasMissing } from "../../../packages/link-studio-core/src/agent-generation-quote";
 import { AssistantTimeline } from "../assistant/activity-timeline";
@@ -32,7 +32,6 @@ import { AssistantAttachMenu } from "./assistant-attach-menu";
 import { DocumentPreview, DocumentTray, useAssistantDocuments } from "./assistant-documents";
 import { AssistantEditor, type AssistantEditorHandle } from "./assistant-editor";
 import { CanvasAssistantEmpty } from "./assistant-empty";
-import { AssistantFrame } from "./assistant-frame";
 import { AssistantHistory } from "./assistant-history";
 import { AssistantImageTray, useAssistantImages } from "./assistant-images";
 import { MessageAttachments } from "./assistant-message-attachments";
@@ -44,8 +43,17 @@ import { AssistantSkillMenu, useCanvasSkills } from "./assistant-skill-menu";
 import { AssistantUserBubble } from "./assistant-user-bubble";
 import { AssistantWatchStrip } from "./assistant-watch";
 import { canvasTitleLabel, summarizeWatches } from "./assistant-watch-state";
+import {
+  WorkspaceAssistant,
+  WorkspaceAssistantComposer,
+  WorkspaceAssistantHeading,
+} from "./assistant-workspace";
+import {
+  CanvasApprovalRequest,
+  CanvasNotificationRequest,
+  CanvasRequestReceipt,
+} from "./canvas-request-cards";
 import { CanvasChangesFooter, canvasRunChanges } from "./canvas-run-changes";
-import { GenerationApprovalCard, GenerationRequestDetails } from "./generation-approval-card";
 import { GenerationDecisionRow } from "./generation-decision-row";
 import { linkKind } from "./link-rules";
 import { CanvasPet } from "./pet/canvas-pet";
@@ -65,146 +73,6 @@ type CanvasDraft = {
   mentions?: ModelMention[];
   attachmentAssetIds?: string[];
 };
-
-function Proposal({
-  approval,
-  decide,
-  busy,
-}: {
-  approval: SettingsApproval;
-  decide: (selected: number[], reason?: string) => void;
-  busy: boolean;
-}) {
-  const payload = fields(approval.payload);
-  const items = Array.isArray(payload.items) ? payload.items.map(fields) : [];
-  const deletion = approval.kind === "delete" && payload.action === "delete";
-  const marks = useContext(AgentMarks);
-  useEffect(
-    () => () => {
-      if (deletion) marks.danger([]);
-    },
-    [deletion, marks],
-  );
-  const [selected, setSelected] = useState<number[]>(() =>
-    deletion || approval.kind === "generate" ? items.map((_, index) => index) : [],
-  );
-  if (approval.kind === "generate")
-    return (
-      <>
-        <GenerationApprovalCard items={items} reason={payload.reason} busy={busy} decide={decide} />
-        <GenerationRequestDetails items={items} />
-      </>
-    );
-  if (deletion) {
-    const highlight = () =>
-      marks.danger(
-        items.flatMap((item) => (typeof item.node_id === "string" ? [item.node_id] : [])),
-      );
-    const edgeCount = Array.isArray(payload.edgeIds) ? payload.edgeIds.length : 0;
-    const count = selected.length + (edgeCount ? edgeCount - 1 : 0);
-    return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: Hover and descendant focus both highlight the canvas targets of this approval.
-      <section
-        className="settings-confirm"
-        onFocus={highlight}
-        onBlur={() => marks.danger([])}
-        onMouseEnter={highlight}
-        onMouseLeave={() => marks.danger([])}
-      >
-        <h3>申请删除</h3>
-        <p>{String(payload.reason)}</p>
-        {items.map((item, index) =>
-          item.edges ? (
-            <p key="edges">同时删除 {edgeCount} 条指定连线</p>
-          ) : (
-            <label key={String(item.node_id)} className="generation-choice">
-              <input
-                type="checkbox"
-                aria-label={`删除「${item.label}」`}
-                checked={selected.includes(index)}
-                disabled={busy}
-                onChange={(event) =>
-                  setSelected(
-                    event.target.checked
-                      ? [...selected, index]
-                      : selected.filter((entry) => entry !== index),
-                  )
-                }
-              />
-              <span>
-                {String(item.label)}
-                {item.hasOutput ? <small>含产物</small> : null}
-              </span>
-            </label>
-          ),
-        )}
-        <div className="settings-actions">
-          <button type="button" disabled={busy || !count} onClick={() => decide(selected)}>
-            删除 {count} 项
-          </button>
-          <button type="button" disabled={busy} onClick={() => decide([])}>
-            保留
-          </button>
-        </div>
-      </section>
-    );
-  }
-  return (
-    <section className="settings-confirm">
-      <h3>画布变更审批</h3>
-      <ol>
-        {(Array.isArray(payload.operations) ? payload.operations.map(fields) : []).map(
-          (operation) => {
-            const item = fields(operation.node ?? operation.edge);
-            const data = fields(item.data);
-            const shots = Array.isArray(data.storyboard) ? data.storyboard.map(fields) : [];
-            return (
-              <li key={String(operation.id ?? item.id)}>
-                {shots.length ? "分镜表" : String(operation.type)} ·{" "}
-                {String(data.label ?? operation.id ?? item.id)}
-                {shots.length > 0 && (
-                  <details>
-                    <summary>预览 {shots.length} 个镜头</summary>
-                    <ol>
-                      {shots.map((shot) => (
-                        <li key={String(shot.id)}>
-                          <strong>
-                            {[shot.shot, shot.camera, `${shot.duration} 秒`]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </strong>
-                          {shot.scene ? <p>{String(shot.scene)}</p> : null}
-                          {shot.action ? <p>动作 · {String(shot.action)}</p> : null}
-                          {shot.dialogue ? <p>对白 · {String(shot.dialogue)}</p> : null}
-                        </li>
-                      ))}
-                    </ol>
-                  </details>
-                )}
-                <details>
-                  <summary>查看操作</summary>
-                  <pre>{JSON.stringify(operation, null, 2)}</pre>
-                </details>
-              </li>
-            );
-          },
-        )}
-      </ol>
-      <div className="settings-actions">
-        <button type="button" disabled={busy} onClick={() => decide([])}>
-          拒绝
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => decide(items.map((_, index) => index))}
-        >
-          应用画布变更
-        </button>
-      </div>
-    </section>
-  );
-}
 
 export function CanvasAssistant({
   petStage,
@@ -592,7 +460,7 @@ export function CanvasAssistant({
           }
         />
       ) : (
-        <Proposal
+        <CanvasApprovalRequest
           approval={approval}
           busy={blocked}
           decide={(selected, answer) => {
@@ -612,10 +480,16 @@ export function CanvasAssistant({
     </section>
   );
   const panel = (
-    <AssistantFrame
+    <WorkspaceAssistant
       visible={visible}
       close={close}
       bounds={petBounds}
+      label="画布小灵"
+      onStop={
+        !blocked && state?.activeRun && !state.approvals.length && !message.trim()
+          ? stop
+          : undefined
+      }
       preferences={
         state?.activeRun && (
           <button
@@ -629,94 +503,56 @@ export function CanvasAssistant({
       }
     >
       {(controls) => (
-        <section
-          className="assistant-surface canvas-assistant"
-          aria-label="画布小灵"
-          hidden={!visible}
-          onKeyDown={(event) => {
-            if (
-              event.key !== "Escape" ||
-              event.defaultPrevented ||
-              event.nativeEvent.isComposing ||
-              event.repeat ||
-              blocked ||
-              !state?.activeRun ||
-              state.approvals.length ||
-              message.trim()
-            )
-              return;
-            if (
-              !event.currentTarget.contains(event.target as Node) ||
-              document.querySelector(":popover-open,dialog[open],select:open")
-            )
-              return;
-            event.preventDefault();
-            stop();
-          }}
-        >
-          <header className="assistant-heading">
-            <span className="assistant-header-orb" aria-hidden="true" />
-            <AssistantHistory
-              key={sessionId}
-              rename={(next) =>
-                void run(async () => {
-                  const result = await invoke({ method: "rename", sessionId, title: next });
-                  if (result) {
-                    setSessions((current) =>
-                      current.map((entry) =>
-                        entry.id === sessionId ? { ...entry, title: result.title } : entry,
-                      ),
-                    );
-                    await refreshSession();
-                  }
-                })
-              }
-              remove={(id) =>
-                void run(async () => {
-                  const result = await invoke({ method: "remove", sessionId: id });
-                  if (!result?.removed) return;
-                  images.clear(id);
-                  documents.clear(id);
-                  const rest = sessions.filter((entry) => entry.id !== id);
-                  setSessions(rest);
-                  setDrafts((current) => {
-                    const remaining = { ...current };
-                    delete remaining[id];
-                    return remaining;
-                  });
-                  if (id === sessionId) selectSession(rest[0]?.id ?? "");
-                })
-              }
-              title={
-                title ?? sessions.find((session) => session.id === sessionId)?.title ?? "新对话"
-              }
-              sessions={sessions}
-              current={sessionId}
-              locked={busy || !!state?.activeRun}
-              select={selectSession}
-            />
-            <button
-              type="button"
-              aria-label="新对话"
-              title="新对话"
-              disabled={busy || !!state?.activeRun || listState !== "ready"}
-              onClick={() => selectSession("")}
-            >
-              <SquarePen size={16} />
-            </button>
+        <>
+          <WorkspaceAssistantHeading
+            disabled={busy || !!state?.activeRun || listState !== "ready"}
+            newConversation={() => selectSession("")}
+            title={
+              <AssistantHistory
+                key={sessionId}
+                rename={(next) =>
+                  void run(async () => {
+                    const result = await invoke({ method: "rename", sessionId, title: next });
+                    if (result) {
+                      setSessions((current) =>
+                        current.map((entry) =>
+                          entry.id === sessionId ? { ...entry, title: result.title } : entry,
+                        ),
+                      );
+                      await refreshSession();
+                    }
+                  })
+                }
+                remove={(id) =>
+                  void run(async () => {
+                    const result = await invoke({ method: "remove", sessionId: id });
+                    if (!result?.removed) return;
+                    images.clear(id);
+                    documents.clear(id);
+                    const rest = sessions.filter((entry) => entry.id !== id);
+                    setSessions(rest);
+                    setDrafts((current) => {
+                      const remaining = { ...current };
+                      delete remaining[id];
+                      return remaining;
+                    });
+                    if (id === sessionId) selectSession(rest[0]?.id ?? "");
+                  })
+                }
+                title={
+                  title ?? sessions.find((session) => session.id === sessionId)?.title ?? "新对话"
+                }
+                sessions={sessions}
+                current={sessionId}
+                locked={busy || !!state?.activeRun}
+                select={selectSession}
+              />
+            }
+          >
             {controls}
-          </header>
+          </WorkspaceAssistantHeading>
           {offerNotifications && (
-            <section className="assistant-notice-consent" aria-label="后台生成通知">
-              <strong>允许小灵发送系统通知？</strong>
-              <p>画布在后台时，有生成待批准或小灵开始验收时提醒你。</p>
-              <button type="button" onClick={() => void notificationChoice(true)}>
-                允许通知
-              </button>
-              <button type="button" onClick={() => void notificationChoice(false)}>
-                不允许
-              </button>
-            </section>
+            <CanvasNotificationRequest choose={(allowed) => void notificationChoice(allowed)} />
           )}
           {watch && (
             <AssistantWatchStrip
@@ -839,6 +675,14 @@ export function CanvasAssistant({
                           key={anchor.seq}
                           status="expired"
                           count={request.items.length}
+                        />
+                      );
+                    if (data.kind === "delete" && approvals.closedRuns.has(anchor.runId))
+                      return (
+                        <CanvasRequestReceipt
+                          key={anchor.seq}
+                          deletion={request.action === "delete"}
+                          status="expired"
                         />
                       );
                     const label =
@@ -986,6 +830,20 @@ export function CanvasAssistant({
                   );
                 if (event.type === "approval.decided" && payload.kind === "ask")
                   return <QuestionRecord key={event.seq} payload={payload} providers={providers} />;
+                if (event.type === "approval.decided" && payload.kind === "delete")
+                  return (
+                    <CanvasRequestReceipt
+                      key={event.seq}
+                      deletion={
+                        fields(payload.payload ?? fields(anchor.payload).payload).action ===
+                        "delete"
+                      }
+                      status={payload.status}
+                      error={
+                        typeof result.code === "string" ? settingsError(result.code) : undefined
+                      }
+                    />
+                  );
                 if (event.type === "approval.decided" && payload.kind === "generate") {
                   const items = fields(payload.payload).items,
                     decision = fields(payload.decision);
@@ -1064,13 +922,7 @@ export function CanvasAssistant({
               {notice}
             </p>
           )}
-          <form
-            className="assistant-composer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void send();
-            }}
-          >
+          <WorkspaceAssistantComposer send={() => void send()}>
             <span ref={setPeek} className="pet-peek" aria-hidden="true" />
             <RunPlanStrip key={`plan-${sessionId}`} events={events} activeRun={state?.activeRun} />
             {steers.waiting.length > 0 && (
@@ -1302,10 +1154,10 @@ export function CanvasAssistant({
                 回车发送 · Shift＋回车换行
               </small>
             </div>
-          </form>
-        </section>
+          </WorkspaceAssistantComposer>
+        </>
       )}
-    </AssistantFrame>
+    </WorkspaceAssistant>
   );
   return (
     <>

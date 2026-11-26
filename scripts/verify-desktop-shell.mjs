@@ -67,6 +67,7 @@ try {
       const session = {
         name: localStorage.getItem("test-project") ?? "夜雨来信",
         projectKind: localStorage.getItem("project-kind"),
+        hasDrama: localStorage.getItem("legacy-drama") === "1",
         projectId: "test-project",
         projectHandle: "test-handle",
         schemaVersion: 1,
@@ -121,7 +122,11 @@ try {
         }),
         projects: service({
           listRecent: async () =>
-            ok({ projects: localStorage.getItem("test-project") ? [recent] : [] }),
+            ok({
+              projects: localStorage.getItem("test-project")
+                ? [{ ...recent, projectKind: session.projectKind, hasDrama: session.hasDrama }]
+                : [],
+            }),
           openRecent: async () => ok({ disposition: "opened", session }),
           create: async ({ name, projectKind }) => {
             session.name = name;
@@ -608,10 +613,10 @@ try {
       await expect(page.getByRole("dialog")).toBeVisible();
       assert.equal((await luminance(page.getByRole("dialog"))) > 150, scheme === "light");
       await page.keyboard.press("Escape");
-      await button("设置助手").click();
-      await assertViewport("设置助手");
+      await button("设置小灵").click();
+      await assertViewport("设置小灵");
       await page.keyboard.press("Escape");
-      await expect(button("设置助手")).toBeFocused();
+      await expect(button("设置小灵")).toBeFocused();
       if (width === 1440) await page.screenshot({ path: `${output}/settings-${scheme}.png` });
       const nav = page.getByRole("navigation", { name: "设置分类" });
       await nav.getByRole("button", { name: "技能管理" }).click();
@@ -709,6 +714,10 @@ try {
     await page.reload();
     await page.getByRole("button", { name: /夜雨来信.*本地素材/ }).click();
     await expect(page.getByRole("tab", { name: "总览" })).toHaveAttribute("aria-selected", "true");
+    await button("小灵").click();
+    await expect(page.getByRole("complementary", { name: "短剧小灵" })).toBeVisible();
+    await button("小灵").click();
+    await expect(page.getByRole("complementary", { name: "短剧小灵" })).toHaveCount(0);
     await page.getByRole("tab", { name: "片场", exact: true }).click();
     await page
       .getByRole("group", { name: "视图", exact: true })
@@ -740,15 +749,67 @@ try {
     await page.mouse.wheel(75, 140);
     await assertViewport("画布滚轮");
     await page.getByRole("button", { name: "画布菜单", exact: true }).click();
-    await page.getByRole("menuitem", { name: "桌面项目操作" }).press("ArrowRight");
-    await page.getByRole("menuitem", { name: "模型设置" }).click();
+    const projectMenu = page.getByRole("menu", { name: "画布菜单", exact: true });
+    await expect(projectMenu.getByRole("menuitem")).toHaveText([
+      "返回项目列表",
+      "新建画布项目",
+      "导出画布文件…",
+    ]);
+    await page.keyboard.press("Escape");
+    const toolbar = page.getByRole("toolbar", { name: "画布编辑" });
+    await toolbar.getByRole("button", { name: "素材", exact: true }).click();
+    await page.getByRole("menuitem", { name: "项目素材", exact: true }).click();
+    await expect(page.getByRole("region", { name: "项目文件" })).toBeVisible();
+    await button("关闭项目文件").click();
+    await toolbar.getByRole("button", { name: "素材", exact: true }).click();
+    await page.getByRole("menuitem", { name: "从资产库添加", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "资产库", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    const drawer = page.getByRole("dialog", { name: "生成任务" });
+    for (const [theme, background] of [
+      ["浅色", "rgb(255, 255, 255)"],
+      ["深色", "rgb(27, 27, 27)"],
+    ]) {
+      await button("更多").click();
+      await page.getByRole("menuitem", { name: "主题", exact: true }).press("ArrowRight");
+      await page.getByRole("menuitemradio", { name: theme, exact: true }).click();
+      await toolbar.getByRole("button", { name: "任务", exact: true }).click();
+      await expect(drawer).toHaveCSS("background-color", background);
+      await expect(drawer.getByRole("button", { name: "画布历史" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await assertReadable(drawer.getByText("这张画布还没有生成过内容。"));
+      await drawer.getByRole("button", { name: "任务管理" }).click();
+      const center = drawer.getByRole("region", { name: "生成任务中心" });
+      await expect(center).toBeVisible();
+      await assertReadable(center.getByRole("button", { name: /^全部/ }));
+      if (width === 1440) await drawer.screenshot({ path: `${output}/canvas-tasks-${theme}.png` });
+      await button("关闭任务").click();
+    }
+    await page.locator(".canvas-text-preview").click();
+    const strip = page.getByRole("toolbar", { name: "对白 的功能区" });
+    await expect(strip.getByRole("button", { name: "生成内容", exact: true })).toHaveCount(1);
+    await strip.getByRole("button", { name: "节点属性", exact: true }).click();
+    await expect(page.getByRole("region", { name: "节点属性" })).toBeVisible();
+    await button("关闭侧栏").click();
+    await button("更多").click();
+    await page.getByRole("menuitem", { name: "应用设置", exact: true }).click();
     await button("返回夜雨来信").click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
     await assertViewport("返回项目");
+    await button("画布菜单").click();
+    await page.getByRole("menuitem", { name: "返回项目列表", exact: true }).click();
+    await expect(button("导入为新画布…")).toBeVisible();
+    await expect(button("作为短剧打开")).toHaveCount(0);
+    await page.evaluate(() => localStorage.setItem("legacy-drama", "1"));
+    await page.reload();
+    await button("作为短剧打开").click();
+    await expect(page.getByRole("main", { name: "短剧工作室" })).toBeVisible();
+    await button("返回画布").click();
+    await expect(page.getByRole("main", { name: "创作画布" })).toBeVisible();
     assert.deepEqual(errors, []);
-    console.log(
-      `通过 ${width}px 首页、两套主题、渠道搜索、设置弹窗与助手、短剧创建、片场内嵌画布及最近项目画布`,
-    );
+    console.log(`通过 ${width}px 首页、设置、短剧助手、片场画布、项目菜单与任务抽屉双主题`);
     await page.close();
   }
 } finally {

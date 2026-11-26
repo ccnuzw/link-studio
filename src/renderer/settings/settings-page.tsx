@@ -106,6 +106,7 @@ const errors: Record<string, string> = {
   AGENT_TEST_BUSY: "此模型的连接检测正在进行。",
   PROVIDER_OUTCOME_UNKNOWN: "请求结果未知，可到供应商控制台核对。",
   AGENT_APPROVAL_STALE: "审批已处理或失效，请查看最新会话状态。",
+  DRAMA_ASSISTANT_CONTEXT_STALE: "本集、片段或资产引用已变更，请重新选择后发送。",
   AGENT_RUN_BUSY: "当前已有会话正在运行。请返回该会话，或等本轮完成后再发送。",
   AGENT_RUN_STATE_INVALID: "本轮状态已变更。请查看最新会话状态后再操作。",
   AGENT_OVER_BUDGET: "超出本轮积分预算，请减少勾选项或拒绝本次生成。",
@@ -253,12 +254,12 @@ export function SettingsPage({
       ref={trigger}
       type="button"
       className="desk-assistant-trigger"
-      aria-label="设置助手"
+      aria-label="设置小灵"
       aria-keyshortcuts="Control+J Meta+J"
       aria-expanded={assistant}
       onClick={toggle}
     >
-      <Sparkles size={16} /> 设置助手{" "}
+      <Sparkles size={16} /> 设置小灵{" "}
       <kbd>{navigator.platform.includes("Mac") ? "⌘J" : "Ctrl J"}</kbd>
     </button>
   );
@@ -407,7 +408,7 @@ export function SettingsPage({
           }}
         >
           <ArrowLeft size={16} />
-          收起设置助手
+          收起设置小灵
         </button>
         <SettingsAssistant
           loadingModels={!hasCatalog && catalogState === "loading"}

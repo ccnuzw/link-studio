@@ -91,7 +91,12 @@ const VERB_PHRASES: Record<string, string> = {
   读网页: "读取了网页",
 };
 
-const ADMIN_TOOL_PHRASES: Record<string, string> = {
+const TOOL_PHRASES: Record<string, string> = {
+  drama_read: "读取了短剧",
+  drama_update_outline: "申请修改大纲",
+  drama_update_episode: "申请修改分集剧本",
+  drama_update_segment: "申请修改片段",
+  drama_run_job: "申请运行短剧任务",
   admin_query: "查询了后台记录",
   admin_get_resource: "读取了后台资源",
   admin_list_models: "查看了模型列表",
@@ -132,7 +137,7 @@ function phraseOf(tools: Pick<ToolCall, "name" | "verb" | "label">[]) {
   const counts = new Map<string, number>();
   for (const t of tools) {
     const verb = toolVerb(t.name, t.verb, t.label);
-    const phrase = ADMIN_TOOL_PHRASES[t.name] ?? VERB_PHRASES[verb] ?? `调用了「${verb}」`;
+    const phrase = TOOL_PHRASES[t.name] ?? VERB_PHRASES[verb] ?? `调用了「${verb}」`;
     counts.set(phrase, (counts.get(phrase) ?? 0) + 1);
   }
   const parts = [...counts].map(([phrase, count]) => phrase + (count > 1 ? ` ${count} 次` : ""));

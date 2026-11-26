@@ -1,3 +1,4 @@
+import { Menu } from "@base-ui/react/menu";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { FolderOpen, Hand, History, MousePointer2, Plus, Redo2, Undo2 } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
@@ -24,6 +25,7 @@ export function CanvasEditToolbar({
   undo,
   redo,
   openAssets,
+  openProjectAssets,
   assetsDisabled,
   openTasks,
   tasksOpen,
@@ -38,6 +40,7 @@ export function CanvasEditToolbar({
   undo: () => void;
   redo: () => void;
   openAssets: () => void;
+  openProjectAssets?: () => void;
   assetsDisabled: boolean;
   openTasks: () => void;
   tasksOpen: boolean;
@@ -125,24 +128,42 @@ export function CanvasEditToolbar({
             </motion.button>
           </CanvasControlTip>
           <hr data-ui-divider aria-orientation={divider} className="canvas-edit-wide" />
-          <CanvasControlTip label="资产库" side={side}>
+          {openProjectAssets ? (
+            <Menu.Root modal={false}>
+              <CanvasControlTip label="素材" side={side}>
+                <Menu.Trigger aria-label="素材" disabled={assetsDisabled}>
+                  <FolderOpen size={16} />
+                </Menu.Trigger>
+              </CanvasControlTip>
+              <Menu.Portal>
+                <Menu.Positioner side={side} sideOffset={8} className="canvas-frame-positioner">
+                  <Menu.Popup className="canvas-frame-menu canvas-view-menu" aria-label="素材">
+                    <Menu.Item onClick={openProjectAssets}>项目素材</Menu.Item>
+                    <Menu.Item onClick={openAssets}>从资产库添加</Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
+          ) : (
+            <CanvasControlTip label="资产库" side={side}>
+              <motion.button
+                type="button"
+                className="canvas-edit-wide"
+                whileTap={tap}
+                aria-label="资产库"
+                disabled={assetsDisabled}
+                onClick={openAssets}
+              >
+                <FolderOpen size={16} />
+              </motion.button>
+            </CanvasControlTip>
+          )}
+          <CanvasControlTip label={openProjectAssets ? "任务" : "任务历史"} side={side}>
             <motion.button
               type="button"
-              className="canvas-edit-wide"
+              className={openProjectAssets ? undefined : "canvas-edit-wide"}
               whileTap={tap}
-              aria-label="资产库"
-              disabled={assetsDisabled}
-              onClick={openAssets}
-            >
-              <FolderOpen size={16} />
-            </motion.button>
-          </CanvasControlTip>
-          <CanvasControlTip label="任务历史" side={side}>
-            <motion.button
-              type="button"
-              className="canvas-edit-wide"
-              whileTap={tap}
-              aria-label="任务历史"
+              aria-label={openProjectAssets ? "任务" : "任务历史"}
               aria-pressed={tasksOpen}
               onClick={openTasks}
             >

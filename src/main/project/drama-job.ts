@@ -23,6 +23,24 @@ export function storyboardClearHash(doc: DramaDocument, no: number) {
   });
 }
 
+export function dramaJobTargetHash(doc: DramaDocument, request: DramaJobRequest) {
+  const selected = new Set(request.episodes);
+  return contentHash({
+    settings: doc.board_settings_revision ?? 1,
+    overview: doc.overview_revision ?? doc.revision,
+    episodes: doc.episodes
+      .filter((episode) => !selected.size || selected.has(episode.episode_no))
+      .map(({ episode_no, revision, segment_version }) => ({
+        episode_no,
+        revision: revision ?? 1,
+        ...(request.step === "compose" && { segment_version: segment_version ?? 0 }),
+      })),
+    ...(request.step === "storyboard" && {
+      segments: storyboardClearHash(doc, request.episodes[0] ?? 0),
+    }),
+  });
+}
+
 export function dramaJobReceipt(
   store: ProjectStore,
   runId: string,
@@ -68,6 +86,8 @@ export async function submitApprovedDramaJob(
     estimate: number;
     episodeOrder?: number;
     clearHash?: string;
+    targetHash?: string;
+    quoteHash?: string;
     batch?: boolean;
   },
   signal?: AbortSignal,
@@ -81,6 +101,8 @@ export async function submitApprovedDramaJob(
     if (previous) return { changed: false, result: previous };
     if ((payload.episodeOrder ?? 0) !== (doc.episode_order ?? 0))
       throw new ProjectError("AGENT_APPROVAL_STALE", "分集已变更，请重新选择并确认");
+    if (payload.targetHash && payload.targetHash !== dramaJobTargetHash(doc, payload.args))
+      throw new ProjectError("AGENT_APPROVAL_STALE", "任务目标已变更，请重新确认");
     const { step } = payload.args;
     const jobs = doc.jobs ?? [];
     const active = jobs.filter((job) => job.status === "queued" || job.status === "running");
@@ -116,7 +138,10 @@ export async function submitApprovedDramaJob(
       bumpSegmentVersion(doc, no);
     }
     const quote = await estimateDramaJob(doc, payload.args, registry, state);
-    if (quote.estimate !== payload.estimate)
+    if (
+      quote.estimate !== payload.estimate ||
+      (payload.quoteHash && payload.quoteHash !== contentHash(quote))
+    )
       throw new ProjectError("AGENT_APPROVAL_STALE", "短剧估价已改变，请重新申请审批");
     const stages =
       step === "scripts"

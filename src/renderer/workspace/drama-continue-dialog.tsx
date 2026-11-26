@@ -3,6 +3,7 @@ import { requirePresent } from "@link-studio/core";
 import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BackdropDialog } from "./backdrop-dialog";
+import { DramaNotice } from "./drama-studio-status";
 
 export function DramaContinueDialog({
   doc,
@@ -147,7 +148,7 @@ export function DramaContinueDialog({
           )}
         </small>
       </div>
-      {error && <p role="alert">{error}</p>}
+      {error && <DramaNotice tone="error">{error}</DramaNotice>}
       <footer>
         <button type="button" onClick={close} disabled={busy}>
           取消

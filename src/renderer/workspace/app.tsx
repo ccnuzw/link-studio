@@ -25,7 +25,6 @@ import {
   isPlainGeneratedMedia,
   jobFailureReason,
   jobIsTerminal,
-  mergeCanvasExchange,
   parseCanvasExchange,
   prepareCanvasExchange,
   prepareVideoCanvasExchange,
@@ -117,6 +116,7 @@ import { MediaFillActions, MediaNodePlaceholder } from "./media-node-placeholder
 import { assetNodeLabel, availableNodeLabel } from "./node-label";
 import { NodePort } from "./node-port";
 import type { PickerUpload } from "./picker-uploads";
+import { ProjectFilesPanel } from "./project-files-panel";
 import { ReadonlyCanvas, type ReadonlyView } from "./readonly-canvas";
 import { ShotConfirm } from "./shot-confirm";
 import { TextFailureTask } from "./text-failure-task";
@@ -160,12 +160,10 @@ import { CharacterDialog } from "./character-dialog";
 import { imageProgress, imageTaskTitle, MediaGenerationTask } from "./character-image-task";
 import { characterVoiceModel } from "./character-voice-model";
 import { stopCharacterVoice } from "./character-voice-player";
-import { CompositionDialog } from "./composition-dialog";
 import { DirectorNodeBody } from "./director-node-body";
 import { positionDirectorTakes } from "./director-take-placement";
 import { assetImageInput, assetUnit, assetVoiceInput } from "./drama-asset-generation";
 import { DramaStudio } from "./drama-studio";
-import { edgeIdsHitBySweep } from "./edge-sweep";
 import { FilingAssetPicker } from "./filing-asset-picker";
 import type { FrameChoice } from "./frame-menu";
 import { placeBeside, planFramePlacement } from "./frame-placement";
@@ -1023,8 +1021,6 @@ export function App() {
   } | null>(null);
   const { sidePanel, setSidePanel } = useWorkspace();
   const [handTool, setHand] = useState(false);
-  const [sweepMode, setSweepMode] = useState(false);
-  const [sweepPoints, setSweepPoints] = useState<Point[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [addMenu, setAddMenu] = useState<{
     toolbar?: boolean;
@@ -1065,11 +1061,15 @@ export function App() {
   const [enrollNotice, setEnrollNotice] = useState("");
   const canvasArea = useRef<HTMLElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
-  const canvasExchangeInput = useRef<HTMLInputElement>(null);
   const uploadPlacement = useRef<{ target: DropPlacement; projectHandle: string } | null>(null);
   const [petStage, setPetStage] = useState<HTMLDivElement | null>(null);
   const [fileOver, setFileOver] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
+  const [tasksView, setTasksView] = useState<"history" | "manage">("history");
+  const openTaskManager = () => {
+    setTasksView("manage");
+    setTasksOpen(true);
+  };
   const [showGuide, setShowGuide] = useState(false);
   const [projectSession, setProjectSession] = useState<ProjectSession | null>(null);
   const temporaryHand = useTemporaryHand(
@@ -1233,11 +1233,6 @@ export function App() {
       origin: rect && { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
     });
   };
-  const [compositionSeed, setCompositionSeed] = useState<{
-    projectHandle: string;
-    assets: ProjectAsset[];
-    videoIds: string[];
-  }>();
   const [splitTarget, setSplitTarget] = useState<{
     nodeId: string;
     asset: ProjectAsset;
@@ -2102,11 +2097,12 @@ export function App() {
     };
   }, [activeHandle, refreshAssets, updateRevision]);
 
-  const enterProject = async (session: ProjectSession, recentId?: string) => {
+  const enterProject = async (session: ProjectSession, recentId?: string, asDrama = false) => {
     setActiveRecentId(recentId);
     setWithDramaAssistant(false);
     setDramaHandle(
-      (session.projectKind ?? localStorage.getItem(`workspace:${session.projectId}`)) === "drama"
+      (asDrama && session.hasDrama) ||
+        (session.projectKind ?? localStorage.getItem(`workspace:${session.projectId}`)) === "drama"
         ? session.projectHandle
         : "",
     );
@@ -2279,7 +2275,7 @@ export function App() {
       if (result.value.disposition === "opened") {
         if (asDrama && !result.value.session.projectKind)
           localStorage.setItem(`workspace:${result.value.session.projectId}`, "drama");
-        await enterProject(result.value.session, recentEntryId);
+        await enterProject(result.value.session, recentEntryId, asDrama);
       }
     });
 
@@ -2793,83 +2789,6 @@ export function App() {
         : current,
     );
   };
-  const disconnectEdges = useCallback(
-    (ids: readonly string[]) => {
-      if (writing || !persistence.loaded || !ids.length) return;
-      const targets = new Set(ids);
-      setEdges((current) => current.filter((edge) => !targets.has(edge.id) || edge.data?.readOnly));
-    },
-    [persistence.loaded, setEdges, writing],
-  );
-  useEffect(() => {
-    if (!sweepMode) {
-      setSweepPoints([]);
-      return;
-    }
-    const surface = canvasArea.current;
-    if (!surface) return;
-    let drawing = false;
-    let points: Point[] = [];
-    const localPoint = (event: PointerEvent) => {
-      const rect = surface.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    };
-    const down = (event: PointerEvent) => {
-      if (
-        event.button !== 0 ||
-        !(event.target instanceof Element) ||
-        !event.target.closest(".react-flow__pane") ||
-        event.target.closest(".react-flow__node,.react-flow__controls")
-      )
-        return;
-      drawing = true;
-      points = [localPoint(event)];
-      setSweepPoints(points);
-      event.preventDefault();
-    };
-    const move = (event: PointerEvent) => {
-      if (!drawing) return;
-      const next = localPoint(event);
-      const previous = points.at(-1);
-      if (!previous || Math.hypot(next.x - previous.x, next.y - previous.y) >= 3) {
-        points = [...points, next];
-        setSweepPoints(points);
-      }
-      event.preventDefault();
-    };
-    const up = () => {
-      if (!drawing) return;
-      drawing = false;
-      const rect = surface.getBoundingClientRect();
-      const candidates = [...surface.querySelectorAll<SVGPathElement>(".react-flow__edge-path")]
-        .map((path) => {
-          const edgeId = path.closest<SVGGElement>(".react-flow__edge")?.dataset.id;
-          const matrix = path.getScreenCTM();
-          if (!edgeId || !matrix) return undefined;
-          const length = path.getTotalLength();
-          const samples = Array.from({ length: 33 }, (_, index) => {
-            const point = path.getPointAtLength((length * index) / 32);
-            const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
-            return { x: screen.x - rect.left, y: screen.y - rect.top };
-          });
-          const edge = edges.find(({ id }) => id === edgeId);
-          return edge ? { ...edge, points: samples } : undefined;
-        })
-        .filter((edge): edge is FlowEdge & { points: Point[] } => !!edge);
-      const hit = edgeIdsHitBySweep(candidates, points);
-      disconnectEdges(hit);
-      points = [];
-      setSweepPoints([]);
-    };
-    surface.addEventListener("pointerdown", down, true);
-    surface.addEventListener("pointermove", move, true);
-    window.addEventListener("pointerup", up, true);
-    return () => {
-      surface.removeEventListener("pointerdown", down, true);
-      surface.removeEventListener("pointermove", move, true);
-      window.removeEventListener("pointerup", up, true);
-    };
-  }, [disconnectEdges, edges, sweepMode]);
   useEffect(() => {
     const disconnect = (event: Event) => {
       const id = (event as CustomEvent<unknown>).detail;
@@ -3282,7 +3201,7 @@ export function App() {
         );
       }
       setOutpaintTarget(undefined);
-      setSidePanel("jobs");
+      openTaskManager();
     } catch {
       setOutpaintError("扩图提交未完成，请重试。");
     } finally {
@@ -4258,41 +4177,6 @@ export function App() {
       await refreshAssets(projectHandle);
     }
   };
-  const openComposition = async () => {
-    if (!projectSession || busy) return;
-    setProjectError("");
-    setWriting(true);
-    try {
-      const saved = await saveCanvas(projectSession);
-      if (!saved) return;
-      const [canvasResult, assetsResult] = await Promise.all([
-        window.desktop.projects.getCanvas({ projectHandle: saved.projectHandle }),
-        window.desktop.projects.listAssets({ projectHandle: saved.projectHandle }),
-      ]);
-      if (currentProjectHandle.current !== saved.projectHandle) return;
-      if (!canvasResult.ok || !assetsResult.ok) {
-        setProjectError("无法读取最新项目素材，请重试。");
-        return;
-      }
-      const videoIds = canvasResult.value.canvas.nodes
-        .filter(
-          (node): node is CreativeNode =>
-            node.type === "creative" && node.data.kind === "video" && !!node.data.assetId,
-        )
-        .sort(
-          (left, right) => left.position.y - right.position.y || left.position.x - right.position.x,
-        )
-        .map((node) => node.data.assetId)
-        .filter((assetId): assetId is string => !!assetId);
-      setCompositionSeed({
-        projectHandle: saved.projectHandle,
-        assets: assetsResult.value.assets,
-        videoIds,
-      });
-    } finally {
-      setWriting(false);
-    }
-  };
   const exportCanvasExchange = async () => {
     if (busy || exportAttempt.current) return;
     const attempt = new AbortController();
@@ -4318,47 +4202,6 @@ export function App() {
       setExchangeStage("");
       setWriting(false);
     }
-  };
-  const importCanvasExchange = () => {
-    if (!projectSession || writing) return;
-    canvasExchangeInput.current?.click();
-  };
-  const importCanvasFile = (file: File) => {
-    if (!projectSession || writing) return;
-    void (async () => {
-      setWriting(true);
-      setProjectError("");
-      try {
-        if (!(await saveCanvas(projectSession))) return;
-        if (file.size > 10 * 1024 * 1024) throw new Error("交换文件超过 10 MB 限制");
-        const raw = JSON.parse(await file.text());
-        const prepared =
-          raw?.format === "video-canvas/canvas"
-            ? prepareVideoCanvasExchange(raw, assets)
-            : prepareCanvasExchange(
-                parseCanvasExchange(raw),
-                new Set(assets.map(({ assetId }) => assetId)),
-              );
-        if (prepared.document.nodes.length + nodes.length > 1000)
-          throw new Error("导入后节点数量超过 1000 个上限");
-        if (prepared.document.edges.length + edges.length > 4000)
-          throw new Error("导入后连线数量超过 4000 条上限");
-        restoreCanvas(mergeCanvasExchange(canvas, prepared.document, () => crypto.randomUUID()));
-        const notices = [
-          ...(prepared.report.missingAssetIds.length
-            ? [`${prepared.report.missingAssetIds.length} 个素材引用无法在当前项目中定位`]
-            : []),
-          ...(prepared.report.droppedEdgeCount
-            ? [`已跳过 ${prepared.report.droppedEdgeCount} 条无效连线`]
-            : []),
-        ];
-        if (notices.length) setProjectError(`已合并画布，${notices.join("，")}。`);
-      } catch (error) {
-        setProjectError(error instanceof Error ? error.message : "画布交换文件无效");
-      } finally {
-        setWriting(false);
-      }
-    })();
   };
   const outputAsset = (output: CreativeOutput) =>
     output.assetId ? assets.find(({ assetId }) => assetId === output.assetId) : undefined;
@@ -4387,8 +4230,7 @@ export function App() {
       !node.data.uploaded &&
       characterShowsGenerator(node.data),
   );
-  const inlineGeneration =
-    !!generationNode && generationNode.id === inspected?.id && sidePanel !== "jobs";
+  const inlineGeneration = !!generationNode && generationNode.id === inspected?.id && !tasksOpen;
   const submitGeneration = async (
     input: Omit<GenerationInput, "expectedCanvasRevision">,
     operationId: string,
@@ -4439,7 +4281,7 @@ export function App() {
       showSubmissionWarning(result.value);
       if (!stayOnNode) {
         setGenerationNodeId(undefined);
-        setSidePanel("jobs");
+        openTaskManager();
       }
     } finally {
       setWriting(false);
@@ -4596,7 +4438,7 @@ export function App() {
   const revealGeneration = (id: string, visual = false) => {
     setPlacedGenerationId(undefined);
     setGenerationNodeId(id);
-    if (sidePanel === "jobs") setSidePanel(null);
+    setTasksOpen(false);
     const bounds = canvasArea.current?.getBoundingClientRect();
     const flow = flowInstance.current;
     if (!flow || !bounds) return;
@@ -4997,7 +4839,7 @@ export function App() {
       }
       const closed = await window.desktop.projects.close({
         projectHandle: projectSession.projectHandle,
-        ...(projectSession.projectKind === "drama" && { keepWorking: true }),
+        ...(projectSession.projectKind === "drama" && openNext && { keepWorking: true }),
       });
       if (!closed.ok) {
         if (next)
@@ -5078,6 +4920,14 @@ export function App() {
       void refreshAssets(projectSession.projectHandle);
       setAddMenu(undefined);
     },
+  };
+  const openCanvasAssetLibrary = () => {
+    setAddMenu(undefined);
+    setAssetTarget(undefined);
+    setProjectError("");
+    setSidePanel(null);
+    setAssetPlacement(defaultPlacement());
+    void refreshAssets(projectSession.projectHandle);
   };
   return (
     <AgentMarks.Provider value={marks}>
@@ -5200,6 +5050,7 @@ export function App() {
           projectHandle={dramaHandle}
           projectId={projectSession.projectId}
           withAssistant={withDramaAssistant}
+          toggleAssistant={() => setWithDramaAssistant((open) => !open)}
           providers={generationProviders.providers}
           loadingModels={generationProviders.status === "loading"}
           refreshModels={() => setCatalogRevision((value) => value + 1)}
@@ -5326,6 +5177,7 @@ export function App() {
                 change={changeViewPreferences}
                 failed={viewPreferenceError}
                 openGuide={() => setShowGuide(true)}
+                openAppSettings={() => setShowSettings(true)}
                 modelGroups={preferenceModels}
               />
             )}
@@ -5343,17 +5195,6 @@ export function App() {
                 uploadPlacement.current = null;
                 if (files.length && placement?.projectHandle === projectSession.projectHandle)
                   void importMedia(placement.target, files);
-              }}
-            />
-            <input
-              ref={canvasExchangeInput}
-              type="file"
-              accept=".json,application/json"
-              hidden
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = "";
-                if (file) importCanvasFile(file);
               }}
             />
             {!showSettings && dramaHandle !== projectSession.projectHandle && (
@@ -5452,35 +5293,6 @@ export function App() {
               leave={() => void leaveCanvas()}
               create={() => void leaveCanvas(true)}
               exportGraph={() => void exportCanvasExchange()}
-              extras={[
-                { label: "保存项目", disabled: busy, run: () => void saveCanvas(projectSession) },
-                { label: "导入画布", disabled: busy, run: importCanvasExchange },
-                { label: "项目文件", run: () => togglePanel("assets") },
-                { label: "生成任务", run: () => togglePanel("jobs") },
-                { label: "导出成片", disabled: busy, run: () => void openComposition() },
-                {
-                  label: "扫线断开",
-                  disabled: busy,
-                  run: () => {
-                    setSweepMode((current) => !current);
-                    setHand(false);
-                  },
-                },
-                ...(inspected && inspected.type !== "group"
-                  ? [{ label: "所选节点属性", run: () => togglePanel("properties") }]
-                  : []),
-                ...(["短剧工作室", "短剧助手"] as const).map((label) => ({
-                  label,
-                  run: () => {
-                    setWithDramaAssistant(label === "短剧助手");
-                    if (!projectSession.projectKind)
-                      localStorage.setItem(`workspace:${projectSession.projectId}`, "drama");
-                    setDramaHandle(projectSession.projectHandle);
-                  },
-                })),
-                { label: "模型设置", run: () => setShowSettings(true) },
-                { label: "运行环境", run: () => togglePanel("runtime") },
-              ]}
             />
             <CanvasEditToolbar
               orientation={dramaCanvasSlot ? "horizontal" : "vertical"}
@@ -5505,16 +5317,13 @@ export function App() {
               undo={() => history.restore("undo")}
               redo={() => history.restore("redo")}
               assetsDisabled={!persistence.loaded || busy}
-              openAssets={() => {
-                setAddMenu(undefined);
-                setAssetTarget(undefined);
-                setProjectError("");
-                setSidePanel(null);
-                setAssetPlacement(defaultPlacement());
-                void refreshAssets(projectSession.projectHandle);
-              }}
+              openProjectAssets={() => togglePanel("assets")}
+              openAssets={openCanvasAssetLibrary}
               tasksOpen={tasksOpen}
-              openTasks={() => setTasksOpen(true)}
+              openTasks={() => {
+                setTasksView("history");
+                setTasksOpen(true);
+              }}
             />
             <CanvasTaskHistory
               open={tasksOpen}
@@ -5524,6 +5333,31 @@ export function App() {
               inventoryReady={jobsLoadedFor === activeHandle}
               projectHandle={projectSession.projectHandle}
               pick={focusCanvasNode}
+              management={{
+                view: tasksView,
+                setView: setTasksView,
+                content: (
+                  <JobCenter
+                    jobs={jobs}
+                    assets={assets}
+                    onPreview={(asset) => {
+                      setTasksOpen(false);
+                      void openPreview(asset);
+                    }}
+                    onRetry={(id, purpose) => {
+                      setTasksOpen(false);
+                      retryGeneration(id, purpose);
+                    }}
+                    onAction={async (action, jobId) => {
+                      const result = await window.desktop.projects[action]({
+                        projectHandle: projectSession.projectHandle,
+                        jobId,
+                      });
+                      return result.ok ? undefined : result.error.code;
+                    }}
+                  />
+                ),
+              }}
             />
             <CanvasStatsBar
               key={`stats-${projectSession.projectHandle}`}
@@ -5531,55 +5365,81 @@ export function App() {
               edgeCount={edges.length}
               focus={focusCanvasNode}
             />
-            <section
-              className="asset-strip canvas-surface canvas-library"
-              aria-label="项目文件"
+            <ProjectFilesPanel
+              key={`${projectSession.projectHandle}-${assetTarget?.kind ?? "browse"}`}
+              projectHandle={projectSession.projectHandle}
+              assets={assets}
               hidden={!!assetPlacement || (sidePanel !== "assets" && !importing)}
-            >
-              <div className="asset-strip-heading">
-                <strong>项目文件</strong>
-                {!assetTarget && (
-                  <button type="button" onClick={() => setNewLibraryFolder(true)}>
-                    新建资产库文件夹
-                  </button>
-                )}
-                {!assetTarget && (
-                  <button type="button" onClick={() => setManageLibrary(true)}>
-                    管理个人资产库
-                  </button>
-                )}
-                <span>
-                  {assetTarget ? `选择${NODE_LABELS[assetTarget.kind]}素材` : `${assets.length} 项`}
-                </span>
-                <label className="asset-mode">
-                  <span>导入方式</span>
-                  <select
-                    value={importMode}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setImportMode(event.target.value === "reference" ? "reference" : "copy")
+              targetKind={assetTarget?.kind}
+              importMode={importMode}
+              busy={busy}
+              importing={importing}
+              canAdd={persistence.loaded && (!!assetTarget || nodes.length < 1000)}
+              changeImportMode={setImportMode}
+              importFiles={() => void importMedia(assetTarget)}
+              close={() => {
+                setAssetTarget(undefined);
+                setSidePanel(null);
+              }}
+              actions={{
+                preview: (asset) => void openPreview(asset),
+                add: (asset) => {
+                  if (assetTarget) return bindAsset(assetTarget, asset);
+                  addAssetNode(asset);
+                },
+                extract: (asset) => void openFrame(asset),
+                relocate: (asset) => void relocate(asset),
+                enroll: (asset) => {
+                  setEnrollAsset(asset);
+                  setEnrollNotice("");
+                },
+                remove: async (asset) => {
+                  setWriting(true);
+                  setProjectError("");
+                  try {
+                    const session = await saveCanvas(projectSession);
+                    if (!session) return;
+                    const result = await window.desktop.projects.removeAsset({
+                      projectHandle: session.projectHandle,
+                      operationId: crypto.randomUUID(),
+                      expectedRevision: session.revision,
+                      assetId: asset.assetId,
+                    });
+                    if (result.ok) {
+                      updateRevision(session.projectHandle, result.value.revision);
+                      await refreshAssets(session.projectHandle);
+                    } else setProjectError(assetErrors[result.error.code] ?? "无法移除素材");
+                  } finally {
+                    setWriting(false);
+                  }
+                },
+              }}
+              createFolder={() => setNewLibraryFolder(true)}
+              manageLibrary={() => setManageLibrary(true)}
+              progress={
+                activeImport
+                  ? {
+                      name: activeImport.name,
+                      status: activeImport.status,
+                      cancelling,
+                      cancel: async () => {
+                        setCancelling(true);
+                        try {
+                          await window.desktop.projects.cancelImport({
+                            projectHandle: projectSession.projectHandle,
+                            importSessionId: activeImport.id,
+                          });
+                        } finally {
+                          setCancelling(false);
+                        }
+                      },
                     }
-                  >
-                    <option value="copy">复制到项目</option>
-                    <option value="reference">引用外部文件</option>
-                  </select>
-                </label>
-                <button type="button" disabled={busy} onClick={() => void importMedia(assetTarget)}>
-                  {importing ? "正在导入…" : "导入素材"}
-                </button>
-                <button
-                  type="button"
-                  disabled={importing}
-                  aria-label="关闭项目文件"
-                  onClick={() => {
-                    setAssetTarget(undefined);
-                    setSidePanel(null);
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              {enrollNotice && <p role="status">{enrollNotice}</p>}
+                  : undefined
+              }
+              duplicate={duplicate}
+              notice={enrollNotice}
+              error={projectError}
+            >
               {newLibraryFolder && (
                 <LibraryFolderForm
                   handle={projectSession.projectHandle}
@@ -5590,6 +5450,11 @@ export function App() {
                 <LibraryManagement
                   handle={projectSession.projectHandle}
                   close={() => setManageLibrary(false)}
+                  pickerDisabled={!persistence.loaded || busy}
+                  openPicker={() => {
+                    setManageLibrary(false);
+                    openCanvasAssetLibrary();
+                  }}
                 />
               )}
               {enrollAsset && dramaHandle !== projectSession.projectHandle && (
@@ -5603,189 +5468,7 @@ export function App() {
                   }}
                 />
               )}
-              {!assets.some((asset) => !assetTarget || asset.mediaType === assetTarget.kind) &&
-                !importing && <p className="muted">导入图片、视频或音频，即可在画布中使用。</p>}
-              {activeImport && ["copying", "committing"].includes(activeImport.status.phase) && (
-                <div className="asset-strip-heading asset-progress">
-                  <span>
-                    {activeImport.name} ·{" "}
-                    {activeImport.status.phase === "committing"
-                      ? "正在提交"
-                      : importMode === "reference"
-                        ? "正在校验"
-                        : "正在复制"}
-                  </span>
-                  <progress
-                    aria-label="素材导入进度"
-                    max={activeImport.status.totalBytes || 1}
-                    value={
-                      activeImport.status.totalBytes ? activeImport.status.copiedBytes : undefined
-                    }
-                  />
-                  <button
-                    type="button"
-                    disabled={cancelling}
-                    onClick={async () => {
-                      setCancelling(true);
-                      try {
-                        await window.desktop.projects.cancelImport({
-                          projectHandle: projectSession.projectHandle,
-                          importSessionId: activeImport.id,
-                        });
-                      } finally {
-                        setCancelling(false);
-                      }
-                    }}
-                  >
-                    {cancelling ? "正在取消…" : "取消此文件"}
-                  </button>
-                </div>
-              )}
-              {duplicate && (
-                <fieldset className="asset-strip-heading asset-duplicate" aria-label="处理重复素材">
-                  <span role="status">{duplicate.displayName} 已存在</span>
-                  <button type="button" onClick={() => duplicate.resolve("reuse")}>
-                    复用现有素材
-                  </button>
-                  <button type="button" onClick={() => duplicate.resolve("independent")}>
-                    保留独立记录
-                  </button>
-                  <button type="button" onClick={() => duplicate.resolve("cancel")}>
-                    跳过此文件
-                  </button>
-                </fieldset>
-              )}
-              {projectError && (
-                <p className="error" role="alert">
-                  {projectError}
-                </p>
-              )}
-              {assets.length > 0 && (
-                <div className="asset-list">
-                  {assets
-                    .filter((asset) => !assetTarget || asset.mediaType === assetTarget.kind)
-                    .map((asset) => (
-                      <article key={asset.assetId} className="asset-item">
-                        <strong title={asset.displayName}>{asset.displayName}</strong>
-                        <span>
-                          {asset.mediaType} ·{" "}
-                          {asset.metadata.width && asset.metadata.height
-                            ? `${asset.metadata.width}×${asset.metadata.height}`
-                            : asset.metadata.durationMs
-                              ? `${(Number(asset.metadata.durationMs) / 1000).toFixed(1)} 秒`
-                              : "本地副本"}
-                        </span>
-                        <small>
-                          {asset.importMode === "reference" ? "外部引用" : "项目副本"} ·{" "}
-                          {(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB
-                          {asset.availability === "missing" && " · 文件不可用"}
-                        </small>
-                        <div className="asset-actions">
-                          {asset.availability === "ready" && (
-                            <>
-                              <button
-                                type="button"
-                                aria-label={`预览${asset.displayName}`}
-                                disabled={busy}
-                                onClick={() => void openPreview(asset)}
-                              >
-                                预览
-                              </button>
-                              {asset.mediaType === "video" && (
-                                <button
-                                  type="button"
-                                  aria-label={`提取${asset.displayName}关键帧`}
-                                  disabled={busy}
-                                  onClick={() => void openFrame(asset)}
-                                >
-                                  提取帧
-                                </button>
-                              )}
-                              {asset.mediaType === "image" &&
-                                !assetTarget &&
-                                asset.metadata.filingEnabled === true &&
-                                (typeof asset.metadata.filingHumanName === "string" ? (
-                                  <span className="asset-human-badge">
-                                    <UserRound size={12} />
-                                    真人 · {asset.metadata.filingHumanName}
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() => {
-                                      setEnrollAsset(asset);
-                                      setEnrollNotice("");
-                                    }}
-                                  >
-                                    加入真人库
-                                  </button>
-                                ))}
-                              <button
-                                type="button"
-                                aria-label={
-                                  assetTarget
-                                    ? `将${asset.displayName}用于节点`
-                                    : `将${asset.displayName}加入画布`
-                                }
-                                disabled={
-                                  busy ||
-                                  !persistence.loaded ||
-                                  (!assetTarget && nodes.length >= 1000)
-                                }
-                                onClick={() => {
-                                  if (assetTarget) return bindAsset(assetTarget, asset);
-                                  addAssetNode(asset);
-                                }}
-                              >
-                                {assetTarget ? "用于节点" : "加入画布"}
-                              </button>
-                            </>
-                          )}
-                          {asset.importMode === "reference" && (
-                            <button
-                              type="button"
-                              aria-label={`重新定位${asset.displayName}`}
-                              disabled={busy}
-                              onClick={() => void relocate(asset)}
-                            >
-                              重新定位
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={busy}
-                            aria-label={`移除${asset.displayName}`}
-                            onClick={async () => {
-                              setWriting(true);
-                              setProjectError("");
-                              try {
-                                const session = await saveCanvas(projectSession);
-                                if (!session) return;
-                                const result = await window.desktop.projects.removeAsset({
-                                  projectHandle: session.projectHandle,
-                                  operationId: crypto.randomUUID(),
-                                  expectedRevision: session.revision,
-                                  assetId: asset.assetId,
-                                });
-                                if (result.ok) {
-                                  updateRevision(session.projectHandle, result.value.revision);
-                                  await refreshAssets(session.projectHandle);
-                                } else
-                                  setProjectError(assetErrors[result.error.code] ?? "无法移除素材");
-                              } finally {
-                                setWriting(false);
-                              }
-                            }}
-                          >
-                            移除
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                </div>
-              )}
-            </section>
+            </ProjectFilesPanel>
             <section
               aria-label="节点画布"
               className="flow-container"
@@ -6207,13 +5890,6 @@ export function App() {
                                 colorMode="light"
                                 proOptions={{ hideAttribution: true }}
                               >
-                                {sweepPoints.length > 1 && (
-                                  <svg className="canvas-sweep-overlay" aria-hidden="true">
-                                    <polyline
-                                      points={sweepPoints.map(({ x, y }) => `${x},${y}`).join(" ")}
-                                    />
-                                  </svg>
-                                )}
                                 <CanvasBackgroundLayer background={viewPreferences.background} />
                                 <CanvasViewControls
                                   background={viewPreferences.background}
@@ -6371,6 +6047,18 @@ export function App() {
                                     >
                                       <NodeActionStrip
                                         kind={stripKind}
+                                        properties={{
+                                          open: sidePanel === "properties",
+                                          toggle: () => togglePanel("properties"),
+                                        }}
+                                        generate={
+                                          stripKind === "script" && !inspected.data.uploaded
+                                            ? {
+                                                disabled: generationEntryLocked,
+                                                open: () => revealGeneration(inspected.id),
+                                              }
+                                            : undefined
+                                        }
                                         label={inspected.data.label}
                                         room={splitCapacity}
                                         running={busyGenerationTargets.has(inspected.id)}
@@ -6949,7 +6637,7 @@ export function App() {
                     !target.data.uploaded &&
                     isGenerationMedia(target.data.kind)
                   ) {
-                    if (sidePanel === "jobs") setSidePanel(null);
+                    setTasksOpen(false);
                     setGenerationNodeId(id);
                   }
                   void flowInstance.current?.fitView({
@@ -7424,23 +7112,7 @@ export function App() {
               }}
             />
           )}
-          {compositionSeed?.projectHandle === projectSession.projectHandle && (
-            <CompositionDialog
-              assets={compositionSeed.assets}
-              projectHandle={projectSession.projectHandle}
-              initialVideoIds={compositionSeed.videoIds}
-              close={() => setCompositionSeed(undefined)}
-              done={async ({ asset }) => {
-                setCompositionSeed(undefined);
-                await refreshAssets(projectSession.projectHandle);
-                await openPreview(asset);
-              }}
-            />
-          )}
-          <aside
-            className="side-panel canvas-dock"
-            hidden={!sidePanel || sidePanel === "assets" || sidePanel === "assistant"}
-          >
+          <aside className="side-panel canvas-dock" hidden={sidePanel !== "properties"}>
             <button
               className="close-canvas-dock"
               type="button"
@@ -7477,20 +7149,6 @@ export function App() {
                         />
                       </label>
                     )}
-                    {inspected.type === "creative" &&
-                      inspectedKind === "script" &&
-                      !inspected.data.uploaded && (
-                        <button
-                          type="button"
-                          disabled={generationEntryLocked}
-                          onClick={() => {
-                            setSidePanel(null);
-                            revealGeneration(inspected.id);
-                          }}
-                        >
-                          生成内容
-                        </button>
-                      )}
                     {inspected.type === "creative" &&
                       inspected.data.assetId &&
                       (inspected.data.kind === "video" || inspected.data.kind === "audio") && (
@@ -7553,7 +7211,7 @@ export function App() {
                             );
                           }}
                           onRetry={() => retryGeneration(inspected.id)}
-                          onOpenJobs={() => setSidePanel("jobs")}
+                          onOpenJobs={openTaskManager}
                           onSelectOutput={(output) => {
                             editNode(inspected.id, (node) =>
                               node.type === "creative"
@@ -7663,25 +7321,6 @@ export function App() {
                 )}
               </section>
             )}
-            {sidePanel === "runtime" ? (
-              <RuntimePanel />
-            ) : (
-              sidePanel === "jobs" && (
-                <JobCenter
-                  jobs={jobs}
-                  assets={assets}
-                  onPreview={(asset) => void openPreview(asset)}
-                  onRetry={retryGeneration}
-                  onAction={async (action, jobId) => {
-                    const result = await window.desktop.projects[action]({
-                      projectHandle: projectSession.projectHandle,
-                      jobId,
-                    });
-                    return result.ok ? undefined : result.error.code;
-                  }}
-                />
-              )
-            )}
           </aside>
           <CanvasAssistant
             canvasName={
@@ -7719,7 +7358,7 @@ export function App() {
               });
             }}
             jobs={jobs}
-            openJobs={() => setSidePanel("jobs")}
+            openJobs={openTaskManager}
             locateResults={(ids) => {
               void locatePetResults(flowInstance.current, ids);
             }}

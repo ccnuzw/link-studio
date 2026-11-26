@@ -16,7 +16,10 @@ import {
   maxAgentImages,
 } from "../../../packages/link-studio-core/src/canvas-agent.ts";
 import type { DirectorScene } from "../../../packages/link-studio-core/src/director.ts";
-import type { DramaJobRequest } from "../../../packages/link-studio-core/src/drama.ts";
+import type {
+  DramaAgentContext,
+  DramaJobRequest,
+} from "../../../packages/link-studio-core/src/drama.ts";
 import type { GenerationInput } from "../../../packages/link-studio-core/src/generation.ts";
 import {
   modelGenerationModes,
@@ -35,9 +38,9 @@ import { compileArrange } from "./canvas-agent-layout.ts";
 import { generationDetail } from "./canvas-agent-model";
 import { compileAgentOps } from "./canvas-agent-ops.ts";
 import type { CanvasMedia } from "./canvas-media.ts";
-import { DramaTools, dramaDocument } from "./drama.ts";
+import { DramaTools, dramaDocument, resolveDramaAssistantContext } from "./drama.ts";
 import { estimateDramaJob } from "./drama-estimate.ts";
-import { dramaJobReceipt, submitApprovedDramaJob } from "./drama-job.ts";
+import { dramaJobReceipt, dramaJobTargetHash, submitApprovedDramaJob } from "./drama-job.ts";
 import { runDramaPlanning } from "./drama-planning.ts";
 import { runDramaAssetJob } from "./drama-worker.ts";
 import { contentHash } from "./encoding.ts";
@@ -402,16 +405,13 @@ export class CanvasAgentService {
     }
     const store = this.get(args.project);
     if (command.startsWith("drama-")) {
+      if (args.dramaContext && ["drama-read", "drama-preview", "drama-estimate"].includes(command))
+        resolveDramaAssistantContext(store.snapshot, args.dramaContext as DramaAgentContext);
       if (command === "drama-estimate") {
         const snapshot = store.snapshot;
         const document = dramaDocument(snapshot);
         if (!document) throw new ProjectError("AGENT_SCOPE_DENIED", "未创建短剧");
-        const { estimate } = await estimateDramaJob(
-          document,
-          args.input,
-          await this.registry(),
-          snapshot,
-        );
+        const quote = await estimateDramaJob(document, args.input, await this.registry(), snapshot);
         const { reason, ...request } = args.input as DramaJobRequest;
         const labels = {
           scripts: "分集剧本",
@@ -420,18 +420,15 @@ export class CanvasAgentService {
           storyboard: "分镜脚本",
           compose: "合成整集",
         };
-        const activeJobs =
-          document.jobs
-            ?.filter((job) => ["queued", "running"].includes(job.status))
-            .map(({ id, step, status, episodes }) => ({ id, step, status, episodes })) ?? [];
         return {
           title: `运行短剧任务：${labels[request.step]}`,
           reason: reason ?? "",
           args: request,
-          estimate,
+          estimate: quote.estimate,
+          quoteHash: contentHash(quote),
+          targetHash: dramaJobTargetHash(document, request),
+          episodes: quote.episodes,
           ...(document.episode_order && { episodeOrder: document.episode_order }),
-          before: JSON.stringify({ active_jobs: activeJobs }),
-          after: JSON.stringify(request),
         };
       }
       if (

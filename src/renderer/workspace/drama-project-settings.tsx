@@ -11,6 +11,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DramaStartModel } from "./drama-start-model";
 import { legacyBoardPick, PromptEditor, PromptRows, useStartPrompts } from "./drama-start-prompts";
+import { DramaNotice } from "./drama-studio-status";
 
 export function DramaProjectSettings({
   projectHandle,
@@ -192,17 +193,19 @@ export function DramaProjectSettings({
             script={!document.planning}
           />
           {legacy && (
-            <label>
-              故事板模板
+            <section className="project-settings-legacy-field">
+              <label htmlFor="legacy-storyboard-template">故事板模板</label>
+              <small>兼容旧项目的故事板提示词模板，可按需调整。</small>
               <textarea
+                id="legacy-storyboard-template"
                 rows={8}
                 maxLength={24000}
                 value={template}
                 onChange={(event) => setTemplate(event.currentTarget.value)}
               />
-            </label>
+            </section>
           )}
-          {(problem || error) && <p role="alert">{problem || error}</p>}
+          {(problem || error) && <DramaNotice tone="error">{problem || error}</DramaNotice>}
         </div>
         <footer>
           <button type="button" disabled={saving} onClick={onClose}>

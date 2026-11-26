@@ -1,6 +1,4 @@
 import type {
-  CanvasAgentAction,
-  CanvasAgentValues,
   DramaDocument,
   DramaImageParams,
   DramaSourcePreview,
@@ -23,33 +21,17 @@ import {
 } from "@link-studio/core";
 import { ArrowUp, Clapperboard, FileText, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AssistantTimeline } from "../assistant/activity-timeline";
-import {
-  AssistantCompactionStatus,
-  AssistantHeading,
-  AssistantStatus,
-  AssistantTranscript,
-  submitShortcut,
-} from "../assistant/assistant-panel";
-import { AssistantPreferences, AssistantReply } from "../assistant/assistant-preferences";
-import { useAssistantAction, useAssistantSession } from "../assistant/use-assistant-session";
-import { focusOnMount } from "../focus-on-mount";
+import { useAssistantAction } from "../assistant/use-assistant-session";
 import { keyedItems } from "../occurrence-keys";
-import { Activity } from "../settings/settings-assistant";
 import { settingsError } from "../settings/settings-page";
-import { CanvasAssistantEmpty } from "./assistant-empty";
-import { AssistantHistory } from "./assistant-history";
-import { AssistantQuestionnaire, QuestionRecord } from "./assistant-questionnaire";
-import { AssistantSkillMenu, useCanvasSkills } from "./assistant-skill-menu";
 import { DramaStartModel } from "./drama-start-model";
 import { DramaStartParams } from "./drama-start-params";
 import { emptyStartImages, loadDramaStartPrefs, saveDramaStartPrefs } from "./drama-start-prefs";
 import { PromptEditor, PromptRows, useStartPrompts } from "./drama-start-prompts";
 import { DramaStartStyle, FieldMenu } from "./drama-start-style";
 import "./drama-studio.css";
-import { AssistantContextRing } from "../assistant/assistant-context-ring";
-import { AssistantModelState } from "../assistant/assistant-model-state";
 import { type DramaAssetEditor, DramaAssetViewToggle, StageAssets } from "./drama-asset-browser";
+import { DramaAssistant } from "./drama-assistant";
 import type { AutosaveStatus } from "./drama-autosave";
 import { appendStudioClip, DramaClipRow } from "./drama-clip-row";
 import { DramaContinueDialog } from "./drama-continue-dialog";
@@ -69,6 +51,12 @@ import { DramaStageTabs } from "./drama-stage-tabs";
 import { DramaStoryboardBatch } from "./drama-storyboard-batch";
 import { StudioLibrary } from "./drama-studio-library";
 import { StudioPanels } from "./drama-studio-panels";
+import {
+  DramaEmptyState,
+  DramaNotice,
+  DramaTaskStatusStack,
+  DramaWorkspaceState,
+} from "./drama-studio-status";
 import "./drama-reading-room.css";
 import { DramaFinalArea } from "./drama-final-area";
 import { DramaScriptLayout } from "./drama-script-layout";
@@ -87,6 +75,7 @@ export function DramaStudio({
   projectHandle,
   projectId,
   withAssistant,
+  toggleAssistant,
   providers,
   loadingModels,
   refreshModels,
@@ -103,6 +92,7 @@ export function DramaStudio({
   projectHandle: string;
   projectId: string;
   withAssistant: boolean;
+  toggleAssistant?: () => void;
   providers: ProviderView[];
   loadingModels: boolean;
   refreshModels?: () => void;
@@ -187,6 +177,7 @@ export function DramaStudio({
         activeEpisode.storyboard_status !== "ready" &&
         !doc?.segments?.some((segment) => segment.episode_no === activeEpisode.episode_no)));
   const [videoSegment, setVideoSegment] = useState("");
+  const [assistantAsset, setAssistantAsset] = useState<{ id: string; selection: number }>();
   const [batchHost, setBatchHost] = useState<HTMLSpanElement | null>(null);
   const studioAdaptations = useStudioAdaptations();
   const [generateHost, setGenerateHost] = useState<HTMLDivElement | null>(null);
@@ -301,6 +292,14 @@ export function DramaStudio({
     episodeSegments?.find((entry) => entry.id === videoSegment) ??
     episodeSegments?.find((entry) => entry.seq === 0) ??
     episodeSegments?.[0];
+  const selectedAssistantAsset =
+    stage === "assets" || showStudioCanvas
+      ? assetEditor.graph.nodes.find(
+          (node) => node.id === (assistantAsset?.id || assetEditor.selected),
+        )
+      : undefined;
+  const assistantAssetMeta =
+    selectedAssistantAsset?.type === "creative" && dramaAssetMeta(selectedAssistantAsset.data);
   const attempt =
     selectedSegment &&
     editorAttempt(
@@ -558,12 +557,14 @@ export function DramaStudio({
     nav.go(target, no);
     setNotice("");
     setVideoSegment("");
+    setAssistantAsset(undefined);
   }
   async function pick(next: DramaPage) {
     if (!(await flushNavigation())) return;
     nav.pick(next);
     setNotice("");
     setVideoSegment("");
+    setAssistantAsset(undefined);
   }
   useEffect(() => {
     if (!doc) return;
@@ -725,6 +726,9 @@ export function DramaStudio({
                   },
                 },
                 toggleTheme,
+                assistant: toggleAssistant
+                  ? { open: withAssistant, toggle: toggleAssistant }
+                  : undefined,
                 breakdown: () => openScriptAction("breakdown", true),
                 rewriteScripts:
                   doc.planning &&
@@ -768,7 +772,7 @@ export function DramaStudio({
               />
             </DramaWorkspaceHeader>
           ) : (
-            <header>
+            <header className="drama-workspace-fallback-header">
               <button type="button" onClick={close}>
                 {returnLabel}
               </button>
@@ -830,19 +834,47 @@ export function DramaStudio({
               close={() => setContinueOpen(false)}
             />
           )}
-          {error && !setupOpen && <p role="alert">{settingsError(error)}</p>}
+          {error && !setupOpen && doc !== undefined && (
+            <DramaNotice tone="error">{settingsError(error)}</DramaNotice>
+          )}
           {doc === undefined ? (
             error ? (
-              <button type="button" onClick={() => void read()}>
-                重试读取
-              </button>
+              <DramaWorkspaceState
+                kind="error"
+                title="短剧读取失败"
+                description={settingsError(error)}
+                action={{ label: "重试读取", onClick: () => void read() }}
+              />
             ) : (
-              <p>正在读取短剧…</p>
+              <DramaWorkspaceState
+                kind="loading"
+                title="正在读取短剧"
+                description="正在准备片场、分集和制作状态。"
+              />
             )
           ) : doc === null ? (
             <div className="drama-source">
-              <h2>把剧本交给灵可</h2>
+              <div className="drama-source-intro">
+                <span className="drama-source-kicker">
+                  <Clapperboard size={14} aria-hidden="true" />
+                  灵可短剧工作室 · 开拍入口
+                </span>
+                <h2>把剧本交给灵可</h2>
+                <p>从一页灵感，到一部可以开拍的短剧。</p>
+                <div className="drama-source-notes">
+                  <span>自动拆分分集</span>
+                  <span>智能识别场景</span>
+                  <span>一键生成分镜</span>
+                </div>
+              </div>
               <fieldset disabled={busy}>
+                <div className="drama-source-panel-head">
+                  <div>
+                    <strong>先交给我原文</strong>
+                    <small>上传文件，或直接粘贴剧本 / 小说正文</small>
+                  </div>
+                  <span className="drama-source-step">01 / 03</span>
+                </div>
                 <fieldset data-ui-group aria-label="剧本来源">
                   <button
                     type="button"
@@ -1016,7 +1048,7 @@ export function DramaStudio({
                 </footer>
               </fieldset>
               {(sourceProblem || pasteProblem) && !setupOpen && (
-                <p role="alert">{sourceProblem || pasteProblem}</p>
+                <DramaNotice tone="error">{sourceProblem || pasteProblem}</DramaNotice>
               )}
               <dialog
                 ref={dialog}
@@ -1327,7 +1359,9 @@ export function DramaStudio({
                           setTextModel(id);
                         }}
                       />
-                      {modelBlocked && <p role="alert">{currentPreview.error}</p>}
+                      {modelBlocked && (
+                        <DramaNotice tone="error">{currentPreview.error}</DramaNotice>
+                      )}
                     </div>
                     <div className="drama-start-field">
                       <span>视频模型</span>
@@ -1378,10 +1412,10 @@ export function DramaStudio({
                       script={sourceKind === "script"}
                     />
                     {!modelBlocked && currentPreview?.error && (
-                      <p role="alert">{currentPreview.error}</p>
+                      <DramaNotice tone="error">{currentPreview.error}</DramaNotice>
                     )}
-                    {sourceProblem && <p role="alert">{sourceProblem}</p>}
-                    {error && <p role="alert">{settingsError(error)}</p>}
+                    {sourceProblem && <DramaNotice tone="error">{sourceProblem}</DramaNotice>}
+                    {error && <DramaNotice tone="error">{settingsError(error)}</DramaNotice>}
                     <footer>
                       <button type="button" disabled={busy} onClick={() => dialog.current?.close()}>
                         取消
@@ -1485,7 +1519,9 @@ export function DramaStudio({
                           listIcon={Clapperboard}
                         />
                       )}
-                      {showStudioCanvas && notice && <span role="status">{notice}</span>}
+                      {showStudioCanvas && notice && (
+                        <DramaNotice tone="warning">{notice}</DramaNotice>
+                      )}
                       {!showStudioCanvas && (
                         <button data-batch type="button" onClick={() => setBatchOpen(true)}>
                           批量生成脚本
@@ -1579,7 +1615,7 @@ export function DramaStudio({
                   {stage === "studio" &&
                     activeEpisode &&
                     notice &&
-                    (prerequisite || storyboardGate) && <p role="status">{notice}</p>}
+                    (prerequisite || storyboardGate) && <DramaNotice>{notice}</DramaNotice>}
                   {prerequisite ? (
                     <DramaStudioGate
                       kind={prerequisite}
@@ -1607,34 +1643,9 @@ export function DramaStudio({
                             data-studio-list={productionKey && !panels ? true : undefined}
                             inert={showStudioCanvas}
                           >
-                            {notice && <p aria-live="polite">{notice}</p>}
+                            {notice && <DramaNotice>{notice}</DramaNotice>}
                             {stage === "studio" && !panels && doc.jobs?.length ? (
-                              <section aria-label="短剧任务">
-                                {doc.jobs.map((job) => (
-                                  <p key={job.id}>
-                                    {
-                                      {
-                                        breakdown: "资产拆解",
-                                        asset_prompts: "资产提示词",
-                                        scripts: "分集剧本",
-                                        storyboard: "分镜脚本",
-                                        compose: "合成整集",
-                                      }[job.step]
-                                    }{" "}
-                                    ·{" "}
-                                    {
-                                      {
-                                        queued: "排队中",
-                                        running: "运行中",
-                                        succeeded: "已完成",
-                                        failed: "失败",
-                                        canceled: "已取消",
-                                      }[job.status]
-                                    }{" "}
-                                    {job.error_message}
-                                  </p>
-                                ))}
-                              </section>
+                              <DramaTaskStatusStack jobs={doc.jobs} />
                             ) : null}
                             {(page === "outline" || page === "characters") && (
                               <DramaReadingRoom
@@ -1667,12 +1678,28 @@ export function DramaStudio({
                                 ep={nav.ep}
                                 handle={projectHandle}
                                 editor={assetEditor}
+                                enterCanvas={() => setAssistantAsset(undefined)}
+                                askAssistant={
+                                  toggleAssistant
+                                    ? (id) => {
+                                        setAssistantAsset((previous) => ({
+                                          id,
+                                          selection: (previous?.selection ?? 0) + 1,
+                                        }));
+                                        if (!withAssistant) toggleAssistant();
+                                      }
+                                    : undefined
+                                }
                                 saved={setDoc}
                                 openBreakdown={() => setBreakdownOpen(true)}
                               />
                             )}
                             {!activeEpisode && (stage === "studio" || stage === "final") && (
-                              <p>还没有分集</p>
+                              <DramaEmptyState
+                                title="还没有分集"
+                                description="完成研读或分集规划后，分集会出现在这里。"
+                                action={{ label: "回到大纲", onClick: () => pick("outline") }}
+                              />
                             )}
                             {(stage !== "overview" && stage !== "assets" && activeEpisode
                               ? [activeEpisode]
@@ -1683,9 +1710,12 @@ export function DramaStudio({
                                 aria-label="当前分集"
                               >
                                 {stage === "studio" && !panels && (
-                                  <h2>
-                                    第 {ep.episode_no} 集 · {ep.title}
-                                  </h2>
+                                  <header className="drama-studio-episode-heading">
+                                    <small>当前分集 · 片场准备</small>
+                                    <h2>
+                                      第 {ep.episode_no} 集 · {ep.title}
+                                    </h2>
+                                  </header>
                                 )}
                                 {stage === "script" && (
                                   <DramaScriptLayout
@@ -1752,7 +1782,97 @@ export function DramaStudio({
                                 )}
                                 {stage === "studio" && (
                                   <>
-                                    {!ep.locked && <h3>分镜片段</h3>}
+                                    {!ep.locked && (
+                                      <section
+                                        className="drama-studio-draft"
+                                        aria-label="分镜片段编辑"
+                                      >
+                                        <header className="drama-studio-draft-heading">
+                                          <div>
+                                            <small>第 {ep.episode_no} 集 · 片场草稿</small>
+                                            <h2>分镜片段</h2>
+                                            <p>
+                                              先补齐镜头提示词和时长，确认后即可进入资产拆解与生成。
+                                            </p>
+                                          </div>
+                                          <span>未锁定</span>
+                                        </header>
+                                        {episodeSegments?.length ? (
+                                          <ol className="drama-studio-draft-list">
+                                            {episodeSegments.map((item, index) => (
+                                              <li key={item.id}>
+                                                <b>{String(index + 1).padStart(2, "0")}</b>
+                                                <span>{item.prompt}</span>
+                                                <small>{item.seconds}s</small>
+                                              </li>
+                                            ))}
+                                          </ol>
+                                        ) : (
+                                          <div className="drama-studio-draft-empty">
+                                            <FileText size={18} />
+                                            <div>
+                                              <strong>还没有分镜片段</strong>
+                                              <p>从下面添加第一镜，内容会出现在片场时间线里。</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <form
+                                          className="drama-studio-draft-form"
+                                          onSubmit={(event) => {
+                                            event.preventDefault();
+                                            const form = event.currentTarget;
+                                            const data = new FormData(form);
+                                            void run(async () => {
+                                              const result = await window.desktop.projects.drama({
+                                                projectHandle,
+                                                addSegment: {
+                                                  episode_no: ep.episode_no,
+                                                  revision: doc.revision,
+                                                  prompt: String(data.get("prompt") ?? ""),
+                                                  seconds: Number(data.get("seconds")),
+                                                },
+                                              });
+                                              if (!result.ok) {
+                                                if (result.error.code === "AGENT_APPROVAL_STALE")
+                                                  await read();
+                                                setError(result.error.code);
+                                                return;
+                                              }
+                                              setDoc(result.value);
+                                              form.reset();
+                                            });
+                                          }}
+                                        >
+                                          <label>
+                                            <span>片段提示词</span>
+                                            <textarea
+                                              name="prompt"
+                                              required
+                                              maxLength={24000}
+                                              rows={2}
+                                              placeholder="描述这一镜要发生什么，以及画面和动作重点"
+                                            />
+                                          </label>
+                                          <label className="drama-studio-draft-seconds">
+                                            <span>时长</span>
+                                            <div>
+                                              <input
+                                                name="seconds"
+                                                type="number"
+                                                min={1}
+                                                max={86400}
+                                                defaultValue={5}
+                                                required
+                                              />
+                                              <small>秒</small>
+                                            </div>
+                                          </label>
+                                          <button type="submit" disabled={busy}>
+                                            添加片段
+                                          </button>
+                                        </form>
+                                      </section>
+                                    )}
                                     {ep.locked ? (
                                       <DramaClipRow
                                         batchHost={setBatchHost}
@@ -1818,15 +1938,7 @@ export function DramaStudio({
                                           }
                                         }}
                                       />
-                                    ) : (
-                                      <ol>
-                                        {episodeSegments?.map((item) => (
-                                          <li key={item.id}>
-                                            {item.prompt} · {item.seconds} 秒
-                                          </li>
-                                        ))}
-                                      </ol>
-                                    )}
+                                    ) : null}
                                     {productionKey && selectedSegment && (
                                       <DramaSegmentVideo
                                         canvasVisible={showStudioCanvas}
@@ -1864,58 +1976,6 @@ export function DramaStudio({
                                         settingsRevision={doc.board_settings_revision ?? 1}
                                         reload={read}
                                       />
-                                    )}
-                                    {!ep.locked && (
-                                      <form
-                                        onSubmit={(event) => {
-                                          event.preventDefault();
-                                          const form = event.currentTarget;
-                                          const data = new FormData(form);
-                                          void run(async () => {
-                                            const result = await window.desktop.projects.drama({
-                                              projectHandle,
-                                              addSegment: {
-                                                episode_no: ep.episode_no,
-                                                revision: doc.revision,
-                                                prompt: String(data.get("prompt") ?? ""),
-                                                seconds: Number(data.get("seconds")),
-                                              },
-                                            });
-                                            if (!result.ok) {
-                                              if (result.error.code === "AGENT_APPROVAL_STALE")
-                                                await read();
-                                              setError(result.error.code);
-                                              return;
-                                            }
-                                            setDoc(result.value);
-                                            form.reset();
-                                          });
-                                        }}
-                                      >
-                                        <label>
-                                          片段提示词
-                                          <textarea
-                                            name="prompt"
-                                            required
-                                            maxLength={24000}
-                                            rows={2}
-                                          />
-                                        </label>
-                                        <label>
-                                          片段秒数
-                                          <input
-                                            name="seconds"
-                                            type="number"
-                                            min={1}
-                                            max={86400}
-                                            defaultValue={5}
-                                            required
-                                          />
-                                        </label>
-                                        <button type="submit" disabled={busy}>
-                                          添加片段
-                                        </button>
-                                      </form>
                                     )}
                                   </>
                                 )}
@@ -1975,7 +2035,11 @@ export function DramaStudio({
                                   }
                                 />
                               ) : (
-                                <p>这一集还没有片段，点下方时间线末尾的「+」新建一个</p>
+                                <DramaEmptyState
+                                  compact
+                                  title="这一集还没有片段"
+                                  description="点击下方时间线末尾的「+」新建第一个片段。"
+                                />
                               )}
                             </section>
                           }
@@ -1987,458 +2051,39 @@ export function DramaStudio({
                   )}
                 </div>
               </article>
-              {withAssistant &&
-                (loadingModels || !textModels.length ? (
-                  <aside
-                    className="assistant-surface drama-assistant drama-model-state"
-                    aria-label="短剧助手"
-                  >
-                    <AssistantModelState loading={loadingModels} />
-                  </aside>
-                ) : (
-                  <DramaAssistant
-                    projectHandle={projectHandle}
-                    providers={providers}
-                    plugins={plugins}
-                    refresh={read}
-                  />
-                ))}
+              <DramaAssistant
+                visible={withAssistant}
+                close={toggleAssistant ?? close}
+                loadingModels={loadingModels}
+                projectHandle={projectHandle}
+                models={textModels}
+                providers={providers}
+                plugins={plugins}
+                refresh={read}
+                beforeWrite={flushNavigation}
+                document={doc}
+                go={go}
+                assetSelection={assistantAsset?.selection}
+                context={{
+                  stage,
+                  ...(activeEpisode && { episodeNo: activeEpisode.episode_no }),
+                  episodeOrder: doc.episode_order ?? 0,
+                  ...(stage === "studio" &&
+                    selectedSegment && {
+                      segmentId: selectedSegment.id,
+                      segmentNumber: selectedSegment.seq + 1,
+                    }),
+                  ...(selectedAssistantAsset &&
+                    assistantAssetMeta && {
+                      assetId: selectedAssistantAsset.id,
+                      assetName: assistantAssetMeta.name,
+                    }),
+                }}
+              />
             </div>
           )}
         </main>
       </DramaSaveStatus.Provider>
     </DramaFlushers.Provider>
-  );
-}
-
-function DramaAssistant({
-  projectHandle,
-  providers,
-  plugins,
-  refresh,
-}: {
-  projectHandle: string;
-  providers: ProviderView[];
-  plugins: PluginView[];
-  refresh: () => Promise<void>;
-}) {
-  const models = providers.filter(
-    (model) =>
-      model.enabled && model.channelEnabled !== false && model.hasSecret && model.agentEnabled,
-  );
-  const [modelId, setModel] = useState("");
-  const model = models.find((item) => item.id === modelId) ?? models[0];
-  const [sessions, setSessions] = useState<CanvasAgentValues["list"]>();
-  const [listAttempt, setListAttempt] = useState(0);
-  const [session, setSession] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [explanation, setExplanation] = useState<{ id: string; text: string }>();
-  const message = drafts[session] ?? "";
-  const setMessage = (text: string) => setDrafts((previous) => ({ ...previous, [session]: text }));
-  const editor = useRef<HTMLTextAreaElement>(null);
-  const skillCatalog = useCanvasSkills(true);
-  const [error, setError] = useState("");
-  const { busy, run } = useAssistantAction(setError);
-  const invoke = useCallback(
-    async <Action extends CanvasAgentAction>(action: Action) => {
-      const result = await window.desktop.projects.canvasAgent({
-        projectHandle,
-        mode: "drama",
-        action,
-      });
-      if (!result.ok) throw new Error(result.error.code);
-      return result.value as CanvasAgentValues[Action["method"]];
-    },
-    [projectHandle],
-  );
-  useEffect(() => {
-    let live = true;
-    if (listAttempt) setError("");
-    void invoke({ method: "list" }).then(
-      (list) => {
-        if (live) {
-          setSessions(list);
-          setSession(list[0]?.id ?? "");
-        }
-      },
-      (cause) => {
-        if (live) setError(cause instanceof Error ? cause.message : "AGENT_STATE_UNAVAILABLE");
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [invoke, listAttempt]);
-  const read = useCallback(
-    async (sessionId: string, after: number, before?: number) => ({
-      ok: true as const,
-      value: await invoke({ method: "state", sessionId, after, before }),
-    }),
-    [invoke],
-  );
-  const { events, state, readError, refreshSession, history } = useAssistantSession(session, read);
-  const title = state?.title;
-  useEffect(() => {
-    if (title)
-      setSessions((current) =>
-        current?.map((entry) => (entry.id === session ? { ...entry, title } : entry)),
-      );
-  }, [session, title]);
-  const decided = events.findLast((event) => event.type === "approval.decided");
-  const lastRun = events.findLast((event) => event.type === "run.status");
-  const resumable =
-    lastRun &&
-    ["interrupted", "step_limit"].includes(
-      String((lastRun.payload as { status?: string })?.status),
-    );
-  useEffect(() => {
-    if (decided) void refresh();
-  }, [decided, refresh]);
-  const locked = busy || !sessions || (!!session && !state) || !!readError;
-  const create = async () => {
-    const { sessionId } = await invoke({ method: "create" });
-    setSessions((current) => [{ id: sessionId, title: "新对话" }, ...(current ?? [])]);
-    setSession(sessionId);
-    return sessionId;
-  };
-  const stop = () =>
-    void run(async () => {
-      if (!state?.activeRun) return;
-      await invoke({ method: "stop", sessionId: session, runId: state.activeRun });
-      await refreshSession();
-    });
-  const send = () =>
-    run(async () => {
-      if (!model || locked || !message.trim() || state?.otherActiveSession) return;
-      const sessionId = session || (await create());
-      await invoke({
-        method: "send",
-        providerId: model.id,
-        sessionId,
-        message: message.trim(),
-        selection: [],
-        runId: state?.activeRun,
-      });
-      setMessage("");
-      await refreshSession();
-    });
-  return (
-    <aside
-      className="assistant-surface drama-assistant"
-      aria-label="短剧助手"
-      onKeyDown={(event) => {
-        if (
-          event.key !== "Escape" ||
-          event.defaultPrevented ||
-          event.repeat ||
-          event.nativeEvent.isComposing ||
-          locked ||
-          !state?.activeRun ||
-          state.approvals.length ||
-          message.trim() ||
-          document.querySelector(":popover-open,dialog[open],select:open")
-        )
-          return;
-        event.preventDefault();
-        stop();
-      }}
-    >
-      <AssistantHeading
-        title={
-          <AssistantHistory
-            key={session}
-            current={session}
-            sessions={sessions ?? []}
-            title={title ?? sessions?.find((entry) => entry.id === session)?.title ?? "新对话"}
-            locked={locked || !!state?.activeRun}
-            select={setSession}
-            rename={(next) =>
-              void run(async () => {
-                const result = await invoke({ method: "rename", sessionId: session, title: next });
-                setSessions((current) =>
-                  current?.map((entry) =>
-                    entry.id === session ? { ...entry, title: result.title } : entry,
-                  ),
-                );
-                await refreshSession();
-              })
-            }
-            remove={(id) =>
-              void run(async () => {
-                const result = await invoke({ method: "remove", sessionId: id });
-                if (!result.removed) return;
-                const remaining = sessions?.filter((entry) => entry.id !== id) ?? [];
-                setSessions(remaining);
-                setDrafts((current) => {
-                  const next = { ...current };
-                  delete next[id];
-                  return next;
-                });
-                if (id === session) setSession(remaining[0]?.id ?? "");
-              })
-            }
-          />
-        }
-      >
-        <button
-          type="button"
-          disabled={locked || !!state?.activeRun}
-          onClick={() => {
-            setError("");
-            setSession("");
-          }}
-        >
-          新对话
-        </button>
-        <AssistantPreferences />
-      </AssistantHeading>
-      <AssistantStatus
-        state={state}
-        stale={!!readError || (!sessions && !!error)}
-        busy={busy}
-        opening={
-          (!sessions && !error) || history.phase === "latest" || history.phase === "latest-error"
-        }
-      />
-      {state?.otherActiveSession && (
-        <button type="button" onClick={() => setSession(state.otherActiveSession ?? "")}>
-          返回运行中的会话
-        </button>
-      )}
-      <AssistantTranscript
-        history={history}
-        loadingSessions={!sessions && !error}
-        label="短剧对话与活动"
-        sessionId={session}
-        empty={
-          !events.length && !locked ? (
-            <CanvasAssistantEmpty
-              drama
-              hasModel
-              onStarter={(text) => {
-                setMessage(text);
-                editor.current?.focus();
-              }}
-            />
-          ) : undefined
-        }
-      >
-        <AssistantTimeline
-          model={model}
-          events={events}
-          render={(event) => {
-            const payload = event.payload as Record<string, unknown> | null;
-            return event.type === "approval.decided" && payload?.kind === "ask" ? (
-              <QuestionRecord key={event.seq} payload={payload} providers={providers} />
-            ) : (
-              <Activity key={event.seq} event={event} />
-            );
-          }}
-        />
-        {state?.partial && (
-          <AssistantReply
-            streaming
-            text={state.partial.text}
-            thinking={state.partial.hasThinking}
-          />
-        )}
-        <AssistantCompactionStatus state={state} events={events} />
-      </AssistantTranscript>
-      {state?.approvals.map((approval) => {
-        if (approval.kind === "ask")
-          return (
-            <AssistantQuestionnaire
-              key={approval.id}
-              payload={approval.payload}
-              busy={locked}
-              models={canvasAgentMediaModels({ providers, plugins })}
-              onAnswer={(answers) =>
-                void run(async () => {
-                  await invoke({
-                    method: "answer",
-                    sessionId: session,
-                    approvalId: approval.id,
-                    ...(answers ? { answers } : {}),
-                  });
-                  await refreshSession();
-                })
-              }
-            />
-          );
-        const payload = approval.payload as {
-          title: string;
-          reason: string;
-          before: Record<string, string | number>;
-          after: Record<string, string | number>;
-        };
-        const job =
-          approval.kind === "drama_run_job"
-            ? (approval.payload as {
-                before: string;
-                after: string;
-                estimate: number;
-              })
-            : undefined;
-        return (
-          <section className="settings-confirm" key={approval.id}>
-            <h3>{payload.title}</h3>
-            <p>{payload.reason}</p>
-            {job ? (
-              <section aria-label="修改前后">
-                <div>
-                  <strong>修改前</strong>
-                  <del>{job.before}</del>
-                </div>
-                <div>
-                  <strong>修改后</strong>
-                  <ins>{job.after}</ins>
-                </div>
-              </section>
-            ) : (
-              Object.entries(payload.after).map(([field, text]) => (
-                <div key={field}>
-                  <strong>
-                    {{
-                      title: "标题",
-                      script_md: "剧本",
-                      synopsis: "梗概",
-                      outline_md: "大纲",
-                      characters_md: "人物传记",
-                      prompt: "提示词",
-                      seconds: "秒数",
-                    }[field] ?? field}
-                  </strong>
-                  <del>{payload.before[field] || "空"}</del>
-                  <ins>{text}</ins>
-                </div>
-              ))
-            )}
-            {(job
-              ? ["批准修改", "不用了", "不用了，并告诉 Agent 怎么改…"]
-              : ["保留原文", "批准修改"]
-            ).map((label) => (
-              <button
-                key={label}
-                type="button"
-                disabled={locked}
-                onClick={() =>
-                  void run(async () => {
-                    if (label.endsWith("…") && explanation?.id !== approval.id) {
-                      setExplanation({ id: approval.id, text: "" });
-                      return;
-                    }
-                    await invoke({
-                      method: "decide",
-                      sessionId: session,
-                      approvalId: approval.id,
-                      selected: label === "批准修改" ? [0] : [],
-                      ...(label.endsWith("…") && { answer: explanation?.text }),
-                    });
-                    setExplanation(undefined);
-                    await refreshSession();
-                    await refresh();
-                  })
-                }
-              >
-                {label.endsWith("…") && explanation?.id === approval.id ? "提交说明" : label}
-                {label === "批准修改" && job && job.estimate > 0 && ` ✦ ${job.estimate}`}
-              </button>
-            ))}
-            {job && explanation?.id === approval.id && (
-              <input
-                aria-label="拒绝说明"
-                ref={focusOnMount}
-                maxLength={2000}
-                placeholder="比如：只改结尾，保留前两段"
-                value={explanation.text}
-                onChange={(event) => setExplanation({ id: approval.id, text: event.target.value })}
-              />
-            )}
-          </section>
-        );
-      })}
-      {(error || (readError && history.phase !== "latest-error")) && (
-        <p role="alert">{settingsError(error || readError || "AGENT_STATE_UNAVAILABLE")}</p>
-      )}
-      {!sessions && error && (
-        <button type="button" onClick={() => setListAttempt((attempt) => attempt + 1)}>
-          重试读取会话
-        </button>
-      )}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send();
-        }}
-      >
-        <label>
-          短剧消息
-          <textarea
-            ref={editor}
-            rows={3}
-            maxLength={24000}
-            value={message}
-            onKeyDown={submitShortcut}
-            onChange={(event) => setMessage(event.target.value)}
-          />
-        </label>
-        <div className="drama-composer-actions">
-          <select
-            aria-label="对话模型"
-            value={model?.id ?? ""}
-            onChange={(event) => setModel(event.target.value)}
-            disabled={!!state?.activeRun}
-          >
-            {models.map((entry) => (
-              <option value={entry.id} key={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-          <AssistantSkillMenu
-            catalog={skillCatalog}
-            editor={editor}
-            disabled={locked || !!state?.activeRun}
-            pick={(skill) => {
-              const start = editor.current?.selectionStart ?? message.length,
-                end = editor.current?.selectionEnd ?? start;
-              const token = `@[${skill.title}](skill:${skill.id}) `;
-              if (message.length - end + start + token.length <= 24000) {
-                setMessage(message.slice(0, start) + token + message.slice(end));
-                requestAnimationFrame(() =>
-                  editor.current?.setSelectionRange(start + token.length, start + token.length),
-                );
-              }
-            }}
-          />
-          <AssistantContextRing events={events} model={model} />
-          <button
-            type="submit"
-            disabled={locked || !model || !message.trim() || !!state?.otherActiveSession}
-          >
-            {state?.activeRun ? "插话" : "发送"}
-          </button>
-        </div>
-        {state?.activeRun && (
-          <button type="button" disabled={locked} onClick={stop}>
-            停止
-          </button>
-        )}
-        {resumable && !state?.activeRun && (
-          <button
-            type="button"
-            disabled={locked || !!state?.otherActiveSession}
-            onClick={() =>
-              void run(async () => {
-                await invoke({ method: "continue", runId: lastRun.runId, sessionId: session });
-                await refreshSession();
-              })
-            }
-          >
-            继续运行
-          </button>
-        )}
-      </form>
-    </aside>
   );
 }

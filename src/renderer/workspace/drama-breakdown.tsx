@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { EpisodeProgress } from "./drama-episode-rail";
 import { dramaJobFeedback } from "./drama-job-feedback";
+import { DramaNotice } from "./drama-studio-status";
 
 type Job = NonNullable<DramaDocument["jobs"]>[number];
 const active = (job: Job) => job.status === "queued" || job.status === "running";
@@ -67,7 +68,7 @@ function BreakdownRow({ job, cancel }: { job: Job; cancel: (id: string) => Promi
         </button>
       </div>
       {!queued && detail && <small>{detail}</small>}
-      {error && <span role="alert">{error}</span>}
+      {error && <DramaNotice tone="error">{error}</DramaNotice>}
     </>
   );
 }

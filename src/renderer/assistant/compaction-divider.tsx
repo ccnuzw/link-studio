@@ -44,7 +44,7 @@ export function CompactionDivider({ item, limit }: { item: Compaction; limit: nu
               <span className="compaction-description">
                 {item.failed
                   ? "这次没能把较早的对话整理成摘要（比如模型暂时不可用）。这一轮不会再自动整理，对话继续变长可能很快到上限；可以新开一个对话接着做。"
-                  : "聊天记录没有变：上面的消息都还在。只是 Agent 读到的上下文里，较早的部分换成了一份摘要（要点、已完成的事、节点和任务信息都保留）。"}
+                  : "聊天记录没有变：上面的消息都还在。只是小灵读到的上下文里，较早的部分换成了一份摘要（要点、已完成的事、节点和任务信息都保留）。"}
               </span>
               <Tooltip.Arrow className="agent-context-tip-arrow" />
             </Tooltip.Popup>

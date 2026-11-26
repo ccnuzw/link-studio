@@ -154,6 +154,216 @@
   display: flex;
   flex-direction: column;
 }
+.drama-studio-draft {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid var(--rail-line);
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--rail-ink) 6%, transparent);
+  color: var(--rail-ink);
+  font:
+    14px / 1.5 "Geist Variable",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.drama-studio-draft-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--rail-line);
+}
+.drama-studio-draft-heading small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--rail-soft);
+  font-size: 12px;
+}
+.drama-studio-draft-heading h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.drama-studio-production .drama-studio-draft-heading > div > p {
+  max-width: 48ch;
+  margin: 8px 0 0;
+  color: var(--rail-soft);
+  font-size: 13px;
+}
+.drama-studio-draft-heading > span {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--rail-primary) 14%, transparent);
+  color: var(--rail-primary);
+  font-size: 12px;
+  line-height: 1;
+}
+.drama-studio-draft-list {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.drama-studio-draft-list li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--rail-muted);
+}
+.drama-studio-draft-list b {
+  color: var(--rail-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-draft-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drama-studio-draft-list small {
+  color: var(--rail-soft);
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-draft-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px dashed var(--rail-line);
+  border-radius: 12px;
+  color: var(--rail-soft);
+}
+.drama-studio-draft-empty svg {
+  flex: none;
+  color: var(--rail-primary);
+}
+.drama-studio-draft-empty strong {
+  display: block;
+  color: var(--rail-ink);
+  font-size: 14px;
+}
+.drama-studio-production .drama-studio-draft-empty > div > p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.drama-studio-draft-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rail-line);
+}
+.drama-studio-draft-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--rail-soft);
+  font-size: 12px;
+}
+.drama-studio-draft-form textarea,
+.drama-studio-draft-form input {
+  width: 100%;
+  border: 1px solid var(--rail-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--rail-bg) 70%, var(--rail-ink) 3%);
+  color: var(--rail-ink);
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background-color 0.15s;
+}
+.drama-studio-draft-form textarea {
+  min-height: 78px;
+  resize: vertical;
+  padding: 10px 12px;
+}
+.drama-studio-draft-form input {
+  height: 40px;
+  padding: 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.drama-studio-draft-form textarea::placeholder {
+  color: color-mix(in srgb, var(--rail-soft) 72%, transparent);
+}
+.drama-studio-draft-form :is(textarea, input):focus {
+  border-color: var(--rail-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 20%, transparent);
+  background: var(--rail-bg);
+}
+.drama-studio-draft-seconds > div {
+  position: relative;
+}
+.drama-studio-draft-seconds small {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  translate: 0 -50%;
+  color: var(--rail-soft);
+  pointer-events: none;
+}
+.drama-studio-draft-seconds input {
+  padding-right: 28px;
+}
+.drama-studio-draft-form > button {
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rail-primary);
+  color: white;
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.drama-studio-draft-form > button:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--rail-primary) 82%, transparent);
+}
+.drama-studio-draft-form > button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rail-primary) 35%, transparent);
+}
+@media (max-width: 720px) {
+  .drama-studio-draft {
+    padding: 18px;
+  }
+  .drama-studio-draft-form {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+  .drama-studio-draft-form > button {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 480px) {
+  .drama-studio-draft-heading {
+    display: block;
+  }
+  .drama-studio-draft-heading > span {
+    display: inline-flex;
+    margin-top: 12px;
+  }
+  .drama-studio-draft-form {
+    grid-template-columns: 1fr;
+  }
+}
 .drama-studio-batch-bar {
   gap: 8px;
   height: 48px;

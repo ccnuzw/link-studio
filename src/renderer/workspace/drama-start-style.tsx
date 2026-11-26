@@ -2,6 +2,7 @@ import { Popover } from "@base-ui/react/popover";
 import { dramaStyles } from "@link-studio/core";
 import { Check, ChevronDown, Pencil } from "lucide-react";
 import { type ReactNode, type RefObject, useState } from "react";
+import { DramaNotice } from "./drama-studio-status";
 
 const posters = import.meta.glob<string>("./drama-style-assets/*.webp", {
   eager: true,
@@ -256,7 +257,9 @@ export function DramaStartStyle({
                   秒 / 集
                 </span>
               </label>
-              {!!input && !valid(input) && <p role="alert">请输入 30–180 的整数</p>}
+              {!!input && !valid(input) && (
+                <DramaNotice tone="error">请输入 30–180 的整数</DramaNotice>
+              )}
             </>
           )}
         </FieldMenu>

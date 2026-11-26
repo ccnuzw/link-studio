@@ -1,5 +1,5 @@
 import { Popover } from "@base-ui/react/popover";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { Fragment, type ReactNode, type RefObject, useState } from "react";
 
 export function PickerFilter({
@@ -12,7 +12,7 @@ export function PickerFilter({
   canvasGroup,
 }: {
   label: string;
-  icon: ReactNode;
+  icon?: ReactNode;
   options: Record<string, string>;
   value: string;
   change: (value: string) => void;
@@ -26,10 +26,15 @@ export function PickerFilter({
       <Popover.Trigger
         aria-label={label}
         title={active ? `${label}：${options[value]}` : label}
-        className="asset-pick-icon asset-pick-filter"
+        className={`asset-pick-icon asset-pick-filter${icon ? "" : " asset-pick-filter-text"}`}
         data-active={active || undefined}
       >
-        {icon}
+        {icon ?? (
+          <>
+            {active ? options[value] : label}
+            <ChevronDown size={13} aria-hidden="true" />
+          </>
+        )}
       </Popover.Trigger>
       <Popover.Portal container={container}>
         <Popover.Positioner

@@ -257,8 +257,8 @@ describe("画布交换", () => {
     expect(native.report.missingAssetIds).toEqual([assetId]);
     expect(native.document.nodes[0]?.data).toMatchObject({
       director,
-      directorThumbnailId: undefined,
     });
+    expect(native.document.nodes[0]?.data).not.toHaveProperty("directorThumbnailId");
   });
   it.each([undefined, "upload", "generated", "library"] as const)(
     "角色音色来源 %s 导入导出往返",
@@ -501,7 +501,8 @@ describe("画布交换", () => {
     );
     const prepared = prepareCanvasExchange(parsed, new Set());
     expect(prepared.report.missingAssetIds).toEqual(["11111111-1111-4111-8111-111111111111"]);
-    expect(prepared.document.nodes[1]).toMatchObject({ data: { assetId: undefined } });
+    expect(prepared.document.nodes[1]).not.toHaveProperty("data.assetId");
+    expect(prepared.document).toStrictEqual(JSON.parse(JSON.stringify(prepared.document)));
     const withEdge = { ...prepared.document, edges: [] };
     const merged = mergeCanvasExchange(
       { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },

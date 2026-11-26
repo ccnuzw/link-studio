@@ -13,6 +13,7 @@ import {
   maxStoryboardShots,
   shotSizes,
 } from "./canvas.ts";
+import { DramaAgentContext } from "./drama.ts";
 import { generationModes } from "./model-config.ts";
 import type { SettingsValues } from "./settings-api.ts";
 
@@ -251,6 +252,7 @@ export const CanvasAgentAction = Type.Union([
       providerId: id,
       message: Type.String({ minLength: 1, maxLength: 24000 }),
       selection: Type.Array(CanvasId, { maxItems: 20, uniqueItems: true }),
+      dramaContext: Type.Optional(DramaAgentContext),
       referenceURL: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
       allowWebResearch: Type.Optional(Type.Boolean()),
       referenceFingerprint: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$" })),

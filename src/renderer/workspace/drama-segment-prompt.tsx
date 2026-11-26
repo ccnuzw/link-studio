@@ -5,6 +5,7 @@ import { CanvasPromptEditor } from "./canvas-prompt-editor";
 import { Autosaver, type AutosaveStatus } from "./drama-autosave";
 import { useDramaFlush, useDramaSaveStatus } from "./drama-save-status";
 import { studioAssetDragType, studioAssets } from "./drama-studio-assets";
+import { DramaNotice } from "./drama-studio-status";
 
 type Segment = NonNullable<DramaDocument["segments"]>[number];
 
@@ -185,7 +186,7 @@ export function SegmentPromptEditor({
         />
       </form>
       {prompt.status === "conflict" && (
-        <div role="alert">
+        <DramaNotice compact tone="warning">
           原稿版本已变化。
           <button
             type="button"
@@ -193,10 +194,10 @@ export function SegmentPromptEditor({
           >
             载入最新原稿
           </button>
-        </div>
+        </DramaNotice>
       )}
       {prompt.status === "error" && (
-        <div role="alert">
+        <DramaNotice compact tone="error">
           原稿保存失败。
           <button
             type="button"
@@ -204,7 +205,7 @@ export function SegmentPromptEditor({
           >
             重试保存
           </button>
-        </div>
+        </DramaNotice>
       )}
     </>
   );

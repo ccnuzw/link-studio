@@ -110,6 +110,8 @@ export function AssistantEditor({
   selection,
   onText,
   onImages,
+  label,
+  placeholder,
   settings = false,
 }: {
   editor: RefObject<AssistantEditorHandle | null>;
@@ -123,6 +125,8 @@ export function AssistantEditor({
   selection?: SelectedReference[];
   onText: (message: string, mentions: ModelMention[]) => void;
   onImages?: (files: FileList) => boolean;
+  label?: string;
+  placeholder?: string;
 }) {
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [active, setActive] = useState(0);
@@ -179,7 +183,7 @@ export function AssistantEditor({
     editorProps: {
       attributes: {
         role: "textbox",
-        "aria-label": settings ? "消息" : "画布消息",
+        "aria-label": label ?? (settings ? "消息" : "画布消息"),
         "aria-multiline": "true",
         class: "agent-rich-input",
       },
@@ -320,16 +324,16 @@ export function AssistantEditor({
       document.removeEventListener("scroll", scroll, true);
     };
   }, [editor, suggestion, showMenu]);
-  const placeholder = running
-    ? "补充要求，Agent 会在下一步看到"
+  const hint = running
+    ? "补充要求，小灵会在下一步看到"
     : settings
       ? "描述要调整的配置"
-      : "描述你的想法，@ 引用节点，/ 插入技能";
+      : (placeholder ?? "描述你的想法，@ 引用节点，/ 插入技能");
   return (
     <div className="assistant-inline-editor">
       {!message && (
         <span className="agent-editor-placeholder" aria-hidden>
-          {placeholder}
+          {hint}
         </span>
       )}
       <EditorContent editor={editor} />

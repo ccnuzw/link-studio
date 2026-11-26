@@ -11,12 +11,14 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export function AssistantFrame({
   visible,
   close,
+  closeLabel = "关闭小灵",
   bounds,
   preferences,
   children,
 }: {
   visible: boolean;
   close: () => void;
+  closeLabel?: string;
   bounds?: PetBounds;
   preferences?: ReactNode;
   children: (controls: ReactNode) => ReactNode;
@@ -88,7 +90,7 @@ export function AssistantFrame({
         </button>
       )}
       <AssistantPreferences>{preferences}</AssistantPreferences>
-      <button type="button" aria-label="关闭小灵" title="收起" onClick={close}>
+      <button type="button" aria-label={closeLabel} title="收起" onClick={close}>
         <Minus size={16} />
       </button>
     </>
@@ -147,7 +149,7 @@ export function AssistantFrame({
         {docked && (
           <hr
             aria-orientation="vertical"
-            aria-label="调整 Agent 宽度"
+            aria-label="调整小灵面板宽度"
             aria-valuemin={320}
             aria-valuemax={Math.min(560, viewport.width / 2)}
             aria-valuenow={previewWidth ?? layout.width}

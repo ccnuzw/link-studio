@@ -1,0 +1,75 @@
+.canvas-voice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--soft);
+  font-size: 12px;
+}
+
+.asset-pick .canvas-voice-filters .asset-pick-filter-text {
+  display: inline-flex;
+  width: auto;
+  height: 32px;
+  align-items: center;
+  gap: 5px;
+  padding-inline: 10px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.canvas-voice-filters .asset-pick-filter-text:is(:hover, [data-active], [data-popup-open]) {
+  border-color: var(--soft);
+}
+
+.canvas-voice-filters > span {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-voice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 122px), 1fr));
+  gap: 10px;
+}
+
+.canvas-voice-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 52px 14px;
+  border: 1px dashed var(--edge);
+  border-radius: 12px;
+  color: var(--soft);
+  text-align: center;
+}
+
+.canvas-voice-empty strong {
+  color: var(--ink);
+}
+
+.canvas-voice-empty p {
+  margin: 0;
+}
+
+@media (max-width: 639px) {
+  .asset-pick[data-source="voices"] header,
+  .asset-pick[data-source="voices"] .asset-pick-body {
+    padding-inline: 12px;
+  }
+  .asset-pick[data-source="voices"] .asset-pick-tabs,
+  .asset-pick[data-source="voices"] .asset-pick-actions {
+    flex: 1 1 100%;
+  }
+  .asset-pick[data-source="voices"] .asset-pick-tabs button,
+  .asset-pick[data-source="voices"] .asset-pick-actions label {
+    flex: 1;
+  }
+  .asset-pick[data-source="voices"] .asset-pick-tabs button {
+    padding-inline: 8px;
+  }
+}

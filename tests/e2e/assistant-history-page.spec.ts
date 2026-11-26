@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { openStore } from "../../packages/agent-runtime/upstream/src/store/store";
 import { requireTestValue } from "../require-test-value";
-import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
+import { confirmDramaScript, createCanvasProject, createDramaProject } from "./workspace-actions";
 
 for (const scope of ["设置", "画布", "短剧"] as const)
   test(`${scope}小灵：重启打开长会话，加载失败可重试，翻页保留阅读位置并独立追更`, async () => {
@@ -84,27 +84,24 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         scope === "画布"
           ? page.getByRole("region", { name: "画布小灵" })
           : page.getByRole("complementary", {
-              name: scope === "设置" ? "小灵设置助手" : "短剧助手",
+              name: scope === "设置" ? "小灵设置助手" : "短剧小灵",
             });
       const open = async (reopen = false) => {
         if (scope === "设置") {
           await page.getByRole("button", { name: "应用设置" }).click();
-          await page.getByRole("button", { name: "设置助手" }).click();
+          await page.getByRole("button", { name: "设置小灵" }).click();
           return;
         }
         if (reopen) await page.getByRole("button", { name: /^翻页验收项目/ }).click();
         else {
-          await createCanvasProject(page, "翻页验收项目");
+          const create = scope === "短剧" ? createDramaProject : createCanvasProject;
+          await create(page, "翻页验收项目");
         }
-        const action = async (name: string) => {
-          await projectAction(page, name);
-        };
         if (scope === "画布") {
           await page.getByRole("button", { name: "打开小灵", exact: true }).click();
           return;
         }
         if (!reopen) {
-          await action("短剧工作室");
           await page.getByRole("button", { name: "粘贴正文" }).click();
           await page.getByLabel("粘贴正文").fill("第一集 翻页\n核对较早的剧本。");
           await page.getByRole("button", { name: "开始", exact: true }).click();
@@ -113,9 +110,8 @@ for (const scope of ["设置", "画布", "短剧"] as const)
             .getByRole("dialog", { name: "开拍设置" })
             .getByRole("button", { name: "开始" })
             .click();
-          await page.getByRole("button", { name: "返回画布" }).click();
         }
-        await action("短剧助手");
+        await page.getByRole("button", { name: "小灵", exact: true }).click();
       };
       await open();
       await panelForPage()
@@ -195,7 +191,12 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(retry).toBeVisible();
         await expect(users).toHaveCount(33);
         const anchor = log.getByText("验收问题 58", { exact: true });
-        const y = () => anchor.evaluate((el) => el.getBoundingClientRect().top);
+        const y = () =>
+          anchor.evaluate((element) => {
+            const transcript = element.closest('[role="log"]');
+            if (!transcript) throw new Error("找不到历史记录容器");
+            return element.getBoundingClientRect().top - transcript.getBoundingClientRect().top;
+          });
         const original = await y();
         restore();
         seed(91, 91);
@@ -204,7 +205,7 @@ for (const scope of ["设置", "画布", "短剧"] as const)
         await expect(latest).toBeVisible();
         await retry.click();
         await expect(users).toHaveCount(67);
-        expect(Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
+        await expect.poll(async () => Math.abs((await y()) - original)).toBeLessThanOrEqual(1);
         await scrollToTop();
         await expect(users).toHaveCount(91);
         await expect(users.first()).toHaveText("验收问题 1");

@@ -40,11 +40,6 @@
   text-rendering: auto;
   -webkit-font-smoothing: antialiased;
 }
-.drama-assistant :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
-  --popover: oklch(0.985 0.004 85);
-  --muted-foreground: oklch(0.5 0.015 85);
-  --chrome-border: oklch(0.22 0.02 85 / 0.1);
-}
 @media (prefers-color-scheme: dark) {
   :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
     --popover: oklch(0.205 0 0);
@@ -52,11 +47,6 @@
     --settings-sheen: oklch(1 0 0 / 0.09);
     --elevation-near: oklch(0 0 0 / 0.1);
     --elevation-far: oklch(0 0 0 / 0.42);
-  }
-  .drama-assistant :is(.assistant-page-overlay, .assistant-page-opening, .assistant-page-jump) {
-    --popover: oklch(0.225 0.006 286);
-    --muted-foreground: oklch(0.75 0.015 85);
-    --chrome-border: oklch(1 0 0 / 0.08);
   }
 }
 .assistant-page-overlay {
@@ -135,7 +125,7 @@
   color: var(--foreground, var(--assistant-text));
 }
 @media (prefers-color-scheme: light) {
-  :is(.settings-assistant, .drama-assistant) .assistant-page-opening {
+  .settings-assistant .assistant-page-opening {
     --retry-border: oklch(0.22 0.02 85 / 0.1);
     --retry-paper: oklch(0.95 0.007 85);
     --retry-hover: oklch(0.92 0.008 85);
@@ -147,11 +137,6 @@
     --retry-border: oklch(1 0 0 / 0.15);
     --retry-paper: oklab(1 0 0 / 0.045);
     --retry-hover: oklab(1 0 0 / 0.075);
-  }
-  .drama-assistant .assistant-page-opening {
-    --retry-border: oklch(1 0 0 / 0.13);
-    --retry-paper: oklab(1 0 0 / 0.039);
-    --retry-hover: oklab(1 0 0 / 0.065);
   }
 }
 .assistant-surface .assistant-page-opening .assistant-header-orb {

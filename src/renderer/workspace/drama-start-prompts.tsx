@@ -20,6 +20,7 @@ import video from "../../../packages/provider-runtime/runner/dramaoutput/prompts
 import { focusOnMount } from "../focus-on-mount";
 import { PlaceholderEditor } from "./drama-placeholder-editor";
 import { FieldMenu } from "./drama-start-style";
+import { DramaNotice } from "./drama-studio-status";
 
 function stageSkills(skills: SkillItem[], step: string) {
   return skills.flatMap((item) => {
@@ -290,7 +291,7 @@ export function PromptRows({
           );
         })}
       </div>
-      {library.error && <p role="alert">{library.error}</p>}
+      {library.error && <DramaNotice tone="error">{library.error}</DramaNotice>}
     </div>
   );
 }
@@ -365,7 +366,7 @@ export function PromptEditor({ draft, library }: { draft: Draft; library: Librar
         )}
         <small>{body.length.toLocaleString("en-US")} / 20,000</small>
       </div>
-      {error && <p role="alert">{error}</p>}
+      {error && <DramaNotice tone="error">{error}</DramaNotice>}
       <footer>
         <button
           type="button"

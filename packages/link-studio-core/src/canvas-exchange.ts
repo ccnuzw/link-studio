@@ -94,28 +94,43 @@ export function prepareCanvasExchange(
   const nodes = document.nodes.map((entry) => {
     if (entry.type !== "creative") return entry;
     const node = { ...entry, data: restoreMediaVersion(entry.data) };
-    const assetId = node.data.assetId;
+    const {
+      assetId,
+      outputs: savedOutputs,
+      activeOutputId,
+      directorThumbnailId,
+      character,
+      ...data
+    } = node.data;
     const validAssetId = assetId && availableAssetIds.has(assetId) ? assetId : undefined;
     if (assetId && !validAssetId) missing.add(assetId);
-    const outputs = (node.data.outputs ?? []).filter((output) => {
+    const outputs = (savedOutputs ?? []).filter((output) => {
       if (!output.assetId) return true;
       if (availableAssetIds.has(output.assetId)) return true;
       missing.add(output.assetId);
       return false;
     });
-    const active = outputs.find(({ id }) => id === node.data.activeOutputId);
-    const character = node.data.character;
+    const active = outputs.find(({ id }) => id === activeOutputId);
     const present = (id: string) => {
       if (availableAssetIds.has(id)) return true;
       missing.add(id);
       return false;
     };
+    const preparedCharacter =
+      character &&
+      (() => {
+        const { voice, ...characterData } = character;
+        return {
+          ...characterData,
+          extraAssetIds: character.extraAssetIds.filter(present),
+          ...(voice && present(voice.assetId) && { voice }),
+        };
+      })();
     return {
       ...node,
       data: {
-        ...node.data,
-        ...(node.data.directorThumbnailId &&
-          !present(node.data.directorThumbnailId) && { directorThumbnailId: undefined }),
+        ...data,
+        ...(directorThumbnailId && present(directorThumbnailId) && { directorThumbnailId }),
         ...(node.data.manualReferenceIds && {
           manualReferenceIds: node.data.manualReferenceIds.filter(present),
         }),
@@ -124,19 +139,10 @@ export function prepareCanvasExchange(
             imageAssetId && present(imageAssetId) ? { ...shot, imageAssetId } : shot,
           ),
         }),
-        ...(validAssetId ? { assetId: validAssetId } : { assetId: undefined }),
-        ...(outputs.length ? { outputs } : { outputs: undefined, activeOutputId: undefined }),
-        ...(active ? { activeOutputId: active.id } : { activeOutputId: undefined }),
-        ...(character
-          ? {
-              character: {
-                ...character,
-                extraAssetIds: character.extraAssetIds.filter(present),
-                voice:
-                  character.voice && present(character.voice.assetId) ? character.voice : undefined,
-              },
-            }
-          : {}),
+        ...(validAssetId && { assetId: validAssetId }),
+        ...(outputs.length > 0 && { outputs }),
+        ...(active && { activeOutputId: active.id }),
+        ...(preparedCharacter && { character: preparedCharacter }),
       },
     };
   });

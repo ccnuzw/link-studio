@@ -44,10 +44,10 @@ export function CanvasAssistantEmpty({
       <span className="assistant-orb" aria-hidden="true" />
       <strong>
         {settings
-          ? "让助手帮你调整后台配置"
+          ? "让小灵帮你调整后台配置"
           : drama
-            ? "让助手帮你改剧本、资产和分镜"
-            : "让 Agent 帮你把想法搭成分镜"}
+            ? "让小灵帮你改剧本、资产和分镜"
+            : "让小灵帮你把想法搭成分镜"}
       </strong>
       {!settings && (
         <p>

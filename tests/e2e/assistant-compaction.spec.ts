@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { confirmDramaScript, createCanvasProject, projectAction } from "./workspace-actions";
+import { confirmDramaScript, createCanvasProject, createDramaProject } from "./workspace-actions";
 
 function gate() {
   let resolve!: () => void;
@@ -152,27 +152,24 @@ for (const scope of ["设置", "画布", "短剧"] as const)
           scope === "画布"
             ? page.getByRole("region", { name: "画布小灵" })
             : page.getByRole("complementary", {
-                name: scope === "设置" ? "小灵设置助手" : "短剧助手",
+                name: scope === "设置" ? "小灵设置助手" : "短剧小灵",
               });
-        const action = async (name: string) => {
-          await projectAction(page, name);
-        };
         const open = async (reopen = false) => {
           if (scope === "设置") {
             await page.getByRole("button", { name: "应用设置" }).click();
-            await page.getByRole("button", { name: "设置助手" }).click();
+            await page.getByRole("button", { name: "设置小灵" }).click();
             return;
           }
           if (reopen) await page.getByRole("button", { name: /^自动整理验收项目/ }).click();
           else {
-            await createCanvasProject(page, "自动整理验收项目");
+            const create = scope === "短剧" ? createDramaProject : createCanvasProject;
+            await create(page, "自动整理验收项目");
           }
           if (scope === "画布") {
             await page.getByRole("button", { name: "打开小灵", exact: true }).click();
             return;
           }
           if (!reopen) {
-            await action("短剧工作室");
             await page.getByRole("button", { name: "粘贴正文" }).click();
             await page.getByLabel("粘贴正文").fill("第一集 灯光\n拍摄之前核对灯光。");
             await page.getByRole("button", { name: "开始", exact: true }).click();
@@ -181,9 +178,8 @@ for (const scope of ["设置", "画布", "短剧"] as const)
               .getByRole("dialog", { name: "开拍设置" })
               .getByRole("button", { name: "开始" })
               .click();
-            await page.getByRole("button", { name: "返回画布" }).click();
           }
-          await action("短剧助手");
+          await page.getByRole("button", { name: "小灵", exact: true }).click();
         };
         const divider = () =>
           panel().getByRole("separator", {

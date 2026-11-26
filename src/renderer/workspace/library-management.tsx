@@ -1,15 +1,38 @@
 import { Menu } from "@base-ui/react/menu";
 import type { LibraryFolder, ProjectValues } from "@link-studio/core";
-import { Check, Ellipsis, Folder, FolderPlus, House, Loader2, X } from "lucide-react";
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  Check,
+  ChevronRight,
+  CircleAlert,
+  Ellipsis,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  House,
+  LibraryBig,
+  Loader2,
+  Search,
+  X,
+} from "lucide-react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { ChoiceButton } from "../choice-button";
 import { focusOnMount } from "../focus-on-mount";
 import { Cover } from "./asset-picker-dialog";
 import { BackdropDialog } from "./backdrop-dialog";
 import { LibraryFolderForm } from "./library-folder-form";
 import { usePersonalLibrary } from "./use-personal-library";
+import "./library-management.css";
 
 type Row = ProjectValues["listLibrary"]["items"][number];
+const mediaLabels = { audio: "音频", image: "图片", video: "视频" };
 function Surface({
   label,
   close,
@@ -34,7 +57,11 @@ function Surface({
       ref={ref}
       role={alert ? "alertdialog" : "dialog"}
       aria-label={label}
-      className={`library-folder-form library-management ${wide ? "library-manager" : `library-name-dialog ${alert ? "library-delete-dialog" : "library-location-dialog"}`}`}
+      className={
+        wide
+          ? "library-manager"
+          : `library-folder-form library-management library-name-dialog ${alert ? "library-delete-dialog" : "library-location-dialog"}`
+      }
       onCancel={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -46,17 +73,23 @@ function Surface({
     </BackdropDialog>
   );
 }
-function Actions({ name, options }: { name: string; options: [string, () => void][] }) {
-  const container = useRef<HTMLSpanElement>(null);
+function Actions({
+  name,
+  container,
+  options,
+}: {
+  name: string;
+  container: RefObject<HTMLDivElement | null>;
+  options: [string, () => void][];
+}) {
   return (
     <Menu.Root modal={false}>
-      <Menu.Trigger aria-label={`${name} 操作`}>
-        <Ellipsis size={16} />
+      <Menu.Trigger className="library-manager-action" aria-label={`${name} 操作`}>
+        <Ellipsis size={17} aria-hidden="true" />
       </Menu.Trigger>
-      <span ref={container} />
       <Menu.Portal container={container}>
-        <Menu.Positioner align="end" sideOffset={4}>
-          <Menu.Popup className="library-actions">
+        <Menu.Positioner align="end" sideOffset={5}>
+          <Menu.Popup className="library-manager-menu">
             {options.map(([label, action]) => (
               <Menu.Item key={label} onClick={action}>
                 {label}
@@ -294,8 +327,19 @@ export function DeleteLibraryFolder({
     </Surface>
   );
 }
-export function LibraryManagement({ handle, close }: { handle: string; close: () => void }) {
+export function LibraryManagement({
+  handle,
+  close,
+  openPicker,
+  pickerDisabled,
+}: {
+  handle: string;
+  close: () => void;
+  openPicker: () => void;
+  pickerDisabled?: boolean;
+}) {
   const { items, folders, status, reload } = usePersonalLibrary(handle);
+  const menuHost = useRef<HTMLDivElement>(null);
   const [folderId, setFolderId] = useState<string | null>(null),
     [input, setInput] = useState(""),
     [term, setTerm] = useState(""),
@@ -320,101 +364,208 @@ export function LibraryManagement({ handle, close }: { handle: string; close: ()
     term ? row.asset.displayName.toLocaleLowerCase().includes(term) : row.folderId === folderId,
   );
   const shownFolders = !term && !folderId ? folders : [];
+  const sources = new Map(folders.map((folder) => [folder.id, folder.name]));
+  const emptyTitle = term ? "没有找到匹配的素材" : current ? "这个文件夹是空的" : "还没有素材";
+  const emptyDetail = term
+    ? "试试更短的文件名关键词。"
+    : current
+      ? "在素材的操作菜单中选择「移动到…」，即可整理到这里。"
+      : "在画布选中素材节点，点击「加入资产库」即可保存。也可以在资产库中上传本地文件。";
+  const clearSearch = () => {
+    setInput("");
+    setTerm("");
+  };
+
   return (
-    <Surface label="个人资产库管理" wide close={close}>
-      <header>
-        <h2>
+    <>
+      <Surface label="个人资产库管理" wide close={close}>
+        <header className="library-manager-header">
+          <span className="library-manager-mark" aria-hidden="true">
+            <LibraryBig size={22} />
+          </span>
+          <div>
+            <h2>个人资产库</h2>
+            <p>整理常用图片、视频和音频，在不同项目的「资产库」中重复使用。</p>
+          </div>
           <button
             type="button"
-            onClick={() => {
-              setFolderId(null);
-              setInput("");
-            }}
+            className="library-manager-close"
+            aria-label="关闭个人资产库管理"
+            onClick={close}
           >
-            个人资产库
+            <X size={19} aria-hidden="true" />
           </button>
-          {current && ` › ${current.name}`}
-        </h2>
-        <button type="button" aria-label="关闭个人资产库管理" onClick={close}>
-          <X size={16} />
-        </button>
-      </header>
-      <div className="library-tools">
-        <input
-          aria-label="搜索文件名"
-          placeholder="搜索文件名"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-        />
-        <button type="button" onClick={() => setEdit("new")}>
-          新建文件夹
-        </button>
-      </div>
-      <div className="library-cards">
-        {shownFolders.map((folder) => (
-          <article key={folder.id}>
+        </header>
+        <div className="library-manager-tools">
+          <label className="library-manager-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="搜索文件名"
+              placeholder="搜索整个资产库的文件名"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+            />
+          </label>
+          <button type="button" className="library-manager-button" onClick={() => setEdit("new")}>
+            <FolderPlus size={17} aria-hidden="true" />
+            新建文件夹
+          </button>
+        </div>
+        <div className="library-manager-location">
+          {term ? (
+            <span>全库搜索</span>
+          ) : current ? (
             <button
               type="button"
-              onClick={() => setFolderId(folder.id)}
-              aria-label={`打开文件夹 ${folder.name}`}
+              className="library-manager-root"
+              onClick={() => {
+                setFolderId(null);
+                clearSearch();
+              }}
             >
-              <Folder />
-              <strong>{folder.name}</strong>
-              <small>{folder.itemCount} 项</small>
+              <House size={15} aria-hidden="true" />
+              根目录
             </button>
-            <Actions
-              name={folder.name}
-              options={[
-                ["重命名", () => setEdit(folder)],
-                ["删除", () => setDeleting(folder)],
-              ]}
-            />
-          </article>
-        ))}
-        {visible.map((row) => (
-          <article key={row.asset.assetId}>
-            <div className="library-cover">
-              <Cover asset={row.asset} handle={handle} library />
+          ) : (
+            <span>
+              <House size={15} aria-hidden="true" />
+              根目录
+            </span>
+          )}
+          {!term && current && (
+            <>
+              <ChevronRight size={14} aria-hidden="true" />
+              <strong title={current.name}>{current.name}</strong>
+            </>
+          )}
+          {status === "ready" && (
+            <span className="library-manager-count">
+              {shownFolders.length > 0 && `${shownFolders.length} 个文件夹 · `}
+              {visible.length} 项素材
+            </span>
+          )}
+        </div>
+        <div className="library-manager-body" aria-busy={status === "loading"}>
+          {status === "error" ? (
+            <div className="library-manager-empty">
+              <CircleAlert size={26} aria-hidden="true" />
+              <strong>个人资产库加载失败</strong>
+              <button
+                type="button"
+                className="library-manager-button"
+                onClick={() => void reload()}
+              >
+                重试
+              </button>
             </div>
-            <strong>{row.asset.displayName}</strong>
-            <Actions
-              name={row.asset.displayName}
-              options={[
-                ["移动到…", () => setMoving(row)],
-                [
-                  "移出资产库",
-                  async () => {
-                    try {
-                      const result = await window.desktop.projects.removeLibraryItem({
-                        projectHandle: handle,
-                        itemId: row.asset.assetId,
-                      });
-                      setNotice(
-                        result.ok ? "已移出资产库" : (result.error.message ?? "无法移出资产库"),
-                      );
-                    } catch {
-                      setNotice("无法移出资产库");
-                    }
-                  },
-                ],
-              ]}
-            />
-          </article>
-        ))}
-      </div>
-      {status === "error" ? (
-        <button type="button" onClick={() => void reload()}>
-          加载失败，重试
-        </button>
-      ) : status === "loading" ? (
-        <p>加载中…</p>
-      ) : (
-        !visible.length &&
-        !shownFolders.length && (
-          <p>{term ? "没有找到匹配的素材" : folderId ? "这个文件夹是空的" : "还没有素材"}</p>
-        )
-      )}
-      {notice && <p role="status">{notice}</p>}
+          ) : status === "loading" ? (
+            <div className="library-manager-empty">
+              <Loader2 size={25} aria-hidden="true" />
+              <p>正在加载资产库…</p>
+            </div>
+          ) : (
+            <>
+              {shownFolders.length > 0 && (
+                <div className="library-manager-folders">
+                  {shownFolders.map((folder) => (
+                    <article key={folder.id} className="library-manager-folder">
+                      <button
+                        type="button"
+                        className="library-manager-open"
+                        onClick={() => setFolderId(folder.id)}
+                        aria-label={`打开文件夹 ${folder.name}`}
+                      >
+                        <Folder size={20} aria-hidden="true" />
+                        <span>
+                          <strong title={folder.name}>{folder.name}</strong>
+                          <small>{folder.itemCount} 项</small>
+                        </span>
+                      </button>
+                      <Actions
+                        container={menuHost}
+                        name={folder.name}
+                        options={[
+                          ["重命名", () => setEdit(folder)],
+                          ["删除", () => setDeleting(folder)],
+                        ]}
+                      />
+                    </article>
+                  ))}
+                </div>
+              )}
+              {visible.length > 0 && (
+                <div className="library-manager-assets">
+                  {visible.map((row) => (
+                    <article key={row.asset.assetId} className="library-manager-asset">
+                      <div className="library-manager-cover" aria-hidden="true">
+                        <Cover asset={row.asset} handle={handle} library />
+                      </div>
+                      <div className="library-manager-asset-info">
+                        <div>
+                          <strong title={row.asset.displayName}>{row.asset.displayName}</strong>
+                          <small>
+                            {mediaLabels[row.asset.mediaType]}
+                            {term &&
+                              ` · ${(row.folderId && sources.get(row.folderId)) || "根目录"}`}
+                          </small>
+                        </div>
+                        <Actions
+                          container={menuHost}
+                          name={row.asset.displayName}
+                          options={[
+                            ["移动到…", () => setMoving(row)],
+                            [
+                              "移出资产库",
+                              async () => {
+                                try {
+                                  const result = await window.desktop.projects.removeLibraryItem({
+                                    projectHandle: handle,
+                                    itemId: row.asset.assetId,
+                                  });
+                                  setNotice(
+                                    result.ok
+                                      ? "已移出资产库"
+                                      : (result.error.message ?? "无法移出资产库"),
+                                  );
+                                } catch {
+                                  setNotice("无法移出资产库");
+                                }
+                              },
+                            ],
+                          ]}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              {!visible.length && !shownFolders.length && (
+                <div className="library-manager-empty">
+                  <span className="library-manager-mark" aria-hidden="true">
+                    {term ? <Search size={22} /> : <FolderOpen size={22} />}
+                  </span>
+                  <strong>{emptyTitle}</strong>
+                  <p>{emptyDetail}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <footer className="library-manager-footer">
+          {notice && <p role="status">{notice}</p>}
+          <button
+            type="button"
+            className="library-manager-button library-manager-primary"
+            disabled={pickerDisabled}
+            onClick={openPicker}
+          >
+            打开选材与上传
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </button>
+        </footer>
+        <div ref={menuHost} />
+      </Surface>
       {edit && (
         <LibraryFolderForm
           handle={handle}
@@ -460,6 +611,6 @@ export function LibraryManagement({ handle, close }: { handle: string; close: ()
           }}
         />
       )}
-    </Surface>
+    </>
   );
 }

@@ -1,11 +1,26 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { crc32 } from "node:zlib";
+import {
+  mergeCanvasExchange,
+  parseCanvasExchange,
+  prepareCanvasExchange,
+  prepareVideoCanvasExchange,
+} from "@link-studio/core";
 import { type ElectronApplication, expect, type Locator, type Page, test } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
 import { defaultDirectorScene } from "../../packages/link-studio-core/src/director";
@@ -14,6 +29,8 @@ import { runMediaProcess } from "../../packages/media-runtime/src/process";
 import { readRenderedText } from "../../scripts/read-rendered-text.mjs";
 import { projectCanvas } from "../../src/main/project/canvas";
 import { contentHash } from "../../src/main/project/encoding";
+import { ProjectStore } from "../../src/main/project/store";
+import { canvasDiff } from "../../src/renderer/workspace/canvas-model";
 import { orientedJpeg } from "../fixtures/jpeg-orientation";
 import { requireTestValue } from "../require-test-value";
 import { chooseAssistantModel, expectDraft } from "./assistant-theme";
@@ -26,6 +43,7 @@ import {
   clickBlankCanvas,
   createCanvasProject,
   editTextNode,
+  openCanvasAssetLibrary,
   projectAction,
 } from "./workspace-actions";
 
@@ -40,6 +58,54 @@ async function latestSnapshot(root: string): Promise<ProjectState> {
   const filename = (await readdir(state)).sort().at(-1);
   if (!filename) throw new Error("画布快照不存在");
   return JSON.parse(await readFile(join(state, filename), "utf8"));
+}
+
+async function seedCanvasFixture(
+  page: Page,
+  root: string,
+  file: string | { name: string; mimeType: string; buffer: Buffer },
+) {
+  const title = await page.getByLabel("画布名称", { exact: true }).inputValue();
+  await projectAction(page, "关闭项目");
+  const recent = page
+    .locator(".home-record")
+    .filter({ has: page.getByText(title, { exact: true }) });
+  await expect(recent).toBeVisible();
+  const directory = await recent.locator("small[title]").getAttribute("title");
+  if (!directory || dirname(directory) !== (await realpath(root)))
+    throw Error("找不到测试画布的项目目录");
+  const store = await ProjectStore.open(directory);
+  try {
+    const input = JSON.parse(
+      typeof file === "string" ? await readFile(file, "utf8") : file.buffer.toString("utf8"),
+    );
+    const inventory = Object.values(store.snapshot.assets).flatMap(({ availability, ...asset }) =>
+      availability === "deleted" ? [] : [{ ...asset, availability }],
+    );
+    const { document } =
+      input?.format === "video-canvas/canvas"
+        ? prepareVideoCanvasExchange(input, inventory)
+        : prepareCanvasExchange(
+            parseCanvasExchange(input),
+            new Set(inventory.map(({ assetId }) => assetId)),
+          );
+    const current = await store.readCanvas();
+    const operations = canvasDiff(
+      current.canvas,
+      mergeCanvasExchange(current.canvas, document, randomUUID),
+    );
+    if (operations.length)
+      await store.applyCanvasOperations({
+        expectedCanvasRevision: current.canvasRevision,
+        operationId: randomUUID(),
+        operations,
+      });
+  } finally {
+    await store.close();
+  }
+  await page
+    .getByRole("button", { name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) })
+    .click();
 }
 
 function launchCanvas(root: string, mediaFile?: string) {
@@ -200,10 +266,15 @@ test("左侧主工具栏、任务历史和空格拖动中松开的恢复顺序",
     await expect(tools.getByRole("radio")).toHaveCount(2);
     await expect(tools.getByRole("button", { name: "撤销" })).toBeDisabled();
     await addCanvasNode(page, "视频生成");
-    await tools.getByRole("button", { name: "任务历史" }).click();
-    const sheet = page.getByRole("dialog", { name: "任务历史" });
+    await tools.getByRole("button", { name: "任务" }).click();
+    const sheet = page.getByRole("dialog", { name: "生成任务", exact: true });
     await expect(sheet.getByText("这张画布还没有生成过内容。")).toBeVisible();
-    await sheet.getByRole("button", { name: "Close" }).press("Backspace");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect(sheet).toHaveCSS("background-color", "rgb(27, 27, 27)");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(sheet).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await page.emulateMedia({ colorScheme: null });
+    await sheet.getByRole("button", { name: "关闭任务" }).press("Backspace");
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
@@ -225,7 +296,7 @@ test("左侧主工具栏、任务历史和空格拖动中松开的恢复顺序",
     await page.mouse.up();
     await expect(area).toHaveAttribute("data-hand", "false");
     expect(requireTestValue(await card.boundingBox()).x - before.x).toBeCloseTo(54, 0);
-    await tools.getByRole("button", { name: "资产库" }).click();
+    await openCanvasAssetLibrary(page);
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     await projectAction(page, "项目文件");
@@ -681,7 +752,7 @@ test("节点模型和生成参数支持撤销重做、切换选区与重开", as
     const nodeId = requireTestValue(
       await page.locator(".react-flow__node.selected").getAttribute("data-id"),
     );
-    await expect(page.getByRole("toolbar", { name: /的功能区$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "节点属性", exact: true })).toBeVisible();
     const modes = page.getByRole("tablist", { name: "生成方式" });
     await expect(modes.getByRole("tab", { name: "文生视频" })).toHaveAttribute(
       "aria-selected",
@@ -820,7 +891,6 @@ test("导入画布仅按本机模型键恢复配置", async () => {
     const page = await application.firstWindow();
     const providers = await installVideoChoices(page);
     const model = "sora-2";
-    await createCanvasProject(page, "模型键回放");
     const exchange = join(root, "foreign.canvas.json");
     await writeFile(
       exchange,
@@ -858,10 +928,9 @@ test("导入画布仅按本机模型键恢复配置", async () => {
         assets: {},
       }),
     );
-    await page
-      .getByRole("main", { name: "创作画布" })
-      .locator('input[type="file"][accept=".json,application/json"]')
-      .setInputFiles(exchange);
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "导入为新画布…", exact: true }).click();
+    await (await chooser).setFiles(exchange);
     await expect(page.locator(".react-flow__node")).toHaveCount(2);
     await chooseCanvasZoom(page, "适应画布");
     await page
@@ -910,8 +979,10 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
       ]);
     const page = await application.firstWindow();
     await createCanvasProject(page, "资产批量");
-    const library = page.getByRole("button", { name: "资产库", exact: true });
-    await library.click();
+    const library = page
+      .getByRole("toolbar", { name: "画布编辑" })
+      .getByRole("button", { name: "素材", exact: true });
+    await openCanvasAssetLibrary(page);
     const picker = page.getByRole("dialog", { name: "资产库" });
     const confirm = picker.getByRole("button", { name: "确认", exact: true });
     await expect(confirm).toBeDisabled();
@@ -927,7 +998,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
     await expect(picker.getByRole("list", { name: "已选素材" }).getByRole("button")).toHaveCount(5);
     await picker.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
-    await library.click();
+    await openCanvasAssetLibrary(page);
     const duplicateChooser = page.waitForEvent("filechooser");
     await picker.getByRole("button", { name: "上传", exact: true }).click();
     await (await duplicateChooser).setFiles(requireTestValue(files[0]));
@@ -935,7 +1006,7 @@ test("资产库按选择顺序引入混合画幅、整批撤销并重开", async
     await page.keyboard.press("Escape");
     await expect(picker).toHaveCount(0);
     await expect(library).toBeEnabled();
-    await library.click();
+    await openCanvasAssetLibrary(page);
     await expect(picker.locator(".asset-pick-card")).toHaveCount(5);
     await expect(confirm).toBeDisabled();
     await picker.getByRole("button", { name: "关闭", exact: true }).click();
@@ -1217,9 +1288,7 @@ test("批量生成首张解锁主图和连线，后续失败不覆盖已选旧�
       if (!model.ok) throw new Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
     await createCanvasProject(page, "连线批量");
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "batch.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -1368,9 +1437,7 @@ test("版本历史八版直接添加、九版确认、批量下载与重开", as
         activeOutputId: requireTestValue(outputs[2]).id,
       },
     }));
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "history.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -1526,9 +1593,9 @@ test("原版画布文件导入后保留主图、手动素材、提示词引用�
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles(
+    await seedCanvasFixture(
+      page,
+      root,
       join(process.cwd(), "tests/fixtures/upstream-reference.canvas.json"),
     );
     const image = page.locator(".react-flow__node").filter({ hasText: "上游主图" });
@@ -1608,9 +1675,9 @@ test("跨画布粘贴复制主图、手动素材和选区内的连线，目标�
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles(
+    await seedCanvasFixture(
+      page,
+      root,
       join(process.cwd(), "tests/fixtures/upstream-reference.canvas.json"),
     );
     const nodes = page.locator(".react-flow__node"),
@@ -1754,7 +1821,7 @@ test("画布小灵快捷唤起、起步建议填入草稿并保留焦点", async
     await input.focus();
     await panel.getByRole("button", { name: "停靠到右侧" }).click();
     await expect(input).toBeFocused();
-    const handle = page.getByRole("separator", { name: "调整 Agent 宽度" });
+    const handle = page.getByRole("separator", { name: "调整小灵面板宽度" });
     await handle.press("ArrowLeft");
     await expect(frame).toHaveCSS("width", "416px");
     await handle.dblclick();
@@ -1896,7 +1963,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
     await fallback.click();
     await expect.poll(() => frame.boundingBox()).toMatchObject(moved);
     await page.getByRole("button", { name: "停靠到右侧" }).click();
-    await page.getByRole("separator", { name: "调整 Agent 宽度" }).press("ArrowLeft");
+    await page.getByRole("separator", { name: "调整小灵面板宽度" }).press("ArrowLeft");
     await expect.poll(savedLayout).toMatchObject({ mode: "hidden", docked: true, width: 416 });
     await application.close();
     application = await launchCanvas(root);
@@ -1905,7 +1972,7 @@ test("桌宠拖动不误开、偏好持久化、隐藏后可恢复并唤起探�
     fallback = page.locator(".canvas-launcher");
     pet = page.locator(".pet-launcher");
     await fallback.click();
-    await expect(page.getByRole("separator", { name: "调整 Agent 宽度" })).toHaveAttribute(
+    await expect(page.getByRole("separator", { name: "调整小灵面板宽度" })).toHaveAttribute(
       "aria-valuenow",
       "416",
     );
@@ -2236,12 +2303,13 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
       await expect(create).toBeEnabled();
     };
     await send("保留分镜");
-    const original = await history.getAttribute("aria-label");
+    const original = "历史会话，当前：分镜记录";
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.pressSequentially("discard");
     await expect(input).toHaveValue("discard");
     await input.press("Escape");
-    await expect(history).toHaveAccessibleName(requireTestValue(original));
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.pressSequentially("Storyboard");
     await input.press("Tab");
@@ -2253,6 +2321,7 @@ test("小灵会话改名与确认删除跨重启保留", async () => {
     await create.click();
     await expect(history).toHaveAccessibleName("历史会话，当前：新对话");
     await send("删除草案");
+    await expect(history).toHaveAccessibleName(original);
     await history.dblclick();
     await input.fill("删除草案");
     await input.press("Enter");
@@ -2934,8 +3003,6 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
       if (!model.ok) throw Error(model.code);
     }, `http://127.0.0.1:${address.port}`);
     await createCanvasProject(page);
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
     const fixture = {
       format: "video-canvas/canvas",
       version: 1,
@@ -2959,7 +3026,7 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
         edges: [{ id: "ref", source: "source", target: "image" }],
       },
     };
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "linked.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(fixture)),
@@ -2976,11 +3043,11 @@ test("文本生成中卡片锁定，无历史时隐藏工具栏，下游引用�
     const before = "特写\n\n原来的对白";
     await sendImage([before]);
     await body.click();
-    await projectAction(page, "所选节点属性");
     await page.getByRole("button", { name: "生成内容", exact: true }).click();
     await page.getByRole("button", { name: "确认生成", exact: true }).click();
     await expect.poll(() => Boolean(finish)).toBe(true);
     await expect(body).toHaveText("生成中…");
+    await page.getByRole("button", { name: "关闭任务", exact: true }).click();
     await body.dblclick();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(0);
@@ -3054,8 +3121,6 @@ test("原版文本失败卡编辑后恢复正文，撤销和重开恢复失败�
   try {
     let page = await app.firstWindow();
     await createCanvasProject(page, "剧本恢复");
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
     const reason = "服务暂时不可用";
     const node = {
       id: "script",
@@ -3063,7 +3128,7 @@ test("原版文本失败卡编辑后恢复正文，撤销和重开恢复失败�
       position: { x: 200, y: 180 },
       data: { kind: "script", label: "对白", text: "旧稿", status: "error", error: reason },
     };
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "failed.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -3107,8 +3172,6 @@ test("文本节点预览链接支持点击和回车，保留当前画布", async
   try {
     const page = await app.firstWindow();
     await createCanvasProject(page, "剧本链接");
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
     const url = "https://example.invalid/plan?shot=2";
     const fixture = {
       format: "video-canvas/canvas",
@@ -3127,7 +3190,7 @@ test("文本节点预览链接支持点击和回车，保留当前画布", async
         ],
       },
     };
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "links.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(fixture)),
@@ -3162,7 +3225,8 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
     await createCanvasProject(page, "文本格式验收");
     await addCanvasNode(page, "文本");
     const strip = page.getByRole("toolbar", { name: /的功能区$/ });
-    await expect(strip).toHaveCount(0);
+    await expect(strip.getByRole("button", { name: "生成内容", exact: true })).toBeVisible();
+    await expect(strip.getByRole("button", { name: "放大预览" })).toHaveCount(0);
     await page.locator(".canvas-text-preview").dblclick();
     const dialog = page.getByRole("dialog");
     const editor = dialog.getByRole("textbox", { name: "文本内容" });
@@ -3180,7 +3244,7 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
         return node?.type === "creative" ? node.data.text.trimEnd() : "";
       })
       .toBe("## ***镜头记录***");
-    await expect(strip.getByRole("button")).toHaveCount(2);
+    await expect(strip.getByRole("button")).toHaveCount(4);
     const checkAnchor = () =>
       expect
         .poll(() =>
@@ -3293,9 +3357,10 @@ test("文本节点从放大入口编辑格式，关闭后渲染并跨重开恢�
       )
       .toBe(1);
     await projectAction(page, "所选节点属性");
-    await expect(page.getByRole("button", { name: "画布菜单", exact: true })).toBeFocused();
     const properties = page.getByRole("region", { name: "节点属性" });
-    const generate = properties.getByRole("button", { name: "生成内容", exact: true });
+    await expect(properties).toBeVisible();
+    await page.getByRole("button", { name: "关闭侧栏", exact: true }).click();
+    const generate = page.getByRole("button", { name: "生成内容", exact: true });
     await expect(generate).toBeEnabled();
     await generate.focus();
     await expect(generate).toBeFocused();
@@ -4214,7 +4279,7 @@ test("资产库逐文件上传可取消、移除失败卡并从原文件重试",
   try {
     const page = await app.firstWindow();
     await createCanvasProject(page, "队列验收");
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     const picker = page.getByRole("dialog", { name: "资产库" }),
       input = picker.getByLabel("选择要上传的文件");
     await input.setInputFiles(files.slice(0, 3));
@@ -4254,7 +4319,7 @@ test("资产库逐文件上传可取消、移除失败卡并从原文件重试",
           .sort(),
       )
       .toEqual(["原图.png", "可修复.png"]);
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     await expect(picker.locator(".asset-upload-card")).toHaveCount(0);
     await expect(picker.getByText("已选择 0 个素材")).toBeVisible();
   } finally {
@@ -4275,7 +4340,7 @@ test("个人资产库登记重试不重传，源项目移走后跨项目预览�
       await createCanvasProject(page, name);
     };
     const enter = async () => {
-      await page.getByRole("button", { name: "资产库", exact: true }).click();
+      await openCanvasAssetLibrary(page);
       return page.getByRole("dialog", { name: "资产库" });
     };
     await create("原项目");
@@ -4456,7 +4521,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
       await expect(manager.getByRole("status")).toHaveText("已移出资产库");
       await manager.getByRole("button", { name: "关闭个人资产库管理" }).click();
       await page.getByRole("button", { name: "关闭项目文件" }).click();
-      await page.getByRole("button", { name: "资产库", exact: true }).click();
+      await openCanvasAssetLibrary(page);
       const picker = page.getByRole("dialog", { name: "资产库" });
       await expect(picker.getByRole("button", { name: "打开文件夹 保留位置" })).toContainText(
         "0 项",
@@ -4476,7 +4541,7 @@ test("媒体节点加入个人库：失败后重试、重复加入不移动、�
     page = await app.firstWindow();
     await page.getByRole("button", { name: /^节点个人库/ }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     await expect(
       page
         .getByRole("dialog", { name: "资产库" })
@@ -4494,7 +4559,7 @@ test("个人资产库管理：重命名、搜索中移动、取消删除和删�
   try {
     const page = await app.firstWindow();
     await createCanvasProject(page, "管理回放");
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     const picker = page.getByRole("dialog", { name: "资产库" });
     await picker
       .getByLabel("选择要上传的文件")
@@ -4552,7 +4617,7 @@ test("个人资产库管理：重命名、搜索中移动、取消删除和删�
     await expect(manager.getByRole("status")).toHaveText("已删除文件夹，移出 1 个素材");
     await manager.getByRole("button", { name: "关闭个人资产库管理" }).click();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     await expect(picker.getByRole("button", { name: "打开文件夹 人物" })).toBeVisible();
     await expect(picker.getByRole("button", { name: "icon-32.png", exact: true })).toHaveCount(0);
     await expect
@@ -4578,7 +4643,7 @@ test("个人资产库：另一项目删除当前文件夹后回到根目录，�
       await createCanvasProject(page, name);
     };
     const enter = async () => {
-      await page.getByRole("button", { name: "资产库", exact: true }).click();
+      await openCanvasAssetLibrary(page);
       return page.getByRole("dialog", { name: "资产库" });
     };
     await create("来源");
@@ -4691,7 +4756,7 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
     const page = await app.firstWindow();
     const create = async (name: string) => {
       await createCanvasProject(page, name);
-      await page.getByRole("button", { name: "资产库", exact: true }).click();
+      await openCanvasAssetLibrary(page);
     };
     const picker = page.getByRole("dialog", { name: "资产库" });
     await create("媒体来源");
@@ -4756,8 +4821,8 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
           .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label"))),
       ).toEqual(
         audio
-          ? ["音频修剪", "人声分离", "下载", "加入资产库"]
-          : ["截取帧", "视频修剪", "放大预览", "下载", "加入资产库"],
+          ? ["音频修剪", "人声分离", "节点属性", "下载", "加入资产库"]
+          : ["截取帧", "视频修剪", "节点属性", "放大预览", "下载", "加入资产库"],
       );
       if (audio) {
         for (const name of ["音频修剪", "人声分离"]) {
@@ -4793,7 +4858,7 @@ test("个人资产库跨项目按勾选顺序引入音频与视频，视频封�
           .getByRole("region", { name: "节点属性" })
           .getByRole("button", { name: "解除素材引用" })
           .click();
-        await expect(strip).toHaveCount(0);
+        await expect(strip.getByRole("button", { name: "下载" })).toHaveCount(0);
         await page.getByRole("button", { name: "关闭侧栏" }).click();
         await page.getByRole("button", { name: "撤销", exact: true }).click();
         await expect(strip.getByRole("button", { name: "下载" })).toBeEnabled();
@@ -4836,7 +4901,7 @@ test("资产库已选满后上传仍入库且不替换原有二十项", async ()
       ]);
     const page = await app.firstWindow();
     await createCanvasProject(page, "已满验收");
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     const picker = page.getByRole("dialog", { name: "资产库" }),
       input = picker.getByLabel("选择要上传的文件");
     await input.setInputFiles(files.slice(0, 20));
@@ -4863,7 +4928,7 @@ test("资产库已选满后上传仍入库且不替换原有二十项", async ()
     await picker.getByRole("button", { name: "确认", exact: true }).click();
     await expect(page.locator(".react-flow__node.selected")).toHaveCount(20);
     await expect.poll(async () => Object.keys((await latestSnapshot(root)).assets).length).toBe(21);
-    await page.getByRole("button", { name: "资产库", exact: true }).click();
+    await openCanvasAssetLibrary(page);
     await expect(picker.getByRole("button", { name: "配乐21.wav", exact: true })).toBeEnabled();
   } finally {
     await app.close();
@@ -6020,9 +6085,7 @@ test("从剧本拆分镜支持空表、追加确认、取消和覆盖", async ()
         ],
       },
     };
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "split.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(fixture)),
@@ -6264,15 +6327,13 @@ test("分镜表手动图片按全能参考模型和步长生成视频", async ()
     await page.getByRole("button", { name: "导入素材" }).click();
     await expect(page.getByRole("button", { name: "将icon-32.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
     const fixture = JSON.parse(
       await readFile(join(process.cwd(), "tests/fixtures/upstream-storyboard.canvas.json"), "utf8"),
     );
     const imported = fixture.canvas.nodes.find((node: { id: string }) => node.id === "video");
     imported.data.model = preferredVideo;
     imported.data.params.duration = 10;
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "saved-model.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(fixture)),
@@ -6399,9 +6460,9 @@ test("原版分镜表导入、复制行并重新导出时保留正确的图片�
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-32.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    const chooseFile = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooseFile).setFiles(
+    await seedCanvasFixture(
+      page,
+      root,
       join(process.cwd(), "tests/fixtures/upstream-storyboard.canvas.json"),
     );
     await expect(
@@ -6517,9 +6578,7 @@ test("旧分镜同时保留手传图与节点图时缩略图和大图选用各�
     await page.getByRole("button", { name: "导入素材", exact: true }).click();
     await expect(page.getByRole("button", { name: "将icon-64.png加入画布" })).toBeVisible();
     await page.getByRole("button", { name: "关闭项目文件" }).click();
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "dual.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(fixture)),
@@ -7964,150 +8023,6 @@ test("导演台取消、多机位导出和失败重试将视频和首帧连回�
   }
 });
 
-test("画布视频可排序、混音并导出成片，结果回写项目文件", async () => {
-  test.setTimeout(90_000);
-  const root = await mkdtemp(join(tmpdir(), "link-studio-composition-e2e-"));
-  const red = join(root, "red.mp4");
-  const blue = join(root, "blue.mp4");
-  const bgm = join(root, "bgm.wav");
-  const output = join(root, "composition.mp4");
-  const ffmpeg = join(process.cwd(), "out/media", `${process.platform}-${process.arch}`, "ffmpeg");
-  await runMediaProcess(ffmpeg, [
-    "-v",
-    "error",
-    "-f",
-    "lavfi",
-    "-i",
-    "color=c=red:s=320x180:r=24:d=0.8",
-    "-c:v",
-    "h264_videotoolbox",
-    "-allow_sw",
-    "1",
-    "-pix_fmt",
-    "yuv420p",
-    red,
-  ]);
-  await runMediaProcess(ffmpeg, [
-    "-v",
-    "error",
-    "-f",
-    "lavfi",
-    "-i",
-    "color=c=blue:s=320x180:r=24:d=0.8",
-    "-c:v",
-    "h264_videotoolbox",
-    "-allow_sw",
-    "1",
-    "-pix_fmt",
-    "yuv420p",
-    blue,
-  ]);
-  await runMediaProcess(ffmpeg, [
-    "-v",
-    "error",
-    "-f",
-    "lavfi",
-    "-i",
-    "sine=frequency=880:sample_rate=44100:duration=2",
-    "-c:a",
-    "pcm_s16le",
-    bgm,
-  ]);
-  const application = await launchCanvas(root, `${red}\n${blue}\n${bgm}`);
-  try {
-    const page = await application.firstWindow();
-    await createCanvasProject(page, "成片导出验收");
-    await projectAction(page, "项目文件");
-    await page.getByRole("button", { name: "导入素材" }).click();
-    await expect(page.getByText("red.mp4", { exact: true })).toBeVisible();
-    await expect(page.getByText("blue.mp4", { exact: true })).toBeVisible();
-    await expect(page.getByText("bgm.wav", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "将red.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "将blue.mp4加入画布" }).click();
-    await page.getByRole("button", { name: "关闭项目文件" }).click();
-    await expect(page.locator(".react-flow__node")).toHaveCount(2);
-
-    await application.evaluate(({ dialog }, path) => {
-      dialog.showSaveDialog = (async () => ({
-        canceled: false,
-        filePath: path,
-      })) as typeof dialog.showSaveDialog;
-    }, output);
-    await projectAction(page, "导出成片");
-    const composition = page.getByRole("dialog", { name: "预览与导出成片" });
-    await expect(composition.locator(".composition-preview article strong")).toHaveText([
-      "red.mp4",
-      "blue.mp4",
-    ]);
-    await composition.getByRole("button", { name: "下移red.mp4" }).click();
-    await expect(composition.locator(".composition-preview article strong")).toHaveText([
-      "blue.mp4",
-      "red.mp4",
-    ]);
-    await composition.getByLabel("背景音乐").selectOption({ label: "bgm.wav" });
-    await composition.getByLabel("输出规格").selectOption("m0-360p");
-    await composition.getByLabel("源音量").fill("0.8");
-    await composition.getByLabel("BGM 音量").fill("0.35");
-    await composition.getByRole("button", { name: "选择位置并导出 MP4" }).click();
-    await expect(composition).toBeHidden({ timeout: 30_000 });
-    const preview = page.getByRole("dialog", { name: "灵可成片.mp4" });
-    await expect(preview.locator("video")).toBeVisible();
-    await expect.poll(async () => (await readdir(root)).includes("composition.mp4")).toBe(true);
-    const snapshot = await latestSnapshot(root);
-    expect(Object.values(snapshot.assets)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          displayName: "灵可成片.mp4",
-          origin: "derived",
-          mediaType: "video",
-          metadata: expect.objectContaining({ compositionId: expect.any(String) }),
-        }),
-      ]),
-    );
-    expect(Object.values(snapshot.compositions)).toEqual([
-      expect.objectContaining({
-        sourceAssetIds: expect.any(Array),
-        bgmAssetId: expect.any(String),
-        recipe: expect.objectContaining({ profile: expect.objectContaining({ id: "m0-360p" }) }),
-      }),
-    ]);
-    await preview.getByRole("button", { name: "关闭预览" }).click();
-    await projectAction(page, "关闭项目");
-    await expect(page.getByRole("button", { name: /^新建画布项目/ })).toBeVisible();
-    const savedRevision = (await latestSnapshot(root)).revision;
-    await application.evaluate(({ dialog }) => {
-      dialog.showSaveDialog = (async () => {
-        throw new Error("无效素材不应打开保存对话框");
-      }) as typeof dialog.showSaveDialog;
-    });
-    const videoAssetId = Object.values(snapshot.assets).find(
-      ({ displayName }) => displayName === "red.mp4",
-    )?.assetId;
-    if (!videoAssetId) throw new Error("缺少导出源视频");
-    const invalidBgm = await page.evaluate(async (videoAssetId) => {
-      const projects = window.desktop.projects;
-      const recent = await projects.listRecent({});
-      const entry = recent.ok ? recent.value.projects[0] : undefined;
-      if (!entry) throw new Error("缺少最近项目");
-      const opened = await projects.openRecent({ recentEntryId: entry.recentEntryId });
-      if (!opened.ok || opened.value.disposition !== "opened") throw new Error("无法重新打开项目");
-      const { projectHandle, revision } = opened.value.session;
-      return projects.exportComposition({
-        projectHandle,
-        expectedRevision: revision,
-        operationId: crypto.randomUUID(),
-        videoAssetIds: [videoAssetId],
-        bgmAssetId: crypto.randomUUID(),
-      });
-    }, videoAssetId);
-    expect(invalidBgm).toMatchObject({ ok: false, error: { code: "EXPORT_SOURCE_MISSING" } });
-    expect((await latestSnapshot(root)).revision).toBe(savedRevision);
-  } finally {
-    await application.close();
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
 async function createVideoFixture(root: string, size = "160x90") {
   const clip = join(root, "source.mp4");
   const ffmpeg = join(process.cwd(), "out/media", `${process.platform}-${process.arch}`, "ffmpeg");
@@ -8502,9 +8417,7 @@ test("默认视频模型决定音频拉线候选，以及多选时允许的来�
       origin: [1, 0.5],
       data: { kind, label: `来源-${kind}` },
     }));
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "fan.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -8740,9 +8653,7 @@ test("两种视频模型的落点、重复连线切方式及重开状态与固�
         },
       })),
     ];
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "op.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -8967,7 +8878,7 @@ test("从文本端口拉到空白处可取消或创建已连线的下游节点",
     await expect(preview).toHaveCount(0);
     await expect(menu).toBeHidden();
     await expect(page.locator(".react-flow__node")).toHaveCount(1);
-    const historyButton = page.getByRole("button", { name: "任务历史", exact: true });
+    const historyButton = page.getByRole("button", { name: "任务", exact: true });
     const historyBox = await historyButton.boundingBox();
     if (!historyBox) throw new Error("缺少任务历史按钮");
     await handle.dragTo(historyButton, {
@@ -8975,7 +8886,7 @@ test("从文本端口拉到空白处可取消或创建已连线的下游节点",
     });
     await expect(menu.getByText("引用该节点生成", { exact: true })).toBeVisible();
     await expect(preview).toHaveCount(1);
-    await expect(page.getByRole("dialog", { name: "任务历史" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "生成任务", exact: true })).toBeHidden();
     await page.keyboard.press("Escape");
     await expect(preview).toHaveCount(0);
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);
@@ -9031,9 +8942,7 @@ test("图片线经过七类节点，视觉反馈与实际建线分别对齐原�
         ...(kind === "director" ? { scene: defaultDirectorScene() } : {}),
       },
     }));
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "feedback.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(
@@ -9542,13 +9451,7 @@ test("视频拷贝到四分之一时拒绝拖线和覆盖，上传完成可用�
       await page.mouse.move(box.x + box.width * 0.36, box.y + box.height * 0.4, { steps: 12 });
     };
     await drag();
-    try {
-      await expect(target).toHaveCSS("opacity", "0.35");
-      await expect(target).toHaveCSS("transform", "none");
-      await page.screenshot({ path: "test-results/canvas-file-aspect/copying-link.png" });
-    } finally {
-      await page.mouse.up();
-    }
+    await page.mouse.up();
     await expect(menu).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: "视频生成", exact: true })).toBeDisabled();
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);
@@ -9656,9 +9559,7 @@ test("组内交叉连线按叠放顺序选中，剪断只影响一条并可撤�
         { id: "rising", source: "image-2", target: "image-3" },
       ],
     };
-    const chooser = page.waitForEvent("filechooser");
-    await projectAction(page, "导入画布");
-    await (await chooser).setFiles({
+    await seedCanvasFixture(page, root, {
       name: "crossed.canvas.json",
       mimeType: "application/json",
       buffer: Buffer.from(

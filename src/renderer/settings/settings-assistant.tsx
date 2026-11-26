@@ -17,6 +17,7 @@ import {
 } from "../../../packages/link-studio-core/src/settings-page-context";
 import { AssistantTimeline } from "../assistant/activity-timeline";
 import { approvalTimeline } from "../assistant/approval-timeline";
+import { AssistantContextChips as SettingsContextChips } from "../assistant/assistant-context-chips";
 import { AssistantModelState } from "../assistant/assistant-model-state";
 import {
   AssistantCompactionStatus,
@@ -42,7 +43,6 @@ import { AssistantQuestionnaire, QuestionRecord } from "../workspace/assistant-q
 import { ChangeDisposition, SettingsActionResult } from "./settings-action-result";
 import { ApprovalCard } from "./settings-change-card";
 import { isChangeReceipt, SettingsChangeResult } from "./settings-change-result";
-import { SettingsContextChips } from "./settings-context-chips";
 import { settingsError } from "./settings-page";
 
 function details(input: unknown): Record<string, unknown> {
@@ -572,7 +572,7 @@ export function SettingsAssistant({
             <SquarePen size={16} />
           </button>
           <AssistantPreferences />
-          <button type="button" aria-label="关闭设置助手" title="收起设置助手" onClick={close}>
+          <button type="button" aria-label="关闭设置小灵" title="收起设置小灵" onClick={close}>
             <Minus size={16} />
           </button>
         </div>

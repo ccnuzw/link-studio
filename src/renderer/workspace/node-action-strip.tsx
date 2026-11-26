@@ -11,6 +11,7 @@ import {
   PenLine,
   Replace,
   Scissors,
+  Settings2,
   Sparkle,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -103,6 +104,8 @@ type Props = {
   action: (id: StripAction) => void;
   frame: (choice: FrameChoice) => void;
   grid: (rows: number, columns: number) => void;
+  properties?: { open: boolean; toggle: () => void };
+  generate?: { disabled: boolean; open: () => void };
 };
 export function NodeActionStrip({
   kind,
@@ -114,8 +117,30 @@ export function NodeActionStrip({
   action,
   frame,
   grid,
+  properties,
+  generate,
 }: Props) {
-  if (kind !== "storyboard" && !ready && !history) return null;
+  const generateButton = generate && (
+    <button
+      type="button"
+      className="strip-text"
+      disabled={generate.disabled}
+      onClick={generate.open}
+    >
+      <Sparkle /> <span>生成内容</span>
+    </button>
+  );
+  if (kind !== "storyboard" && !ready && !history)
+    return properties || generate ? (
+      <div
+        className="node-action-strip nodrag nopan"
+        role="toolbar"
+        aria-label={`${label} 的功能区`}
+      >
+        {generateButton}
+        {properties && <NodePropertiesButton {...properties} />}
+      </div>
+    ) : null;
   const disabled = kind !== "storyboard" && (!ready || running);
   const tool = (id: StripAction, name: string, Icon: LucideIcon, paid = false, noRoom = false) => (
     <motion.button
@@ -187,6 +212,8 @@ export function NodeActionStrip({
         {kind !== "script" && kind !== "storyboard" && (
           <hr className="strip-separator" data-ui-divider aria-orientation="vertical" />
         )}
+        {generateButton}
+        {properties && <NodePropertiesButton {...properties} />}
         {kind === "script" && tail("copy", "复制文本", Copy)}
         {(kind === "script" || kind === "image" || kind === "video") &&
           tail("zoom", "放大预览", Maximize2)}
@@ -199,5 +226,19 @@ export function NodeActionStrip({
         )}
       </div>
     </Tooltip.Provider>
+  );
+}
+
+function NodePropertiesButton({ open, toggle }: { open: boolean; toggle: () => void }) {
+  return (
+    <button
+      type="button"
+      title="节点属性"
+      aria-label="节点属性"
+      aria-pressed={open}
+      onClick={toggle}
+    >
+      <Settings2 />
+    </button>
   );
 }
