@@ -2333,20 +2333,25 @@ test("短剧：粘贴剧本、读取分集、批准改写，回到画布不串�
     const timeline = page.getByRole("group", { name: "分镜时间线" });
     const shot = (seconds = 6) =>
       timeline.getByRole("button", { name: `片段 1，${seconds} 秒`, exact: true });
+    const storyboardJobs = page
+      .getByRole("region", { name: "短剧任务", exact: true })
+      .getByRole("article")
+      .filter({ has: page.getByText("分镜脚本", { exact: true }) });
     for (const attempt of ["invalid", "valid"] as const) {
       await expect(assistant.getByRole("status")).toHaveText("就绪");
       storyboardMode = attempt;
       const firstStage = stages.length;
+      const previousJobs = await storyboardJobs.count();
       jobTurn = 1;
       await assistant.getByLabel("短剧消息").fill("生成第一集分镜，片段最长八秒");
       await assistant.getByRole("button", { name: "发送", exact: true }).click();
       await expect(retryCard.getByRole("heading")).toHaveText("运行短剧任务：分镜脚本");
       await retryCard.getByRole("button", { name: "批准并运行 ✦ 14" }).click();
-      const job = page
-        .getByRole("region", { name: "短剧任务", exact: true })
-        .getByRole("article")
-        .filter({ has: page.getByText("分镜脚本", { exact: true }) });
-      await expect(job).toContainText(attempt === "valid" ? "已完成" : "失败");
+      await expect(storyboardJobs).toHaveCount(previousJobs + 1);
+      await expect(storyboardJobs.nth(previousJobs)).toHaveAttribute(
+        "data-status",
+        attempt === "valid" ? "succeeded" : "failed",
+      );
       await pickEpisode(page, 1);
       if (attempt === "valid") await expect(shot()).toHaveAttribute("title", /来客的信封/);
       else
